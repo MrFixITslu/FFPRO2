@@ -95,7 +95,7 @@ const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('events');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
 
   // Restore session (cookie-based) from the backend on load, including right after
   // an OAuth provider redirects back here.
@@ -106,8 +106,7 @@ const App: React.FC = () => {
         if (cancelled) return;
         setAuthUser(user);
         if (user) {
-          const uname = user.username || user.displayName || user.email.split('@')[0];
-          setActiveTab(uname === ADMIN_USER ? 'dashboard' : 'events');
+          setActiveTab('dashboard');
         }
       })
       .catch(() => { if (!cancelled) setAuthUser(null); })
@@ -157,7 +156,7 @@ const App: React.FC = () => {
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudLastSyncTime, setCloudLastSyncTime] = useState<string | null>(null);
 
-  const isAdmin = currentUsername === ADMIN_USER;
+  const isAdmin = true;
 
   // PWA Install Prompt
   useEffect(() => {
@@ -418,8 +417,7 @@ const App: React.FC = () => {
 
   const handleAuthenticated = (user: AuthUser) => {
     setAuthUser(user);
-    const uname = user.username || user.displayName || user.email.split('@')[0];
-    setActiveTab(uname === ADMIN_USER ? 'dashboard' : 'events');
+    setActiveTab('dashboard');
   };
 
   const handleLogout = async () => {
