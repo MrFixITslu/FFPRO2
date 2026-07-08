@@ -2,7 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-const DB_FILE = path.join(process.cwd(), 'database.json');
+const DB_FILE = process.env.DATABASE_FILE || path.join(process.cwd(), 'database.json');
+
+// Ensure parent directory exists
+const dir = path.dirname(DB_FILE);
+if (!fs.existsSync(dir)) {
+  fs.mkdirSync(dir, { recursive: true });
+}
 
 // Initialize database file if it doesn't exist
 if (!fs.existsSync(DB_FILE)) {

@@ -19,7 +19,12 @@ if (!process.env.SESSION_SECRET) {
 }
 
 if (!process.env.DATA_ENCRYPTION_KEY) {
-  const keyFile = path.join(process.cwd(), 'encryption.key');
+  const keyFile = process.env.ENCRYPTION_KEY_FILE || path.join(process.cwd(), 'encryption.key');
+  // Ensure parent directory exists
+  const keyDir = path.dirname(keyFile);
+  if (!fs.existsSync(keyDir)) {
+    fs.mkdirSync(keyDir, { recursive: true });
+  }
   if (fs.existsSync(keyFile)) {
     process.env.DATA_ENCRYPTION_KEY = fs.readFileSync(keyFile, 'utf8').trim();
     console.log('[server] Loaded persistent DATA_ENCRYPTION_KEY from encryption.key');

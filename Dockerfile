@@ -31,7 +31,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
 
 # Expose the internal container port (Must match our reverse-proxy target)
-EXPOSE 3005
+EXPOSE 3000
 
 # Start server using standard start command
 CMD ["npm", "run", "start"]

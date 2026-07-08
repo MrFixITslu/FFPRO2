@@ -7,35 +7,43 @@ services:
       dockerfile: Dockerfile
     container_name: fire-finance-app
     restart: unless-stopped
+    ports:
+      # Expose host port (default 3005) mapping to container port 3000. 
+      # Customize via APP_PORT in your .env file if needed.
+      - "${APP_PORT:-3005}:3000"
     networks:
       - proxy_network
     environment:
       - NODE_ENV=production
       
-      # Master Encryption Keys (Generate via: openssl rand -base64 32)
-      - SESSION_SECRET=your_secure_random_session_secret
-      - DATA_ENCRYPTION_KEY=HIkZlRRt5PSNy3mMxWi9TU6BaDXd0Ffe # Using secure 32-byte key for encryption
+      # Persist Database and Keys
+      - DATABASE_FILE=/app/data/database.json
+      - ENCRYPTION_KEY_FILE=/app/data/encryption.key
+      
+      # Master Encryption Keys (Will read from your server's .env file, or auto-generate on boot)
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
       
       # Gemini AI Integration
-      - GEMINI_API_KEY=your_gemini_api_key_here
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       
       # OAuth - Google Developer Portal
-      - GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-      - GOOGLE_CLIENT_SECRET=HIkZlRRt5PSNy3mMxWi9TU6BaDXd0Ffe
-      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/google/callback
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://199.223.249.193/api/auth/google/callback}
       
       # OAuth - Meta Developer Portal
-      - FACEBOOK_APP_ID=your_facebook_app_id
-      - FACEBOOK_APP_SECRET=KBWayw0Pa4sueusZSoNGDE1dWjf1FBYN
-      - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/facebook/callback
+      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
+      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
+      - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL:-http://199.223.249.193/api/auth/facebook/callback}
       
       # Base Application URLs
-      - FRONTEND_URL=https://ffpro.v79sl.duckdns.org
+      - FRONTEND_URL=${FRONTEND_URL:-http://199.223.249.193}
     volumes:
-      # Persistent local database file so you don't lose data on container upgrades
-      - ./database.json:/app/database.json
+      # Persistent local data directory for database and key persistence
+      - ./data:/app/data
 
 networks:
-  # Join your existing external Nginx proxy network
+  # Join your existing external Nginx/OpenResty proxy network
   proxy_network:
     external: true
