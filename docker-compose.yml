@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  fire-finance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fire-finance-app
+    restart: unless-stopped
+    networks:
+      - proxy_network
+    environment:
+      - NODE_ENV=production
+      
+      # Master Encryption Keys (Generate via: openssl rand -base64 32)
+      - SESSION_SECRET=your_secure_random_session_secret
+      - DATA_ENCRYPTION_KEY=HIkZlRRt5PSNy3mMxWi9TU6BaDXd0Ffe # Using secure 32-byte key for encryption
+      
+      # Gemini AI Integration
+      - GEMINI_API_KEY=your_gemini_api_key_here
+      
+      # OAuth - Google Developer Portal
+      - GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=HIkZlRRt5PSNy3mMxWi9TU6BaDXd0Ffe
+      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/google/callback
+      
+      # OAuth - Meta Developer Portal
+      - FACEBOOK_APP_ID=your_facebook_app_id
+      - FACEBOOK_APP_SECRET=KBWayw0Pa4sueusZSoNGDE1dWjf1FBYN
+      - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/facebook/callback
+      
+      # Base Application URLs
+      - FRONTEND_URL=https://ffpro.v79sl.duckdns.org
+    volumes:
+      # Persistent local database file so you don't lose data on container upgrades
+      - ./database.json:/app/database.json
+
+networks:
+  # Join your existing external Nginx proxy network
+  proxy_network:
+    external: true
