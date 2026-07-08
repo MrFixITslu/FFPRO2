@@ -67,7 +67,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
             <span className={`relative inline-flex rounded-full h-2 w-2 ${quotaExhausted ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
           </span>
           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">
-            {quotaExhausted ? 'Cached Data' : 'Live Market Feed'}
+            {quotaExhausted ? 'Live Data' : 'Live Market Feed'}
           </span>
         </div>
         <div className="overflow-hidden relative flex-1">
@@ -636,37 +636,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Vault Status Indicator */}
-                <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-50 rounded border border-slate-100">
-                  {vaultHandle ? (
-                    <>
-                      {isSyncing ? (
-                        <RefreshCw size={12} className="text-indigo-500 animate-spin" />
-                      ) : vaultError ? (
-                        <ShieldAlert size={12} className="text-rose-500" />
-                      ) : (
-                        <ShieldCheck size={12} className="text-emerald-500" />
-                      )}
-                      <div className="flex flex-col text-left">
-                        <span className="text-[8px] font-bold uppercase tracking-tighter text-slate-400 leading-none">Vault</span>
-                        <span className="text-[7px] font-medium text-slate-500 leading-none mt-0.5">
-                          {lastSyncTime ? `${new Date(lastSyncTime).toLocaleTimeString()}` : 'Connected'}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Shield size={12} className="text-slate-300" />
-                      <button 
-                        onClick={handleConnectVault}
-                        className="text-[8px] font-bold uppercase tracking-tighter text-indigo-600 hover:text-indigo-700 leading-none"
-                      >
-                        Mount Vault
-                      </button>
-                    </>
-                  )}
-                </div>
-
                 <button 
                   onClick={() => setShowSettings(true)} 
                   className="w-8 h-8 flex items-center justify-center rounded bg-slate-50 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all border border-slate-150"
@@ -681,7 +650,7 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full pt-24 px-6 pb-12">
+          <main className="flex-1 max-w-7xl mx-auto w-full pt-32 px-6 pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -741,7 +710,7 @@ const App: React.FC = () => {
               <EventPlanner 
                 events={events}
                 contacts={contacts}
-                directoryHandle={vaultHandle}
+                directoryHandle={null}
                 currentUser={currentUsername}
                 isAdmin={isAdmin}
                 onAddEvent={(e) => setEvents(prev => [{...e, id: generateId(), items: [], notes: [], tasks: [], files: [], contactIds: [], memberUsernames: [], ious: [], lastUpdated: new Date().toISOString()}, ...prev])}
@@ -808,14 +777,6 @@ const App: React.FC = () => {
               onToggleReminders={() => {}}
               bankConnections={bankConnections}
               onResetBank={() => setBankConnections([])}
-              onSetDirectory={(handle) => {
-                if (handle) {
-                  handleConnectVault();
-                } else {
-                  handleDisconnectVault();
-                }
-              }}
-              directoryHandle={vaultHandle}
               onUpdatePassword={() => {}}
               users={[]}
               onUpdateUsers={() => {}}

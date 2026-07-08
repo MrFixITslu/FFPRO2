@@ -55,8 +55,6 @@ interface Props {
   onToggleReminders: (enabled: boolean) => void;
   bankConnections: BankConnection[];
   onResetBank: () => void;
-  onSetDirectory: (handle: FileSystemDirectoryHandle | null) => void;
-  directoryHandle: FileSystemDirectoryHandle | null;
   onUpdatePassword: (newPass: string) => void;
   users: StoredUser[];
   onUpdateUsers: (users: StoredUser[]) => void;
@@ -77,7 +75,6 @@ const Settings: React.FC<Props> = ({
   onResetData, onClose, onLogout, 
   onUpdatePassword, bankConnections,
   onOpenBankSync, onUnlinkBank,
-  onSetDirectory, directoryHandle,
   isAdmin
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -149,28 +146,6 @@ const Settings: React.FC<Props> = ({
       }
     };
     reader.readAsText(file);
-  };
-
-  const handleLinkMirrorDirectory = async () => {
-    try {
-      if ((window as any).showDirectoryPicker) {
-        const handle = await (window as any).showDirectoryPicker({
-          mode: 'readwrite'
-        });
-        onSetDirectory(handle);
-        alert("SSD Mirror established. Auto-Backups directed to selected node.");
-      } else {
-        alert("Directory Picker API not supported in this browser.");
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') return;
-      alert(`Mirror Setup Failed: ${err.message}`);
-    }
-  };
-
-  const handleUnlinkMirror = async () => {
-    onSetDirectory(null);
-    alert("Mirror Unlinked.");
   };
 
   const handleBudgetChange = (category: string, value: string) => {
@@ -561,33 +536,6 @@ const Settings: React.FC<Props> = ({
                   ))}
                 </div>
               </section>
-
-              <section className="bg-indigo-50/50 p-6 rounded-lg border border-indigo-100 space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white rounded flex items-center justify-center text-indigo-600 shadow border border-indigo-100"><i className="fas fa-folder-open text-lg"></i></div>
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-800">Local Hard Drive Mirror</h3>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Auto-Save Node Configured</p>
-                    </div>
-                  </div>
-                  {directoryHandle ? (
-                    <button 
-                      onClick={handleUnlinkMirror}
-                      className="px-4 py-2 bg-rose-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow hover:bg-rose-700 transition-all flex items-center gap-2"
-                    >
-                      <i className="fas fa-unlink text-xs"></i> Unlink Path
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={handleLinkMirrorDirectory}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow hover:bg-indigo-700 transition-all flex items-center gap-2"
-                    >
-                      <i className="fas fa-link text-xs"></i> Select Backup Path
-                    </button>
-                  )}
-                </div>
-              </section>
             </div>
           )}
 
@@ -600,52 +548,6 @@ const Settings: React.FC<Props> = ({
                     <button onClick={() => setIsChangingPass(true)} className="flex-1 py-2 bg-white border border-slate-200 rounded text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100 transition shadow-sm">Rotate Credentials</button>
                     <button onClick={onResetData} className="flex-1 py-2 bg-white border border-slate-200 rounded text-[10px] font-bold uppercase tracking-wider text-rose-600 hover:bg-rose-50 transition shadow-sm">Factory Purge</button>
                   </div>
-                </div>
-              </section>
-
-              <section className="bg-white p-5 rounded-lg border border-slate-200">
-                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2.5">
-                  <HardDrive className="text-indigo-600 text-xs" size={16} /> Local Vault Sync
-                </h3>
-                <p className="text-xs text-slate-500 font-semibold mb-4 leading-relaxed">
-                  Connect a local directory to automatically sync your application state to your hard drive. This ensures your data is safe and accessible as a standalone Linux application.
-                </p>
-                <div className="grid grid-cols-1 gap-3">
-                  {directoryHandle ? (
-                    <div className="flex flex-col gap-3">
-                      <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center text-white">
-                            <CheckCircle2 size={14} />
-                          </div>
-                          <div>
-                            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Vault Connected</p>
-                            <p className="text-xs font-semibold text-slate-600">{directoryHandle.name}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => onSetDirectory(null)}
-                          className="px-3 py-1.5 bg-white border border-rose-100 text-rose-500 rounded text-[9px] font-bold uppercase tracking-wider hover:bg-rose-50 transition"
-                        >
-                          Disconnect
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button 
-                      onClick={async () => {
-                        try {
-                          const handle = await (window as any).showDirectoryPicker();
-                          onSetDirectory(handle);
-                        } catch (e) {
-                          console.error("Vault connection failed", e);
-                        }
-                      }}
-                      className="py-2.5 bg-slate-900 text-white font-bold rounded shadow-sm uppercase tracking-wider text-[10px] hover:bg-slate-800 transition flex items-center justify-center gap-2"
-                    >
-                      <Plus size={14} /> Connect Local Vault
-                    </button>
-                  )}
                 </div>
               </section>
 

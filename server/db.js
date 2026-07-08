@@ -1,10 +1,76 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import pg from 'pg';
 
 const DB_FILE = process.env.DATABASE_FILE || path.join(process.cwd(), 'database.json');
 
-// Ensure parent directory exists
+// Detect real PostgreSQL config
+const hasPostgres = !!(process.env.DATABASE_URL || process.env.PGHOST || process.env.PGUSER);
+let realPool = null;
+
+if (hasPostgres) {
+  console.log('PostgreSQL configuration detected. Initializing real PostgreSQL pool...');
+  const poolConfig = process.env.DATABASE_URL 
+    ? { connectionString: process.env.DATABASE_URL }
+    : {
+        host: process.env.PGHOST,
+        port: parseInt(process.env.PGPORT || '5432', 10),
+        user: process.env.PGUSER,
+        password: process.env.PGPASSWORD,
+        database: process.env.PGDATABASE,
+      };
+  
+  // For some cloud providers (e.g. Neon, Render, AWS), SSL might be required.
+  // Enable safe SSL defaults if connecting to a remote server.
+  if (poolConfig.connectionString || (poolConfig.host && poolConfig.host !== 'localhost' && poolConfig.host !== '127.0.0.1')) {
+    poolConfig.ssl = { rejectUnauthorized: false };
+  }
+
+  realPool = new pg.Pool(poolConfig);
+
+  // Initialize tables asynchronously
+  realPool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email VARCHAR(255) UNIQUE NOT NULL,
+      username VARCHAR(255),
+      password_hash VARCHAR(255),
+      display_name VARCHAR(255),
+      avatar_url VARCHAR(255),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      last_login_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS oauth_accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        provider_user_id VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(provider, provider_user_id)
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS user_data (
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        ciphertext BYTEA NOT NULL,
+        iv BYTEA NOT NULL,
+        auth_tag BYTEA NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }).then(() => {
+    console.log('PostgreSQL database tables initialized successfully.');
+  }).catch(err => {
+    console.error('Failed to initialize PostgreSQL database tables:', err);
+  });
+}
+
+// Ensure parent directory exists for file-based fallback
 const dir = path.dirname(DB_FILE);
 if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true });
@@ -43,8 +109,13 @@ function writeDB(data) {
   }
 }
 
+// Proxy pool that routes to PostgreSQL if available, otherwise falls back to local file mock
 export const pool = {
   async query(sql, params = []) {
+    if (realPool) {
+      return realPool.query(sql, params);
+    }
+
     const db = readDB();
     const cleanSql = sql.replace(/\s+/g, ' ').trim();
 
@@ -210,6 +281,9 @@ export const pool = {
   },
 
   async connect() {
+    if (realPool) {
+      return realPool.connect();
+    }
     return {
       query: (sql, params) => this.query(sql, params),
       release: () => {}
@@ -217,6 +291,8 @@ export const pool = {
   },
 
   on(event, handler) {
-    // mock pool.on event listener
+    if (realPool) {
+      realPool.on(event, handler);
+    }
   }
 };

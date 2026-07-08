@@ -24,6 +24,14 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
       
+      # Database Connection (Optional real PostgreSQL)
+      - DATABASE_URL=${DATABASE_URL}
+      - PGHOST=${PGHOST}
+      - PGPORT=${PGPORT}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
+      - PGDATABASE=${PGDATABASE}
+      
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       
