@@ -44,6 +44,9 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
 const app = express();
 const PORT = 3000;
 
+// Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS
+app.set('trust proxy', 1);
+
 // Helmet security configuration to allow embedding in the AI Studio iframe
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -66,11 +69,24 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: false, // Set to false in the sandboxed preview/development env
-    sameSite: 'lax',
+    secure: false, // Will be dynamically adjusted in middleware below
+    sameSite: 'lax', // Will be dynamically adjusted in middleware below
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   }
 }));
+
+// Dynamic session cookie configuration for iframe/cross-site compatibility in HTTPS environments
+app.use((req, res, next) => {
+  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  if (isSecure) {
+    req.session.cookie.secure = true;
+    req.session.cookie.sameSite = 'none';
+  } else {
+    req.session.cookie.secure = false;
+    req.session.cookie.sameSite = 'lax';
+  }
+  next();
+});
 
 // Passport initialization
 app.use(passport.initialize());
