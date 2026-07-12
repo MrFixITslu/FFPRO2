@@ -111,8 +111,7 @@ router.post('/register', async (req, res) => {
     req.login(inserted.rows[0], (err) => {
       if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
       res.status(201).json({ 
-        user: sanitizeUser(inserted.rows[0]),
-        sessionId: req.sessionID
+        user: sanitizeUser(inserted.rows[0])
       });
     });
   } catch (err) {
@@ -150,8 +149,7 @@ router.post('/login', async (req, res) => {
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: 'Failed to start a session.' });
       res.json({ 
-        user: sanitizeUser(user),
-        sessionId: req.sessionID
+        user: sanitizeUser(user)
       });
     });
   } catch (err) {

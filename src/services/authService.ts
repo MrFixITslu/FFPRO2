@@ -16,21 +16,12 @@ async function handle(res: Response): Promise<any> {
   return data;
 }
 
-function getAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
-  const headers: Record<string, string> = { ...extraHeaders };
-  const sessionId = localStorage.getItem('ffpro.session_id');
-  if (sessionId) {
-    headers['X-Session-ID'] = sessionId;
-  }
-  return headers;
-}
-
 export const authService = {
   /** Returns the currently logged-in user (from the session cookie), or null. */
   async me(): Promise<AuthUser | null> {
     const res = await fetch(`${BASE}/me`, { 
       credentials: 'include', 
-      headers: getAuthHeaders({ Accept: 'application/json' }) 
+      headers: { Accept: 'application/json' } 
     });
     if (!res.ok) return null;
     const data = await res.json().catch(() => ({ user: null }));
@@ -40,7 +31,7 @@ export const authService = {
   async sessionState(): Promise<{ authenticated: boolean; user: AuthUser | null }> {
     const res = await fetch(`${BASE}/session-state`, { 
       credentials: 'include', 
-      headers: getAuthHeaders({ Accept: 'application/json' }) 
+      headers: { Accept: 'application/json' } 
     });
     if (!res.ok) return { authenticated: false, user: null };
     const data = await res.json().catch(() => ({ authenticated: false, user: null }));
@@ -50,7 +41,7 @@ export const authService = {
   async providers(): Promise<string[]> {
     const res = await fetch(`${BASE}/providers`, { 
       credentials: 'include', 
-      headers: getAuthHeaders({ Accept: 'application/json' }) 
+      headers: { Accept: 'application/json' } 
     });
     if (!res.ok) return [];
     const data = await res.json().catch(() => ({ providers: [] }));
@@ -60,41 +51,30 @@ export const authService = {
   async login(email: string, password: string): Promise<AuthUser> {
     const res = await fetch(`${BASE}/login`, {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ email, password }),
     });
     const data = await handle(res);
-    if (data.sessionId) {
-      localStorage.setItem('ffpro.session_id', data.sessionId);
-    }
     return data.user;
   },
 
   async register(email: string, username: string, password: string): Promise<AuthUser> {
     const res = await fetch(`${BASE}/register`, {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ email, username, password }),
     });
     const data = await handle(res);
-    if (data.sessionId) {
-      localStorage.setItem('ffpro.session_id', data.sessionId);
-    }
     return data.user;
   },
 
   async logout(): Promise<void> {
-    try {
-      await fetch(`${BASE}/logout`, { 
-        method: 'POST', 
-        credentials: 'include',
-        headers: getAuthHeaders()
-      });
-    } finally {
-      localStorage.removeItem('ffpro.session_id');
-    }
+    await fetch(`${BASE}/logout`, { 
+      method: 'POST', 
+      credentials: 'include'
+    });
   },
 
   /** Full-page redirect URL for a given OAuth provider. Use as a plain <a href>. */

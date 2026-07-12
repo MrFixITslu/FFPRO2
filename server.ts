@@ -75,66 +75,26 @@ const sessionMiddleware = session({
   }
 });
 
-// Dynamic express-session middleware wrapper to cleanly handle local development (HTTP/Lax)
-// and sandbox/cloud environments (HTTPS/Secure/SameSite=None) without initialization mismatches,
-// while preserving the single shared session store.
+// Dynamic express-session middleware wrapper: sets the cookie's Secure/SameSite
+// attributes to match the ACTUAL connection security for this request, so the
+// cookie the browser receives is one it will actually store and send back.
+//
+// `app.set('trust proxy', true)` above already makes `req.secure` correctly
+// reflect the `X-Forwarded-Proto` header set by a TLS-terminating reverse
+// proxy (Nginx, Cloud Run, etc.). We only add small, explicit fallbacks on
+// top of that — never a blanket "host isn't literally 'localhost', so treat
+// it as secure" rule. Forcing `secure: true` on a connection that is actually
+// plain HTTP causes the browser to silently discard the Set-Cookie response
+// (browsers never store/send Secure cookies over an insecure origin), which
+// breaks the session on the very next request: login appears to succeed, but
+// every request after it looks logged-out, kicking the user back to the
+// login screen in an endless loop.
 app.use((req, res, next) => {
-  // If the request provides an X-Session-ID custom header (to bypass third-party cookie blocking in iframes),
-  // dynamically sign and map the raw session ID to the expected session cookie format.
-  const xSessionId = req.headers['x-session-id'] || req.query.sessionId;
-  if (xSessionId && typeof xSessionId === 'string') {
-    const hmac = crypto.createHmac('sha256', sessionSecret).update(xSessionId).digest('base64').replace(/=+$/, '');
-    const signedCookieValue = 's:' + xSessionId + '.' + hmac;
-    let cookies = req.headers.cookie ? req.headers.cookie.split(';').map(c => c.trim()) : [];
-    cookies = cookies.filter(c => !c.startsWith('ffpro.sid='));
-    cookies.push(`ffpro.sid=${encodeURIComponent(signedCookieValue)}`);
-    req.headers.cookie = cookies.join('; ');
-  }
-
-  const host = req.headers.host || '';
-  const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
   const xfp = req.headers['x-forwarded-proto'];
   const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
-  const isSecure = req.secure || 
+  const isSecure = req.secure ||
     isCloudSandbox ||
-    (!isLocalhost) || 
     (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
-
-  const debugLine = `[${new Date().toISOString()}] URL: ${req.url}, Host: ${host}, isLocalhost: ${isLocalhost}, xfp: ${xfp}, req.secure: ${req.secure}, calculated isSecure: ${isSecure}\n`;
-  fs.appendFileSync(path.join(process.cwd(), 'session.log'), debugLine);
-
-  if (isSecure) {
-    // Explicitly set x-forwarded-proto header to https so express-session's trust proxy
-    // logic correctly detects a secure context and allows setting the secure cookie.
-    req.headers['x-forwarded-proto'] = 'https';
-
-    // Explicitly define secure request properties so express-session, passport,
-    // and downstream route handlers cleanly detect a secure context.
-    Object.defineProperty(req, 'secure', {
-      configurable: true,
-      enumerable: true,
-      get: () => true
-    });
-    Object.defineProperty(req, 'protocol', {
-      configurable: true,
-      enumerable: true,
-      get: () => 'https'
-    });
-    if (req.connection) {
-      Object.defineProperty(req.connection, 'encrypted', {
-        configurable: true,
-        enumerable: true,
-        get: () => true
-      });
-    }
-    if (req.socket) {
-      Object.defineProperty(req.socket, 'encrypted', {
-        configurable: true,
-        enumerable: true,
-        get: () => true
-      });
-    }
-  }
 
   // Execute session middleware, then dynamically configure cookie secure and sameSite attributes
   sessionMiddleware(req, res, (err) => {

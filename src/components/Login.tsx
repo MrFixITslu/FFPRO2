@@ -276,7 +276,7 @@ const Login: React.FC<Props> = ({ onAuthenticated }) => {
                       <>
                         <div># Google Cloud Console OAuth Client</div>
                         <div>GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"</div>
-                        <div>GOOGLE_CLIENT_SECRET="HIkZlRRt5PSNy3mMxWi9TU6BaDXd0Ffe"</div>
+                        <div>GOOGLE_CLIENT_SECRET="your_google_client_secret"</div>
                         <div>GOOGLE_CALLBACK_URL="https://ffpro.v79sl.duckdns.org/api/auth/google/callback"</div>
                       </>
                     )}
@@ -284,7 +284,7 @@ const Login: React.FC<Props> = ({ onAuthenticated }) => {
                       <>
                         <div># Meta Developer Portal Facebook App</div>
                         <div>FACEBOOK_APP_ID="your_facebook_app_id"</div>
-                        <div>FACEBOOK_APP_SECRET="KBWayw0Pa4sueusZSoNGDE1dWjf1FBYN"</div>
+                        <div>FACEBOOK_APP_SECRET="your_facebook_app_secret"</div>
                         <div>FACEBOOK_CALLBACK_URL="https://ffpro.v79sl.duckdns.org/api/auth/facebook/callback"</div>
                       </>
                     )}
@@ -342,9 +342,9 @@ services:
       - DATA_ENCRYPTION_KEY=your_32_byte_base64_encryption_key
       - GEMINI_API_KEY=your_gemini_api_key
       ` + (selectedProvider === 'google' ? `- GOOGLE_CLIENT_ID=your_google_client_id
-      - GOOGLE_CLIENT_SECRET=HIkZlRRt5PSNy3mMxWi9TU6BaDXd0Ffe
+      - GOOGLE_CLIENT_SECRET=your_google_client_secret
       - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/google/callback` : selectedProvider === 'facebook' ? `- FACEBOOK_APP_ID=your_facebook_app_id
-      - FACEBOOK_APP_SECRET=KBWayw0Pa4sueusZSoNGDE1dWjf1FBYN
+      - FACEBOOK_APP_SECRET=your_facebook_app_secret
       - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/facebook/callback` : `- APPLE_CLIENT_ID=your_services_id
       - APPLE_TEAM_ID=your_developer_team_id
       - APPLE_KEY_ID=your_private_key_id
