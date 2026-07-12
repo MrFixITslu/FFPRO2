@@ -110,7 +110,10 @@ router.post('/register', async (req, res) => {
 
     req.login(inserted.rows[0], (err) => {
       if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
-      res.status(201).json({ user: sanitizeUser(inserted.rows[0]) });
+      res.status(201).json({ 
+        user: sanitizeUser(inserted.rows[0]),
+        sessionId: req.sessionID
+      });
     });
   } catch (err) {
     if (err.code === '23505') {
@@ -146,7 +149,10 @@ router.post('/login', async (req, res) => {
     await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: 'Failed to start a session.' });
-      res.json({ user: sanitizeUser(user) });
+      res.json({ 
+        user: sanitizeUser(user),
+        sessionId: req.sessionID
+      });
     });
   } catch (err) {
     console.error('Login error:', err);

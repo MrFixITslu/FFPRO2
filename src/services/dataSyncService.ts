@@ -28,10 +28,22 @@ async function handle(res: Response): Promise<any> {
   return body;
 }
 
+function getSyncHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...extraHeaders };
+  const sessionId = localStorage.getItem('ffpro.session_id');
+  if (sessionId) {
+    headers['X-Session-ID'] = sessionId;
+  }
+  return headers;
+}
+
 export const dataSyncService = {
   /** Loads the current account's synced data (or null if never synced before). */
   async fetch(): Promise<RemoteDataEnvelope> {
-    const res = await fetch(BASE, { credentials: 'include' });
+    const res = await fetch(BASE, { 
+      credentials: 'include',
+      headers: getSyncHeaders()
+    });
     return handle(res);
   },
 
@@ -43,7 +55,7 @@ export const dataSyncService = {
   async save(data: AppState, expectedVersion: number): Promise<{ ok: true; version: number }> {
     const res = await fetch(BASE, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getSyncHeaders({ 'Content-Type': 'application/json' }),
       credentials: 'include',
       body: JSON.stringify({ data, expectedVersion }),
     });
@@ -52,6 +64,10 @@ export const dataSyncService = {
 
   /** Wipes the synced copy for the current account (used by "Purge data"). */
   async clear(): Promise<void> {
-    await fetch(BASE, { method: 'DELETE', credentials: 'include' });
+    await fetch(BASE, { 
+      method: 'DELETE', 
+      credentials: 'include',
+      headers: getSyncHeaders()
+    });
   },
 };

@@ -79,6 +79,18 @@ const sessionMiddleware = session({
 // and sandbox/cloud environments (HTTPS/Secure/SameSite=None) without initialization mismatches,
 // while preserving the single shared session store.
 app.use((req, res, next) => {
+  // If the request provides an X-Session-ID custom header (to bypass third-party cookie blocking in iframes),
+  // dynamically sign and map the raw session ID to the expected session cookie format.
+  const xSessionId = req.headers['x-session-id'] || req.query.sessionId;
+  if (xSessionId && typeof xSessionId === 'string') {
+    const hmac = crypto.createHmac('sha256', sessionSecret).update(xSessionId).digest('base64').replace(/=+$/, '');
+    const signedCookieValue = 's:' + xSessionId + '.' + hmac;
+    let cookies = req.headers.cookie ? req.headers.cookie.split(';').map(c => c.trim()) : [];
+    cookies = cookies.filter(c => !c.startsWith('ffpro.sid='));
+    cookies.push(`ffpro.sid=${encodeURIComponent(signedCookieValue)}`);
+    req.headers.cookie = cookies.join('; ');
+  }
+
   const host = req.headers.host || '';
   const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
   const xfp = req.headers['x-forwarded-proto'];

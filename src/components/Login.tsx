@@ -49,10 +49,8 @@ const Login: React.FC<Props> = ({ onAuthenticated }) => {
   const [showConfigHelp, setShowConfigHelp] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'facebook' | 'apple' | null>(null);
   const [configTab, setConfigTab] = useState<'env' | 'docker'>('env');
-  const [isInIframe, setIsInIframe] = useState(false);
 
   useEffect(() => {
-    setIsInIframe(window.self !== window.top);
     let cancelled = false;
     authService.providers().then((providers) => {
       if (!cancelled) setAvailableProviders(providers);
@@ -100,28 +98,6 @@ const Login: React.FC<Props> = ({ onAuthenticated }) => {
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
-          {isInIframe && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3 text-left">
-              <div className="flex gap-2.5 items-start">
-                <span className="text-amber-400 mt-0.5"><i className="fas fa-exclamation-triangle text-xs"></i></span>
-                <div className="space-y-1">
-                  <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">Iframe Sandbox Warning</h4>
-                  <p className="text-[10px] text-slate-300 leading-relaxed">
-                    Browsers block third-party cookies in preview frames. To log in successfully and sync your cloud data, please open this app in a new tab.
-                  </p>
-                  <a
-                    href={window.location.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded text-[8px] uppercase tracking-wider transition-all"
-                  >
-                    <i className="fas fa-external-link-alt text-[7px]"></i> Open in New Tab
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="space-y-2">
             <OAuthButton
               provider="google"
