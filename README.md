@@ -24,7 +24,7 @@ cp .env.example .env
 ```
 
 Open the newly created `.env` file and configure the settings:
-*   **`APP_PORT`**: Change this to an unused port (e.g., `3005`) if port `3000` is already in use by another application.
+*   **`APP_PORT`**: Change this to an unused port (e.g., `3010`) if port `3000` is already in use by another application.
 *   **`FRONTEND_URL`**: Set this to your public IP or domain name (e.g., `http://199.223.249.193` or `https://ffpro.v79sl.duckdns.org`).
 *   **`SESSION_SECRET`**: Run `openssl rand -base64 32` to generate a secure random secret key.
 *   **`DATA_ENCRYPTION_KEY`**: Run `openssl rand -base64 32` to generate your 256-bit database encryption key.
@@ -69,7 +69,7 @@ server {
     server_name 199.223.249.193; # Or your domain name
 
     location / {
-        proxy_pass http://127.0.0.1:3005; # Match the APP_PORT set in your .env file
+        proxy_pass http://127.0.0.1:3010; # Match the APP_PORT set in your .env file
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';

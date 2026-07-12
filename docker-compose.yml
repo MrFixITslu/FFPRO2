@@ -10,7 +10,7 @@ services:
     ports:
       # Expose host port (default 3010) mapping to container port 3000. 
       # Customize via APP_PORT in your .env file if needed.
-      - "${APP_PORT:-3010}:80"
+      - "${APP_PORT:-3010}:3000"
     networks:
       - proxy_network
     environment:

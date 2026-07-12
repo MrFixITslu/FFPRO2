@@ -186,6 +186,60 @@ export interface EventLog {
   type: 'system' | 'transaction' | 'task' | 'file' | 'team' | 'contact';
 }
 
+export interface TripPlanDetails {
+  destination: string;
+  startDate?: string;
+  endDate?: string;
+  flightCost: number;
+  flightNotes?: string;
+  flightBooked: boolean;
+  accommodationCost: number;
+  accommodationNotes?: string;
+  accommodationBooked: boolean;
+  transportType: 'taxi' | 'rental' | 'public' | 'none';
+  transportCost: number;
+  transportNotes?: string;
+  transportBooked: boolean;
+  foodCost: number;
+  foodNotes?: string;
+  sitesCost: number;
+  sitesNotes?: string;
+  savingMode: 'save' | 'book';
+  targetDate?: string;
+  amountSaved: number;
+}
+
+export interface ProductionItem {
+  id: string;
+  name: string;
+  cost: number;
+}
+
+export interface StartupPlanDetails {
+  cogs: number;
+  markup: number;
+  monthlyVolume: number;
+  rent: number;
+  salaries: number;
+  marketing: number;
+  utilities: number;
+  otherExpenses: number;
+  growthRateYear3: number;
+  growthRateYear5: number;
+  
+  // Sale Price Calculator Fields
+  productionItems?: ProductionItem[];
+  derivedUnits?: number;
+  hourlyRate?: number;
+  laborHours?: number;
+  desiredProfitType?: 'percentage' | 'fixed';
+  desiredProfitValue?: number;
+  includeVat?: boolean;
+  includeLevy?: boolean;
+  contingencyPercent?: number;
+  allocateOverhead?: boolean;
+}
+
 export interface BudgetEvent {
   id: string;
   name: string;
@@ -204,6 +258,9 @@ export interface BudgetEvent {
   projectedBudget?: number;
   lastUpdated: string;
   activeCollaborators?: string[];
+  eventType?: 'event' | 'trip' | 'startup';
+  tripDetails?: TripPlanDetails;
+  startupDetails?: StartupPlanDetails;
 }
 
 export interface CalendarItem {

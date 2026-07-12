@@ -163,10 +163,24 @@ router.post('/logout', (req, res) => {
     // FIX: Use async/await-compatible destroy with proper error handling
     req.session.destroy((destroyErr) => {
       if (destroyErr) {
-        console.error('Session destroy error:', err);
+        console.error('Session destroy error:', destroyErr);
         // Still clear cookie and return success even if destroy fails
       }
-      res.clearCookie('ffpro.sid', { path: '/', httpOnly: true, sameSite: 'lax' });
+      const host = req.headers.host || '';
+      const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+      const xfp = req.headers['x-forwarded-proto'];
+      const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
+      const isSecure = req.secure || 
+        isCloudSandbox ||
+        (!isLocalhost) || 
+        (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
+
+      res.clearCookie('ffpro.sid', { 
+        path: '/', 
+        httpOnly: true, 
+        secure: isSecure, 
+        sameSite: isSecure ? 'none' : 'lax' 
+      });
       res.json({ ok: true });
     });
   });

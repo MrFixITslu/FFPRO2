@@ -67,7 +67,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
             <span className={`relative inline-flex rounded-full h-2 w-2 ${quotaExhausted ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
           </span>
           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">
-            {quotaExhausted ? 'Live Data' : 'Live Market Feed'}
+            {quotaExhausted ? 'Cached Data' : 'Live Market Feed'}
           </span>
         </div>
         <div className="overflow-hidden relative flex-1">
@@ -114,6 +114,32 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  // Fetch and poll real-time market prices from our public endpoint
+  useEffect(() => {
+    let active = true;
+    const fetchPrices = async () => {
+      try {
+        const res = await fetch('/api/ai/market-data');
+        if (res.ok && active) {
+          const data = await res.json();
+          if (data && Array.isArray(data.prices) && data.prices.length > 0) {
+            setMarketPrices(data.prices);
+            setQuotaExhausted(!!data.quotaExhausted);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch real-time market prices:', err);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 30000); // refresh every 30 seconds
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => safeParse(STORAGE_KEYS.TRANSACTIONS, []));
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(() => safeParse(STORAGE_KEYS.RECURRING_EXPENSES, []));
   const [recurringIncomes, setRecurringIncomes] = useState<RecurringIncome[]>(() => safeParse(STORAGE_KEYS.RECURRING_INCOMES, []));
@@ -128,16 +154,14 @@ const App: React.FC = () => {
   const [cashOpeningBalance, setCashOpeningBalance] = useState<number>(() => parseFloat(localStorage.getItem(STORAGE_KEYS.CASH_OPENING) || '0'));
   
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([
-    { symbol: 'BTC', price: 95420.00, change24h: 1.2 },
-    { symbol: 'ETH', price: 2850.50, change24h: -0.5 },
-    { symbol: 'SOL', price: 165.20, change24h: 3.4 },
-    { symbol: 'VOO', price: 548.12, change24h: 0.2 },
-    { symbol: 'VOOG', price: 312.45, change24h: 0.1 }
+    { symbol: 'BTC', price: 64000.00, change24h: 1.2 },
+    { symbol: 'ETH', price: 1820.00, change24h: -0.5 },
+    { symbol: 'SOL', price: 77.00, change24h: 3.4 },
+    { symbol: 'VOO', price: 693.86, change24h: 0.2 },
+    { symbol: 'VOOG', price: 83.31, change24h: 0.1 }
   ]);
-  // Market prices are static: they previously auto-refreshed via a Gemini
-  // call, which has been removed. quotaExhausted stays true permanently so
-  // the ticker honestly labels this as cached/manual data, not a live feed.
-  const [quotaExhausted, setQuotaExhausted] = useState(true);
+  // Market prices are fully real-time and auto-refresh every 30 seconds via the public Kraken/Yahoo endpoint.
+  const [quotaExhausted, setQuotaExhausted] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -267,9 +291,17 @@ const App: React.FC = () => {
           setCloudVersion(result.version);
           setCloudLastSyncTime(new Date().toISOString());
         }
-      } catch (err) {
-        console.error('Initial cloud sync failed:', err);
-        if (!cancelled) setCloudError('Could not reach the cloud. Working locally until reconnected.');
+      } catch (err: any) {
+        const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
+        if (isAuthError) {
+          console.warn('Session expired or invalid during initial cloud sync. Resetting session.');
+          if (!cancelled) {
+            setAuthUser(null);
+          }
+        } else {
+          console.error('Initial cloud sync failed:', err);
+          if (!cancelled) setCloudError('Could not reach the cloud. Working locally until reconnected.');
+        }
       } finally {
         if (!cancelled) {
           setCloudSyncing(false);
@@ -310,8 +342,18 @@ const App: React.FC = () => {
           setCloudError('Sync conflict detected, and reloading the latest data failed. Refresh the page.');
         }
       } else {
-        console.error('Cloud sync failed:', err);
-        setCloudError('Could not save to the cloud. Your changes are still saved on this device.');
+        const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
+        if (isAuthError) {
+          console.warn('Session expired or invalid during cloud sync. Resetting session.');
+          setAuthUser(null);
+          setCloudLoaded(false);
+          setCloudVersion(0);
+          setCloudError(null);
+          setCloudLastSyncTime(null);
+        } else {
+          console.error('Cloud sync failed:', err);
+          setCloudError('Could not save to the cloud. Your changes are still saved on this device.');
+        }
       }
     } finally {
       setCloudSyncing(false);
@@ -713,7 +755,18 @@ const App: React.FC = () => {
                 directoryHandle={null}
                 currentUser={currentUsername}
                 isAdmin={isAdmin}
-                onAddEvent={(e) => setEvents(prev => [{...e, id: generateId(), items: [], notes: [], tasks: [], files: [], contactIds: [], memberUsernames: [], ious: [], lastUpdated: new Date().toISOString()}, ...prev])}
+                onAddEvent={(e) => setEvents(prev => [{
+                  ...e,
+                  id: generateId(),
+                  items: e.items || [],
+                  notes: e.notes || [],
+                  tasks: e.tasks || [],
+                  files: e.files || [],
+                  contactIds: e.contactIds || [],
+                  memberUsernames: e.memberUsernames || [],
+                  ious: e.ious || [],
+                  lastUpdated: new Date().toISOString()
+                }, ...prev])}
                 onDeleteEvent={(id) => setEvents(prev => prev.filter(e => e.id !== id))}
                 onUpdateEvent={(e) => setEvents(prev => prev.map(ev => ev.id === e.id ? e : ev))}
                 onUpdateContacts={setContacts}

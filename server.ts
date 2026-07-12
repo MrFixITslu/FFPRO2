@@ -42,10 +42,10 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3010', 10);
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // Helmet security configuration to allow embedding in the AI Studio iframe
 app.use(helmet({
@@ -61,31 +61,78 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Express session with memory store for development/sandbox stability
-app.use(session({
+// Instantiate session middleware ONCE at module level so we use a single persistent session store
+const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+const sessionMiddleware = session({
   name: 'ffpro.sid',
-  secret: process.env.SESSION_SECRET,
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
+  proxy: true,
   cookie: {
     httpOnly: true,
-    secure: false, // Will be dynamically adjusted in middleware below
-    sameSite: 'lax', // Will be dynamically adjusted in middleware below
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   }
-}));
+});
 
-// Dynamic session cookie configuration for iframe/cross-site compatibility in HTTPS environments
+// Dynamic express-session middleware wrapper to cleanly handle local development (HTTP/Lax)
+// and sandbox/cloud environments (HTTPS/Secure/SameSite=None) without initialization mismatches,
+// while preserving the single shared session store.
 app.use((req, res, next) => {
-  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const host = req.headers.host || '';
+  const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+  const xfp = req.headers['x-forwarded-proto'];
+  const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
+  const isSecure = req.secure || 
+    isCloudSandbox ||
+    (!isLocalhost) || 
+    (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
+
+  const debugLine = `[${new Date().toISOString()}] URL: ${req.url}, Host: ${host}, isLocalhost: ${isLocalhost}, xfp: ${xfp}, req.secure: ${req.secure}, calculated isSecure: ${isSecure}\n`;
+  fs.appendFileSync(path.join(process.cwd(), 'session.log'), debugLine);
+
   if (isSecure) {
-    req.session.cookie.secure = true;
-    req.session.cookie.sameSite = 'none';
-  } else {
-    req.session.cookie.secure = false;
-    req.session.cookie.sameSite = 'lax';
+    // Explicitly set x-forwarded-proto header to https so express-session's trust proxy
+    // logic correctly detects a secure context and allows setting the secure cookie.
+    req.headers['x-forwarded-proto'] = 'https';
+
+    // Explicitly define secure request properties so express-session, passport,
+    // and downstream route handlers cleanly detect a secure context.
+    Object.defineProperty(req, 'secure', {
+      configurable: true,
+      enumerable: true,
+      get: () => true
+    });
+    Object.defineProperty(req, 'protocol', {
+      configurable: true,
+      enumerable: true,
+      get: () => 'https'
+    });
+    if (req.connection) {
+      Object.defineProperty(req.connection, 'encrypted', {
+        configurable: true,
+        enumerable: true,
+        get: () => true
+      });
+    }
+    if (req.socket) {
+      Object.defineProperty(req.socket, 'encrypted', {
+        configurable: true,
+        enumerable: true,
+        get: () => true
+      });
+    }
   }
-  next();
+
+  // Execute session middleware, then dynamically configure cookie secure and sameSite attributes
+  sessionMiddleware(req, res, (err) => {
+    if (err) return next(err);
+    if (req.session && req.session.cookie) {
+      req.session.cookie.secure = isSecure;
+      req.session.cookie.sameSite = isSecure ? 'none' : 'lax';
+    }
+    next();
+  });
 });
 
 // Passport initialization
