@@ -8,13 +8,14 @@ services:
     container_name: fire-finance-app
     restart: unless-stopped
     ports:
-      # Expose host port (default 3010) mapping to container port 3000. 
+      # Expose host port (default 3010) mapping to container port 3010.
       # Customize via APP_PORT in your .env file if needed.
-      - "${APP_PORT:-3010}:3000"
+      - "${APP_PORT:-3010}:3010"
     networks:
       - proxy_network
     environment:
       - NODE_ENV=production
+      - PORT=3010
       
       # Persist Database and Keys
       - DATABASE_FILE=/app/data/database.json
