@@ -240,6 +240,36 @@ export interface StartupPlanDetails {
   allocateOverhead?: boolean;
 }
 
+export type ProjectRole = 'owner' | 'editor' | 'viewer';
+
+export interface ProjectMember {
+  userId: string;
+  email: string;
+  username: string | null;
+  displayName: string | null;
+  role: ProjectRole;
+  addedAt: string;
+}
+
+export interface ProjectInvite {
+  id: string;
+  projectId: string;
+  email: string;
+  role: ProjectRole;
+  status: 'pending' | 'accepted' | 'revoked';
+  createdAt: string;
+  acceptedAt: string | null;
+}
+
+export interface ProjectChatMessage {
+  id: string;
+  projectId: string;
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface BudgetEvent {
   id: string;
   name: string;
@@ -261,6 +291,11 @@ export interface BudgetEvent {
   eventType?: 'event' | 'trip' | 'startup';
   tripDetails?: TripPlanDetails;
   startupDetails?: StartupPlanDetails;
+  // --- Collaboration (present only once a plan has been shared) ---
+  sharedProjectId?: string;
+  isShared?: boolean;
+  role?: ProjectRole;
+  serverVersion?: number;
 }
 
 export interface CalendarItem {

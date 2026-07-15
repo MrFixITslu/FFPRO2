@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import passport from '../passport.js';
 import { pool } from '../db.js';
+import { projectsDb } from '../projectsDb.js';
 
 const router = Router();
 const FRONTEND_URL = (process.env.FRONTEND_URL || '/').replace(/\/$/, '');
@@ -108,8 +109,20 @@ router.post('/register', async (req, res) => {
       [email, sanitizedUsername, passwordHash, displayName]
     );
 
-    req.login(inserted.rows[0], (err) => {
+    req.login(inserted.rows[0], async (err) => {
       if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
+
+      // Honor any project invites that were sent to this email before the account existed.
+      try {
+        const pendingInvites = await projectsDb.getPendingInvitesForEmail(email);
+        for (const invite of pendingInvites) {
+          await projectsDb.addMember(invite.projectId, inserted.rows[0].id, invite.role);
+          await projectsDb.markInviteAccepted(invite.id);
+        }
+      } catch (inviteErr) {
+        console.error('Failed to auto-accept pending invites on register:', inviteErr);
+      }
+
       res.status(201).json({ 
         user: sanitizeUser(inserted.rows[0])
       });

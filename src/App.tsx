@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
 import BankSyncModal from './components/BankSyncModal';
 import EventPlanner from './components/EventPlanner';
+import InviteAcceptScreen from './components/InviteAcceptScreen';
 import Projections from './components/Projections';
 import Calendar from './components/Calendar';
 import { 
@@ -61,12 +62,12 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
   return (
     <div className="fixed top-0 left-0 right-0 z-[120] bg-slate-900 text-white py-1.5 shadow-md border-b border-slate-800">
       <div className="flex items-center">
-        <div className="px-4 border-r border-slate-800 flex items-center gap-2 whitespace-nowrap bg-slate-900 z-10">
-          <span className="flex h-2 w-2 relative">
+        <div className="px-2 sm:px-4 border-r border-slate-800 flex items-center gap-2 whitespace-nowrap bg-slate-900 z-10">
+          <span className="flex h-2 w-2 relative shrink-0">
             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${quotaExhausted ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`}></span>
             <span className={`relative inline-flex rounded-full h-2 w-2 ${quotaExhausted ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
           </span>
-          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">
+          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 hidden sm:inline">
             {quotaExhausted ? 'Cached Data' : 'Live Market Feed'}
           </span>
         </div>
@@ -96,6 +97,15 @@ const App: React.FC = () => {
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
+  const [inviteToken, setInviteToken] = useState<string | null>(() => {
+    const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
+    return match ? match[1] : null;
+  });
+
+  const clearInviteRoute = () => {
+    window.history.replaceState({}, '', '/');
+    setInviteToken(null);
+  };
 
   // Restore session (cookie-based) from the backend on load, including right after
   // an OAuth provider redirects back here.
@@ -582,6 +592,22 @@ const App: React.FC = () => {
     );
   }
 
+  if (inviteToken) {
+    return (
+      <InviteAcceptScreen
+        token={inviteToken}
+        currentUser={authUser}
+        onAuthenticated={handleAuthenticated}
+        onAccepted={() => {
+          clearInviteRoute();
+          setActiveTab('events');
+        }}
+        onCancel={clearInviteRoute}
+        onSwitchAccount={() => { handleLogout(); }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {!isAuthenticated ? (
@@ -590,25 +616,25 @@ const App: React.FC = () => {
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-[110] print:hidden shadow-sm">
-            <div className="flex items-center gap-6 w-full max-w-7xl mx-auto justify-between">
-              <div className="flex items-center gap-8">
+          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-sm">
+            <div className="flex items-center gap-3 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
+              <div className="flex items-center gap-3 sm:gap-8 min-w-0">
                 {/* Logo & Brand from Design HTML */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                  <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center shrink-0">
                     <span className="text-white font-bold text-xs">FF</span>
                   </div>
-                  <h1 className="text-sm font-semibold tracking-tight uppercase text-indigo-900 hidden xs:block">
+                  <h1 className="text-sm font-semibold tracking-tight uppercase text-indigo-900 hidden sm:block whitespace-nowrap">
                     FFPRO <span className="font-normal text-slate-400">v4.2</span>
                   </h1>
                 </div>
 
                 {/* Minimalist Tabs */}
-                <div className="flex items-center gap-1 sm:gap-2">
+                <div className="flex items-center gap-0.5 sm:gap-2 overflow-x-auto no-scrollbar">
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
-                      className={`flex items-center gap-1.5 px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 ${activeTab === 'dashboard' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'dashboard' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                     >
                       <LayoutDashboard size={14} />
                       <span className="hidden md:inline">Dashboard</span>
@@ -616,14 +642,14 @@ const App: React.FC = () => {
                   )}
                   <button 
                     onClick={() => setActiveTab('calendar')} 
-                    className={`flex items-center gap-1.5 px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 ${activeTab === 'calendar' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'calendar' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                   >
                     <CalendarIcon size={14} />
                     <span className="hidden md:inline">Calendar</span>
                   </button>
                   <button 
                     onClick={() => setActiveTab('events')} 
-                    className={`flex items-center gap-1.5 px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 ${activeTab === 'events' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'events' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                   >
                     <Zap size={14} />
                     <span>Planner</span>
@@ -631,7 +657,7 @@ const App: React.FC = () => {
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('projections')} 
-                      className={`flex items-center gap-1.5 px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 ${activeTab === 'projections' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'projections' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                     >
                       <TrendingUp size={14} />
                       <span className="hidden md:inline">Forecast</span>
@@ -640,7 +666,7 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                 {/* PWA Install Button */}
                 {deferredPrompt && (
                   <button 
@@ -692,7 +718,7 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full pt-32 px-6 pb-12">
+          <main className="flex-1 max-w-7xl mx-auto w-full pt-32 px-3 sm:px-6 pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -754,6 +780,7 @@ const App: React.FC = () => {
                 contacts={contacts}
                 directoryHandle={null}
                 currentUser={currentUsername}
+                currentUserId={authUser?.id}
                 isAdmin={isAdmin}
                 onAddEvent={(e) => setEvents(prev => [{
                   ...e,

@@ -26,6 +26,7 @@
     "lucide-react": "^0.546.0",
     "morgan": "^1.11.0",
     "motion": "^12.23.24",
+    "nodemailer": "^9.0.3",
     "passport": "^0.7.0",
     "passport-apple": "^2.0.2",
     "passport-facebook": "^3.0.0",

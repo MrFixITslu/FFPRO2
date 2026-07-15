@@ -4,6 +4,8 @@ import { authService, AuthUser } from '../services/authService';
 
 interface Props {
   onAuthenticated: (user: AuthUser) => void;
+  initialEmail?: string;
+  initialMode?: 'login' | 'register';
 }
 
 const OAuthButton: React.FC<{
@@ -38,9 +40,9 @@ const OAuthButton: React.FC<{
   );
 };
 
-const Login: React.FC<Props> = ({ onAuthenticated }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
+const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode }) => {
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode || 'login');
+  const [email, setEmail] = useState(initialEmail || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

@@ -10,6 +10,8 @@ import passport from './server/passport.js';
 import authRoutes from './server/routes/auth.js';
 import dataRoutes from './server/routes/data.js';
 import aiRoutes from './server/routes/ai.js';
+import projectsRoutes from './server/routes/projects.js';
+import invitesRoutes from './server/routes/invites.js';
 import { createServer as createViteServer } from 'vite';
 
 // Auto-generate SESSION_SECRET and DATA_ENCRYPTION_KEY if not provided
@@ -119,6 +121,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/projects', projectsRoutes);
+app.use('/api/invites', invitesRoutes);
 
 // Vite Integration
 async function bootstrap() {

@@ -1,19 +1,23 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails } from '../types';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole } from '../types';
 import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc } from '../services/fileStorageService';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
+import ProjectDashboard from './ProjectDashboard';
+import ProjectChat from './ProjectChat';
+import ShareProjectModal from './ShareProjectModal';
+import { projectsService, ProjectSyncConflictError } from '../services/projectsService';
 import { 
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
-  Trash2, Percent, Calculator, Settings
+  Trash2, Percent, Calculator, Settings, Share2, Loader2
 } from 'lucide-react';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-type ProjectTab = 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner';
+type ProjectTab = 'dashboard' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
 
 const getInitialChecklist = (planType: 'event' | 'trip' | 'startup'): ProjectTask[] => {
   if (planType === 'trip') {
@@ -56,6 +60,7 @@ interface Props {
   contacts: Contact[];
   directoryHandle: FileSystemDirectoryHandle | null;
   currentUser: string;
+  currentUserId?: string;
   isAdmin: boolean;
   onAddEvent: (event: Omit<BudgetEvent, 'id' | 'items' | 'notes' | 'tasks' | 'files' | 'contactIds' | 'memberUsernames' | 'ious' | 'lastUpdated' | 'logs'>) => void;
   onDeleteEvent: (id: string) => void;
@@ -64,13 +69,45 @@ interface Props {
   onMountVault?: () => void;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault }) => {
+const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault }) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [eventPendingDelete, setEventPendingDelete] = useState<BudgetEvent | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  // --- Collaboration: shared projects live server-side; local plans stay in the encrypted blob ---
+  const [sharedEvents, setSharedEvents] = useState<BudgetEvent[]>([]);
+  const [sharedLoading, setSharedLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const allEvents = useMemo(() => [...(events || []), ...sharedEvents], [events, sharedEvents]);
+
+  const refreshSharedProjects = useCallback(async () => {
+    try {
+      const list = await projectsService.list();
+      setSharedEvents(list.map(p => ({
+        ...(p.data as BudgetEvent),
+        id: p.id,
+        sharedProjectId: p.id,
+        isShared: true,
+        role: p.role,
+        serverVersion: p.version,
+        lastUpdated: p.updatedAt,
+      })));
+    } catch (err) {
+      console.error('Failed to load shared projects:', err);
+    } finally {
+      setSharedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refreshSharedProjects(); }, [refreshSharedProjects]);
   
   const [selectedPlanType, setSelectedPlanType] = useState<'event' | 'trip' | 'startup'>('event');
   const [destination, setDestination] = useState('');
@@ -97,20 +134,27 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedEvent = useMemo(() => (events || []).find(e => e.id === selectedEventId), [events, selectedEventId]);
+  const selectedEvent = useMemo(() => (allEvents || []).find(e => e.id === selectedEventId), [allEvents, selectedEventId]);
+  const canEdit = !selectedEvent?.isShared || selectedEvent.role !== 'viewer';
 
-  // Automatically select the primary tab based on the type of project opened
+  useEffect(() => {
+    if (!selectedEvent?.isShared || !selectedEvent.sharedProjectId) {
+      setProjectMembers([]);
+      return;
+    }
+    let cancelled = false;
+    projectsService.getMembers(selectedEvent.sharedProjectId)
+      .then(res => { if (!cancelled) setProjectMembers(res.members); })
+      .catch(() => { if (!cancelled) setProjectMembers([]); });
+    return () => { cancelled = true; };
+  }, [selectedEvent?.isShared, selectedEvent?.sharedProjectId]);
+
+  // Always land on the Dashboard when opening a project
   useEffect(() => {
     if (selectedEvent) {
-      if (selectedEvent.eventType === 'trip') {
-        setActiveTab('trip_planner');
-      } else if (selectedEvent.eventType === 'startup') {
-        setActiveTab('startup_planner');
-      } else {
-        setActiveTab('ledger');
-      }
+      setActiveTab('dashboard');
     }
-  }, [selectedEventId, selectedEvent?.eventType]);
+  }, [selectedEventId]);
 
   const addActionLog = (event: BudgetEvent, action: string, type: EventLog['type']) => {
     const newLog: EventLog = {
@@ -120,7 +164,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       username: currentUser,
       type
     };
-    onUpdateEvent({
+    updateEvent({
       ...event,
       logs: [newLog, ...(event.logs || [])],
       lastUpdated: new Date().toISOString()
@@ -207,7 +251,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       );
     }
     
-    onUpdateEvent({ ...selectedEvent, tasks: updatedTasks });
+    updateEvent({ ...selectedEvent, tasks: updatedTasks });
   };
 
   const handleAddMember = () => {
@@ -231,7 +275,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     const updatedEvent = { ...selectedEvent, contactIds: [...currentIds, contactId] };
     const contact = contacts.find(c => c.id === contactId);
     addActionLog(updatedEvent, `Linked stakeholder: "${contact?.name || 'Unknown'}"`, 'contact');
-    onUpdateEvent(updatedEvent);
+    updateEvent(updatedEvent);
   };
 
   const handleUnlinkContact = (contactId: string) => {
@@ -242,7 +286,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     };
     const contact = contacts.find(c => c.id === contactId);
     addActionLog(updatedEvent, `Removed stakeholder: "${contact?.name || 'Unknown'}"`, 'contact');
-    onUpdateEvent(updatedEvent);
+    updateEvent(updatedEvent);
   };
 
   const handleCreateContact = () => {
@@ -278,7 +322,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       };
       
       const updatedEvent = { ...selectedEvent, files: [...(selectedEvent.files || []), newFile] };
-      onUpdateEvent(updatedEvent);
+      updateEvent(updatedEvent);
       addActionLog(updatedEvent, `Linked local asset: "${file.name}"`, 'file');
     } catch (err: any) {
       console.error("Vault access error:", err);
@@ -296,7 +340,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       },
       lastUpdated: new Date().toISOString()
     };
-    onUpdateEvent(updatedEvent);
+    updateEvent(updatedEvent);
   };
 
   const handleSaveDocument = async (title: string, content: string, extension: '.fdoc' | '.fcel' = '.fdoc') => {
@@ -355,7 +399,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
         lastUpdated: new Date().toISOString()
       };
       
-      onUpdateEvent(updatedEvent); 
+      updateEvent(updatedEvent); 
       addActionLog(updatedEvent, `Vault Commit: "${fileName}"`, 'file');
       setCurrentDoc({ id: docId, title, content });
     } catch (err: any) {
@@ -408,6 +452,57 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     }
   };
 
+  const updateEvent = useCallback((updatedEvent: BudgetEvent) => {
+    if (updatedEvent.isShared && updatedEvent.sharedProjectId) {
+      const pid = updatedEvent.sharedProjectId;
+      setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? updatedEvent : e)));
+
+      if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
+      saveTimers.current[pid] = setTimeout(async () => {
+        const { id, sharedProjectId, isShared, role, serverVersion, ...rest } = updatedEvent;
+        try {
+          const result = await projectsService.save(pid, rest, serverVersion ?? 0);
+          setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? { ...e, serverVersion: result.version, lastUpdated: result.updatedAt } : e)));
+          setSaveError(null);
+        } catch (err: any) {
+          if (err instanceof ProjectSyncConflictError) {
+            setSaveError('This plan was updated by someone else — refreshing to the latest version.');
+            refreshSharedProjects();
+          } else {
+            setSaveError(err.message || 'Failed to save your changes. They will retry shortly.');
+          }
+        }
+      }, 800);
+    } else {
+      onUpdateEvent(updatedEvent);
+    }
+  }, [onUpdateEvent, refreshSharedProjects]);
+
+  const handleShareClick = async (event: BudgetEvent) => {
+    if (event.isShared) {
+      setSelectedEventId(event.id);
+      setShowShareModal(true);
+      return;
+    }
+    setPromoting(true);
+    try {
+      const { id, isShared, sharedProjectId, role, serverVersion, ...rest } = event;
+      const created = await projectsService.create(event.name, event.eventType || 'event', rest);
+      // Now server-authoritative: drop the local copy, add the shared one, and open it.
+      onDeleteEvent(event.id);
+      setSharedEvents(prev => [
+        { ...(created.data as BudgetEvent), id: created.id, sharedProjectId: created.id, isShared: true, role: created.role, serverVersion: created.version, lastUpdated: created.updatedAt },
+        ...prev,
+      ]);
+      setSelectedEventId(created.id);
+      setShowShareModal(true);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to share this plan.');
+    } finally {
+      setPromoting(false);
+    }
+  };
+
   const requestDeleteEvent = (event: BudgetEvent) => {
     setDeleteConfirmText('');
     setEventPendingDelete(event);
@@ -418,10 +513,22 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     setDeleteConfirmText('');
   };
 
-  const confirmDeleteEvent = () => {
+  const confirmDeleteEvent = async () => {
     if (!eventPendingDelete) return;
     if (deleteConfirmText.trim().toLowerCase() !== eventPendingDelete.name.trim().toLowerCase()) return;
-    onDeleteEvent(eventPendingDelete.id);
+
+    if (eventPendingDelete.isShared && eventPendingDelete.sharedProjectId) {
+      try {
+        await projectsService.remove(eventPendingDelete.sharedProjectId);
+        setSharedEvents(prev => prev.filter(e => e.id !== eventPendingDelete.id));
+      } catch (err: any) {
+        setSaveError(err.message || 'Failed to delete this shared plan.');
+        return;
+      }
+    } else {
+      onDeleteEvent(eventPendingDelete.id);
+    }
+
     if (selectedEventId === eventPendingDelete.id) {
       setSelectedEventId(null);
     }
@@ -671,28 +778,52 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                </div>
               </div>
              <div className="flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto no-scrollbar relative z-10 backdrop-blur-md">
-               {(selectedEvent.eventType === 'trip' 
-                 ? ['trip_planner', 'tasks', 'vault', 'contacts', 'log']
-                 : selectedEvent.eventType === 'startup'
-                 ? ['startup_planner', 'tasks', 'vault', 'contacts', 'log']
-                 : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']
-               ).map(tab => {
-                 const label = tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Activity' : 'Ledger';
+               {[
+                 'dashboard',
+                 ...(selectedEvent.eventType === 'trip' 
+                   ? ['trip_planner', 'tasks', 'vault', 'contacts', 'log']
+                   : selectedEvent.eventType === 'startup'
+                   ? ['startup_planner', 'tasks', 'vault', 'contacts', 'log']
+                   : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']),
+                 ...(selectedEvent.isShared ? ['chat'] : []),
+               ].map(tab => {
+                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Activity' : 'Ledger';
                  return (
                    <button key={tab} onClick={() => setActiveTab(tab as ProjectTab)} className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm font-extrabold' : 'text-white/60 hover:text-white hover:bg-white/5'}`}>{label}</button>
                  );
                })}
              </div>
-             {isAdmin && (
+             <div className="flex items-center gap-2 relative z-10 shrink-0">
                <button
-                 onClick={() => requestDeleteEvent(selectedEvent)}
-                 title="Delete plan"
-                 className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-red-500/80 hover:text-white transition-all border border-white/5 shadow-sm relative z-10 shrink-0"
+                 onClick={() => handleShareClick(selectedEvent)}
+                 disabled={promoting}
+                 title={selectedEvent.isShared ? 'Manage collaborators' : 'Share this plan'}
+                 className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-white/20 hover:text-white transition-all border border-white/5 shadow-sm disabled:opacity-50"
                >
-                 <Trash2 className="w-4 h-4" />
+                 {promoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
                </button>
-             )}
+               {(!selectedEvent.isShared && isAdmin) || selectedEvent.role === 'owner' ? (
+                 <button
+                   onClick={() => requestDeleteEvent(selectedEvent)}
+                   title="Delete plan"
+                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-red-500/80 hover:text-white transition-all border border-white/5 shadow-sm"
+                 >
+                   <Trash2 className="w-4 h-4" />
+                 </button>
+               ) : null}
+             </div>
           </div>
+
+          {selectedEvent.isShared && selectedEvent.role === 'viewer' && (
+            <div className="flex items-center gap-2 -mt-3 mb-6 px-4 py-2 bg-amber-50 border border-amber-100 rounded-lg text-[11px] text-amber-700 font-semibold">
+              <Info className="w-3.5 h-3.5 shrink-0" /> You have view-only access to this plan.
+            </div>
+          )}
+          {saveError && (
+            <div className="flex items-center gap-2 -mt-3 mb-6 px-4 py-2 bg-red-50 border border-red-100 rounded-lg text-[11px] text-red-600 font-semibold">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {saveError}
+            </div>
+          )}
 
           <div className="min-h-[500px]">
             {activeTab === 'trip_planner' && selectedEvent.tripDetails && (() => {
@@ -1115,7 +1246,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                                   items: [...(selectedEvent.items || []), newItem],
                                   lastUpdated: new Date().toISOString()
                                 };
-                                onUpdateEvent(updatedEvent);
+                                updateEvent(updatedEvent);
                                 addActionLog(updatedEvent, `Logged savings contribution: $${amt}`, 'transaction');
                                 e.currentTarget.reset();
                               }} 
@@ -1318,7 +1449,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
               const handleUpdateStartup = (fields: Partial<typeof selectedEvent.startupDetails>) => {
                 if (!selectedEvent || !selectedEvent.startupDetails) return;
-                onUpdateEvent({
+                updateEvent({
                   ...selectedEvent,
                   startupDetails: {
                     ...selectedEvent.startupDetails,
@@ -2016,6 +2147,14 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               </div>
             )}
             
+            {activeTab === 'dashboard' && (
+              <ProjectDashboard event={selectedEvent} members={selectedEvent.isShared ? projectMembers : undefined} />
+            )}
+
+            {activeTab === 'chat' && selectedEvent.isShared && selectedEvent.sharedProjectId && (
+              <ProjectChat projectId={selectedEvent.sharedProjectId} currentUserId={currentUserId} />
+            )}
+
             {activeTab === 'ledger' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -2042,18 +2181,22 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
                 <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white shadow-sm">
                   <h3 className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 mb-6">Authorize Entry</h3>
-                  <form onSubmit={handleAddItem} className="space-y-4">
-                    <input name="description" placeholder="Description" required className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
-                    <input name="amount" type="number" step="0.01" placeholder="Amount" required className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
-                    <select name="type" className="w-full bg-slate-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300">
-                      <option value="expense">Expense</option>
-                      <option value="income">Income</option>
-                    </select>
-                    <select name="category" className="w-full bg-slate-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300">
-                      {EVENT_ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <button type="submit" className="w-full py-2.5 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider">Commit Entry</button>
-                  </form>
+                  {canEdit ? (
+                    <form onSubmit={handleAddItem} className="space-y-4">
+                      <input name="description" placeholder="Description" required className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
+                      <input name="amount" type="number" step="0.01" placeholder="Amount" required className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
+                      <select name="type" className="w-full bg-slate-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300">
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                      </select>
+                      <select name="category" className="w-full bg-slate-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300">
+                        {EVENT_ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <button type="submit" className="w-full py-2.5 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider">Commit Entry</button>
+                    </form>
+                  ) : (
+                    <p className="text-[11px] text-white/40">You have view-only access, so you can't add entries.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -2118,18 +2261,24 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 </div>
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
                    <h3 className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-4">Deploy Milestone</h3>
-                   <textarea 
-                    value={taskText}
-                    onChange={(e) => setTaskText(e.target.value)}
-                    placeholder="Enter project milestone..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 h-28 mb-3"
-                   />
-                   <button 
-                    onClick={handleAddTask}
-                    className="w-full py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm"
-                   >
-                    Initialize Phase
-                   </button>
+                   {canEdit ? (
+                     <>
+                       <textarea 
+                        value={taskText}
+                        onChange={(e) => setTaskText(e.target.value)}
+                        placeholder="Enter project milestone..."
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 h-28 mb-3"
+                       />
+                       <button 
+                        onClick={handleAddTask}
+                        className="w-full py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm"
+                       >
+                        Initialize Phase
+                       </button>
+                     </>
+                   ) : (
+                     <p className="text-[11px] text-slate-400">You have view-only access, so you can't add milestones.</p>
+                   )}
                 </div>
                </div>
             )}
@@ -2298,18 +2447,34 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-           {events.map(event => (
+           {allEvents.map(event => (
               <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-slate-50/50 transition-all relative overflow-hidden group">
-                {isAdmin && (
+                <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                   <button
-                    onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
-                    title="Delete plan"
-                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                    onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
+                    title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
+                    className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Share2 className="w-4 h-4" />
                   </button>
-                )}
-                <h3 className="font-bold text-slate-800 text-lg mb-2 pr-8 group-hover:text-indigo-600 transition-colors">{event.name}</h3>
+                  {(!event.isShared && isAdmin) || event.role === 'owner' ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
+                      title="Delete plan"
+                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2 mb-2 pr-16">
+                  <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
+                  {event.isShared && (
+                    <span title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} className="shrink-0 w-5 h-5 flex items-center justify-center rounded bg-indigo-50 text-indigo-500">
+                      <Share2 className="w-3 h-3" />
+                    </span>
+                  )}
+                </div>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
                 <div className="flex gap-2">
                   <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-indigo-50 border-indigo-100 text-indigo-600">{(event.files || []).length} Assets</span>
@@ -2369,6 +2534,16 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             </div>
           </div>
         </div>
+      )}
+
+      {showShareModal && selectedEvent?.isShared && selectedEvent.sharedProjectId && (
+        <ShareProjectModal
+          projectId={selectedEvent.sharedProjectId}
+          projectName={selectedEvent.name}
+          currentUserId={currentUserId}
+          currentUserRole={selectedEvent.role || 'viewer'}
+          onClose={() => setShowShareModal(false)}
+        />
       )}
     </div>
   );

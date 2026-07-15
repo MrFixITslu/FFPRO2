@@ -13,6 +13,8 @@ import { sameOriginOnly } from './middleware/sameOriginOnly.js';
 import authRoutes from './routes/auth.js';
 import dataRoutes from './routes/data.js';
 import aiRoutes from './routes/ai.js';
+import projectsRoutes from './routes/projects.js';
+import invitesRoutes from './routes/invites.js';
 
 // Fail fast on boot rather than on the first request if config is missing.
 for (const key of ['SESSION_SECRET', 'DATABASE_URL']) {
@@ -108,6 +110,8 @@ app.use('/api/data', (req, res, next) => (req.method === 'GET' ? next() : dataWr
 app.use('/api/auth', authRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/projects', projectsRoutes);
+app.use('/api/invites', invitesRoutes);
 
 // Fallback error handler — never leak stack traces to clients.
 app.use((err, _req, res, _next) => {

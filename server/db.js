@@ -64,6 +64,60 @@ if (hasPostgres) {
       );
     `);
   }).then(() => {
+    // Shared, multi-user projects (Planning Hub plans that have been shared
+    // with collaborators). Kept separate from the per-user encrypted blob
+    // above because more than one account needs to read/write this data.
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        project_type VARCHAR(50) NOT NULL DEFAULT 'event',
+        data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS project_members (
+        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+        added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (project_id, user_id)
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS project_invites (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'editor',
+        invited_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(64) UNIQUE NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        accepted_at TIMESTAMP WITH TIME ZONE
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_project_invites_email ON project_invites(LOWER(email));`);
+  }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS project_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_project_messages_project_created ON project_messages(project_id, created_at);`);
+  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
@@ -83,20 +137,34 @@ if (!fs.existsSync(DB_FILE)) {
     oauth_accounts: [],
     user_data: [],
     login_attempts: [],
-    sessions: []
+    sessions: [],
+    projects: [],
+    project_members: [],
+    project_invites: [],
+    project_messages: []
   }, null, 2));
 }
 
 function readDB() {
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    // Backfill new collections for database files created before this feature existed.
+    parsed.projects ||= [];
+    parsed.project_members ||= [];
+    parsed.project_invites ||= [];
+    parsed.project_messages ||= [];
+    return parsed;
   } catch (e) {
     return {
       users: [],
       oauth_accounts: [],
       user_data: [],
       login_attempts: [],
-      sessions: []
+      sessions: [],
+      projects: [],
+      project_members: [],
+      project_invites: [],
+      project_messages: []
     };
   }
 }
@@ -296,3 +364,5 @@ export const pool = {
     }
   }
 };
+
+export { hasPostgres, realPool, readDB, writeDB, DB_FILE };
