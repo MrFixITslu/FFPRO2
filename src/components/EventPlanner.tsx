@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, User, TripPlanDetails, StartupPlanDetails } from '../types';
+import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails } from '../types';
 import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc } from '../services/fileStorageService';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
@@ -51,13 +51,6 @@ const getInitialChecklist = (planType: 'event' | 'trip' | 'startup'): ProjectTas
   }
 };
 
-const MOCK_ONLINE_USERS: User[] = [
-  { id: 'u1', name: 'nsv', role: 'admin', online: true },
-  { id: 'u2', name: 'Sarah', role: 'collaborator', online: true },
-  { id: 'u3', name: 'John', role: 'collaborator', online: true },
-  { id: 'u4', name: 'Michael', role: 'collaborator', online: false },
-];
-
 interface Props {
   events: BudgetEvent[];
   contacts: Contact[];
@@ -76,6 +69,8 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
+  const [eventPendingDelete, setEventPendingDelete] = useState<BudgetEvent | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   
   const [selectedPlanType, setSelectedPlanType] = useState<'event' | 'trip' | 'startup'>('event');
   const [destination, setDestination] = useState('');
@@ -413,6 +408,27 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     }
   };
 
+  const requestDeleteEvent = (event: BudgetEvent) => {
+    setDeleteConfirmText('');
+    setEventPendingDelete(event);
+  };
+
+  const cancelDeleteEvent = () => {
+    setEventPendingDelete(null);
+    setDeleteConfirmText('');
+  };
+
+  const confirmDeleteEvent = () => {
+    if (!eventPendingDelete) return;
+    if (deleteConfirmText.trim().toLowerCase() !== eventPendingDelete.name.trim().toLowerCase()) return;
+    onDeleteEvent(eventPendingDelete.id);
+    if (selectedEventId === eventPendingDelete.id) {
+      setSelectedEventId(null);
+    }
+    setEventPendingDelete(null);
+    setDeleteConfirmText('');
+  };
+
   return (
     <div className="space-y-6 pb-20 max-w-6xl mx-auto px-2">
       {isEditingDoc && (
@@ -436,25 +452,6 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
           onMountVault={onMountVault}
         />
       )}
-
-      {/* STORAGE INDICATOR */}
-      <div className="flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-850 mb-6 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex -space-x-2">
-            {MOCK_ONLINE_USERS.filter(u => u.online).map(u => (
-              <div key={u.id} className="w-8 h-8 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold uppercase text-white shadow-sm">
-                {u.name[0]}
-              </div>
-            ))}
-          </div>
-          <div>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Storage Node</span>
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded">
-              {directoryHandle ? `MIRROR: ${directoryHandle.name}` : 'INTERNAL VAULT ACTIVE'}
-            </span>
-          </div>
-        </div>
-      </div>
 
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-light tracking-tight text-slate-800">Projects</h2>
@@ -686,6 +683,15 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                  );
                })}
              </div>
+             {isAdmin && (
+               <button
+                 onClick={() => requestDeleteEvent(selectedEvent)}
+                 title="Delete plan"
+                 className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-red-500/80 hover:text-white transition-all border border-white/5 shadow-sm relative z-10 shrink-0"
+               >
+                 <Trash2 className="w-4 h-4" />
+               </button>
+             )}
           </div>
 
           <div className="min-h-[500px]">
@@ -2294,7 +2300,16 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
            {events.map(event => (
               <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-slate-50/50 transition-all relative overflow-hidden group">
-                <h3 className="font-bold text-slate-800 text-lg mb-2 group-hover:text-indigo-600 transition-colors">{event.name}</h3>
+                {isAdmin && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
+                    title="Delete plan"
+                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                <h3 className="font-bold text-slate-800 text-lg mb-2 pr-8 group-hover:text-indigo-600 transition-colors">{event.name}</h3>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
                 <div className="flex gap-2">
                   <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-indigo-50 border-indigo-100 text-indigo-600">{(event.files || []).length} Assets</span>
@@ -2302,6 +2317,57 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 </div>
               </div>
            ))}
+        </div>
+      )}
+
+      {eventPendingDelete && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-950 tracking-tight">Delete Plan</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">This cannot be undone</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-600 mb-4">
+                This will permanently delete <span className="font-bold text-slate-800">"{eventPendingDelete.name}"</span>, including its ledger, tasks, documents, and activity log.
+              </p>
+
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
+                Type <span className="text-slate-700">{eventPendingDelete.name}</span> to confirm
+              </label>
+              <input
+                autoFocus
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteEvent(); if (e.key === 'Escape') cancelDeleteEvent(); }}
+                placeholder={eventPendingDelete.name}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-red-500 font-semibold mb-6"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={cancelDeleteEvent}
+                  className="flex-1 px-4 py-2.5 bg-slate-50 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider border border-slate-200 hover:bg-slate-100 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteEvent}
+                  disabled={deleteConfirmText.trim().toLowerCase() !== eventPendingDelete.name.trim().toLowerCase()}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-red-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-red-600"
+                >
+                  Delete Permanently
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
