@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   fire-finance:
     build:
@@ -45,6 +43,14 @@ services:
       - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
       - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
       - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL:-http://199.223.249.193/api/auth/facebook/callback}
+      
+      # Outgoing Email - project-share invites (optional)
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_SECURE=${SMTP_SECURE}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=${SMTP_FROM}
       
       # Base Application URLs
       - FRONTEND_URL=${FRONTEND_URL:-http://199.223.249.193}
