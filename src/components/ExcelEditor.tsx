@@ -111,6 +111,119 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
     return { r: row, c: col - 1 };
   };
 
+  // Safe arithmetic-only expression evaluator. This intentionally avoids
+  // new Function()/eval() because sheet data can arrive from a shared
+  // project loaded from another collaborator's account — evaluating an
+  // arbitrary string as JavaScript would let one collaborator's formula
+  // run code in another collaborator's browser session. This parser only
+  // ever recognizes numbers, + - * / ^ ( ), and the two whitelisted
+  // SUM/AVERAGE calls (already resolved to numeric arrays before reaching
+  // it), so there's no path to an arbitrary JS identifier or property access.
+  const evalArithmetic = (src: string): number => {
+    let i = 0;
+    const peek = () => src[i];
+    const fail = () => { throw new Error('bad expression'); };
+    const skipSpace = () => { while (i < src.length && src[i] === ' ') i++; };
+
+    const parseNumber = (): number => {
+      const start = i;
+      if (src[i] === '+' || src[i] === '-') i++;
+      let sawDigit = false;
+      while (i < src.length && /[0-9]/.test(src[i])) { i++; sawDigit = true; }
+      if (src[i] === '.') {
+        i++;
+        while (i < src.length && /[0-9]/.test(src[i])) { i++; sawDigit = true; }
+      }
+      if (!sawDigit) fail();
+      return parseFloat(src.slice(start, i));
+    };
+
+    const parseArray = (): number[] => {
+      if (src[i] !== '[') fail();
+      i++;
+      const vals: number[] = [];
+      skipSpace();
+      if (src[i] === ']') { i++; return vals; }
+      while (true) {
+        skipSpace();
+        vals.push(parseNumber());
+        skipSpace();
+        if (src[i] === ',') { i++; continue; }
+        if (src[i] === ']') { i++; break; }
+        fail();
+      }
+      return vals;
+    };
+
+    const parseFactor = (): number => {
+      skipSpace();
+      if (src[i] === '(') {
+        i++;
+        const v = parseExpr();
+        skipSpace();
+        if (src[i] !== ')') fail();
+        i++;
+        return v;
+      }
+      if (src.startsWith('SUM', i) && src[i + 3] === '(') {
+        i += 4;
+        const arr = parseArray();
+        skipSpace();
+        if (src[i] !== ')') fail();
+        i++;
+        return arr.reduce((a, b) => a + b, 0);
+      }
+      if (src.startsWith('AVERAGE', i) && src[i + 7] === '(') {
+        i += 8;
+        const arr = parseArray();
+        skipSpace();
+        if (src[i] !== ')') fail();
+        i++;
+        return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+      }
+      return parseNumber();
+    };
+
+    const parsePow = (): number => {
+      let base = parseFactor();
+      skipSpace();
+      if (peek() === '^') {
+        i++;
+        base = Math.pow(base, parsePow());
+      }
+      return base;
+    };
+
+    const parseTerm = (): number => {
+      let val = parsePow();
+      skipSpace();
+      while (peek() === '*' || peek() === '/') {
+        const op = src[i]; i++;
+        const rhs = parsePow();
+        val = op === '*' ? val * rhs : val / rhs;
+        skipSpace();
+      }
+      return val;
+    };
+
+    const parseExpr = (): number => {
+      let val = parseTerm();
+      skipSpace();
+      while (peek() === '+' || peek() === '-') {
+        const op = src[i]; i++;
+        const rhs = parseTerm();
+        val = op === '+' ? val + rhs : val - rhs;
+        skipSpace();
+      }
+      return val;
+    };
+
+    const result = parseExpr();
+    skipSpace();
+    if (i !== src.length) fail();
+    return result;
+  };
+
   const evaluateFormula = useCallback((formula: string, currentGrid: CellData[][]): string => {
     if (!formula.startsWith('=')) return formula;
     const expression = formula.substring(1).toUpperCase();
@@ -140,10 +253,8 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
         const val = parseFloat(currentGrid[coord.r]?.[coord.c]?.computed || currentGrid[coord.r]?.[coord.c]?.value || "0");
         return isNaN(val) ? "0" : val.toString();
       });
-      const SUM = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
-      const AVERAGE = (arr: number[]) => SUM(arr) / arr.length;
-      const sandbox = { SUM, AVERAGE };
-      return new Function(...Object.keys(sandbox), `return ${finalEval}`)(...Object.values(sandbox)).toString();
+      const result = evalArithmetic(finalEval.replace(/\s+/g, ''));
+      return String(result);
     } catch (err) {
       return "#VALUE!";
     }
