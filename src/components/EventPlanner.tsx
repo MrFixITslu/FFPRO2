@@ -132,10 +132,25 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [calcItemName, setCalcItemName] = useState('');
   const [calcItemCost, setCalcItemCost] = useState('');
 
+  // Rename State
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [renamingCardId, setRenamingCardId] = useState<string | null>(null);
+  const [renamingCardValue, setRenamingCardValue] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedEvent = useMemo(() => (allEvents || []).find(e => e.id === selectedEventId), [allEvents, selectedEventId]);
   const canEdit = !selectedEvent?.isShared || selectedEvent.role !== 'viewer';
+
+  const commitRename = (event: BudgetEvent, rawName: string) => {
+    const trimmed = rawName.trim();
+    if (trimmed && trimmed !== event.name) {
+      updateEvent({ ...event, name: trimmed });
+    }
+  };
+
+  useEffect(() => { setIsEditingName(false); }, [selectedEventId]);
 
   useEffect(() => {
     if (!selectedEvent?.isShared || !selectedEvent.sharedProjectId) {
@@ -767,7 +782,28 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
              <div className="flex items-center gap-4 relative z-10">
                <button onClick={() => setSelectedEventId(null)} className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded hover:bg-white/20 transition-all border border-white/5 shadow-sm"><i className="fas fa-chevron-left text-xs"></i></button>
                <div>
-                 <h2 className="text-2xl font-bold text-white tracking-tight leading-none">{selectedEvent.name}</h2>
+                 {isEditingName && canEdit ? (
+                   <input
+                     autoFocus
+                     type="text"
+                     value={editNameValue}
+                     onChange={(e) => setEditNameValue(e.target.value)}
+                     onBlur={() => { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }}
+                     onKeyDown={(e) => {
+                       if (e.key === 'Enter') { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }
+                       if (e.key === 'Escape') setIsEditingName(false);
+                     }}
+                     className="text-2xl font-bold text-white tracking-tight leading-none bg-white/10 border border-white/30 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 w-full max-w-sm"
+                   />
+                 ) : (
+                   <h2
+                     onClick={() => { if (canEdit) { setEditNameValue(selectedEvent.name); setIsEditingName(true); } }}
+                     title={canEdit ? 'Click to rename' : undefined}
+                     className={`text-2xl font-bold text-white tracking-tight leading-none ${canEdit ? 'cursor-text hover:bg-white/10 rounded px-2 py-0.5 -mx-2 -my-0.5 transition-colors' : ''}`}
+                   >
+                     {selectedEvent.name}
+                   </h2>
+                 )}
                  <p className="text-[10px] text-white/70 font-bold uppercase tracking-wider mt-1.5">
                    {selectedEvent.eventType === 'trip' 
                      ? `Vacation to ${selectedEvent.tripDetails?.destination || 'Destination'}` 
@@ -2450,6 +2486,15 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
            {allEvents.map(event => (
               <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-slate-50/50 transition-all relative overflow-hidden group">
                 <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                  {(!event.isShared || event.role !== 'viewer') && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
+                      title="Rename plan"
+                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                    >
+                      <i className="fas fa-pen text-xs"></i>
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
                     title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
@@ -2468,7 +2513,23 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2 mb-2 pr-16">
-                  <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
+                  {renamingCardId === event.id ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={renamingCardValue}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setRenamingCardValue(e.target.value)}
+                      onBlur={() => { commitRename(event, renamingCardValue); setRenamingCardId(null); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
+                        if (e.key === 'Escape') setRenamingCardId(null);
+                      }}
+                      className="font-bold text-slate-800 text-lg truncate bg-slate-50 border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                    />
+                  ) : (
+                    <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
+                  )}
                   {event.isShared && (
                     <span title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} className="shrink-0 w-5 h-5 flex items-center justify-center rounded bg-indigo-50 text-indigo-500">
                       <Share2 className="w-3 h-3" />
