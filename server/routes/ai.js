@@ -69,7 +69,8 @@ async function fetchCryptoPrices() {
     const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,SOLUSD`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+      },
+      signal: AbortSignal.timeout(3000)
     });
     if (res.ok) {
       const data = await res.json();
@@ -95,7 +96,7 @@ async function fetchCryptoPrices() {
       }
     }
   } catch (e) {
-    console.error(`Failed to fetch crypto prices from Kraken:`, e);
+    console.warn(`Kraken crypto price fetch bypassed:`, e.message || e);
   }
   return results;
 }
@@ -108,7 +109,8 @@ async function fetchStockPrices() {
       const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
+        },
+        signal: AbortSignal.timeout(3000)
       });
       if (res.ok) {
         const data = await res.json();
@@ -125,7 +127,7 @@ async function fetchStockPrices() {
         }
       }
     } catch (e) {
-      console.error(`Failed to fetch ${symbol} from Yahoo:`, e);
+      console.warn(`Yahoo stock fetch for ${symbol} bypassed:`, e.message || e);
     }
   }
   return results;

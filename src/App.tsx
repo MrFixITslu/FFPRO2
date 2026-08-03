@@ -138,7 +138,7 @@ const App: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Failed to fetch real-time market prices:', err);
+        console.warn('Real-time market price update paused:', err instanceof Error ? err.message : err);
       }
     };
 
