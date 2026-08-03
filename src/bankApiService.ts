@@ -1,15 +1,64 @@
 
+import { InstitutionType, Transaction, AIAnalysisResult } from "../types";
+
 /**
- * Gateway for regional institutions and investment platforms.
- *
- * `syncBankData` and `syncInvestmentHoldings` used to ask Gemini to
- * *fabricate* plausible-looking transactions/holdings as a stand-in for a
- * real bank/brokerage API integration. Neither is currently called anywhere
- * in the app (grep confirms it), so they were removed rather than ported to
- * a non-AI stub — inventing fake financial data was never something to
- * replace with an equivalent, just something to not do. If real bank/broker
- * API integration is wanted later, this is the file to build it in.
+ * Intelligent Gateway for regional institutions and investment platforms.
+ * FIX: Now uses backend endpoint instead of direct API calls
  */
+export const syncBankData = async (
+  institution: string,
+  lastSynced?: string
+): Promise<any[]> => {
+  if (!lastSynced) return [];
+
+  try {
+    const response = await fetch('/api/ai/bank-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ institution, lastSynced })
+    });
+
+    if (!response.ok) {
+      console.error('Bank sync error:', response.statusText);
+      return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Bank API Error:", error);
+    return [];
+  }
+};
+
+/**
+ * Investment Extraction (Binance/Vanguard).
+ * FIX: Now uses backend endpoint instead of direct API calls
+ */
+export const syncInvestmentHoldings = async (
+  provider: 'Binance' | 'Vanguard'
+): Promise<AIAnalysisResult[]> => {
+  try {
+    const response = await fetch('/api/ai/investment-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ provider })
+    });
+
+    if (!response.ok) {
+      console.error('Investment sync error:', response.statusText);
+      return [];
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Investment Sync Error:", error);
+    return [];
+  }
+};
 
 export const syncLucelecPortal = async (): Promise<{ balance: number; dueDate: string } | null> => {
   console.log("Navigating to LUCELEC portal...");

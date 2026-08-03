@@ -7,6 +7,7 @@ import ExcelEditor from './ExcelEditor';
 import ProjectDashboard from './ProjectDashboard';
 import ProjectChat from './ProjectChat';
 import ShareProjectModal from './ShareProjectModal';
+import { PlannerChecklist } from './Planner/PlannerChecklist';
 import { projectsService, ProjectSyncConflictError } from '../services/projectsService';
 import { 
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
@@ -2238,85 +2239,21 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             )}
 
             {activeTab === 'tasks' && (
-               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-4">
-                  {(selectedEvent.tasks || []).length > 0 ? (selectedEvent.tasks || []).map(task => (
-                    <div key={task.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <button 
-                            onClick={() => toggleTaskCompletion(task.id)}
-                            className={`w-8 h-8 rounded flex items-center justify-center border transition-all ${task.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 text-slate-300 hover:border-indigo-400'}`}
-                          >
-                            <i className="fas fa-check text-xs"></i>
-                          </button>
-                          <div>
-                            <p className={`font-semibold text-sm ${task.completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{task.text}</p>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Assigned: {task.assignedToId}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Subtasks */}
-                      <div className="ml-11 space-y-2">
-                        {(task.subTasks || []).map(st => (
-                          <div key={st.id} className="flex items-center gap-2">
-                            <button 
-                              onClick={() => toggleTaskCompletion(st.id, task.id)}
-                              className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${st.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 text-slate-250'}`}
-                            >
-                              <i className="fas fa-check text-[7px]"></i>
-                            </button>
-                            <p className={`text-xs font-medium ${st.completed ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{st.text}</p>
-                          </div>
-                        ))}
-                        <div className="flex gap-2 mt-3 pt-2 border-t border-slate-100">
-                          <input 
-                            type="text" 
-                            placeholder="Link sub-milestone..."
-                            value={subTaskInputs[task.id] || ''}
-                            onChange={(e) => setSubTaskInputs(prev => ({ ...prev, [task.id]: e.target.value }))}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAddSubTask(task.id)}
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                          <button 
-                            onClick={() => handleAddSubTask(task.id)}
-                            className="w-8 h-8 bg-slate-900 text-white rounded flex items-center justify-center text-[10px] font-bold"
-                          >
-                            <i className="fas fa-plus text-xs"></i>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="bg-white p-12 rounded-xl border border-slate-200 flex flex-col items-center justify-center text-center">
-                      <i className="fas fa-clipboard-list text-slate-200 text-4xl mb-4"></i>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No Active Phases</p>
-                    </div>
-                  )}
-                </div>
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
-                   <h3 className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-4">Deploy Milestone</h3>
-                   {canEdit ? (
-                     <>
-                       <textarea 
-                        value={taskText}
-                        onChange={(e) => setTaskText(e.target.value)}
-                        placeholder="Enter project milestone..."
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 h-28 mb-3"
-                       />
-                       <button 
-                        onClick={handleAddTask}
-                        className="w-full py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm"
-                       >
-                        Initialize Phase
-                       </button>
-                     </>
-                   ) : (
-                     <p className="text-[11px] text-slate-400">You have view-only access, so you can't add milestones.</p>
-                   )}
-                </div>
-               </div>
+              <PlannerChecklist
+                tasks={selectedEvent.tasks || []}
+                currentUser={currentUser}
+                canEdit={canEdit}
+                onUpdateTasks={(updatedTasks) => {
+                  updateEvent({
+                    ...selectedEvent,
+                    tasks: updatedTasks,
+                    lastUpdated: new Date().toISOString(),
+                  });
+                }}
+                onAddActionLog={(action, type) => {
+                  addActionLog(selectedEvent, action, type);
+                }}
+              />
             )}
 
             {activeTab === 'team' && (

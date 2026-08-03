@@ -147,14 +147,40 @@ export interface ProjectNote {
   version: number;
 }
 
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskStatus = 'not_started' | 'in_progress' | 'completed' | 'overdue' | 'blocked';
+export type ReminderOption = 'none' | '30m' | '1h' | '1d' | '2d' | '1w' | 'custom';
+
+export interface TaskActivityLog {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+}
+
 export interface ProjectTask {
   id: string;
   text: string;
   completed: boolean;
   dueDate?: string;
+  dueTime?: string;
+  startDate?: string;
+  startTime?: string;
   completionDate?: string;
   assignedToId?: string;
-  subTasks?: ProjectTask[]; 
+  subTasks?: ProjectTask[];
+  
+  // Enhanced Planner Fields
+  description?: string;
+  notes?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  dependencies?: string[]; // IDs of tasks this task depends on (prerequisites)
+  reminder?: ReminderOption;
+  customReminderOffsetMinutes?: number;
+  tags?: string[];
+  order?: number;
+  activityHistory?: TaskActivityLog[];
 }
 
 export interface ProjectFile {
