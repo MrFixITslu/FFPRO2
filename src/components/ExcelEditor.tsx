@@ -44,7 +44,7 @@ const DEFAULT_COL_WIDTH = 120;
 const DEFAULT_ROW_HEIGHT = 32;
 
 const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClose }) => {
-  const [title, setTitle] = useState(initialTitle);
+  const [title, setTitle] = useState(initialTitle ? initialTitle.replace(/_/g, ' ') : '');
   const [grid, setGrid] = useState<CellData[][]>([]);
   const [colWidths, setColWidths] = useState<number[]>([]);
   const [rowHeights, setRowHeights] = useState<number[]>([]);

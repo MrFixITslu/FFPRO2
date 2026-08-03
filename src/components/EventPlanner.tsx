@@ -363,7 +363,8 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     if (!selectedEvent) return;
     
     const docId = currentDoc?.id || generateId();
-    const fileName = `${title.trim().replace(/[^a-z0-9]/gi, '_')}${extension}`;
+    const cleanTitle = title.trim().replace(/[/\\?%*:|"<>]/g, '').replace(/_/g, ' ') || 'Untitled';
+    const fileName = `${cleanTitle}${extension}`;
 
     try {
       await saveInternalDoc(docId, content);
@@ -437,7 +438,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
         }
 
         if (content) {
-          setCurrentDoc({ id: file.id, title: file.name.replace(/\.(fdoc|fcel)$/, ''), content });
+          setCurrentDoc({ id: file.id, title: file.name.replace(/\.(fdoc|fcel)$/, '').replace(/_/g, ' '), content });
           if (isDoc) setIsEditingDoc(true);
           else setIsEditingSheet(true);
         } else {
@@ -2167,7 +2168,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           <div className={`w-12 h-12 rounded flex items-center justify-center shadow-sm mb-4 group-hover:scale-105 transition-transform ${isSheet ? 'bg-emerald-600 text-white' : (isDoc ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-slate-250')}`}>
                             <i className={`fas ${isSheet ? 'fa-table' : (isDoc ? 'fa-file-lines' : 'fa-file-invoice')} text-lg`}></i>
                           </div>
-                          <p className="font-bold text-[11px] text-slate-800 truncate w-full mb-1">{file.name}</p>
+                          <p className="font-bold text-[11px] text-slate-800 truncate w-full mb-1" title={file.name.replace(/_/g, ' ')}>{file.name.replace(/_/g, ' ')}</p>
                           <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${isInternal ? 'bg-indigo-50 text-indigo-500 border border-indigo-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>
                             {isInternal ? 'SECURE_VAULT' : 'MIRROR_DRIVE'}
                           </span>
@@ -2383,13 +2384,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             )}
 
             {activeTab === 'log' && (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-6">Project Intelligence Feed</h3>
                 <div className="space-y-6 relative">
                    <div className="absolute left-[15px] top-0 bottom-0 w-0.5 bg-slate-100"></div>
                    {(selectedEvent.logs || []).length > 0 ? (selectedEvent.logs || []).map(log => (
-                     <div key={log.id} className="flex gap-4 relative z-10">
-                        <div className={`w-8 h-8 rounded flex items-center justify-center text-xs shadow-sm ${
+                     <div key={log.id} className="flex gap-4 relative z-10 min-w-0">
+                        <div className={`w-8 h-8 rounded flex items-center justify-center text-xs shadow-sm shrink-0 ${
                           log.type === 'transaction' ? 'bg-emerald-600 text-white' : 
                           log.type === 'task' ? 'bg-indigo-600 text-white' : 
                           log.type === 'file' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'
@@ -2400,12 +2401,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             log.type === 'file' ? 'fa-database' : 'fa-info'
                           } text-xs`}></i>
                         </div>
-                        <div className="flex-1 pt-0.5">
-                          <div className="flex justify-between items-start mb-0.5">
-                            <p className="font-semibold text-slate-800 text-sm leading-none">{log.action}</p>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <div className="flex-1 pt-0.5 min-w-0 overflow-hidden">
+                          <div className="flex flex-wrap sm:flex-nowrap justify-between items-start gap-2 mb-0.5">
+                            <p className="font-semibold text-slate-800 text-sm leading-snug break-words min-w-0 flex-1">{log.action.replace(/_/g, ' ')}</p>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</span>
                           </div>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">
                             {log.username} • {new Date(log.timestamp).toLocaleDateString()}
                           </p>
                         </div>

@@ -120,9 +120,9 @@ const ProjectDashboard: React.FC<Props> = ({ event, members }) => {
           </div>
           <div className="space-y-2.5">
             {stats.recentLogs.map(log => (
-              <div key={log.id} className="flex items-start justify-between gap-3 text-sm">
-                <span className="text-slate-700 min-w-0 break-words">
-                  <span className="font-semibold text-slate-900">{log.username}</span> {log.action}
+              <div key={log.id} className="flex items-start justify-between gap-3 text-sm min-w-0">
+                <span className="text-slate-700 min-w-0 break-words flex-1">
+                  <span className="font-semibold text-slate-900">{log.username}</span> {log.action.replace(/_/g, ' ')}
                 </span>
                 <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">{new Date(log.timestamp).toLocaleDateString()}</span>
               </div>

@@ -424,9 +424,9 @@ export const TaskDetailModal: React.FC<Props> = ({
               </h4>
               <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                 {task.activityHistory.map(log => (
-                  <div key={log.id} className="text-[11px] text-slate-600 flex justify-between items-center py-1 border-b border-slate-100">
-                    <span>{log.action} <span className="text-slate-400">by {log.user}</span></span>
-                    <span className="text-[9px] text-slate-400 font-mono">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                  <div key={log.id} className="text-[11px] text-slate-600 flex justify-between items-center py-1 border-b border-slate-100 gap-2 min-w-0">
+                    <span className="min-w-0 flex-1 break-words">{log.action.replace(/_/g, ' ')} <span className="text-slate-400">by {log.user}</span></span>
+                    <span className="text-[9px] text-slate-400 font-mono shrink-0 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</span>
                   </div>
                 ))}
               </div>

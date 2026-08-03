@@ -11,7 +11,7 @@ interface Props {
 }
 
 const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave, onClose, isVaultMounted, onMountVault }) => {
-  const [title, setTitle] = useState(initialTitle);
+  const [title, setTitle] = useState(initialTitle ? initialTitle.replace(/_/g, ' ') : '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [wordCount, setWordCount] = useState(0);
