@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { InstitutionType } from '../types';
-import { verifyApiConnection } from '../services/bankApiService';
+import { verifyApiConnection } from '../bankApiService';
 
 interface Props {
   onSuccess: (institution: string, accountLastFour: string, openingBalance: number, institutionType: InstitutionType) => void;

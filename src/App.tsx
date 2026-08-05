@@ -625,7 +625,7 @@ const App: React.FC = () => {
                     <span className="text-white font-bold text-xs">FF</span>
                   </div>
                   <h1 className="text-sm font-semibold tracking-tight uppercase text-indigo-900 hidden sm:block whitespace-nowrap">
-                    FFPRO <span className="font-normal text-slate-400">v4.2</span>
+                    FFPRO <span className="font-normal text-slate-400">V2.0</span>
                   </h1>
                 </div>
 

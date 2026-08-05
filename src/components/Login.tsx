@@ -95,7 +95,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode }) 
           <div className="w-16 h-16 bg-indigo-600 rounded flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm ring-1 ring-white/10">
             <i className="fas fa-fingerprint text-xl"></i>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Vault Access</h1>
+          <h1 className="text-xl font-bold text-white tracking-tight">Fire Finance Pro V2.0</h1>
           <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mt-1.5">Fire Finance Secure Gateway</p>
         </div>
 

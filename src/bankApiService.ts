@@ -1,5 +1,5 @@
 
-import { InstitutionType, Transaction, AIAnalysisResult } from "../types";
+import { InstitutionType, Transaction, AIAnalysisResult } from "./types";
 
 /**
  * Intelligent Gateway for regional institutions and investment platforms.

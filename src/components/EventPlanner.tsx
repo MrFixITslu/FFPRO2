@@ -472,24 +472,42 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const updateEvent = useCallback((updatedEvent: BudgetEvent) => {
     if (updatedEvent.isShared && updatedEvent.sharedProjectId) {
       const pid = updatedEvent.sharedProjectId;
-      setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? updatedEvent : e)));
+      const currentVersion = updatedEvent.serverVersion ?? 0;
+      const nextVersion = currentVersion + 1;
+      const eventWithNewVersion = { ...updatedEvent, serverVersion: nextVersion };
+
+      setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? eventWithNewVersion : e)));
 
       if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
       saveTimers.current[pid] = setTimeout(async () => {
-        const { id, sharedProjectId, isShared, role, serverVersion, ...rest } = updatedEvent;
+        const { id, sharedProjectId, isShared, role, serverVersion, ...rest } = eventWithNewVersion;
+        const expectedVersion = currentVersion;
         try {
-          const result = await projectsService.save(pid, rest, serverVersion ?? 0);
+          const result = await projectsService.save(pid, rest, expectedVersion);
           setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? { ...e, serverVersion: result.version, lastUpdated: result.updatedAt } : e)));
           setSaveError(null);
         } catch (err: any) {
           if (err instanceof ProjectSyncConflictError) {
-            setSaveError('This plan was updated by someone else — refreshing to the latest version.');
+            try {
+              const latestList = await projectsService.list();
+              const latestProj = latestList.find(p => p.id === pid);
+              if (latestProj) {
+                const mergedData = { ...(latestProj.data as BudgetEvent), tasks: updatedEvent.tasks, lastUpdated: new Date().toISOString() };
+                const retryResult = await projectsService.save(pid, mergedData, latestProj.version);
+                setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? { ...mergedData, id: e.id, sharedProjectId: e.sharedProjectId, isShared: true, role: e.role, serverVersion: retryResult.version, lastUpdated: retryResult.updatedAt } : e)));
+                setSaveError(null);
+                return;
+              }
+            } catch (retryErr) {
+              // fallback
+            }
+            setSaveError('This plan was updated elsewhere — syncing latest version.');
             refreshSharedProjects();
           } else {
             setSaveError(err.message || 'Failed to save your changes. They will retry shortly.');
           }
         }
-      }, 800);
+      }, 300);
     } else {
       onUpdateEvent(updatedEvent);
     }
