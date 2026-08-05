@@ -499,7 +499,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                                     : 'border-slate-300 text-slate-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
                                 }`}
                               >
-                                <CheckCircle2 size={16} />
+                                <CheckCircle2 size={16} className="pointer-events-none" />
                               </button>
 
                               {/* Task Card Details */}
@@ -595,12 +595,17 @@ export const PlannerChecklist: React.FC<Props> = ({
                             {(task.subTasks || []).map(st => (
                               <div key={st.id} className="flex items-center gap-2">
                                 <button
-                                  onClick={() => handleToggleSubTask(task.id, st.id)}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleSubTask(task.id, st.id);
+                                  }}
                                   disabled={!canEdit}
-                                  className={`w-4 h-4 rounded flex items-center justify-center border text-[8px] ${
+                                  title={st.completed ? "Mark incomplete" : "Mark completed"}
+                                  className={`w-5 h-5 rounded flex items-center justify-center border text-[10px] cursor-pointer transition ${
                                     st.completed
-                                      ? 'bg-emerald-500 border-emerald-500 text-white'
-                                      : 'border-slate-300 text-transparent'
+                                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                                      : 'border-slate-300 text-slate-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
                                   }`}
                                 >
                                   ✓

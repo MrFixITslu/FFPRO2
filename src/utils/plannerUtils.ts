@@ -383,6 +383,8 @@ export const filterAndSortTasks = (
         in7Days.setDate(today.getDate() + 7);
         return d >= today && d <= in7Days;
       }
+      case 'in_progress':
+        return status === 'in_progress';
       case 'blocked':
         return status === 'blocked';
       case 'critical':

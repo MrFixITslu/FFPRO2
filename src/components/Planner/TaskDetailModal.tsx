@@ -179,7 +179,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                 }`}
                 title={completed ? 'Mark incomplete' : 'Mark completed'}
               >
-                <CheckCircle2 size={20} />
+                <CheckCircle2 size={20} className="pointer-events-none" />
               </button>
               <input
                 type="text"
