@@ -43,14 +43,29 @@ export const TaskDetailModal: React.FC<Props> = ({
   const [newTagInput, setNewTagInput] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Available candidate prerequisites (excluding self)
+  const [completed, setCompleted] = useState<boolean>(task.completed);
+
   const candidatePrereqs = allTasks.filter(t => t.id !== task.id);
 
-  // Downstream tasks depending on this task
   const downstreamDependents = getTransitiveDependents(task.id, allTasks);
 
-  const computedStatus = computeTaskStatus({ ...task, completed: task.completed, dependencies, dueDate }, allTasks);
+  const computedStatus = computeTaskStatus({ ...task, completed, dependencies, dueDate }, allTasks);
   const badgeConfig = getStatusBadgeConfig(computedStatus);
+
+  const handleStatusChange = (newStatus: TaskStatus) => {
+    setStatus(newStatus);
+    if (newStatus === 'completed') {
+      setCompleted(true);
+    } else if (completed) {
+      setCompleted(false);
+    }
+  };
+
+  const toggleCompletedState = () => {
+    const nextCompleted = !completed;
+    setCompleted(nextCompleted);
+    setStatus(nextCompleted ? 'completed' : 'not_started');
+  };
 
   const handleAddDependency = (depId: string) => {
     if (!depId) return;
@@ -102,6 +117,8 @@ export const TaskDetailModal: React.FC<Props> = ({
       notes: notes.trim(),
       priority,
       status,
+      completed,
+      completionDate: completed ? (task.completionDate || new Date().toISOString().split('T')[0]) : undefined,
       startDate: startDate || undefined,
       startTime: startTime || undefined,
       dueDate: dueDate || undefined,
@@ -151,14 +168,30 @@ export const TaskDetailModal: React.FC<Props> = ({
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
               Task Name *
             </label>
-            <input
-              type="text"
-              required
-              value={text}
-              onChange={e => setText(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-base font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
-              placeholder="e.g. Configure Firewall Rules"
-            />
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleCompletedState}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all shrink-0 cursor-pointer ${
+                  completed
+                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                    : 'border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
+                }`}
+                title={completed ? 'Mark incomplete' : 'Mark completed'}
+              >
+                <CheckCircle2 size={20} />
+              </button>
+              <input
+                type="text"
+                required
+                value={text}
+                onChange={e => setText(e.target.value)}
+                className={`flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-base font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white ${
+                  completed ? 'line-through text-slate-400' : ''
+                }`}
+                placeholder="e.g. Configure Firewall Rules"
+              />
+            </div>
           </div>
 
           {/* Priority, Status & Reminder Row */}
@@ -185,7 +218,7 @@ export const TaskDetailModal: React.FC<Props> = ({
               </label>
               <select
                 value={status}
-                onChange={e => setStatus(e.target.value as TaskStatus)}
+                onChange={e => handleStatusChange(e.target.value as TaskStatus)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="not_started">Not Started</option>

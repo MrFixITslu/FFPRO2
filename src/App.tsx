@@ -21,6 +21,7 @@ import {
   Contact, 
   InvestmentGoal, 
   CalendarItem,
+  TaskStatus,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
@@ -771,6 +772,17 @@ const App: React.FC = () => {
                 recurringExpenses={recurringExpenses}
                 recurringIncomes={recurringIncomes}
                 onUpdateItems={handleUpdateCalendarItems}
+                onToggleTaskCompletion={(eventId, taskId) => {
+                  setEvents(prev => prev.map(ev => {
+                    if (ev.id === eventId) {
+                      const updatedTasks = (ev.tasks || []).map(t =>
+                        t.id === taskId ? { ...t, completed: !t.completed, status: (!t.completed ? 'completed' : 'not_started') as TaskStatus } : t
+                      );
+                      return { ...ev, tasks: updatedTasks, lastUpdated: new Date().toISOString() };
+                    }
+                    return ev;
+                  }));
+                }}
               />
             )}
 

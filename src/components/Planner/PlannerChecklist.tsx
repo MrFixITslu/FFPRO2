@@ -188,6 +188,9 @@ export const PlannerChecklist: React.FC<Props> = ({
 
   const executeToggleCompletion = (target: ProjectTask) => {
     const isNowCompleted = !target.completed;
+    if (isNowCompleted) {
+      setIsCompletedCollapsed(false);
+    }
     const updatedTasks = tasks.map(t => {
       if (t.id === target.id) {
         return {
@@ -483,12 +486,17 @@ export const PlannerChecklist: React.FC<Props> = ({
                               
                               {/* Checkbox */}
                               <button
-                                onClick={() => handleToggleCompletion(task.id)}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleCompletion(task.id);
+                                }}
                                 disabled={!canEdit}
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all shrink-0 mt-0.5 ${
+                                title={task.completed ? "Mark incomplete" : "Mark completed"}
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all shrink-0 mt-0.5 cursor-pointer ${
                                   task.completed
-                                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                                    : 'border-slate-300 text-transparent hover:border-indigo-500 hover:text-indigo-500'
+                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                                    : 'border-slate-300 text-slate-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
                                 }`}
                               >
                                 <CheckCircle2 size={16} />
@@ -660,11 +668,16 @@ export const PlannerChecklist: React.FC<Props> = ({
                       >
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => handleToggleCompletion(task.id)}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleCompletion(task.id);
+                            }}
                             disabled={!canEdit}
-                            className="w-6 h-6 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0"
+                            title="Reopen task"
+                            className="w-7 h-7 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs cursor-pointer transition"
                           >
-                            ✓
+                            <CheckCircle2 size={16} />
                           </button>
                           <div>
                             <span className="text-xs font-bold text-slate-500 line-through block">{task.text}</span>

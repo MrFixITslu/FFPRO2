@@ -9,11 +9,12 @@ interface Props {
   recurringExpenses: RecurringExpense[];
   recurringIncomes: RecurringIncome[];
   onUpdateItems: (items: CalendarItem[]) => void;
+  onToggleTaskCompletion?: (eventId: string, taskId: string) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurringExpenses, recurringIncomes, onUpdateItems }) => {
+const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurringExpenses, recurringIncomes, onUpdateItems, onToggleTaskCompletion }) => {
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
   const [showEditor, setShowEditor] = useState(false);
@@ -300,18 +301,25 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                       </div>
                     )}
 
-                    {selectedDayData.dayTasks.length > 0 && (
+                     {selectedDayData.dayTasks.length > 0 && (
                       <div className="space-y-1.5">
                         <p className="text-[8px] font-bold text-rose-400 uppercase tracking-wider">Project Phase Deadlines</p>
                         {selectedDayData.dayTasks.map(t => (
                           <div key={t.task.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex justify-between items-center">
                              <div>
-                               <p className="text-xs font-semibold text-white">{t.task.text}</p>
+                               <p className={`text-xs font-semibold ${t.task.completed ? 'text-slate-400 line-through' : 'text-white'}`}>{t.task.text}</p>
                                <p className="text-[9px] text-slate-500 uppercase font-bold mt-0.5">Ref: {t.eventName}</p>
                              </div>
-                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] ${t.task.completed ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-600 border border-white/10'}`}>
+                             <button
+                               type="button"
+                               onClick={() => onToggleTaskCompletion && onToggleTaskCompletion(t.eventId, t.task.id)}
+                               title={t.task.completed ? 'Mark incomplete' : 'Mark completed'}
+                               className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] transition cursor-pointer ${
+                                 t.task.completed ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-400 border border-white/10 hover:border-emerald-400 hover:text-emerald-400'
+                               }`}
+                             >
                                <i className={`fas ${t.task.completed ? 'fa-check' : 'fa-clock'}`}></i>
-                             </div>
+                             </button>
                           </div>
                         ))}
                       </div>
