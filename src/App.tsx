@@ -22,6 +22,7 @@ import {
   InvestmentGoal, 
   CalendarItem,
   TaskStatus,
+  Idea,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
@@ -162,6 +163,7 @@ const App: React.FC = () => {
   const [events, setEvents] = useState<BudgetEvent[]>(() => safeParse(STORAGE_KEYS.EVENTS, []));
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
+  const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
   const [cashOpeningBalance, setCashOpeningBalance] = useState<number>(() => parseFloat(localStorage.getItem(STORAGE_KEYS.CASH_OPENING) || '0'));
   
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([
@@ -225,9 +227,10 @@ const App: React.FC = () => {
     events,
     calendarItems,
     contacts,
+    ideas,
     cashOpeningBalance,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, cashOpeningBalance]);
 
   // Loads a full AppState (from the cloud or a vault backup) into local state.
   const applyRemoteState = useCallback((state: AppState) => {
@@ -242,6 +245,7 @@ const App: React.FC = () => {
     setEvents(state.events || []);
     setCalendarItems(state.calendarItems || []);
     setContacts(state.contacts || []);
+    setIdeas(state.ideas || []);
     setCashOpeningBalance(state.cashOpeningBalance || 0);
   }, []);
 
@@ -260,6 +264,7 @@ const App: React.FC = () => {
     setEvents([]);
     setCalendarItems([]);
     setContacts([]);
+    setIdeas([]);
     setCashOpeningBalance(0);
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   }, []);
@@ -460,9 +465,10 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
     localStorage.setItem(STORAGE_KEYS.CALENDAR_ITEMS, JSON.stringify(calendarItems));
     localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
+    localStorage.setItem(STORAGE_KEYS.IDEAS, JSON.stringify(ideas));
     localStorage.setItem(STORAGE_KEYS.CATEGORY_LIMITS, JSON.stringify(categoryBudgets));
     localStorage.setItem(STORAGE_KEYS.CASH_OPENING, cashOpeningBalance.toString());
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, categoryBudgets, cashOpeningBalance]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, ideas, categoryBudgets, cashOpeningBalance]);
 
   // Market prices are entered/updated manually now (see Settings/Investments)
   // rather than auto-refreshed by an AI call. quotaExhausted is left `true`
@@ -796,7 +802,7 @@ const App: React.FC = () => {
                 isAdmin={isAdmin}
                 onAddEvent={(e) => setEvents(prev => [{
                   ...e,
-                  id: generateId(),
+                  id: e.id || generateId(),
                   items: e.items || [],
                   notes: e.notes || [],
                   tasks: e.tasks || [],
@@ -809,6 +815,8 @@ const App: React.FC = () => {
                 onDeleteEvent={(id) => setEvents(prev => prev.filter(e => e.id !== id))}
                 onUpdateEvent={(e) => setEvents(prev => prev.map(ev => ev.id === e.id ? e : ev))}
                 onUpdateContacts={setContacts}
+                ideas={ideas}
+                onUpdateIdeas={setIdeas}
               />
             )}
 

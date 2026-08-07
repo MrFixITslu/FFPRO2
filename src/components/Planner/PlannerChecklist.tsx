@@ -18,7 +18,7 @@ import { DependencyGraphView } from './DependencyGraphView';
 import { 
   Plus, Search, Filter, Calendar, Clock, AlertTriangle, ShieldAlert, 
   CheckCircle2, ChevronDown, ChevronRight, Zap, Bell, Link2, Tag, 
-  ArrowUpDown, Eye, ListTodo, Layers, Trash2
+  ArrowUpDown, Eye, ListTodo, Layers, Trash2, Repeat
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -574,6 +574,14 @@ export const PlannerChecklist: React.FC<Props> = ({
                                   <div className="flex items-center gap-1.5 mt-2 text-[10px] text-indigo-900 font-bold bg-indigo-50/80 px-2.5 py-1 rounded-lg border border-indigo-100 w-fit">
                                     <Link2 size={12} className="text-indigo-600" />
                                     <span>Prerequisites: {task.dependencies.length}</span>
+                                  </div>
+                                )}
+
+                                {/* Repeat Recurrence Summary */}
+                                {task.repeatInterval && task.repeatInterval !== 'none' && (
+                                  <div className="flex items-center gap-1 mt-2 text-[10px] text-emerald-900 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 w-fit">
+                                    <Repeat size={11} className="text-emerald-600" />
+                                    <span className="capitalize">Repeats {task.repeatInterval} {task.repeatReminder && task.repeatReminder !== 'none' ? `(Reminder: ${task.repeatReminder})` : ''}</span>
                                   </div>
                                 )}
 

@@ -178,6 +178,8 @@ export interface ProjectTask {
   dependencies?: string[]; // IDs of tasks this task depends on (prerequisites)
   reminder?: ReminderOption;
   customReminderOffsetMinutes?: number;
+  repeatInterval?: 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'annually';
+  repeatReminder?: 'none' | '30m' | '1h' | '1d' | '2d' | '1w';
   tags?: string[];
   order?: number;
   activityHistory?: TaskActivityLog[];
@@ -346,6 +348,13 @@ export interface EventItem {
   splitWithContactIds?: string[];
 }
 
+export interface Idea {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
 export interface NetWorthSnapshot {
   date: string;
   value: number;
@@ -382,5 +391,6 @@ export const STORAGE_KEYS = {
   USERS_LIST: 'ff_users_list',
   REMINDERS: 'ff_reminders_enabled',
   PASSWORD: 'ff_custom_password',
-  DATA_OWNER: 'ff_data_owner_id'
+  DATA_OWNER: 'ff_data_owner_id',
+  IDEAS: 'ff_ideas'
 };

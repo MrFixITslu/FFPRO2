@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole } from '../types';
+import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea } from '../types';
 import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc } from '../services/fileStorageService';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
@@ -68,9 +68,11 @@ interface Props {
   onUpdateEvent: (event: BudgetEvent) => void;
   onUpdateContacts: (contacts: Contact[]) => void;
   onMountVault?: () => void;
+  ideas: Idea[];
+  onUpdateIdeas: (ideas: Idea[]) => void;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault }) => {
+const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas }) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -128,6 +130,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [contactSearch, setContactSearch] = useState('');
   const [showContactForm, setShowContactForm] = useState(false);
   const [newContact, setNewContact] = useState({ name: '', number: '', email: '' });
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [editingContactName, setEditingContactName] = useState('');
+  const [editingContactNumber, setEditingContactNumber] = useState('');
+  const [editingContactEmail, setEditingContactEmail] = useState('');
+
+  // Idea Bin States
+  const [newIdeaTitle, setNewIdeaTitle] = useState('');
+  const [newIdeaDesc, setNewIdeaDesc] = useState('');
+  const [showAddIdea, setShowAddIdea] = useState(false);
+  const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
+  const [editingIdeaTitle, setEditingIdeaTitle] = useState('');
+  const [editingIdeaDesc, setEditingIdeaDesc] = useState('');
+  const [convertingIdeaId, setConvertingIdeaId] = useState<string | null>(null);
 
   // Sale Price Calculator Local State
   const [calcItemName, setCalcItemName] = useState('');
@@ -312,6 +327,314 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     if (selectedEvent) handleLinkContact(contact.id);
     setNewContact({ name: '', number: '', email: '' });
     setShowContactForm(false);
+  };
+
+  const handleEditContact = (updatedContact: Contact) => {
+    const updated = contacts.map(c => c.id === updatedContact.id ? updatedContact : c);
+    onUpdateContacts(updated);
+    if (selectedEvent) {
+      addActionLog(selectedEvent, `Edited stakeholder: "${updatedContact.name}"`, 'contact');
+    }
+  };
+
+  const handleDeleteContact = (contactId: string) => {
+    const contact = contacts.find(c => c.id === contactId);
+    const updated = contacts.filter(c => c.id !== contactId);
+    onUpdateContacts(updated);
+
+    if (events) {
+      events.forEach(e => {
+        if (e.contactIds && e.contactIds.includes(contactId)) {
+          const updatedEvent = {
+            ...e,
+            contactIds: e.contactIds.filter(id => id !== contactId)
+          };
+          onUpdateEvent(updatedEvent);
+        }
+      });
+    } else if (selectedEvent && selectedEvent.contactIds?.includes(contactId)) {
+      const updatedEvent = {
+        ...selectedEvent,
+        contactIds: selectedEvent.contactIds.filter(id => id !== contactId)
+      };
+      updateEvent(updatedEvent);
+    }
+  };
+
+  const renderContactCard = (contact: Contact, isLinked: boolean) => {
+    const isEditing = editingContactId === contact.id;
+
+    if (isEditing) {
+      return (
+        <div key={contact.id} className="p-4 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-3 shadow-xs col-span-1 sm:col-span-2">
+          <div>
+            <label className="text-[9px] font-bold text-indigo-900 uppercase tracking-wider block mb-1">Name</label>
+            <input
+              type="text"
+              value={editingContactName}
+              onChange={e => setEditingContactName(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+              placeholder="Name"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] font-bold text-indigo-900 uppercase tracking-wider block mb-1">Phone</label>
+              <input
+                type="text"
+                value={editingContactNumber}
+                onChange={e => setEditingContactNumber(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="Phone"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-bold text-indigo-900 uppercase tracking-wider block mb-1">Email</label>
+              <input
+                type="email"
+                value={editingContactEmail}
+                onChange={e => setEditingContactEmail(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="Email"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1 border-t border-indigo-100">
+            <button
+              onClick={() => setEditingContactId(null)}
+              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (editingContactName.trim()) {
+                  handleEditContact({
+                    id: contact.id,
+                    name: editingContactName.trim(),
+                    number: editingContactNumber.trim(),
+                    email: editingContactEmail.trim(),
+                  });
+                  setEditingContactId(null);
+                }
+              }}
+              className="px-3 py-1 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-500"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={contact.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition hover:border-indigo-150 hover:shadow-xs">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+            <i className="fas fa-id-badge text-base"></i>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-800 truncate">{contact.name}</p>
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              {contact.number && (
+                <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                  <i className="fas fa-phone-alt text-[8px] text-slate-400"></i> {contact.number}
+                </p>
+              )}
+              {contact.email && (
+                <p className="text-[10px] text-slate-500 font-medium truncate flex items-center gap-1">
+                  <i className="fas fa-envelope text-[8px] text-slate-400"></i> {contact.email}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Direct Actions: Call & Email */}
+          {contact.number && (
+            <a
+              href={`tel:${contact.number}`}
+              title={`Call ${contact.name}`}
+              className="w-7 h-7 flex items-center justify-center text-indigo-600 hover:text-indigo-850 hover:bg-indigo-50 rounded-lg transition"
+            >
+              <i className="fas fa-phone-alt text-xs"></i>
+            </a>
+          )}
+          {contact.email && (
+            <a
+              href={`mailto:${contact.email}`}
+              title={`Email ${contact.name}`}
+              className="w-7 h-7 flex items-center justify-center text-indigo-600 hover:text-indigo-850 hover:bg-indigo-50 rounded-lg transition"
+            >
+              <i className="fas fa-envelope text-xs"></i>
+            </a>
+          )}
+
+          {/* Edit Contact */}
+          <button
+            onClick={() => {
+              setEditingContactId(contact.id);
+              setEditingContactName(contact.name);
+              setEditingContactNumber(contact.number || '');
+              setEditingContactEmail(contact.email || '');
+            }}
+            title="Edit Contact"
+            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+          >
+            <i className="fas fa-edit text-xs"></i>
+          </button>
+
+          {/* Delete Contact */}
+          <button
+            onClick={() => {
+              if (confirm(`Are you sure you want to delete ${contact.name} globally?`)) {
+                handleDeleteContact(contact.id);
+              }
+            }}
+            title="Delete Contact"
+            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+          >
+            <i className="fas fa-trash-alt text-xs"></i>
+          </button>
+
+          {/* Link / Unlink action */}
+          {isLinked ? (
+            <button
+              onClick={() => handleUnlinkContact(contact.id)}
+              title="Unlink from this plan"
+              className="w-7 h-7 flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-lg transition"
+            >
+              <i className="fas fa-unlink text-xs"></i>
+            </button>
+          ) : (
+            <button
+              onClick={() => handleLinkContact(contact.id)}
+              title="Link to this plan"
+              className="w-7 h-7 flex items-center justify-center text-emerald-500 hover:bg-emerald-50 rounded-lg transition"
+            >
+              <i className="fas fa-link text-xs"></i>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const handleAddIdea = () => {
+    if (!newIdeaTitle.trim()) return;
+    const newIdea: Idea = {
+      id: generateId(),
+      title: newIdeaTitle.trim(),
+      description: newIdeaDesc.trim(),
+      createdAt: new Date().toISOString()
+    };
+    onUpdateIdeas([newIdea, ...(ideas || [])]);
+    setNewIdeaTitle('');
+    setNewIdeaDesc('');
+    setShowAddIdea(false);
+  };
+
+  const handleDeleteIdea = (id: string) => {
+    onUpdateIdeas((ideas || []).filter(idea => idea.id !== id));
+  };
+
+  const handleEditIdeaSubmit = (id: string) => {
+    if (!editingIdeaTitle.trim()) return;
+    onUpdateIdeas((ideas || []).map(idea => idea.id === id ? {
+      ...idea,
+      title: editingIdeaTitle.trim(),
+      description: editingIdeaDesc.trim()
+    } : idea));
+    setEditingIdeaId(null);
+  };
+
+  const handleConvertIdeaToPlan = (idea: Idea, planType: 'event' | 'trip' | 'startup') => {
+    let tripDetails = undefined;
+    let startupDetails = undefined;
+    const dateStr = new Date().toISOString().split('T')[0];
+
+    if (planType === 'trip') {
+      tripDetails = {
+        destination: idea.title,
+        startDate: dateStr,
+        endDate: dateStr,
+        flightCost: 0,
+        flightNotes: '',
+        flightBooked: false,
+        accommodationCost: 0,
+        accommodationNotes: '',
+        accommodationBooked: false,
+        transportType: 'none' as const,
+        transportCost: 0,
+        transportNotes: '',
+        transportBooked: false,
+        foodCost: 0,
+        foodNotes: '',
+        sitesCost: 0,
+        sitesNotes: '',
+        savingMode: 'save' as const,
+        targetDate: dateStr,
+        amountSaved: 0
+      };
+    } else if (planType === 'startup') {
+      startupDetails = {
+        cogs: 10,
+        markup: 50,
+        monthlyVolume: 500,
+        rent: 800,
+        salaries: 1500,
+        marketing: 300,
+        utilities: 200,
+        otherExpenses: 200,
+        growthRateYear3: 15,
+        growthRateYear5: 35,
+        productionItems: [],
+        derivedUnits: 1,
+        hourlyRate: 20,
+        laborHours: 5,
+        desiredProfitType: 'percentage' as const,
+        desiredProfitValue: 50,
+        includeVat: false,
+        includeLevy: false,
+        contingencyPercent: 5,
+        allocateOverhead: false
+      };
+    }
+
+    const initialTasks = getInitialChecklist(planType);
+    if (idea.description) {
+      initialTasks.unshift({
+        id: generateId(),
+        text: `Idea Description: ${idea.description}`,
+        completed: false,
+        assignedToId: currentUser,
+        repeatInterval: 'none',
+        repeatReminder: 'none'
+      });
+    }
+
+    const customEventId = generateId();
+
+    onAddEvent({
+      id: customEventId,
+      name: idea.title,
+      date: dateStr,
+      status: 'active',
+      eventType: planType,
+      tripDetails,
+      startupDetails,
+      tasks: initialTasks
+    });
+
+    // Remove the idea from the Idea Bin
+    onUpdateIdeas((ideas || []).filter(i => i.id !== idea.id));
+
+    // Reset converting idea state
+    setConvertingIdeaId(null);
+
+    // Instantly select the plan so they start planning!
+    setSelectedEventId(customEventId);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2322,21 +2645,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 <div className="lg:col-span-2 space-y-6">
                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-4">Linked Stakeholders</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {contacts.filter(c => (selectedEvent.contactIds || []).includes(c.id)).map(contact => (
-                        <div key={contact.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-white border border-slate-250 rounded flex items-center justify-center text-indigo-600 shadow-sm"><i className="fas fa-id-badge text-sm"></i></div>
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800">{contact.name}</p>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{contact.number}</p>
-                            </div>
-                          </div>
-                          <button onClick={() => handleUnlinkContact(contact.id)} className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><i className="fas fa-unlink text-xs"></i></button>
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-1 gap-4">
+                      {contacts.filter(c => (selectedEvent.contactIds || []).includes(c.id)).map(contact => 
+                        renderContactCard(contact, true)
+                      )}
                       {contacts.filter(c => (selectedEvent.contactIds || []).includes(c.id)).length === 0 && (
-                        <p className="col-span-2 py-8 text-center text-slate-300 uppercase font-bold text-[9px] tracking-wider">No Stakeholders Linked</p>
+                        <p className="py-8 text-center text-slate-300 uppercase font-bold text-[9px] tracking-wider">No Stakeholders Linked</p>
                       )}
                     </div>
                   </div>
@@ -2352,16 +2666,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-500 w-48"
                       />
                     </div>
-                    <div className="space-y-2">
-                      {contacts.filter(c => !(selectedEvent.contactIds || []).includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase())).map(contact => (
-                        <div key={contact.id} className="p-3 bg-white border border-slate-150 rounded-lg flex items-center justify-between hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 bg-indigo-50 text-indigo-400 rounded flex items-center justify-center border border-indigo-100"><i className="fas fa-user text-[10px]"></i></div>
-                            <span className="text-xs font-semibold text-slate-700">{contact.name}</span>
-                          </div>
-                          <button onClick={() => handleLinkContact(contact.id)} className="px-3 py-1 bg-indigo-600 text-white rounded text-[8px] font-bold uppercase tracking-wider">Link Project</button>
-                        </div>
-                      ))}
+                    <div className="space-y-4">
+                      {contacts.filter(c => !(selectedEvent.contactIds || []).includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase())).map(contact => 
+                        renderContactCard(contact, false)
+                      )}
+                      {contacts.filter(c => !(selectedEvent.contactIds || []).includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase())).length === 0 && (
+                        <p className="py-8 text-center text-slate-300 uppercase font-bold text-[9px] tracking-wider">No Other Stakeholders Found</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2438,67 +2749,277 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-           {allEvents.map(event => (
-              <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-slate-50/50 transition-all relative overflow-hidden group">
-                <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                  {(!event.isShared || event.role !== 'viewer') && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
-                      title="Rename plan"
-                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-all"
-                    >
-                      <i className="fas fa-pen text-xs"></i>
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
-                    title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
-                    className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                  {(!event.isShared && isAdmin) || event.role === 'owner' ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
-                      title="Delete plan"
-                      className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  ) : null}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="xl:col-span-2 space-y-6">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Planning Frameworks</h3>
+            
+            {allEvents.length === 0 ? (
+              <div className="p-12 text-center bg-white border border-slate-200 rounded-xl shadow-xs">
+                <p className="text-slate-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Frameworks</p>
+                <button onClick={() => setShowAddForm(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg shadow-xs transition-colors">
+                  Initiate Framework
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {allEvents.map(event => (
+                  <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-slate-50/50 transition-all relative overflow-hidden group">
+                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                      {(!event.isShared || event.role !== 'viewer') && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
+                          title="Rename plan"
+                          className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                        >
+                          <i className="fas fa-pen text-xs"></i>
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
+                        title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
+                        className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                      {(!event.isShared && isAdmin) || event.role === 'owner' ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
+                          title="Delete plan"
+                          className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 mb-2 pr-16">
+                      {renamingCardId === event.id ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={renamingCardValue}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setRenamingCardValue(e.target.value)}
+                          onBlur={() => { commitRename(event, renamingCardValue); setRenamingCardId(null); }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
+                            if (e.key === 'Escape') setRenamingCardId(null);
+                          }}
+                          className="font-bold text-slate-800 text-lg truncate bg-slate-50 border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                        />
+                      ) : (
+                        <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
+                      )}
+                      {event.isShared && (
+                        <span title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} className="shrink-0 w-5 h-5 flex items-center justify-center rounded bg-indigo-50 text-indigo-500">
+                          <Share2 className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
+                    <div className="flex gap-2">
+                      <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-indigo-50 border-indigo-100 text-indigo-600">{(event.files || []).length} Assets</span>
+                      <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-slate-50 border-slate-100 text-slate-600">{(event.tasks || []).length} Phases</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* IDEA BIN COLUMN */}
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-xs h-fit space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-lightbulb text-sm"></i>
                 </div>
-                <div className="flex items-center gap-2 mb-2 pr-16">
-                  {renamingCardId === event.id ? (
-                    <input
-                      autoFocus
-                      type="text"
-                      value={renamingCardValue}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setRenamingCardValue(e.target.value)}
-                      onBlur={() => { commitRename(event, renamingCardValue); setRenamingCardId(null); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
-                        if (e.key === 'Escape') setRenamingCardId(null);
-                      }}
-                      className="font-bold text-slate-800 text-lg truncate bg-slate-50 border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full"
-                    />
-                  ) : (
-                    <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
-                  )}
-                  {event.isShared && (
-                    <span title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} className="shrink-0 w-5 h-5 flex items-center justify-center rounded bg-indigo-50 text-indigo-500">
-                      <Share2 className="w-3 h-3" />
-                    </span>
-                  )}
-                </div>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
-                <div className="flex gap-2">
-                  <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-indigo-50 border-indigo-100 text-indigo-600">{(event.files || []).length} Assets</span>
-                  <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-slate-50 border-slate-100 text-slate-600">{(event.tasks || []).length} Phases</span>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider leading-none">Idea Bin</h3>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 leading-none">Future Blueprints</p>
                 </div>
               </div>
-           ))}
+              <button 
+                onClick={() => setShowAddIdea(!showAddIdea)} 
+                className="w-7 h-7 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-200 rounded-lg flex items-center justify-center transition-all shadow-xs"
+                title="Add future idea"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+
+            {/* Add Idea Inline Form */}
+            {showAddIdea && (
+              <div className="p-4 bg-white border border-indigo-100 rounded-lg space-y-3 shadow-xs animate-in slide-in-from-top-2 duration-200">
+                <div>
+                  <label className="text-[9px] font-bold text-indigo-900 uppercase tracking-wider block mb-1">Concept Title</label>
+                  <input
+                    type="text"
+                    value={newIdeaTitle}
+                    onChange={(e) => setNewIdeaTitle(e.target.value)}
+                    placeholder="e.g. Lavender Spa Launch"
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-indigo-900 uppercase tracking-wider block mb-1">Description / Goals</label>
+                  <textarea
+                    value={newIdeaDesc}
+                    onChange={(e) => setNewIdeaDesc(e.target.value)}
+                    placeholder="Describe what needs to be worked on in the future..."
+                    rows={3}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all resize-none"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    onClick={() => { setShowAddIdea(false); setNewIdeaTitle(''); setNewIdeaDesc(''); }}
+                    className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddIdea}
+                    disabled={!newIdeaTitle.trim()}
+                    className="px-3 py-1 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    Add Idea
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Ideas List */}
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {(ideas || []).length > 0 ? (ideas || []).map(idea => {
+                const isEditing = editingIdeaId === idea.id;
+                const isConverting = convertingIdeaId === idea.id;
+
+                if (isEditing) {
+                  return (
+                    <div key={idea.id} className="p-3.5 bg-white border border-indigo-200 rounded-xl space-y-2 shadow-xs">
+                      <div>
+                        <label className="text-[8px] font-bold text-indigo-900 uppercase tracking-wider block mb-0.5">Edit Title</label>
+                        <input
+                          type="text"
+                          value={editingIdeaTitle}
+                          onChange={(e) => setEditingIdeaTitle(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-bold text-indigo-900 uppercase tracking-wider block mb-0.5">Edit Description</label>
+                        <textarea
+                          value={editingIdeaDesc}
+                          onChange={(e) => setEditingIdeaDesc(e.target.value)}
+                          rows={2}
+                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-1.5 pt-1">
+                        <button
+                          onClick={() => setEditingIdeaId(null)}
+                          className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleEditIdeaSubmit(idea.id)}
+                          className="px-2.5 py-0.5 bg-indigo-600 text-white rounded text-[9px] font-bold uppercase tracking-wider hover:bg-indigo-500"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={idea.id} className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3 relative group hover:border-indigo-200 transition-all">
+                    <div>
+                      <div className="flex justify-between items-start gap-2">
+                        <h4 className="font-bold text-xs text-slate-800 group-hover:text-indigo-600 transition-colors leading-tight">{idea.title}</h4>
+                        <div className="flex gap-1.5 shrink-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* Edit idea */}
+                          <button
+                            onClick={() => {
+                              setEditingIdeaId(idea.id);
+                              setEditingIdeaTitle(idea.title);
+                              setEditingIdeaDesc(idea.description || '');
+                            }}
+                            className="text-slate-400 hover:text-indigo-600 text-xs p-1"
+                            title="Edit idea"
+                          >
+                            <i className="fas fa-edit"></i>
+                          </button>
+                          {/* Delete idea */}
+                          <button
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete the idea "${idea.title}"?`)) handleDeleteIdea(idea.id);
+                            }}
+                            className="text-slate-400 hover:text-rose-500 text-xs p-1"
+                            title="Delete idea"
+                          >
+                            <i className="fas fa-trash-alt"></i>
+                          </button>
+                        </div>
+                      </div>
+                      {idea.description && (
+                        <p className="text-[11px] text-slate-500 mt-1 leading-normal whitespace-pre-line">{idea.description}</p>
+                      )}
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-2 block">
+                        Created: {new Date(idea.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    {/* Converting state menu */}
+                    {isConverting ? (
+                      <div className="pt-2 border-t border-slate-100 space-y-1.5 animate-in slide-in-from-bottom-1 duration-150">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Select Planning Framework:</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          <button
+                            onClick={() => handleConvertIdeaToPlan(idea, 'event')}
+                            className="px-1.5 py-1 text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-wider border border-indigo-100 transition-colors"
+                          >
+                            Event
+                          </button>
+                          <button
+                            onClick={() => handleConvertIdeaToPlan(idea, 'trip')}
+                            className="px-1.5 py-1 text-center bg-sky-50 hover:bg-sky-100 text-sky-700 rounded text-[9px] font-bold uppercase tracking-wider border border-sky-100 transition-colors"
+                          >
+                            Trip
+                          </button>
+                          <button
+                            onClick={() => handleConvertIdeaToPlan(idea, 'startup')}
+                            className="px-1.5 py-1 text-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded text-[9px] font-bold uppercase tracking-wider border border-emerald-100 transition-colors"
+                          >
+                            Startup
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setConvertingIdeaId(null)}
+                          className="w-full text-center text-[8px] text-slate-400 font-bold uppercase tracking-wider hover:text-slate-600 mt-1"
+                        >
+                          Cancel Conversion
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConvertingIdeaId(idea.id)}
+                        className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-100 hover:border-indigo-600 transition-all rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center justify-center gap-1"
+                      >
+                        <i className="fas fa-rocket text-[8px]"></i> Start Planning
+                      </button>
+                    )}
+                  </div>
+                );
+              }) : (
+                <div className="py-12 text-center bg-white border border-slate-200 border-dashed rounded-xl">
+                  <p className="text-slate-300 uppercase font-bold text-[8px] tracking-wider">Idea Bin Empty</p>
+                  <p className="text-[10px] text-slate-400 mt-1 max-w-[160px] mx-auto">Add concepts you want to work on in the future!</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

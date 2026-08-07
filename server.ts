@@ -92,6 +92,17 @@ const sessionMiddleware = session({
 // every request after it looks logged-out, kicking the user back to the
 // login screen in an endless loop.
 app.use((req, res, next) => {
+  const xSessionId = req.headers['x-session-id'];
+  if (xSessionId && typeof xSessionId === 'string') {
+    let existingCookie = req.headers.cookie || '';
+    if (existingCookie.includes('ffpro.sid=')) {
+      existingCookie = existingCookie.replace(/ffpro\.sid=[^;]+/, `ffpro.sid=${xSessionId}`);
+      req.headers.cookie = existingCookie;
+    } else {
+      req.headers.cookie = existingCookie ? `ffpro.sid=${xSessionId}; ${existingCookie}` : `ffpro.sid=${xSessionId}`;
+    }
+  }
+
   const xfp = req.headers['x-forwarded-proto'];
   const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
   const isSecure = req.secure ||

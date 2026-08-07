@@ -13,6 +13,7 @@ export interface AppState {
   events: any[];
   calendarItems: any[];
   contacts: any[];
+  ideas?: any[];
   cashOpeningBalance: number;
   lastUpdated: string;
 }

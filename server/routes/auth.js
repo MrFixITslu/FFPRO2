@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import passport from '../passport.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
+import crypto from 'crypto';
 
 const router = Router();
 const FRONTEND_URL = (process.env.FRONTEND_URL || '/').replace(/\/$/, '');
@@ -58,13 +59,28 @@ function sanitizeUser(user) {
   };
 }
 
+function signSessionId(sid, secret) {
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(sid)
+    .digest('base64')
+    .replace(/\=+$/, '');
+  return 's:' + sid + '.' + signature;
+}
+
 // --- Session status -------------------------------------------------------
 router.get('/me', (req, res) => {
-  res.json({ user: sanitizeUser(req.user) });
+  const user = sanitizeUser(req.user);
+  const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+  const token = req.user && req.sessionID ? signSessionId(req.sessionID, sessionSecret) : null;
+  res.json({ user, token });
 });
 
 router.get('/session-state', (req, res) => {
-  res.json({ authenticated: !!req.user, user: sanitizeUser(req.user) });
+  const user = sanitizeUser(req.user);
+  const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+  const token = req.user && req.sessionID ? signSessionId(req.sessionID, sessionSecret) : null;
+  res.json({ authenticated: !!req.user, user, token });
 });
 
 router.get('/providers', (_req, res) => {
@@ -123,8 +139,11 @@ router.post('/register', async (req, res) => {
         console.error('Failed to auto-accept pending invites on register:', inviteErr);
       }
 
+      const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+      const token = signSessionId(req.sessionID, sessionSecret);
       res.status(201).json({ 
-        user: sanitizeUser(inserted.rows[0])
+        user: sanitizeUser(inserted.rows[0]),
+        token
       });
     });
   } catch (err) {
@@ -161,8 +180,11 @@ router.post('/login', async (req, res) => {
     await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
     req.login(user, (err) => {
       if (err) return res.status(500).json({ error: 'Failed to start a session.' });
+      const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+      const token = signSessionId(req.sessionID, sessionSecret);
       res.json({ 
-        user: sanitizeUser(user)
+        user: sanitizeUser(user),
+        token
       });
     });
   } catch (err) {

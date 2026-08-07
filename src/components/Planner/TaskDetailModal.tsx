@@ -38,6 +38,8 @@ export const TaskDetailModal: React.FC<Props> = ({
   const [dueTime, setDueTime] = useState(task.dueTime || '');
   const [reminder, setReminder] = useState<ReminderOption>(task.reminder || 'none');
   const [customOffset, setCustomOffset] = useState<number>(task.customReminderOffsetMinutes || 60);
+  const [repeatInterval, setRepeatInterval] = useState<'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'annually'>(task.repeatInterval || 'none');
+  const [repeatReminder, setRepeatReminder] = useState<'none' | '30m' | '1h' | '1d' | '2d' | '1w'>(task.repeatReminder || 'none');
   const [dependencies, setDependencies] = useState<string[]>(task.dependencies || []);
   const [tags, setTags] = useState<string[]>(task.tags || []);
   const [newTagInput, setNewTagInput] = useState('');
@@ -125,6 +127,8 @@ export const TaskDetailModal: React.FC<Props> = ({
       dueTime: dueTime || undefined,
       reminder,
       customReminderOffsetMinutes: customOffset,
+      repeatInterval,
+      repeatReminder,
       dependencies,
       tags,
       activityHistory: [historyLog, ...(task.activityHistory || [])],
@@ -242,6 +246,56 @@ export const TaskDetailModal: React.FC<Props> = ({
                 <option value="1d">1 Day Before</option>
                 <option value="2d">2 Days Before</option>
                 <option value="1w">1 Week Before</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Recurrence / Repeat Settings */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Repeat Interval (Recurrence)
+              </label>
+              <select
+                value={repeatInterval}
+                onChange={e => {
+                  const val = e.target.value as any;
+                  setRepeatInterval(val);
+                  if (val === 'none') {
+                    setRepeatReminder('none');
+                  }
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="none">One-time (Do Not Repeat)</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="annually">Annually</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                <Bell size={12} /> Repeat Reminder
+              </label>
+              <select
+                value={repeatReminder}
+                disabled={repeatInterval === 'none'}
+                onChange={e => setRepeatReminder(e.target.value as any)}
+                className={`w-full px-3 py-2 border rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  repeatInterval === 'none'
+                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                    : 'bg-slate-50 text-slate-800 border-slate-200'
+                }`}
+              >
+                <option value="none">No Repeat Reminder</option>
+                <option value="30m">30 Minutes Before Occurrence</option>
+                <option value="1h">1 Hour Before Occurrence</option>
+                <option value="1d">1 Day Before Occurrence</option>
+                <option value="2d">2 Days Before Occurrence</option>
+                <option value="1w">1 Week Before Occurrence</option>
               </select>
             </div>
           </div>
