@@ -1,16 +1,42 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fire-finance-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-ffpro2_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-fire_finance}
+    volumes:
+      # Dedicated, persistent volume for FFPRO2's own database — separate
+      # from every other app's data on this server.
+      - ffpro2_pgdata:/var/lib/postgresql/data
+    networks:
+      # Internal-only network: not joined to proxy_network, so Postgres is
+      # never reachable from outside this compose stack.
+      - ffpro2_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   fire-finance:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: fire-finance-app
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       # Expose host port (default 3010) mapping to container port 3010.
       # Customize via APP_PORT in your .env file if needed.
       - "${APP_PORT:-3010}:3010"
     networks:
       - proxy_network
+      - ffpro2_internal
     environment:
       - NODE_ENV=production
       - PORT=3010
@@ -23,13 +49,9 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
       
-      # Database Connection (Optional real PostgreSQL)
-      - DATABASE_URL=${DATABASE_URL}
-      - PGHOST=${PGHOST}
-      - PGPORT=${PGPORT}
-      - PGUSER=${PGUSER}
-      - PGPASSWORD=${PGPASSWORD}
-      - PGDATABASE=${PGDATABASE}
+      # Database Connection — dedicated FFPRO2 Postgres container defined above.
+      # Host is the Docker service name "postgres", resolved over ffpro2_internal.
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fire_finance}
       
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -55,10 +77,18 @@ services:
       # Base Application URLs
       - FRONTEND_URL=${FRONTEND_URL:-http://199.223.249.193}
     volumes:
-      # Persistent local data directory for database and key persistence
+      # Persistent local data directory for encryption key + session store.
+      # (App data itself now lives in the "postgres" service above.)
       - ./data:/app/data
 
 networks:
   # Join your existing external Nginx/OpenResty proxy network
   proxy_network:
     external: true
+  # Private network shared only between fire-finance and its own Postgres.
+  ffpro2_internal:
+    driver: bridge
+
+volumes:
+  ffpro2_pgdata:
+    name: ffpro2_pgdata

@@ -30,7 +30,8 @@ if (hasPostgres) {
   realPool = new pg.Pool(poolConfig);
 
   // Initialize tables asynchronously
-  realPool.query(`
+  realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
+    return realPool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       email VARCHAR(255) UNIQUE NOT NULL,
@@ -134,6 +135,7 @@ if (hasPostgres) {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
+  });
   });
 }
 
