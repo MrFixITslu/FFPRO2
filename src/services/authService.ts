@@ -81,4 +81,26 @@ export const authService = {
   oauthUrl(provider: 'google' | 'facebook' | 'apple'): string {
     return `${BASE}/${provider}`;
   },
+
+  /** Always resolves with a generic message — never reveals whether the email exists. */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const res = await fetch(`${BASE}/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+    return handle(res);
+  },
+
+  /** Completes a password reset using the token from the emailed reset link. */
+  async resetPassword(token: string, password: string): Promise<{ ok: true; message: string }> {
+    const res = await fetch(`${BASE}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token, password }),
+    });
+    return handle(res);
+  },
 };

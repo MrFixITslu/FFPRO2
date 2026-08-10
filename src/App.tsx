@@ -104,6 +104,20 @@ const App: React.FC = () => {
     return match ? match[1] : null;
   });
 
+  // Password-reset link from the emailed URL: /reset-password?token=...
+  const [resetToken, setResetToken] = useState<string | null>(() => {
+    if (window.location.pathname === '/reset-password') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token');
+    }
+    return null;
+  });
+
+  const clearResetRoute = () => {
+    window.history.replaceState({}, '', '/');
+    setResetToken(null);
+  };
+
   const clearInviteRoute = () => {
     window.history.replaceState({}, '', '/');
     setInviteToken(null);
@@ -618,7 +632,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {!isAuthenticated ? (
-        <Login onAuthenticated={handleAuthenticated} />
+        <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} />
       ) : (
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />

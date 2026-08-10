@@ -6,6 +6,8 @@ interface Props {
   onAuthenticated: (user: AuthUser) => void;
   initialEmail?: string;
   initialMode?: 'login' | 'register';
+  resetToken?: string | null;
+  onResetHandled?: () => void;
 }
 
 const OAuthButton: React.FC<{
@@ -40,13 +42,17 @@ const OAuthButton: React.FC<{
   );
 };
 
-const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode }) => {
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode || 'login');
+const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, resetToken, onResetHandled }) => {
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode || 'login');
   const [email, setEmail] = useState(initialEmail || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetDone, setResetDone] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [showConfigHelp, setShowConfigHelp] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'facebook' | 'apple' | null>(null);
@@ -78,10 +84,207 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode }) 
     }
   };
 
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await authService.forgotPassword(email);
+      setForgotSent(true);
+    } catch (err: any) {
+      // The backend always returns a generic success message, but network
+      // errors etc. can still throw — show those, not "email doesn't exist".
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (resetPassword !== resetConfirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (resetPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.resetPassword(resetToken as string, resetPassword);
+      setResetDone(true);
+    } catch (err: any) {
+      setError(err.message || 'This reset link is invalid or has expired.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleProviderClick = (provider: 'google' | 'facebook' | 'apple') => {
     setSelectedProvider(provider);
     setShowConfigHelp(true);
   };
+
+  // --- Reset-password screen: shown when the user arrived via the emailed link ---
+  if (resetToken) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-6 overflow-y-auto">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+        </div>
+        <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-indigo-600 rounded flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm ring-1 ring-white/10">
+              <i className="fas fa-key text-xl"></i>
+            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">Reset Your Password</h1>
+            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mt-1.5">Fire Finance Secure Gateway</p>
+          </div>
+
+          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+            {resetDone ? (
+              <div className="text-center space-y-4">
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed">
+                  <i className="fas fa-check-circle mr-1.5"></i> Your password has been reset. You can now log in with your new password.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onResetHandled && onResetHandled()}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 uppercase tracking-wider text-[10px]"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResetSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">New Password</label>
+                  <input
+                    type="password"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                {error && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                    <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+                >
+                  {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Set New Password <i className="fas fa-chevron-right text-[9px]"></i></>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onResetHandled && onResetHandled()}
+                  className="w-full text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Forgot-password screen ---
+  if (mode === 'forgot') {
+    return (
+      <div className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-6 overflow-y-auto">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+        </div>
+        <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-indigo-600 rounded flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm ring-1 ring-white/10">
+              <i className="fas fa-envelope-open-text text-xl"></i>
+            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">Forgot Password</h1>
+            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mt-1.5">Fire Finance Secure Gateway</p>
+          </div>
+
+          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+            {forgotSent ? (
+              <div className="text-center space-y-4">
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed">
+                  <i className="fas fa-check-circle mr-1.5"></i> If an account exists for that email, a reset link has been sent. The link expires in 45 minutes.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setForgotSent(false); setError(null); }}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 uppercase tracking-wider text-[10px]"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                <p className="text-slate-400 text-[11px] leading-relaxed">Enter your account email and we'll send you a link to reset your password.</p>
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                {error && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                    <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+                >
+                  {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Send Reset Link <i className="fas fa-chevron-right text-[9px]"></i></>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(null); }}
+                  className="w-full text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                >
+                  Back to Sign In
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-6 overflow-y-auto">
@@ -176,6 +379,17 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode }) 
                   required
                 />
               </div>
+              {mode === 'login' && (
+                <div className="text-right mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setMode('forgot'); setError(null); }}
+                    className="text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
             </div>
 
             {error && (

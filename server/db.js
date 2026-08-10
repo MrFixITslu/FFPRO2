@@ -54,6 +54,19 @@ if (hasPostgres) {
     `);
   }).then(() => {
     return realPool.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) UNIQUE NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        used_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);`);
+  }).then(() => {
+    return realPool.query(`
       CREATE TABLE IF NOT EXISTS user_data (
         user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         ciphertext BYTEA NOT NULL,
@@ -141,7 +154,8 @@ if (!fs.existsSync(DB_FILE)) {
     projects: [],
     project_members: [],
     project_invites: [],
-    project_messages: []
+    project_messages: [],
+    password_reset_tokens: []
   }, null, 2));
 }
 
@@ -153,6 +167,7 @@ function readDB() {
     parsed.project_members ||= [];
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
+    parsed.password_reset_tokens ||= [];
     return parsed;
   } catch (e) {
     return {
@@ -164,7 +179,8 @@ function readDB() {
       projects: [],
       project_members: [],
       project_invites: [],
-      project_messages: []
+      project_messages: [],
+      password_reset_tokens: []
     };
   }
 }
@@ -341,6 +357,62 @@ export const pool = {
       const userId = params[0];
       db.user_data = db.user_data.filter(u => u.user_id !== userId);
       writeDB(db);
+      return { rows: [] };
+    }
+
+    // 13. INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3) RETURNING id
+    if (cleanSql.startsWith('INSERT INTO password_reset_tokens')) {
+      const entry = {
+        id: crypto.randomUUID(),
+        user_id: params[0],
+        token_hash: params[1],
+        expires_at: params[2],
+        used_at: null,
+        created_at: new Date().toISOString()
+      };
+      db.password_reset_tokens.push(entry);
+      writeDB(db);
+      return { rows: [{ id: entry.id }] };
+    }
+
+    // 14. SELECT * FROM password_reset_tokens WHERE token_hash = $1
+    if (cleanSql.includes('SELECT * FROM password_reset_tokens WHERE token_hash =')) {
+      const tokenHash = params[0];
+      const row = db.password_reset_tokens.find(t => t.token_hash === tokenHash);
+      return { rows: row ? [row] : [] };
+    }
+
+    // 15. UPDATE password_reset_tokens SET used_at = now() WHERE id = $1
+    if (cleanSql.startsWith('UPDATE password_reset_tokens SET used_at =') && cleanSql.includes('WHERE id =')) {
+      const id = params[0];
+      const row = db.password_reset_tokens.find(t => t.id === id);
+      if (row) {
+        row.used_at = new Date().toISOString();
+        writeDB(db);
+      }
+      return { rows: [] };
+    }
+
+    // 16. UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL
+    if (cleanSql.startsWith('UPDATE password_reset_tokens SET used_at =') && cleanSql.includes('WHERE user_id =')) {
+      const userId = params[0];
+      const now = new Date().toISOString();
+      db.password_reset_tokens
+        .filter(t => t.user_id === userId && !t.used_at)
+        .forEach(t => { t.used_at = now; });
+      writeDB(db);
+      return { rows: [] };
+    }
+
+    // 17. UPDATE users SET password_hash = $1 WHERE id = $2
+    if (cleanSql.startsWith('UPDATE users SET password_hash =')) {
+      const passwordHash = params[0];
+      const id = params[1];
+      const user = db.users.find(u => u.id === id);
+      if (user) {
+        user.password_hash = passwordHash;
+        writeDB(db);
+      }
       return { rows: [] };
     }
 

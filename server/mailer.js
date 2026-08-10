@@ -63,6 +63,44 @@ export async function sendProjectInviteEmail({ toEmail, projectName, inviterName
   }
 }
 
+/**
+ * Sends a password-reset email. Never throws — the route always returns a
+ * generic success response regardless of send outcome, so email failures
+ * can't be used to probe which addresses have accounts.
+ */
+export async function sendPasswordResetEmail({ toEmail, resetLink }) {
+  const t = getTransporter();
+  const subject = 'Reset your Fire Finance Pro password';
+  const text = `We received a request to reset your Fire Finance Pro password.\n\nReset it here (expires in 45 minutes): ${resetLink}\n\nIf you didn't request this, you can safely ignore this email — your password won't be changed.`;
+  const html = `
+    <div style="font-family: -apple-system, Segoe UI, sans-serif; max-width: 480px; margin: 0 auto;">
+      <p style="font-size: 15px; color: #1e293b;">We received a request to reset your Fire Finance Pro password.</p>
+      <a href="${resetLink}" style="display:inline-block; margin-top:16px; padding:10px 20px; background:#4f46e5; color:#fff; text-decoration:none; border-radius:6px; font-weight:600; font-size:13px;">Reset Password</a>
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">This link expires in 45 minutes. If you didn't request this, you can safely ignore this email — your password won't be changed.</p>
+    </div>
+  `;
+
+  console.log(`[mailer] Password reset link for ${toEmail}: ${resetLink}`);
+
+  if (!t) {
+    return { sent: false };
+  }
+
+  try {
+    await t.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@fire-finance.local',
+      to: toEmail,
+      subject,
+      text,
+      html,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error('[mailer] Failed to send password reset email:', err.message);
+    return { sent: false };
+  }
+}
+
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
