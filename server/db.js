@@ -22,8 +22,24 @@ if (hasPostgres) {
       };
   
   // For some cloud providers (e.g. Neon, Render, AWS), SSL might be required.
-  // Enable safe SSL defaults if connecting to a remote server.
-  if (poolConfig.connectionString || (poolConfig.host && poolConfig.host !== 'localhost' && poolConfig.host !== '127.0.0.1')) {
+  // Enable safe SSL defaults only for genuinely remote hosts — not for local
+  // Docker service names like "postgres" or "localhost", which run without
+  // SSL configured and will reject an SSL handshake outright.
+  const isLocalDockerHost = (host) => {
+    if (!host) return false;
+    return host === 'localhost' || host === '127.0.0.1' || host === 'postgres' || host === 'db' || host.endsWith('.internal');
+  };
+  let effectiveHost = poolConfig.host;
+  if (poolConfig.connectionString) {
+    try {
+      effectiveHost = new URL(poolConfig.connectionString).hostname;
+    } catch (e) {
+      effectiveHost = null;
+    }
+  }
+  const forceSSL = process.env.DATABASE_SSL === 'true';
+  const disableSSL = process.env.DATABASE_SSL === 'false';
+  if (forceSSL || (!disableSSL && effectiveHost && !isLocalDockerHost(effectiveHost))) {
     poolConfig.ssl = { rejectUnauthorized: false };
   }
 
