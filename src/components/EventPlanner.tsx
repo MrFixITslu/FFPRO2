@@ -9,11 +9,12 @@ import ProjectChat from './ProjectChat';
 import ShareProjectModal from './ShareProjectModal';
 import { PlannerChecklist } from './Planner/PlannerChecklist';
 import { projectsService, ProjectSyncConflictError } from '../services/projectsService';
+import { realtimeService } from '../services/realtimeService';
 import { 
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
-  Trash2, Percent, Calculator, Settings, Share2, Loader2
+  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio
 } from 'lucide-react';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -143,6 +144,18 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [editingIdeaTitle, setEditingIdeaTitle] = useState('');
   const [editingIdeaDesc, setEditingIdeaDesc] = useState('');
   const [convertingIdeaId, setConvertingIdeaId] = useState<string | null>(null);
+  const [showIdeaBinModal, setShowIdeaBinModal] = useState(false);
+  const [ideaSearchQuery, setIdeaSearchQuery] = useState('');
+
+  // Filtered Ideas
+  const filteredIdeas = useMemo(() => {
+    const q = ideaSearchQuery.trim().toLowerCase();
+    if (!q) return ideas || [];
+    return (ideas || []).filter(i => 
+      (i.title || '').toLowerCase().includes(q) || 
+      (i.description && i.description.toLowerCase().includes(q))
+    );
+  }, [ideas, ideaSearchQuery]);
 
   // Sale Price Calculator Local State
   const [calcItemName, setCalcItemName] = useState('');
@@ -179,6 +192,72 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       .catch(() => { if (!cancelled) setProjectMembers([]); });
     return () => { cancelled = true; };
   }, [selectedEvent?.isShared, selectedEvent?.sharedProjectId]);
+
+  // Real-time synchronization for collaborative shared projects
+  useEffect(() => {
+    if (!selectedEvent?.isShared || !selectedEvent.sharedProjectId) return;
+    const pid = selectedEvent.sharedProjectId;
+    realtimeService.watchProject(pid);
+
+    return () => {
+      realtimeService.unwatchProject(pid);
+    };
+  }, [selectedEvent?.isShared, selectedEvent?.sharedProjectId]);
+
+  useEffect(() => {
+    const unsubUpdate = realtimeService.on('project_updated', (payload: any) => {
+      if (!payload?.projectId) return;
+
+      if (payload.deleted) {
+        setSharedEvents(prev => prev.filter(p => p.id !== payload.projectId));
+        if (selectedEventId === payload.projectId) {
+          setSelectedEventId(null);
+        }
+        return;
+      }
+
+      if (payload.project) {
+        const rawData = payload.project.data || payload.project;
+        const updatedProj: BudgetEvent = {
+          ...rawData,
+          id: payload.projectId,
+          sharedProjectId: payload.projectId,
+          isShared: true,
+          role: payload.project.role || selectedEventRef.current?.role || 'editor',
+          serverVersion: payload.version || payload.project.version,
+          lastUpdated: payload.updatedAt || payload.project.updated_at || new Date().toISOString()
+        };
+
+        setSharedEvents(prev => {
+          const idx = prev.findIndex(p => p.id === payload.projectId);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = updatedProj;
+            return next;
+          } else {
+            return [updatedProj, ...prev];
+          }
+        });
+
+        if (selectedEventRef.current?.id === payload.projectId) {
+          selectedEventRef.current = updatedProj;
+        }
+      }
+    });
+
+    const unsubMember = realtimeService.on('project_membership_updated', (payload: any) => {
+      if (selectedEventRef.current?.sharedProjectId === payload?.projectId) {
+        projectsService.getMembers(payload.projectId)
+          .then(res => setProjectMembers(res.members))
+          .catch(() => {});
+      }
+    });
+
+    return () => {
+      unsubUpdate();
+      unsubMember();
+    };
+  }, [selectedEventId]);
 
   // Land on Dashboard only when switching to a different project
   const prevSelectedEventIdRef = useRef<string | null>(null);
@@ -840,7 +919,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             setSaveError(err.message || 'Failed to save your changes. They will retry shortly.');
           }
         }
-      }, 300);
+      }, 150);
     } else {
       onUpdateEvent(updatedEvent);
     }
@@ -1186,6 +1265,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                })}
              </div>
              <div className="flex items-center gap-2 relative z-10 shrink-0">
+               <button
+                 onClick={() => setShowIdeaBinModal(true)}
+                 title="Open Idea Bin"
+                 className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
+               >
+                 <i className="fas fa-lightbulb text-amber-300 text-xs"></i>
+                 <span className="hidden sm:inline">Idea Bin</span>
+                 {(ideas || []).length > 0 && (
+                   <span className="px-1.5 py-0.5 bg-amber-400 text-slate-950 rounded-full text-[9px] font-extrabold leading-none">
+                     {(ideas || []).length}
+                   </span>
+                 )}
+               </button>
                <button
                  onClick={() => handleShareClick(selectedEvent)}
                  disabled={promoting}
@@ -2598,6 +2690,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 tasks={selectedEvent.tasks || []}
                 currentUser={currentUser}
                 canEdit={canEdit}
+                eventLogs={selectedEvent.logs || []}
                 onUpdateTasks={(updatedTasks, logAction) => {
                   const ev = selectedEventRef.current || selectedEvent;
                   if (!ev) return;
@@ -2861,8 +2954,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   <i className="fas fa-lightbulb text-sm"></i>
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider leading-none">Idea Bin</h3>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 leading-none">Future Blueprints</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider leading-none">Idea Bin</h3>
+                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-extrabold leading-none">
+                      {(ideas || []).length}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 leading-none">Persistent Storage</p>
                 </div>
               </div>
               <button 
@@ -2873,6 +2971,27 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 <Plus size={14} />
               </button>
             </div>
+
+            {/* Idea Bin Search Filter */}
+            {(ideas || []).length > 2 && (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={ideaSearchQuery}
+                  onChange={(e) => setIdeaSearchQuery(e.target.value)}
+                  placeholder="Filter saved ideas..."
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                />
+                {ideaSearchQuery && (
+                  <button
+                    onClick={() => setIdeaSearchQuery('')}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Add Idea Inline Form */}
             {showAddIdea && (
@@ -2917,7 +3036,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
             {/* Ideas List */}
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {(ideas || []).length > 0 ? (ideas || []).map(idea => {
+              {filteredIdeas.length > 0 ? filteredIdeas.map(idea => {
                 const isEditing = editingIdeaId === idea.id;
                 const isConverting = convertingIdeaId === idea.id;
 
@@ -3041,8 +3160,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 );
               }) : (
                 <div className="py-12 text-center bg-white border border-slate-200 border-dashed rounded-xl">
-                  <p className="text-slate-300 uppercase font-bold text-[8px] tracking-wider">Idea Bin Empty</p>
-                  <p className="text-[10px] text-slate-400 mt-1 max-w-[160px] mx-auto">Add concepts you want to work on in the future!</p>
+                  <p className="text-slate-300 uppercase font-bold text-[8px] tracking-wider">
+                    {ideaSearchQuery ? 'No Matching Ideas' : 'Idea Bin Empty'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1 max-w-[160px] mx-auto">
+                    {ideaSearchQuery ? 'Try a different search term.' : 'Add concepts you want to work on in the future!'}
+                  </p>
                 </div>
               )}
             </div>
@@ -3109,6 +3232,243 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
           currentUserRole={selectedEvent.role || 'viewer'}
           onClose={() => setShowShareModal(false)}
         />
+      )}
+
+      {/* Idea Bin Global Modal / Drawer */}
+      {showIdeaBinModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20">
+                  <i className="fas fa-lightbulb text-base"></i>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 leading-tight">Idea Bin</h3>
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-extrabold">
+                      {(ideas || []).length} Saved
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">Persistent incubation chamber for future projects and business concepts</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIdeaBinModal(false)}
+                className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            {/* Modal Toolbar */}
+            <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={ideaSearchQuery}
+                  onChange={(e) => setIdeaSearchQuery(e.target.value)}
+                  placeholder="Search your ideas..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition-all"
+                />
+                {ideaSearchQuery && (
+                  <button
+                    onClick={() => setIdeaSearchQuery('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setShowAddIdea(true)}
+                className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shrink-0 shadow-sm"
+              >
+                <Plus size={14} /> Add Idea
+              </button>
+            </div>
+
+            {/* Add Idea Inline in Modal */}
+            {showAddIdea && (
+              <div className="p-4 bg-amber-50/50 border-b border-amber-100 space-y-3 animate-in slide-in-from-top-2 duration-150">
+                <input
+                  type="text"
+                  value={newIdeaTitle}
+                  onChange={(e) => setNewIdeaTitle(e.target.value)}
+                  placeholder="Idea concept or project title..."
+                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:ring-1 focus:ring-amber-500"
+                />
+                <textarea
+                  value={newIdeaDesc}
+                  onChange={(e) => setNewIdeaDesc(e.target.value)}
+                  placeholder="Description, notes, or future milestones..."
+                  rows={2}
+                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setShowAddIdea(false); setNewIdeaTitle(''); setNewIdeaDesc(''); }}
+                    className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddIdea}
+                    disabled={!newIdeaTitle.trim()}
+                    className="px-4 py-1 bg-amber-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-amber-500 disabled:opacity-50"
+                  >
+                    Save to Bin
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Body: Idea Cards */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+              {filteredIdeas.length > 0 ? (
+                filteredIdeas.map((idea) => {
+                  const isEditing = editingIdeaId === idea.id;
+                  const isConverting = convertingIdeaId === idea.id;
+
+                  if (isEditing) {
+                    return (
+                      <div key={idea.id} className="p-4 bg-slate-50 border border-amber-300 rounded-xl space-y-3">
+                        <input
+                          type="text"
+                          value={editingIdeaTitle}
+                          onChange={(e) => setEditingIdeaTitle(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                        />
+                        <textarea
+                          value={editingIdeaDesc}
+                          onChange={(e) => setEditingIdeaDesc(e.target.value)}
+                          rows={2}
+                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-700"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditingIdeaId(null)}
+                            className="px-3 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleEditIdeaSubmit(idea.id)}
+                            className="px-3 py-1 bg-amber-600 text-white rounded text-xs font-bold"
+                          >
+                            Update
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={idea.id}
+                      className="p-4 bg-white border border-slate-200 rounded-xl hover:border-amber-400 transition-all shadow-xs space-y-3"
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900">{idea.title}</h4>
+                          {idea.description && (
+                            <p className="text-xs text-slate-600 mt-1 whitespace-pre-line leading-relaxed">
+                              {idea.description}
+                            </p>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-medium block mt-2">
+                            Saved on {new Date(idea.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingIdeaId(idea.id);
+                              setEditingIdeaTitle(idea.title);
+                              setEditingIdeaDesc(idea.description || '');
+                            }}
+                            className="w-7 h-7 text-slate-400 hover:text-amber-600 rounded flex items-center justify-center hover:bg-slate-100"
+                            title="Edit"
+                          >
+                            <i className="fas fa-edit text-xs"></i>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete idea "${idea.title}"?`)) handleDeleteIdea(idea.id);
+                            }}
+                            className="w-7 h-7 text-slate-400 hover:text-rose-600 rounded flex items-center justify-center hover:bg-rose-50"
+                            title="Delete"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      {isConverting ? (
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Convert into active project:
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            <button
+                              onClick={() => {
+                                handleConvertIdeaToPlan(idea, 'event');
+                                setShowIdeaBinModal(false);
+                              }}
+                              className="py-2 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider border border-indigo-200 transition-all text-center"
+                            >
+                              Standard Event
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleConvertIdeaToPlan(idea, 'trip');
+                                setShowIdeaBinModal(false);
+                              }}
+                              className="py-2 bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider border border-sky-200 transition-all text-center"
+                            >
+                              Trip Plan
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleConvertIdeaToPlan(idea, 'startup');
+                                setShowIdeaBinModal(false);
+                              }}
+                              className="py-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider border border-emerald-200 transition-all text-center"
+                            >
+                              Startup Plan
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => setConvertingIdeaId(null)}
+                            className="text-[10px] text-slate-400 font-bold uppercase hover:text-slate-600"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConvertingIdeaId(idea.id)}
+                          className="w-full py-1.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white border border-amber-200 hover:border-amber-600 transition-all rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                        >
+                          <i className="fas fa-rocket text-[10px]"></i> Convert into Live Project
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-16 text-center text-slate-400">
+                  <i className="fas fa-lightbulb text-3xl mb-2 text-slate-300"></i>
+                  <p className="font-bold text-xs uppercase tracking-wider">No ideas found</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {ideaSearchQuery ? 'Try matching another search term.' : 'Click "Add Idea" to store notes and future concepts.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

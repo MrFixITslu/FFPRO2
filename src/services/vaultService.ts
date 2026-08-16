@@ -1,5 +1,6 @@
 
 import { getStoredVaultHandle, storeMirrorHandle, clearVaultHandle } from './fileStorageService';
+import { ForecastSettings } from '../types';
 
 export interface AppState {
   transactions: any[];
@@ -14,6 +15,7 @@ export interface AppState {
   calendarItems: any[];
   contacts: any[];
   ideas?: any[];
+  forecastSettings?: ForecastSettings;
   cashOpeningBalance: number;
   lastUpdated: string;
 }

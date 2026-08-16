@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send } from 'lucide-react';
 import { projectsService } from '../services/projectsService';
+import { realtimeService } from '../services/realtimeService';
 import { ProjectChatMessage } from '../types';
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
   currentUserId?: string;
 }
 
-const POLL_INTERVAL_MS = 4000;
+const POLL_INTERVAL_MS = 15000; // Fallback sync
 
 const ProjectChat: React.FC<Props> = ({ projectId, currentUserId }) => {
   const [messages, setMessages] = useState<ProjectChatMessage[]>([]);
@@ -31,7 +32,11 @@ const ProjectChat: React.FC<Props> = ({ projectId, currentUserId }) => {
       const fresh = await projectsService.getMessages(projectId, lastTimestampRef.current || undefined);
       if (fresh.length > 0) {
         lastTimestampRef.current = fresh[fresh.length - 1].createdAt;
-        setMessages(prev => [...prev, ...fresh]);
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newOnes = fresh.filter(f => !existingIds.has(f.id));
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+        });
         scrollToBottom();
       }
       setError(null);
@@ -62,9 +67,21 @@ const ProjectChat: React.FC<Props> = ({ projectId, currentUserId }) => {
       }
     })();
 
+    // Real-time instant message listener
+    const unsub = realtimeService.on('chat_message', (payload: any) => {
+      if (payload?.projectId === projectId && payload.message) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === payload.message.id)) return prev;
+          return [...prev, payload.message];
+        });
+        scrollToBottom(true);
+      }
+    });
+
     pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
+      unsub();
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [projectId, poll, scrollToBottom]);

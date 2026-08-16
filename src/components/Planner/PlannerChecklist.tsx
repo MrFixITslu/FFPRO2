@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ProjectTask, TaskPriority, TaskStatus, ReminderOption } from '../../types';
+import { ProjectTask, TaskPriority, TaskStatus, ReminderOption, EventLog } from '../../types';
 import { 
   computeTaskStatus, 
   filterAndSortTasks, 
@@ -18,7 +18,7 @@ import { DependencyGraphView } from './DependencyGraphView';
 import { 
   Plus, Search, Filter, Calendar, Clock, AlertTriangle, ShieldAlert, 
   CheckCircle2, ChevronDown, ChevronRight, Zap, Bell, Link2, Tag, 
-  ArrowUpDown, Eye, ListTodo, Layers, Trash2, Repeat
+  ArrowUpDown, Eye, ListTodo, Layers, Trash2, Repeat, History, Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,6 +26,7 @@ interface Props {
   tasks: ProjectTask[];
   currentUser: string;
   canEdit: boolean;
+  eventLogs?: EventLog[];
   onUpdateTasks: (updatedTasks: ProjectTask[], actionLog?: string) => void;
   onAddActionLog?: (action: string, type: 'task') => void;
 }
@@ -34,6 +35,7 @@ export const PlannerChecklist: React.FC<Props> = ({
   tasks = [],
   currentUser,
   canEdit,
+  eventLogs = [],
   onUpdateTasks,
   onAddActionLog,
 }) => {
@@ -42,8 +44,17 @@ export const PlannerChecklist: React.FC<Props> = ({
   const [viewMode, setViewMode] = useState<'list' | 'architecture'>('list');
   const [sortOption, setSortOption] = useState<'manual' | 'dueDate' | 'priority' | 'name'>('manual');
   
-  // Collapsed state for completed tasks (collapsed by default)
-  const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
+  // Collapsed state for completed tasks (default to expanded when completed filter is chosen)
+  const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(false);
+  const [showLogsDrawer, setShowLogsDrawer] = useState(false);
+  const [logFilterType, setLogFilterType] = useState<'all' | 'task' | 'transaction' | 'file'>('all');
+
+  // Auto-expand completed tasks if user switches to 'completed' filter
+  useEffect(() => {
+    if (activeFilter === 'completed') {
+      setIsCompletedCollapsed(false);
+    }
+  }, [activeFilter]);
 
   // New task quick input
   const [newTaskText, setNewTaskText] = useState('');
@@ -92,6 +103,14 @@ export const PlannerChecklist: React.FC<Props> = ({
     () => filterAndSortTasks(tasks, activeFilter, searchQuery, sortOption),
     [tasks, activeFilter, searchQuery, sortOption]
   );
+
+  // Filtered event logs
+  const filteredLogs = useMemo(() => {
+    return (eventLogs || []).filter(l => {
+      if (logFilterType === 'all') return true;
+      return l.type === logFilterType;
+    });
+  }, [eventLogs, logFilterType]);
 
   // Notifications detection
   const notifications = useMemo(() => {
@@ -379,10 +398,31 @@ export const PlannerChecklist: React.FC<Props> = ({
           />
         </div>
 
-        {/* View Mode & Sort Dropdowns */}
-        <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-between md:justify-end">
+        {/* View Mode, Logs Toggle & Sort Dropdowns */}
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0 justify-between md:justify-end">
           
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          {/* Execution History & Logs Button */}
+          <button
+            onClick={() => setShowLogsDrawer(!showLogsDrawer)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
+              showLogsDrawer
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+            }`}
+            title="Toggle Activity & Execution Logs"
+          >
+            <History size={14} />
+            <span>Activity Logs</span>
+            {eventLogs.length > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
+                showLogsDrawer ? 'bg-white text-indigo-700' : 'bg-indigo-100 text-indigo-700'
+              }`}>
+                {eventLogs.length}
+              </span>
+            )}
+          </button>
+
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setSortOption('manual')}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition ${
@@ -432,6 +472,66 @@ export const PlannerChecklist: React.FC<Props> = ({
 
       </div>
 
+      {/* Execution Logs Drawer / History Panel */}
+      {showLogsDrawer && (
+        <div className="bg-white p-5 rounded-2xl border border-indigo-150 shadow-sm space-y-4 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Activity size={16} />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Project Execution & Task Activity Feed</h3>
+                <p className="text-[10px] text-slate-400 font-medium">All logged updates, milestone actions, and project history ({eventLogs.length} total entries)</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[10px] font-bold uppercase">
+              {(['all', 'task', 'transaction', 'file'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setLogFilterType(type)}
+                  className={`px-2.5 py-1 rounded transition ${
+                    logFilterType === type ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {type === 'all' ? 'All Logs' : type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {filteredLogs.length > 0 ? (
+              filteredLogs.map(log => (
+                <div key={log.id} className="p-3 bg-slate-50 hover:bg-indigo-50/30 rounded-xl border border-slate-200/80 flex items-start justify-between gap-3 transition">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 ${
+                      log.type === 'task' ? 'bg-indigo-600' : log.type === 'transaction' ? 'bg-emerald-600' : 'bg-slate-700'
+                    }`}>
+                      {log.type === 'task' ? '✓' : log.type === 'transaction' ? '$' : '📄'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-800 break-words leading-tight">{log.action.replace(/_/g, ' ')}</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                        By <span className="font-semibold text-slate-600">{log.username}</span> • <span className="capitalize">{log.type}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 shrink-0 whitespace-nowrap">
+                    {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                No logs found for this filter
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 4. Architecture View or List View */}
       {viewMode === 'architecture' ? (
         <DependencyGraphView
@@ -444,16 +544,127 @@ export const PlannerChecklist: React.FC<Props> = ({
           {/* Main Task List */}
           <div className="lg:col-span-2 space-y-4">
             
-            {/* Active (Incomplete) Tasks Section */}
+            {/* Active (Incomplete) or Filtered Tasks Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <ListTodo size={14} className="text-indigo-600" />
-                  Active Tasks ({activeTasks.length})
+                  {activeFilter === 'completed' 
+                    ? `Completed Tasks (${completedTasks.length})` 
+                    : `Active Tasks (${activeTasks.length})`}
                 </span>
+                {activeFilter === 'all' && completedTasks.length > 0 && (
+                  <span className="text-[11px] font-bold text-emerald-600">
+                    {completedTasks.length} Completed / {tasks.length} Total
+                  </span>
+                )}
               </div>
 
-              {activeTasks.length > 0 ? (
+              {/* When filtering explicitly by 'completed' */}
+              {activeFilter === 'completed' ? (
+                completedTasks.length > 0 ? (
+                  <div className="space-y-3">
+                    <AnimatePresence>
+                      {completedTasks.map(task => {
+                        return (
+                          <motion.div
+                            key={task.id}
+                            layout
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            className="bg-emerald-50/20 p-5 rounded-2xl border border-emerald-200 transition-all shadow-xs hover:shadow-md"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3 flex-1">
+                                
+                                {/* Reopen Checkbox */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleCompletion(task.id);
+                                  }}
+                                  disabled={!canEdit}
+                                  title="Mark incomplete (reopen)"
+                                  className="w-7 h-7 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 cursor-pointer shadow-xs transition"
+                                >
+                                  <CheckCircle2 size={16} />
+                                </button>
+
+                                {/* Task Details */}
+                                <div
+                                  onClick={() => setSelectedTaskForDetail(task)}
+                                  className="flex-1 cursor-pointer"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    <h4 className="text-sm font-bold text-slate-700 leading-snug line-through hover:text-indigo-600 transition">
+                                      {task.text}
+                                    </h4>
+
+                                    {task.priority && (
+                                      <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                        {task.priority}
+                                      </span>
+                                    )}
+
+                                    <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full border uppercase bg-emerald-100 text-emerald-800 border-emerald-300">
+                                      Completed
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-medium mt-1">
+                                    {task.completionDate && (
+                                      <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                                        <CheckCircle2 size={12} /> Finished: {task.completionDate}
+                                      </span>
+                                    )}
+                                    {task.dueDate && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock size={12} /> Due was: {task.dueDate}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Subtasks Count */}
+                                  {task.subTasks && task.subTasks.length > 0 && (
+                                    <div className="mt-2 text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded w-fit">
+                                      Subtasks: {task.subTasks.filter(s => s.completed).length}/{task.subTasks.length} completed
+                                    </div>
+                                  )}
+                                </div>
+
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setSelectedTaskForDetail(task)}
+                                  className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition"
+                                >
+                                  Details
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTask(task.id)}
+                                  disabled={!canEdit}
+                                  className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center">
+                    <CheckCircle2 size={24} className="text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Completed Tasks Yet</p>
+                  </div>
+                )
+              ) : activeTasks.length > 0 ? (
                 <div className="space-y-3">
                   <AnimatePresence>
                     {activeTasks.map(task => {
@@ -650,35 +861,45 @@ export const PlannerChecklist: React.FC<Props> = ({
                     })}
                   </AnimatePresence>
                 </div>
+              ) : completedTasks.length > 0 ? (
+                <div className="bg-emerald-50/60 p-6 rounded-2xl border border-emerald-200 text-center">
+                  <CheckCircle2 size={28} className="text-emerald-600 mx-auto mb-2" />
+                  <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">All Active Tasks Completed</h4>
+                  <p className="text-[11px] text-emerald-700 mt-1">All {completedTasks.length} milestones in this plan are finished. View or reopen them below.</p>
+                </div>
               ) : (
                 <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Active Tasks Found</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Tasks Found</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Create a milestone task using the quick deploy form on the right.</p>
                 </div>
               )}
             </div>
 
-            {/* Completed Tasks Section (Collapsed by Default) */}
-            {completedTasks.length > 0 && (
+            {/* Completed Tasks Accordion (Shown when not already filtered by completed) */}
+            {activeFilter !== 'completed' && completedTasks.length > 0 && (
               <div className="pt-4 border-t border-slate-200 space-y-3">
                 <button
                   onClick={() => setIsCompletedCollapsed(!isCompletedCollapsed)}
-                  className="flex items-center justify-between w-full p-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition text-xs font-bold text-slate-700"
+                  className="flex items-center justify-between w-full p-3.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition text-xs font-bold text-slate-700"
                 >
                   <span className="flex items-center gap-2">
                     <CheckCircle2 size={16} className="text-emerald-600" />
                     Completed Tasks ({completedTasks.length})
                   </span>
-                  {isCompletedCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <span className="text-[10px] uppercase font-bold">{isCompletedCollapsed ? 'Show' : 'Hide'}</span>
+                    {isCompletedCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </div>
                 </button>
 
                 {!isCompletedCollapsed && (
-                  <div className="space-y-2 opacity-80">
+                  <div className="space-y-3 pt-1">
                     {completedTasks.map(task => (
                       <div
                         key={task.id}
-                        className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between"
+                        className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-300 flex items-center justify-between gap-3 transition"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -691,19 +912,28 @@ export const PlannerChecklist: React.FC<Props> = ({
                           >
                             <CheckCircle2 size={16} />
                           </button>
-                          <div>
-                            <span className="text-xs font-bold text-slate-500 line-through block">{task.text}</span>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-bold text-slate-600 line-through block truncate">{task.text}</span>
                             {task.completionDate && (
-                              <span className="text-[10px] text-slate-400">Completed on {task.completionDate}</span>
+                              <span className="text-[10px] text-emerald-600 font-semibold">Completed on {task.completionDate}</span>
                             )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => setSelectedTaskForDetail(task)}
-                          className="text-xs font-bold text-indigo-600 hover:underline"
-                        >
-                          View Details
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedTaskForDetail(task)}
+                            className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition"
+                          >
+                            Details
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTask(task.id)}
+                            disabled={!canEdit}
+                            className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

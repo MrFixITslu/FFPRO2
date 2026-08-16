@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { encryptForUser, decryptForUser } from '../crypto.js';
+import { realtimeHub } from '../realtime.js';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB limit
 
-// FIX: Add schema validation for data payloads
+// Add schema validation for data payloads
 function validateAppState(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return 'Invalid data format.';
@@ -40,6 +41,18 @@ function validateAppState(data) {
   }
   if (data.bankConnections && !Array.isArray(data.bankConnections)) {
     return 'Bank connections must be an array.';
+  }
+  if (data.investments && !Array.isArray(data.investments)) {
+    return 'Investments must be an array.';
+  }
+  if (data.calendarItems && !Array.isArray(data.calendarItems)) {
+    return 'Calendar items must be an array.';
+  }
+  if (data.ideas && !Array.isArray(data.ideas)) {
+    return 'Ideas must be an array.';
+  }
+  if (data.forecastSettings && typeof data.forecastSettings !== 'object') {
+    return 'Forecast settings must be an object.';
   }
   
   return null;
@@ -137,6 +150,11 @@ router.put('/', async (req, res) => {
       [req.user.id, ciphertext, iv, authTag, newVersion]
     );
     await client.query('COMMIT');
+    realtimeHub.broadcastUserDataUpdate(req.user.id, {
+      version: newVersion,
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user.id
+    });
     res.json({ ok: true, version: newVersion });
   } catch (err) {
     await client.query('ROLLBACK');

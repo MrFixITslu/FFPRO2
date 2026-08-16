@@ -23,11 +23,13 @@ import {
   CalendarItem,
   TaskStatus,
   Idea,
+  ForecastSettings,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
+import { realtimeService } from './services/realtimeService';
 import { 
   Shield, 
   ShieldCheck, 
@@ -43,7 +45,10 @@ import {
   Zap,
   TrendingUp,
   LogOut,
-  User
+  User,
+  Radio,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -178,7 +183,13 @@ const App: React.FC = () => {
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
+  const [forecastSettings, setForecastSettings] = useState<ForecastSettings>(() => safeParse(STORAGE_KEYS.FORECAST_SETTINGS, {
+    yearsToProject: 5,
+    monthlyContribution: 500,
+    expectedReturn: 8
+  }));
   const [cashOpeningBalance, setCashOpeningBalance] = useState<number>(() => parseFloat(localStorage.getItem(STORAGE_KEYS.CASH_OPENING) || '0'));
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
   
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([
     { symbol: 'BTC', price: 64000.00, change24h: 1.2 },
@@ -242,9 +253,10 @@ const App: React.FC = () => {
     calendarItems,
     contacts,
     ideas,
+    forecastSettings,
     cashOpeningBalance,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance]);
 
   // Loads a full AppState (from the cloud or a vault backup) into local state.
   const applyRemoteState = useCallback((state: AppState) => {
@@ -260,8 +272,46 @@ const App: React.FC = () => {
     setCalendarItems(state.calendarItems || []);
     setContacts(state.contacts || []);
     setIdeas(state.ideas || []);
+    if (state.forecastSettings) {
+      setForecastSettings(state.forecastSettings);
+    }
     setCashOpeningBalance(state.cashOpeningBalance || 0);
   }, []);
+
+  // Real-time Event Stream connection & live broadcast listener
+  useEffect(() => {
+    if (!isAuthenticated) {
+      realtimeService.disconnect();
+      setRealtimeStatus('disconnected');
+      return;
+    }
+
+    realtimeService.connect();
+    setRealtimeStatus(realtimeService.status);
+
+    const unsubStatus = realtimeService.on('status_change', ({ status }) => {
+      setRealtimeStatus(status);
+    });
+
+    const unsubData = realtimeService.on('user_data_updated', async (payload) => {
+      // Pull fresh state instantly when another tab/device commits an edit
+      try {
+        const remote = await dataSyncService.fetch();
+        if (remote.data) {
+          applyRemoteState(remote.data);
+          setCloudVersion(remote.version);
+          setCloudLastSyncTime(remote.updatedAt);
+        }
+      } catch (err) {
+        console.warn('[App] Realtime pull failed:', err);
+      }
+    });
+
+    return () => {
+      unsubStatus();
+      unsubData();
+    };
+  }, [isAuthenticated, applyRemoteState]);
 
   // Wipes everything local — used when switching accounts on a shared browser
   // and on logout/purge, so one account's financial data can never bleed into
@@ -279,6 +329,7 @@ const App: React.FC = () => {
     setCalendarItems([]);
     setContacts([]);
     setIdeas([]);
+    setForecastSettings({ yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 });
     setCashOpeningBalance(0);
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   }, []);
@@ -395,7 +446,7 @@ const App: React.FC = () => {
     const timer = setTimeout(() => { pushToCloud(); }, 3000); // 3s debounce
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, cashOpeningBalance, cloudLoaded]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance, cloudLoaded]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {
@@ -407,18 +458,22 @@ const App: React.FC = () => {
         if (transactions.length === 0) {
           const savedState = await vaultService.loadState(handle);
           if (savedState) {
-            setTransactions(savedState.transactions);
-            setRecurringExpenses(savedState.recurringExpenses);
-            setRecurringIncomes(savedState.recurringIncomes);
-            setSavingGoals(savedState.savingGoals);
-            setInvestmentGoals(savedState.investmentGoals);
-            setCategoryBudgets(savedState.categoryBudgets);
-            setBankConnections(savedState.bankConnections);
-            setInvestments(savedState.investments);
-            setEvents(savedState.events);
-            setCalendarItems(savedState.calendarItems);
-            setContacts(savedState.contacts);
-            setCashOpeningBalance(savedState.cashOpeningBalance);
+            setTransactions(savedState.transactions || []);
+            setRecurringExpenses(savedState.recurringExpenses || []);
+            setRecurringIncomes(savedState.recurringIncomes || []);
+            setSavingGoals(savedState.savingGoals || []);
+            setInvestmentGoals(savedState.investmentGoals || []);
+            setCategoryBudgets(savedState.categoryBudgets || {});
+            setBankConnections(savedState.bankConnections || []);
+            setInvestments(savedState.investments || []);
+            setEvents(savedState.events || []);
+            setCalendarItems(savedState.calendarItems || []);
+            setContacts(savedState.contacts || []);
+            setIdeas(savedState.ideas || []);
+            if (savedState.forecastSettings) {
+              setForecastSettings(savedState.forecastSettings);
+            }
+            setCashOpeningBalance(savedState.cashOpeningBalance || 0);
             setLastSyncTime(savedState.lastUpdated);
           }
         }
@@ -480,9 +535,10 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.CALENDAR_ITEMS, JSON.stringify(calendarItems));
     localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
     localStorage.setItem(STORAGE_KEYS.IDEAS, JSON.stringify(ideas));
+    localStorage.setItem(STORAGE_KEYS.FORECAST_SETTINGS, JSON.stringify(forecastSettings));
     localStorage.setItem(STORAGE_KEYS.CATEGORY_LIMITS, JSON.stringify(categoryBudgets));
     localStorage.setItem(STORAGE_KEYS.CASH_OPENING, cashOpeningBalance.toString());
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, ideas, categoryBudgets, cashOpeningBalance]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, categoryBudgets, cashOpeningBalance]);
 
   // Market prices are entered/updated manually now (see Settings/Investments)
   // rather than auto-refreshed by an AI call. quotaExhausted is left `true`
@@ -699,27 +755,30 @@ const App: React.FC = () => {
                   </button>
                 )}
 
-                {/* Cloud Sync Status Indicator */}
+                {/* Real-time Live Cloud Database Status Indicator */}
                 <div
-                  className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-50 rounded border border-slate-100"
-                  title={cloudError || undefined}
+                  className="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-50 rounded border border-slate-100"
+                  title={realtimeStatus === 'connected' ? 'Connected to Real-Time Live Database Sync' : 'Reconnecting to Real-Time Sync...'}
                 >
                   {cloudSyncing ? (
-                    <RefreshCw size={12} className="text-indigo-500 animate-spin" />
-                  ) : cloudError ? (
-                    <ShieldAlert size={12} className="text-rose-500" />
-                  ) : cloudLoaded ? (
-                    <ShieldCheck size={12} className="text-emerald-500" />
+                    <RefreshCw size={12} className="text-indigo-500 animate-spin shrink-0" />
+                  ) : realtimeStatus === 'connected' ? (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
                   ) : (
-                    <Shield size={12} className="text-slate-300" />
+                    <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0"></span>
                   )}
                   <div className="flex flex-col text-left">
-                    <span className="text-[8px] font-bold uppercase tracking-tighter text-slate-400 leading-none">Cloud Sync</span>
-                    <span className="text-[7px] font-medium text-slate-500 leading-none mt-0.5">
-                      {cloudError
-                        ? 'Attention'
-                        : cloudLastSyncTime
-                        ? `${new Date(cloudLastSyncTime).toLocaleTimeString()}`
+                    <span className="text-[8px] font-bold uppercase tracking-tighter text-slate-400 leading-none">
+                      {realtimeStatus === 'connected' ? 'Live DB' : 'DB Sync'}
+                    </span>
+                    <span className="text-[7px] font-medium text-slate-500 leading-none mt-0.5 whitespace-nowrap">
+                      {cloudSyncing
+                        ? 'Saving…'
+                        : realtimeStatus === 'connected'
+                        ? 'Real-Time'
                         : 'Connecting…'}
                     </span>
                   </div>
@@ -846,6 +905,8 @@ const App: React.FC = () => {
                 investments={investments}
                 marketPrices={marketPrices}
                 categoryBudgets={categoryBudgets}
+                forecastSettings={forecastSettings}
+                onUpdateForecastSettings={setForecastSettings}
                 currentNetWorth={liquidFunds + investments.reduce((acc, inv) => acc + inv.holdings.reduce((hAcc, h) => hAcc + (h.quantity * (marketPrices.find(m => m.symbol === h.symbol)?.price || 0)), 0), 0)}
               />
             )}

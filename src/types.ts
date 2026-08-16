@@ -355,6 +355,12 @@ export interface Idea {
   createdAt: string;
 }
 
+export interface ForecastSettings {
+  yearsToProject: number;
+  monthlyContribution: number;
+  expectedReturn: number;
+}
+
 export interface NetWorthSnapshot {
   date: string;
   value: number;
@@ -392,5 +398,6 @@ export const STORAGE_KEYS = {
   REMINDERS: 'ff_reminders_enabled',
   PASSWORD: 'ff_custom_password',
   DATA_OWNER: 'ff_data_owner_id',
-  IDEAS: 'ff_ideas'
+  IDEAS: 'ff_ideas',
+  FORECAST_SETTINGS: 'ff_forecast_settings'
 };

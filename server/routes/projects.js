@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { projectsDb } from '../projectsDb.js';
 import { sendProjectInviteEmail } from '../mailer.js';
+import { realtimeHub } from '../realtime.js';
 
 const router = Router();
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -124,6 +125,13 @@ router.put('/:id', loadMembership, requireRole('owner', 'editor'), async (req, r
     if (result.conflict) {
       return res.status(409).json({ error: 'This project was updated elsewhere since you last loaded it.', version: result.version });
     }
+    // Broadcast project update to all connected collaborators in real-time
+    realtimeHub.broadcastProjectUpdate(req.params.id, {
+      project: result.project,
+      version: result.project.version,
+      updatedAt: result.project.updated_at,
+      updatedBy: req.user.id
+    });
     res.json({ ok: true, version: result.project.version, updatedAt: result.project.updated_at });
   } catch (err) {
     console.error('PUT /api/projects/:id error:', err);
@@ -134,6 +142,11 @@ router.put('/:id', loadMembership, requireRole('owner', 'editor'), async (req, r
 router.delete('/:id', loadMembership, requireRole('owner'), async (req, res) => {
   try {
     await projectsDb.deleteProject(req.params.id);
+    realtimeHub.broadcastProjectUpdate(req.params.id, {
+      project: null,
+      deleted: true,
+      updatedBy: req.user.id
+    });
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/projects/:id error:', err);
@@ -276,6 +289,7 @@ router.post('/:id/messages', messageLimiter, loadMembership, async (req, res) =>
   }
   try {
     const message = await projectsDb.createMessage(req.params.id, req.user.id, body.trim());
+    realtimeHub.broadcastProjectMessage(req.params.id, message);
     res.status(201).json({ message });
   } catch (err) {
     console.error('POST /api/projects/:id/messages error:', err);

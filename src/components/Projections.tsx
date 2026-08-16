@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Transaction, RecurringIncome, RecurringExpense, InvestmentAccount, MarketPrice } from '../types';
+import { Transaction, RecurringIncome, RecurringExpense, InvestmentAccount, MarketPrice, ForecastSettings } from '../types';
 
 interface Props {
   transactions: Transaction[];
@@ -10,6 +10,8 @@ interface Props {
   marketPrices: MarketPrice[];
   categoryBudgets: Record<string, number>;
   currentNetWorth: number;
+  forecastSettings?: ForecastSettings;
+  onUpdateForecastSettings?: (settings: ForecastSettings) => void;
 }
 
 const Projections: React.FC<Props> = ({ 
@@ -18,39 +20,57 @@ const Projections: React.FC<Props> = ({
   investments, 
   marketPrices, 
   categoryBudgets, 
-  currentNetWorth 
+  currentNetWorth,
+  forecastSettings,
+  onUpdateForecastSettings
 }) => {
-  // Persist sliders in local storage
-  const [yearsToProject, setYearsToProject] = useState(() => {
-    const saved = localStorage.getItem('ff_proj_years');
-    return saved ? parseInt(saved) : 5;
-  });
-  
-  const [monthlyContribution, setMonthlyContribution] = useState(() => {
-    const saved = localStorage.getItem('ff_proj_contribution');
-    return saved ? parseInt(saved) : 500;
-  });
-  
-  const [expectedReturn, setExpectedReturn] = useState(() => {
-    const saved = localStorage.getItem('ff_proj_roi');
-    return saved ? parseInt(saved) : 8;
-  });
+  // Sync sliders with database state and local fallback
+  const [yearsToProject, setYearsToProject] = useState(forecastSettings?.yearsToProject || 5);
+  const [monthlyContribution, setMonthlyContribution] = useState(forecastSettings?.monthlyContribution || 500);
+  const [expectedReturn, setExpectedReturn] = useState(forecastSettings?.expectedReturn || 8);
 
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Update storage when sliders change
+  // Keep local state in sync if remote database updates
   useEffect(() => {
-    localStorage.setItem('ff_proj_years', yearsToProject.toString());
-  }, [yearsToProject]);
+    if (forecastSettings) {
+      if (forecastSettings.yearsToProject !== undefined) setYearsToProject(forecastSettings.yearsToProject);
+      if (forecastSettings.monthlyContribution !== undefined) setMonthlyContribution(forecastSettings.monthlyContribution);
+      if (forecastSettings.expectedReturn !== undefined) setExpectedReturn(forecastSettings.expectedReturn);
+    }
+  }, [forecastSettings]);
 
-  useEffect(() => {
-    localStorage.setItem('ff_proj_contribution', monthlyContribution.toString());
-  }, [monthlyContribution]);
+  // Update persistent database and local storage when sliders change
+  const handleYearsChange = (val: number) => {
+    setYearsToProject(val);
+    localStorage.setItem('ff_proj_years', val.toString());
+    onUpdateForecastSettings?.({
+      yearsToProject: val,
+      monthlyContribution,
+      expectedReturn
+    });
+  };
 
-  useEffect(() => {
-    localStorage.setItem('ff_proj_roi', expectedReturn.toString());
-  }, [expectedReturn]);
+  const handleContributionChange = (val: number) => {
+    setMonthlyContribution(val);
+    localStorage.setItem('ff_proj_contribution', val.toString());
+    onUpdateForecastSettings?.({
+      yearsToProject,
+      monthlyContribution: val,
+      expectedReturn
+    });
+  };
+
+  const handleReturnChange = (val: number) => {
+    setExpectedReturn(val);
+    localStorage.setItem('ff_proj_roi', val.toString());
+    onUpdateForecastSettings?.({
+      yearsToProject,
+      monthlyContribution,
+      expectedReturn: val
+    });
+  };
 
   // Calculate base monthly savings
   const monthlyIncome = useMemo(() => recurringIncomes.reduce((acc: number, inc) => acc + inc.amount, 0), [recurringIncomes]);
@@ -209,7 +229,7 @@ const Projections: React.FC<Props> = ({
                 <input 
                   type="range" min="1" max="25" 
                   value={yearsToProject} 
-                  onChange={(e) => setYearsToProject(parseInt(e.target.value))}
+                  onChange={(e) => handleYearsChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-indigo-500" 
                 />
               </div>
@@ -222,7 +242,7 @@ const Projections: React.FC<Props> = ({
                 <input 
                   type="range" min="0" max={Math.max(5000, monthlyIncome)} step="50"
                   value={monthlyContribution} 
-                  onChange={(e) => setMonthlyContribution(parseInt(e.target.value))}
+                  onChange={(e) => handleContributionChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-emerald-500" 
                 />
                 <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1.5">Available Surplus: ${netMonthlyCashflow.toFixed(0)}</p>
@@ -236,7 +256,7 @@ const Projections: React.FC<Props> = ({
                 <input 
                   type="range" min="0" max="25" 
                   value={expectedReturn} 
-                  onChange={(e) => setExpectedReturn(parseInt(e.target.value))}
+                  onChange={(e) => handleReturnChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-amber-500" 
                 />
               </div>
