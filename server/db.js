@@ -211,11 +211,18 @@ function writeDB(data) {
   }
 }
 
-// Proxy pool that routes to PostgreSQL if available, otherwise falls back to local file mock
 export const pool = {
   async query(sql, params = []) {
     if (realPool) {
-      return realPool.query(sql, params);
+      try {
+        return await realPool.query(sql, params);
+      } catch (err) {
+        if (err.code === 'EAI_AGAIN' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+          console.warn('[db] PostgreSQL pool query failed due to network error, falling back to local database file:', err.message);
+        } else {
+          throw err;
+        }
+      }
     }
 
     const db = readDB();
