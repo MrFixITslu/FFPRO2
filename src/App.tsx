@@ -814,18 +814,22 @@ const App: React.FC = () => {
                 currentUser={currentUsername}
                 currentUserId={authUser?.id}
                 isAdmin={isAdmin}
-                onAddEvent={(e) => setEvents(prev => [{
-                  ...e,
-                  id: e.id || generateId(),
-                  items: e.items || [],
-                  notes: e.notes || [],
-                  tasks: e.tasks || [],
-                  files: e.files || [],
-                  contactIds: e.contactIds || [],
-                  memberUsernames: e.memberUsernames || [],
-                  ious: e.ious || [],
-                  lastUpdated: new Date().toISOString()
-                }, ...prev])}
+                onAddEvent={(e) => {
+                  const newId = e.id || generateId();
+                  setEvents(prev => [{
+                    ...e,
+                    id: newId,
+                    items: e.items || [],
+                    notes: e.notes || [],
+                    tasks: e.tasks || [],
+                    files: e.files || [],
+                    contactIds: e.contactIds || [],
+                    memberUsernames: e.memberUsernames || [],
+                    ious: e.ious || [],
+                    lastUpdated: new Date().toISOString()
+                  }, ...prev]);
+                  return newId;
+                }}
                 onDeleteEvent={(id) => setEvents(prev => prev.filter(e => e.id !== id))}
                 onUpdateEvent={(e) => setEvents(prev => prev.map(ev => ev.id === e.id ? e : ev))}
                 onUpdateContacts={setContacts}

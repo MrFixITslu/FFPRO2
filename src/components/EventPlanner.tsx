@@ -63,7 +63,7 @@ interface Props {
   currentUser: string;
   currentUserId?: string;
   isAdmin: boolean;
-  onAddEvent: (event: Omit<BudgetEvent, 'id' | 'items' | 'notes' | 'tasks' | 'files' | 'contactIds' | 'memberUsernames' | 'ious' | 'lastUpdated' | 'logs'>) => void;
+  onAddEvent: (event: Omit<BudgetEvent, 'id' | 'items' | 'notes' | 'tasks' | 'files' | 'contactIds' | 'memberUsernames' | 'ious' | 'lastUpdated' | 'logs'>) => string | void;
   onDeleteEvent: (id: string) => void;
   onUpdateEvent: (event: BudgetEvent) => void;
   onUpdateContacts: (contacts: Contact[]) => void;
@@ -1088,8 +1088,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               }
 
               const initialTasks = getInitialChecklist(selectedPlanType);
+              const generatedId = Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 
-              onAddEvent({ 
+              const createdId = onAddEvent({ 
+                id: generatedId,
                 name: newName.trim(), 
                 date: startDate || new Date().toISOString().split('T')[0], 
                 status: 'active',
@@ -1099,6 +1101,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 tasks: initialTasks
               }); 
 
+              setSelectedEventId(createdId || generatedId);
               setShowAddForm(false); 
               setNewName(''); 
               setDestination('');
