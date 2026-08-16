@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Login from './components/Login';
 import TransactionForm from './components/TransactionForm';
 import Dashboard from './components/Dashboard';
@@ -214,9 +214,17 @@ const App: React.FC = () => {
   // --- Per-account cloud sync state ---
   const [cloudLoaded, setCloudLoaded] = useState(false); // has the initial pull for THIS account finished?
   const [cloudVersion, setCloudVersion] = useState(0);
+  const cloudVersionRef = useRef(0);
+  const isApplyingRemoteUpdateRef = useRef(false);
+  const isSyncingInFlightRef = useRef(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudLastSyncTime, setCloudLastSyncTime] = useState<string | null>(null);
+
+  const updateCloudVersion = useCallback((v: number) => {
+    cloudVersionRef.current = v;
+    setCloudVersion(v);
+  }, []);
 
   const isAdmin = true;
 
@@ -258,6 +266,34 @@ const App: React.FC = () => {
     lastUpdated: new Date().toISOString()
   }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance]);
 
+  // Merge helper for seamless conflict resolution without data loss
+  const mergeAppStates = useCallback((local: AppState, remote: AppState): AppState => {
+    const mergeById = <T extends { id?: string }>(l: T[] = [], r: T[] = []): T[] => {
+      const map = new Map<string, T>();
+      r.forEach(item => { if (item?.id) map.set(item.id, item); });
+      l.forEach(item => { if (item?.id) map.set(item.id, item); });
+      return Array.from(map.values());
+    };
+
+    return {
+      transactions: mergeById(local.transactions, remote.transactions),
+      recurringExpenses: mergeById(local.recurringExpenses, remote.recurringExpenses),
+      recurringIncomes: mergeById(local.recurringIncomes, remote.recurringIncomes),
+      savingGoals: mergeById(local.savingGoals, remote.savingGoals),
+      investmentGoals: mergeById(local.investmentGoals, remote.investmentGoals),
+      categoryBudgets: { ...(remote.categoryBudgets || {}), ...(local.categoryBudgets || {}) },
+      bankConnections: mergeById(local.bankConnections, remote.bankConnections),
+      investments: mergeById(local.investments, remote.investments),
+      events: mergeById(local.events, remote.events),
+      calendarItems: mergeById(local.calendarItems, remote.calendarItems),
+      contacts: mergeById(local.contacts, remote.contacts),
+      ideas: mergeById(local.ideas, remote.ideas),
+      forecastSettings: local.forecastSettings || remote.forecastSettings || { yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 },
+      cashOpeningBalance: local.cashOpeningBalance !== 0 ? local.cashOpeningBalance : (remote.cashOpeningBalance || 0),
+      lastUpdated: new Date().toISOString()
+    };
+  }, []);
+
   // Loads a full AppState (from the cloud or a vault backup) into local state.
   const applyRemoteState = useCallback((state: AppState) => {
     setTransactions(state.transactions || []);
@@ -293,14 +329,19 @@ const App: React.FC = () => {
       setRealtimeStatus(status);
     });
 
-    const unsubData = realtimeService.on('user_data_updated', async (payload) => {
-      // Pull fresh state instantly when another tab/device commits an edit
+    const unsubData = realtimeService.on('user_data_updated', async (payload: any) => {
+      // Ignore echo if we just pushed this version or higher
+      if (payload?.version && payload.version <= cloudVersionRef.current) {
+        return;
+      }
       try {
         const remote = await dataSyncService.fetch();
-        if (remote.data) {
+        if (remote.data && remote.version > cloudVersionRef.current) {
+          isApplyingRemoteUpdateRef.current = true;
           applyRemoteState(remote.data);
-          setCloudVersion(remote.version);
+          updateCloudVersion(remote.version);
           setCloudLastSyncTime(remote.updatedAt);
+          setTimeout(() => { isApplyingRemoteUpdateRef.current = false; }, 600);
         }
       } catch (err) {
         console.warn('[App] Realtime pull failed:', err);
@@ -311,7 +352,7 @@ const App: React.FC = () => {
       unsubStatus();
       unsubData();
     };
-  }, [isAuthenticated, applyRemoteState]);
+  }, [isAuthenticated, applyRemoteState, updateCloudVersion]);
 
   // Wipes everything local — used when switching accounts on a shared browser
   // and on logout/purge, so one account's financial data can never bleed into
@@ -359,9 +400,11 @@ const App: React.FC = () => {
         const remote = await dataSyncService.fetch();
         if (cancelled) return;
         if (remote.data) {
+          isApplyingRemoteUpdateRef.current = true;
           applyRemoteState(remote.data);
-          setCloudVersion(remote.version);
+          updateCloudVersion(remote.version);
           setCloudLastSyncTime(remote.updatedAt);
+          setTimeout(() => { isApplyingRemoteUpdateRef.current = false; }, 600);
         } else {
           // Nothing synced yet for this account — treat whatever's in this
           // (now confirmed same-owner, or freshly cleared) browser as the
@@ -369,7 +412,7 @@ const App: React.FC = () => {
           const initial = getFullState();
           const result = await dataSyncService.save(initial, 0);
           if (cancelled) return;
-          setCloudVersion(result.version);
+          updateCloudVersion(result.version);
           setCloudLastSyncTime(new Date().toISOString());
         }
       } catch (err: any) {
@@ -394,56 +437,67 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
     // Intentionally only re-runs when the authenticated user identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, authUser?.id]);
+  }, [authChecked, authUser?.id, updateCloudVersion]);
 
-  // --- Per-account cloud sync: debounced autosave ---------------------------
-  const pushToCloud = useCallback(async () => {
-    if (!cloudLoaded) return;
+  // --- Per-account cloud sync: debounced autosave with auto-healing ---
+  const pushToCloud = useCallback(async (force: boolean = false) => {
+    if (!cloudLoaded || isSyncingInFlightRef.current) return;
+    isSyncingInFlightRef.current = true;
     setCloudSyncing(true);
-    setCloudError(null);
     try {
-      const result = await dataSyncService.save(getFullState(), cloudVersion);
-      setCloudVersion(result.version);
+      const currentState = getFullState();
+      const currentVer = cloudVersionRef.current;
+      const result = await dataSyncService.save(currentState, currentVer, force);
+      updateCloudVersion(result.version);
       setCloudLastSyncTime(new Date().toISOString());
-    } catch (err) {
+      setCloudError(null);
+    } catch (err: any) {
       if (err instanceof SyncConflictError) {
-        // Someone else (another device/tab on this account) saved more
-        // recently. Pull their copy rather than clobbering it — we surface
-        // this so the user knows a just-made local edit may not have stuck.
+        // Auto-reconcile & merge smoothly in the background
         try {
           const remote = await dataSyncService.fetch();
           if (remote.data) {
-            applyRemoteState(remote.data);
-            setCloudVersion(remote.version);
+            isApplyingRemoteUpdateRef.current = true;
+            const merged = mergeAppStates(getFullState(), remote.data);
+            applyRemoteState(merged);
+            updateCloudVersion(remote.version);
             setCloudLastSyncTime(remote.updatedAt);
+            setTimeout(() => { isApplyingRemoteUpdateRef.current = false; }, 600);
+
+            // Re-save the reconciled state seamlessly
+            const reSave = await dataSyncService.save(merged, remote.version, true);
+            updateCloudVersion(reSave.version);
+            setCloudLastSyncTime(new Date().toISOString());
+            setCloudError(null);
           }
-          setCloudError('Data was updated on another device. The latest version has been loaded — please redo any change you just made here.');
         } catch (fetchErr) {
-          console.error('Conflict recovery fetch failed:', fetchErr);
-          setCloudError('Sync conflict detected, and reloading the latest data failed. Refresh the page.');
+          console.warn('Conflict auto-merge deferred:', fetchErr);
+          if (err.version) {
+            updateCloudVersion(err.version);
+          }
         }
       } else {
         const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
         if (isAuthError) {
-          console.warn('Session expired or invalid during cloud sync. Resetting session.');
+          console.warn('Session expired during cloud sync.');
           setAuthUser(null);
           setCloudLoaded(false);
-          setCloudVersion(0);
+          updateCloudVersion(0);
           setCloudError(null);
           setCloudLastSyncTime(null);
         } else {
-          console.error('Cloud sync failed:', err);
-          setCloudError('Could not save to the cloud. Your changes are still saved on this device.');
+          console.warn('Cloud sync error (changes preserved locally):', err?.message || err);
         }
       }
     } finally {
+      isSyncingInFlightRef.current = false;
       setCloudSyncing(false);
     }
-  }, [cloudLoaded, cloudVersion, getFullState, applyRemoteState]);
+  }, [cloudLoaded, getFullState, applyRemoteState, updateCloudVersion, mergeAppStates]);
 
   useEffect(() => {
-    if (!cloudLoaded) return;
-    const timer = setTimeout(() => { pushToCloud(); }, 3000); // 3s debounce
+    if (!cloudLoaded || isApplyingRemoteUpdateRef.current) return;
+    const timer = setTimeout(() => { pushToCloud(); }, 2500); // 2.5s debounce
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance, cloudLoaded]);

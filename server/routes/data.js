@@ -58,10 +58,10 @@ function validateAppState(data) {
   return null;
 }
 
-// Generous but bounded write limiter for data sync
+// Generous write limiter for data sync
 const dataWriteLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 120, // 120 writes per min is safe for active debounced usage
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -95,14 +95,14 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', async (req, res) => {
-  const { data, expectedVersion } = req.body || {};
+  const { data, expectedVersion, force } = req.body || {};
   
   // FIX: Add comprehensive schema validation
   const validationError = validateAppState(data);
   if (validationError || typeof data !== 'object' || data === null || Array.isArray(data)) {
     return res.status(400).json({ error: validationError || 'Invalid payload.' });
   }
-  if (typeof expectedVersion !== 'number') {
+  if (typeof expectedVersion !== 'number' && !force) {
     return res.status(400).json({ error: 'expectedVersion is required.' });
   }
 
@@ -127,7 +127,7 @@ router.put('/', async (req, res) => {
     );
     const currentVersion = rows[0]?.version || 0;
 
-    if (expectedVersion !== currentVersion) {
+    if (!force && expectedVersion !== -1 && expectedVersion !== currentVersion) {
       await client.query('ROLLBACK');
       return res.status(409).json({
         error: 'Data was updated elsewhere since you last loaded it.',

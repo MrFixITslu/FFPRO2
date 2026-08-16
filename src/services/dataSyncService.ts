@@ -41,13 +41,14 @@ export const dataSyncService = {
    * Saves the full app state under optimistic concurrency: expectedVersion must
    * match what the server currently has, or this throws SyncConflictError so
    * the caller can reload the latest copy instead of silently overwriting it.
+   * If force is true, bypasses version check (e.g. for user-triggered Sync Now or auto-reconciliation).
    */
-  async save(data: AppState, expectedVersion: number): Promise<{ ok: true; version: number }> {
+  async save(data: AppState, expectedVersion: number, force: boolean = false): Promise<{ ok: true; version: number }> {
     const res = await fetch(BASE, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ data, expectedVersion }),
+      body: JSON.stringify({ data, expectedVersion, force }),
     });
     return handle(res);
   },
