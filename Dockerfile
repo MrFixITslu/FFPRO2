@@ -10,8 +10,9 @@ RUN npm ci
 # Copy all source files
 COPY . .
 
-# Run the build script
-# This runs "vite build" for the frontend and "esbuild" for bundling server.ts
+# Run the build script:
+# - vite build  → builds frontend into dist/
+# - esbuild     → bundles server.ts + all routes into dist/server.cjs
 RUN npm run build
 
 # --- Production Stage ---
@@ -26,12 +27,13 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy built application assets and backend bundle from builder
+# Copy the entire dist/ directory which contains:
+#   dist/index.html + dist/assets/*  → frontend (served as static files)
+#   dist/server.cjs                  → bundled Node/Express backend
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server ./server
 
 # Expose port 80 — Node listens on $PORT (set to 80 in docker-compose.yml)
 EXPOSE 80
 
-# Start server using standard start command
-CMD ["npm", "run", "start"]
+# Start the bundled server
+CMD ["node", "dist/server.cjs"]
