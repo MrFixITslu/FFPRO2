@@ -70,13 +70,26 @@ const PgStore = connectPgSimple(session);
 
 // Instantiate session middleware ONCE at module level so we use a single persistent session store
 const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-const sessionStore = hasPostgres && realPool
-  ? new PgStore({
+let sessionStore: session.Store | undefined;
+
+if (hasPostgres && realPool) {
+  try {
+    const pgStore = new PgStore({
       pool: realPool,
       tableName: 'sessions',
       createTableIfMissing: true,
-    })
-  : undefined;
+      errorLog: (err: any) => {
+        console.warn('[session-store] PGStore non-fatal error:', err?.message || err);
+      }
+    });
+    pgStore.on('error', (err: any) => {
+      console.warn('[session-store] PGStore pool error:', err?.message || err);
+    });
+    sessionStore = pgStore;
+  } catch (err) {
+    console.warn('[session-store] Failed to initialize PgStore, using default memory store fallback:', err);
+  }
+}
 
 const sessionMiddleware = session({
   name: 'ffpro.sid',
