@@ -12,8 +12,7 @@ services:
       # from every other app's data on this server.
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
-      # Internal-only network: not joined to proxy_network, so Postgres is
-      # never reachable from outside this compose stack.
+      - proxy_network
       - ffpro2_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
