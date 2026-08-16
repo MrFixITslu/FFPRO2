@@ -190,6 +190,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   }, [selectedEventId]);
 
   const addActionLog = (event: BudgetEvent, action: string, type: EventLog['type']) => {
+    const ev = selectedEventRef.current || event;
     const newLog: EventLog = {
       id: generateId(),
       action,
@@ -197,11 +198,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       username: currentUser,
       type
     };
-    updateEvent({
-      ...event,
-      logs: [newLog, ...(event.logs || [])],
+    const updated: BudgetEvent = {
+      ...ev,
+      logs: [newLog, ...(ev.logs || [])],
       lastUpdated: new Date().toISOString()
-    });
+    };
+    selectedEventRef.current = updated;
+    updateEvent(updated);
   };
 
   const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
@@ -799,6 +802,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   };
 
   const updateEvent = useCallback((updatedEvent: BudgetEvent) => {
+    selectedEventRef.current = updatedEvent;
     if (updatedEvent.isShared && updatedEvent.sharedProjectId) {
       const pid = updatedEvent.sharedProjectId;
       const currentVersion = updatedEvent.serverVersion ?? 0;
@@ -2594,17 +2598,28 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 tasks={selectedEvent.tasks || []}
                 currentUser={currentUser}
                 canEdit={canEdit}
-                onUpdateTasks={(updatedTasks) => {
-                  const ev = selectedEventRef.current;
+                onUpdateTasks={(updatedTasks, logAction) => {
+                  const ev = selectedEventRef.current || selectedEvent;
                   if (!ev) return;
-                  updateEvent({
+                  const newLogs = logAction ? [{
+                    id: generateId(),
+                    action: logAction,
+                    timestamp: new Date().toISOString(),
+                    username: currentUser,
+                    type: 'task' as const
+                  }, ...(ev.logs || [])] : (ev.logs || []);
+
+                  const updated: BudgetEvent = {
                     ...ev,
                     tasks: updatedTasks,
+                    logs: newLogs,
                     lastUpdated: new Date().toISOString(),
-                  });
+                  };
+                  selectedEventRef.current = updated;
+                  updateEvent(updated);
                 }}
                 onAddActionLog={(action, type) => {
-                  const ev = selectedEventRef.current;
+                  const ev = selectedEventRef.current || selectedEvent;
                   if (ev) addActionLog(ev, action, type);
                 }}
               />

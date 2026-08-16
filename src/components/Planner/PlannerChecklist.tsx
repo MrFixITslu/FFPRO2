@@ -26,7 +26,7 @@ interface Props {
   tasks: ProjectTask[];
   currentUser: string;
   canEdit: boolean;
-  onUpdateTasks: (updatedTasks: ProjectTask[]) => void;
+  onUpdateTasks: (updatedTasks: ProjectTask[], actionLog?: string) => void;
   onAddActionLog?: (action: string, type: 'task') => void;
 }
 
@@ -153,12 +153,14 @@ export const PlannerChecklist: React.FC<Props> = ({
     };
 
     const updated = [...tasks, newTask];
-    onUpdateTasks(updated);
-    if (onAddActionLog) onAddActionLog(`Deployed milestone: "${newTask.text}"`, 'task');
+    onUpdateTasks(updated, `Deployed milestone: "${newTask.text}"`);
 
     setNewTaskText('');
     setNewTaskDueDate('');
     setNewTaskPriority('medium');
+    if (activeFilter === 'completed') {
+      setActiveFilter('all');
+    }
   };
 
   const handleToggleCompletion = (taskId: string) => {
@@ -212,13 +214,8 @@ export const PlannerChecklist: React.FC<Props> = ({
       return t;
     });
 
-    onUpdateTasks(updatedTasks);
-    if (onAddActionLog) {
-      onAddActionLog(
-        isNowCompleted ? `Completed task: "${target.text}"` : `Reopened task: "${target.text}"`,
-        'task'
-      );
-    }
+    const logMsg = isNowCompleted ? `Completed task: "${target.text}"` : `Reopened task: "${target.text}"`;
+    onUpdateTasks(updatedTasks, logMsg);
 
     // Check if task was overdue and has dependents -> offer schedule propagation
     if (isNowCompleted && target.dueDate) {
@@ -258,8 +255,10 @@ export const PlannerChecklist: React.FC<Props> = ({
   };
 
   const executeDeleteTask = (taskId: string) => {
+    const target = tasks.find(t => t.id === taskId);
     const updated = tasks.filter(t => t.id !== taskId);
-    onUpdateTasks(updated);
+    const logMsg = target ? `Deleted task: "${target.text}"` : undefined;
+    onUpdateTasks(updated, logMsg);
     if (selectedTaskForDetail?.id === taskId) {
       setSelectedTaskForDetail(null);
     }
@@ -287,7 +286,7 @@ export const PlannerChecklist: React.FC<Props> = ({
       return t;
     });
 
-    onUpdateTasks(updated);
+    onUpdateTasks(updated, `Added subtask: "${newSub.text}"`);
     setSubTaskInputs(prev => ({ ...prev, [parentTaskId]: '' }));
   };
 
@@ -306,7 +305,7 @@ export const PlannerChecklist: React.FC<Props> = ({
 
   const handleSaveTaskDetail = (updatedTask: ProjectTask) => {
     const updatedList = tasks.map(t => (t.id === updatedTask.id ? updatedTask : t));
-    onUpdateTasks(updatedList);
+    onUpdateTasks(updatedList, `Updated task details: "${updatedTask.text}"`);
   };
 
   // Schedule propagation handlers
