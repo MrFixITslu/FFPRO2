@@ -25,7 +25,7 @@ function hashResetToken(rawToken) {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }
 
-// FIX: Add password validation function
+// FIX: Add password validation function — strict version for register/reset
 function validatePasswordStrength(password) {
   if (!password || password.length < 8) {
     return 'Password must be at least 8 characters.';
@@ -41,6 +41,15 @@ function validatePasswordStrength(password) {
   }
   if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
     return 'Password must contain at least one special character (!@#$%^&*).';
+  }
+  return null;
+}
+
+// Lenient check for login — only ensure something was provided with min length.
+// Prevents lock-out for accounts registered before the strict rules were added.
+function validatePasswordForLogin(password) {
+  if (!password || password.length < 1) {
+    return 'Password is required.';
   }
   return null;
 }
@@ -173,8 +182,9 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
+  const loginPasswordError = validatePasswordForLogin(password);
+  if (!email || loginPasswordError) {
+    return res.status(400).json({ error: loginPasswordError || 'Email and password are required.' });
   }
 
   try {

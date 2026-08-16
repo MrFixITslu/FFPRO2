@@ -31,15 +31,15 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      # Expose host port (default 3010) mapping to container port 3010.
-      # Customize via APP_PORT in your .env file if needed.
-      - "${APP_PORT:-3010}:3010"
+      # Nginx Proxy Manager routes external traffic to host port 3010,
+      # which maps into the container on port 80 (where Node listens).
+      - "3010:80"
     networks:
       - proxy_network
       - ffpro2_internal
     environment:
       - NODE_ENV=production
-      - PORT=3010
+      - PORT=80
       
       # Persist Database and Keys
       - DATABASE_FILE=/app/data/database.json

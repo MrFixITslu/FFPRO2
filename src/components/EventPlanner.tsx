@@ -180,9 +180,11 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     return () => { cancelled = true; };
   }, [selectedEvent?.isShared, selectedEvent?.sharedProjectId]);
 
-  // Land on Dashboard when selecting a project
+  // Land on Dashboard only when switching to a different project
+  const prevSelectedEventIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (selectedEventId) {
+    if (selectedEventId && selectedEventId !== prevSelectedEventIdRef.current) {
+      prevSelectedEventIdRef.current = selectedEventId;
       setActiveTab('dashboard');
     }
   }, [selectedEventId]);
@@ -224,8 +226,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     e.currentTarget.reset();
   };
 
+  const selectedEventRef = useRef<BudgetEvent | undefined>(undefined);
+  useEffect(() => { selectedEventRef.current = selectedEvent; }, [selectedEvent]);
+
   const handleAddTask = () => {
-    if (!selectedEvent || !taskText.trim()) return;
+    const ev = selectedEventRef.current;
+    if (!ev || !taskText.trim()) return;
     const newTask: ProjectTask = {
       id: generateId(),
       text: taskText.trim(),
@@ -233,7 +239,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       assignedToId: currentUser,
       subTasks: []
     };
-    const updatedEvent = { ...selectedEvent, tasks: [...(selectedEvent.tasks || []), newTask] };
+    const updatedEvent = { ...ev, tasks: [...(ev.tasks || []), newTask] };
     addActionLog(updatedEvent, `Deployed milestone: "${newTask.text}"`, 'task');
     setTaskText('');
   };
@@ -2589,14 +2595,17 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 currentUser={currentUser}
                 canEdit={canEdit}
                 onUpdateTasks={(updatedTasks) => {
+                  const ev = selectedEventRef.current;
+                  if (!ev) return;
                   updateEvent({
-                    ...selectedEvent,
+                    ...ev,
                     tasks: updatedTasks,
                     lastUpdated: new Date().toISOString(),
                   });
                 }}
                 onAddActionLog={(action, type) => {
-                  addActionLog(selectedEvent, action, type);
+                  const ev = selectedEventRef.current;
+                  if (ev) addActionLog(ev, action, type);
                 }}
               />
             )}
