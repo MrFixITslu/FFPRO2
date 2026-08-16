@@ -14,6 +14,9 @@ import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
 import { createServer as createViteServer } from 'vite';
 
+import connectPgSimple from 'connect-pg-simple';
+import { realPool, hasPostgres } from './server/db.js';
+
 // Auto-generate SESSION_SECRET and DATA_ENCRYPTION_KEY if not provided
 if (!process.env.SESSION_SECRET) {
   process.env.SESSION_SECRET = crypto.randomBytes(48).toString('hex');
@@ -44,7 +47,7 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '3010', 10);
 
 // Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS
 app.set('trust proxy', true);
@@ -63,10 +66,21 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+const PgStore = connectPgSimple(session);
+
 // Instantiate session middleware ONCE at module level so we use a single persistent session store
 const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+const sessionStore = hasPostgres && realPool
+  ? new PgStore({
+      pool: realPool,
+      tableName: 'sessions',
+      createTableIfMissing: true,
+    })
+  : undefined;
+
 const sessionMiddleware = session({
   name: 'ffpro.sid',
+  store: sessionStore,
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,

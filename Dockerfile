@@ -32,8 +32,8 @@ RUN npm ci --only=production
 #   dist/server.cjs                  → bundled Node/Express backend
 COPY --from=builder /app/dist ./dist
 
-# Expose port 80 — Node listens on $PORT (set to 80 in docker-compose.yml)
-EXPOSE 80
+# Expose port 3010 — Node listens on $PORT (set to 3010 in docker-compose.yml)
+EXPOSE 3010
 
 # Start the bundled server
 CMD ["node", "dist/server.cjs"]
