@@ -180,9 +180,9 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     return () => { cancelled = true; };
   }, [selectedEvent?.isShared, selectedEvent?.sharedProjectId]);
 
-  // Always land on the Dashboard when opening a project
+  // Land on Dashboard when selecting a project
   useEffect(() => {
-    if (selectedEvent) {
+    if (selectedEventId) {
       setActiveTab('dashboard');
     }
   }, [selectedEventId]);
