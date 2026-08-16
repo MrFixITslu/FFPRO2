@@ -45,6 +45,11 @@ if (hasPostgres) {
 
   realPool = new pg.Pool(poolConfig);
 
+  // Handle background pool connection errors so DNS/network glitches don't crash Node process
+  realPool.on('error', (err) => {
+    console.warn('[db] Unexpected error on idle PostgreSQL client/pool:', err?.message || err);
+  });
+
   // Initialize tables asynchronously
   realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
     return realPool.query(`
