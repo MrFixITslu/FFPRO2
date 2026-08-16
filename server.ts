@@ -136,9 +136,12 @@ app.use((req, res, next) => {
     isCloudSandbox ||
     (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
 
-  // Execute session middleware, then dynamically configure cookie secure and sameSite attributes
+  // Execute session middleware, then dynamically configure cookie secure and sameSite attributes.
+  // Catch any transient session store errors so HTTP requests never return 500 if PG store has network blips.
   sessionMiddleware(req, res, (err) => {
-    if (err) return next(err);
+    if (err) {
+      console.warn('[server] Session middleware error (continuing request):', err?.message || err);
+    }
     if (req.session && req.session.cookie) {
       req.session.cookie.secure = isSecure;
       req.session.cookie.sameSite = isSecure ? 'none' : 'lax';

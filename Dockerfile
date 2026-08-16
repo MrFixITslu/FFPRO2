@@ -31,6 +31,7 @@ RUN npm ci --only=production
 #   dist/index.html + dist/assets/*  → frontend (served as static files)
 #   dist/server.cjs                  → bundled Node/Express backend
 COPY --from=builder /app/dist ./dist
+RUN mkdir -p /app/data
 
 # Expose port 3010 — Node listens on $PORT (set to 3010 in docker-compose.yml)
 EXPOSE 3010
