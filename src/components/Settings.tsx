@@ -21,7 +21,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Info,
-  Lock
+  Lock,
+  Radio,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -61,6 +64,13 @@ interface Props {
   isAdmin: boolean;
   onOpenBankSync?: () => void;
   onUnlinkBank?: (inst: string) => void;
+  cloudSyncing?: boolean;
+  cloudLoaded?: boolean;
+  cloudError?: string | null;
+  cloudLastSyncTime?: string | null;
+  cloudVersion?: number;
+  realtimeStatus?: 'connected' | 'connecting' | 'disconnected';
+  onForceSync?: () => void;
 }
 
 type SettingsTab = 'general' | 'recurring' | 'goals' | 'api' | 'security';
@@ -75,7 +85,14 @@ const Settings: React.FC<Props> = ({
   onResetData, onClose, onLogout, 
   onUpdatePassword, bankConnections,
   onOpenBankSync, onUnlinkBank,
-  isAdmin
+  isAdmin,
+  cloudSyncing = false,
+  cloudLoaded = true,
+  cloudError = null,
+  cloudLastSyncTime = null,
+  cloudVersion = 1,
+  realtimeStatus = 'connected',
+  onForceSync
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isChangingPass, setIsChangingPass] = useState(false);
@@ -540,7 +557,87 @@ const Settings: React.FC<Props> = ({
           )}
 
           {activeTab === 'security' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              {/* Cloud Database & Real-Time Sync */}
+              <section className="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+                      <Database size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800">Cloud Database & Live Sync</h3>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Persistent Storage & Event Stream</p>
+                    </div>
+                  </div>
+
+                  {onForceSync && (
+                    <button
+                      onClick={onForceSync}
+                      disabled={cloudSyncing}
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw size={12} className={cloudSyncing ? 'animate-spin' : ''} />
+                      <span>{cloudSyncing ? 'Syncing…' : 'Sync Now'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Real-Time Channel</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5 capitalize flex items-center gap-1.5">
+                        {realtimeStatus === 'connected' ? (
+                          <>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-emerald-700">Live Connected</span>
+                          </>
+                        ) : realtimeStatus === 'connecting' ? (
+                          <>
+                            <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                            <span className="text-amber-700">Connecting…</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="h-2 w-2 rounded-full bg-slate-300"></span>
+                            <span className="text-slate-500">Disconnected</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Radio size={16} className={realtimeStatus === 'connected' ? 'text-emerald-500' : 'text-slate-300'} />
+                  </div>
+
+                  <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Database Version & State</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5">
+                        {cloudError ? (
+                          <span className="text-rose-600 font-semibold">{cloudError}</span>
+                        ) : (
+                          <span className="text-indigo-600">v{cloudVersion} • Active</span>
+                        )}
+                      </p>
+                    </div>
+                    <Shield size={16} className="text-indigo-600" />
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-slate-200/80">
+                  <span>
+                    <strong className="text-slate-700 font-medium">Last Cloud Backup:</strong>{' '}
+                    {cloudLastSyncTime ? new Date(cloudLastSyncTime).toLocaleString() : 'Just now'}
+                  </span>
+                  <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
+                    Encrypted Background Sync
+                  </span>
+                </div>
+              </section>
+
               <section className="bg-slate-50 p-5 rounded-lg border border-slate-200">
                 <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2.5"><i className="fas fa-shield-virus text-indigo-600 text-xs"></i> Authentication Logic</h3>
                 <div className="space-y-4">

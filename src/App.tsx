@@ -755,35 +755,6 @@ const App: React.FC = () => {
                   </button>
                 )}
 
-                {/* Real-time Live Cloud Database Status Indicator */}
-                <div
-                  className="flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-slate-50 rounded border border-slate-100"
-                  title={realtimeStatus === 'connected' ? 'Connected to Real-Time Live Database Sync' : 'Reconnecting to Real-Time Sync...'}
-                >
-                  {cloudSyncing ? (
-                    <RefreshCw size={12} className="text-indigo-500 animate-spin shrink-0" />
-                  ) : realtimeStatus === 'connected' ? (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                  ) : (
-                    <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0"></span>
-                  )}
-                  <div className="flex flex-col text-left">
-                    <span className="text-[8px] font-bold uppercase tracking-tighter text-slate-400 leading-none">
-                      {realtimeStatus === 'connected' ? 'Live DB' : 'DB Sync'}
-                    </span>
-                    <span className="text-[7px] font-medium text-slate-500 leading-none mt-0.5 whitespace-nowrap">
-                      {cloudSyncing
-                        ? 'Saving…'
-                        : realtimeStatus === 'connected'
-                        ? 'Real-Time'
-                        : 'Connecting…'}
-                    </span>
-                  </div>
-                </div>
-
                 <button 
                   onClick={() => setShowSettings(true)} 
                   className="w-8 h-8 flex items-center justify-center rounded bg-slate-50 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all border border-slate-150"
@@ -962,6 +933,15 @@ const App: React.FC = () => {
               isAdmin={isAdmin}
               onOpenBankSync={() => setShowBankSync(true)}
               onUnlinkBank={(inst) => setBankConnections(prev => prev.filter(c => c.institution !== inst))}
+              cloudSyncing={cloudSyncing}
+              cloudLoaded={cloudLoaded}
+              cloudError={cloudError}
+              cloudLastSyncTime={cloudLastSyncTime}
+              cloudVersion={cloudVersion}
+              realtimeStatus={realtimeStatus}
+              onForceSync={() => {
+                pushToCloud(true);
+              }}
             />
           )}
 
