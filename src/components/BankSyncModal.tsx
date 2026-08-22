@@ -8,7 +8,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Step = 'bank-select' | 'api-handshake' | 'credentials' | 'balance-init' | 'syncing' | 'success';
+type Step = 'bank-select' | 'api-handshake' | 'credentials' | 'balance-init' | 'syncing' | 'sync-error' | 'success';
 
 const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
   const [step, setStep] = useState<Step>('bank-select');
@@ -19,6 +19,7 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
   const [apiSecret, setApiSecret] = useState('');
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [syncedHoldings, setSyncedHoldings] = useState<InvestmentHolding[]>([]);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const platforms = [
     { name: '1st National Bank St. Lucia', color: 'bg-emerald-600', icon: 'fa-landmark', type: 'bank' as const, apiType: 'Direct Connect' },
@@ -225,7 +226,32 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
               setSyncedHoldings(holdings);
               setStep('success');
             }}
+            onError={(message) => {
+              setSyncError(message);
+              setStep('sync-error');
+            }}
           />
+        )}
+
+        {step === 'sync-error' && (
+          <div className="p-8 text-center">
+            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 text-4xl mx-auto mb-6 border-4 border-rose-100">
+              <i className="fas fa-triangle-exclamation"></i>
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">Sync Failed</h3>
+            <p className="text-slate-500 text-sm mb-8 break-words">{syncError}</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => setStep('syncing')}
+                className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl transition active:scale-95"
+              >
+                Try Again
+              </button>
+              <button onClick={onClose} className="w-full py-2 text-slate-400 font-bold text-xs uppercase tracking-widest">
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {step === 'success' && (
@@ -257,13 +283,18 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
 const SyncingStep: React.FC<{
   selectedBank: { name: string; type: InstitutionType } | null;
   onDone: (holdings: InvestmentHolding[]) => void;
-}> = ({ selectedBank, onDone }) => {
+  onError: (message: string) => void;
+}> = ({ selectedBank, onDone, onError }) => {
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       if (selectedBank?.type === 'investment') {
-        const holdings = await syncInvestmentHoldings(selectedBank.name as 'Binance' | 'Vanguard');
-        if (!cancelled) onDone(holdings);
+        try {
+          const holdings = await syncInvestmentHoldings(selectedBank.name as 'Binance' | 'Vanguard');
+          if (!cancelled) onDone(holdings);
+        } catch (err: any) {
+          if (!cancelled) onError(err?.message || 'Could not sync your portfolio. Please try again.');
+        }
       } else {
         await new Promise(r => setTimeout(r, 1500));
         if (!cancelled) onDone([]);

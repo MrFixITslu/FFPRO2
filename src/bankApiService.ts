@@ -45,43 +45,42 @@ export interface InvestmentHolding {
  * connect — see connectInvestmentAccount).
  * Vanguard: no real brokerage API integration exists yet, so this still
  * returns backend-generated sample data via /api/ai/investment-sync.
+ *
+ * Throws on a genuine failure (network error, expired/invalid credentials,
+ * Binance outage) rather than swallowing it to an empty array — an empty
+ * array from this function means "the account really has $0," which must
+ * stay distinguishable from "the sync failed," or a real problem silently
+ * looks identical to an empty portfolio.
  */
 export const syncInvestmentHoldings = async (
   provider: 'Binance' | 'Vanguard'
 ): Promise<InvestmentHolding[]> => {
-  try {
-    if (provider === 'Binance') {
-      const response = await fetch('/api/investments/binance/holdings', {
-        method: 'GET',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        console.error('Binance holdings sync error:', body?.error || response.statusText);
-        return [];
-      }
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
-    }
-
-    const response = await fetch('/api/ai/investment-sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+  if (provider === 'Binance') {
+    const response = await fetch('/api/investments/binance/holdings', {
+      method: 'GET',
       credentials: 'include',
-      body: JSON.stringify({ provider })
     });
-
     if (!response.ok) {
-      console.error('Investment sync error:', response.statusText);
-      return [];
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error || `Binance sync failed (HTTP ${response.status}).`);
     }
-
     const data = await response.json();
     return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Investment Sync Error:", error);
-    return [];
   }
+
+  const response = await fetch('/api/ai/investment-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ provider })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Investment sync failed (HTTP ${response.status}).`);
+  }
+
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
 };
 
 export const syncLucelecPortal = async (): Promise<{ balance: number; dueDate: string } | null> => {
