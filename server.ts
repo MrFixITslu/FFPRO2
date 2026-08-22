@@ -12,10 +12,12 @@ import dataRoutes from './server/routes/data.js';
 import aiRoutes from './server/routes/ai.js';
 import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
+import realtimeRoutes from './server/routes/realtime.js';
 import { createServer as createViteServer } from 'vite';
 
 import connectPgSimple from 'connect-pg-simple';
-import { realPool, hasPostgres } from './server/db.js';
+import { realPool, hasPostgres, schemaReady } from './server/db.js';
+import { assertEncryptionConfigured } from './server/crypto.js';
 
 // Auto-generate SESSION_SECRET and DATA_ENCRYPTION_KEY if not provided
 if (!process.env.SESSION_SECRET) {
@@ -44,6 +46,16 @@ if (!process.env.DATA_ENCRYPTION_KEY) {
 // Map GEMINI_API_KEY to API_KEY for gemini routes if missing
 if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
   process.env.API_KEY = process.env.GEMINI_API_KEY;
+}
+
+// Fail fast on a malformed encryption key rather than 500-ing on every
+// /api/data request later (which the frontend surfaces as "Could not reach
+// the cloud").
+try {
+  assertEncryptionConfigured();
+} catch (err: any) {
+  console.error(`FATAL: ${err.message}`);
+  process.exit(1);
 }
 
 const app = express();
@@ -164,9 +176,21 @@ app.use('/api/data', dataRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
+// Server-Sent Events stream for live sync. Must be mounted before the SPA
+// catch-all below — otherwise EventSource requests to /api/realtime/stream
+// fall through to index.html (200, text/html), which the browser rejects
+// as an invalid SSE response and the client is permanently stuck reconnecting.
+app.use('/api/realtime', realtimeRoutes);
 
 // Vite Integration
 async function bootstrap() {
+  // Wait for the database schema (tables, extensions) to finish being
+  // created before we start accepting requests. Without this, the very
+  // first requests after a fresh deploy/restart can race the async
+  // CREATE TABLE calls in db.js and fail with "relation does not exist",
+  // which the frontend surfaces as "Could not reach the cloud."
+  await schemaReady;
+
   if (process.env.NODE_ENV !== 'production') {
     console.log('[server] Mounting Vite Dev Middleware...');
     const vite = await createViteServer({

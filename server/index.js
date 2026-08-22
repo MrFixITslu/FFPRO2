@@ -7,7 +7,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import passport from './passport.js';
-import { pool } from './db.js';
+import { pool, schemaReady } from './db.js';
 import { assertEncryptionConfigured } from './crypto.js';
 import { sameOriginOnly } from './middleware/sameOriginOnly.js';
 import authRoutes from './routes/auth.js';
@@ -15,6 +15,7 @@ import dataRoutes from './routes/data.js';
 import aiRoutes from './routes/ai.js';
 import projectsRoutes from './routes/projects.js';
 import invitesRoutes from './routes/invites.js';
+import realtimeRoutes from './routes/realtime.js';
 
 // Fail fast on boot rather than on the first request if config is missing.
 for (const key of ['SESSION_SECRET', 'DATABASE_URL']) {
@@ -112,6 +113,7 @@ app.use('/api/data', dataRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
+app.use('/api/realtime', realtimeRoutes);
 
 // Fallback error handler — never leak stack traces to clients.
 app.use((err, _req, res, _next) => {
@@ -121,7 +123,12 @@ app.use((err, _req, res, _next) => {
 
 const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
-server.listen(PORT, () => console.log(`FFPRO auth server listening on port ${PORT}`));
+// Wait for table/extension creation to finish before accepting requests —
+// otherwise early requests right after a fresh deploy/restart can race the
+// async CREATE TABLE calls in db.js and 500 with "relation does not exist".
+schemaReady.then(() => {
+  server.listen(PORT, () => console.log(`FFPRO auth server listening on port ${PORT}`));
+});
 
 // Let Docker's `stop` (SIGTERM) drain in-flight requests and close the DB
 // pool cleanly instead of killing connections mid-write.

@@ -8,6 +8,14 @@ const DB_FILE = process.env.DATABASE_FILE || path.join(process.cwd(), 'database.
 // Detect real PostgreSQL config
 const hasPostgres = !!(process.env.DATABASE_URL || process.env.PGHOST || process.env.PGUSER);
 let realPool = null;
+// Resolves once table/extension creation has finished (or immediately, if
+// there's no Postgres to set up). Callers that need the schema to actually
+// exist — i.e. the server, before it starts accepting requests — should
+// `await schemaReady` first. Without this, early requests right after a
+// fresh deploy/restart can race the CREATE TABLE calls below and fail with
+// "relation does not exist", which surfaces to users as a spurious
+// "Could not reach the cloud" error even though Postgres itself is fine.
+let schemaReady = Promise.resolve();
 
 if (hasPostgres) {
   console.log('PostgreSQL configuration detected. Initializing real PostgreSQL pool...');
@@ -50,8 +58,9 @@ if (hasPostgres) {
     console.warn('[db] Unexpected error on idle PostgreSQL client/pool:', err?.message || err);
   });
 
-  // Initialize tables asynchronously
-  realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
+  // Initialize tables asynchronously, but capture the chain so callers can
+  // await it instead of it running fully unobserved in the background.
+  schemaReady = realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
     return realPool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -467,4 +476,4 @@ export const pool = {
   }
 };
 
-export { hasPostgres, realPool, readDB, writeDB, DB_FILE };
+export { hasPostgres, realPool, readDB, writeDB, DB_FILE, schemaReady };
