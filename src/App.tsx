@@ -440,14 +440,14 @@ const App: React.FC = () => {
   }, [authChecked, authUser?.id, updateCloudVersion]);
 
   // --- Per-account cloud sync: debounced autosave with auto-healing ---
-  const pushToCloud = useCallback(async (force: boolean = false) => {
+  const pushToCloud = useCallback(async (force: boolean = false, keepalive: boolean = false) => {
     if (!cloudLoaded || isSyncingInFlightRef.current) return;
     isSyncingInFlightRef.current = true;
     setCloudSyncing(true);
     try {
       const currentState = getFullState();
       const currentVer = cloudVersionRef.current;
-      const result = await dataSyncService.save(currentState, currentVer, force);
+      const result = await dataSyncService.save(currentState, currentVer, force, keepalive);
       updateCloudVersion(result.version);
       setCloudLastSyncTime(new Date().toISOString());
       setCloudError(null);
@@ -501,6 +501,34 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance, cloudLoaded]);
+
+  // Flush any pending change to the cloud immediately when the tab is about
+  // to disappear (backgrounded, switched away from, or closed) instead of
+  // waiting on the 2.5s debounce above. Without this, a change made right
+  // before switching apps or closing the tab — extremely common on phones —
+  // sits in localStorage on that device only and is silently never synced,
+  // so it never shows up on any other device.
+  //
+  // 'visibilitychange' -> 'hidden' is the reliable signal on mobile (iOS/Android
+  // routinely never fire 'beforeunload' when a tab is backgrounded or a PWA is
+  // swiped away). 'pagehide' covers the actual-navigation/close case on desktop.
+  // `keepalive: true` lets the fetch complete even after the page unloads.
+  useEffect(() => {
+    const flush = () => {
+      if (cloudLoaded && !isApplyingRemoteUpdateRef.current) {
+        pushToCloud(true, true);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [cloudLoaded, pushToCloud]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {

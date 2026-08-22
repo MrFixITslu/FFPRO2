@@ -42,12 +42,16 @@ export const dataSyncService = {
    * match what the server currently has, or this throws SyncConflictError so
    * the caller can reload the latest copy instead of silently overwriting it.
    * If force is true, bypasses version check (e.g. for user-triggered Sync Now or auto-reconciliation).
+   * If keepalive is true, the request is allowed to outlive the page (tab close,
+   * navigation, phone backgrounding) — used to flush pending changes that would
+   * otherwise be lost to the debounced autosave timer never getting to run.
    */
-  async save(data: AppState, expectedVersion: number, force: boolean = false): Promise<{ ok: true; version: number }> {
+  async save(data: AppState, expectedVersion: number, force: boolean = false, keepalive: boolean = false): Promise<{ ok: true; version: number }> {
     const res = await fetch(BASE, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
+      keepalive,
       body: JSON.stringify({ data, expectedVersion, force }),
     });
     return handle(res);
