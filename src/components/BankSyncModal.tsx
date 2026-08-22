@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
 import { InstitutionType } from '../types';
-import { verifyApiConnection } from '../bankApiService';
+import { verifyApiConnection, syncInvestmentHoldings, InvestmentHolding } from '../bankApiService';
 
 interface Props {
-  onSuccess: (institution: string, accountLastFour: string, openingBalance: number, institutionType: InstitutionType) => void;
+  onSuccess: (institution: string, accountLastFour: string, openingBalance: number, institutionType: InstitutionType, holdings?: InvestmentHolding[]) => void;
   onClose: () => void;
 }
 
@@ -15,6 +15,10 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
   const [selectedBank, setSelectedBank] = useState<{name: string, color: string, icon: string, type: InstitutionType, apiType: string} | null>(null);
   const [loading, setLoading] = useState(false);
   const [openingBalance, setOpeningBalance] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [syncedHoldings, setSyncedHoldings] = useState<InvestmentHolding[]>([]);
 
   const platforms = [
     { name: '1st National Bank St. Lucia', color: 'bg-emerald-600', icon: 'fa-landmark', type: 'bank' as const, apiType: 'Direct Connect' },
@@ -40,15 +44,18 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const success = await verifyApiConnection({}, selectedBank?.name || '');
+    setCredentialError(null);
+    const result = await verifyApiConnection({ apiKey, apiSecret }, selectedBank?.name || '');
     setLoading(false);
-    if (success) {
+    if (result.ok) {
       // For investments, we skip the manual balance entry if we're pulling portfolio data
       if (selectedBank?.type === 'investment') {
         setStep('syncing');
       } else {
         setStep('balance-init');
       }
+    } else {
+      setCredentialError(result.error || 'Could not verify these credentials. Please check them and try again.');
     }
   };
 
@@ -58,7 +65,8 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
         selectedBank.name, 
         selectedBank.type === 'investment' ? 'API-KEY' : '8821',
         parseFloat(openingBalance) || 0,
-        selectedBank.type
+        selectedBank.type,
+        selectedBank.type === 'investment' ? syncedHoldings : undefined
       );
     }
     onClose();
@@ -131,12 +139,33 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
                 <>
                   <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1">API Key</label>
-                    <input type="text" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder="x-api-key-..." />
+                    <input
+                      type="text"
+                      required
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs"
+                      placeholder="x-api-key-..."
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase ml-1">API Secret</label>
-                    <input type="password" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder="••••••••••••" />
+                    <input
+                      type="password"
+                      required
+                      value={apiSecret}
+                      onChange={(e) => setApiSecret(e.target.value)}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs"
+                      placeholder="••••••••••••"
+                    />
                   </div>
+                  {selectedBank.name === 'Binance' && (
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                      Use a Binance API key with <b>read-only</b> permission — no withdrawal or trading
+                      access needed. Your secret is verified once against Binance, then encrypted and
+                      stored on the server; it never comes back to this browser afterward.
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -149,6 +178,11 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
                     <input type="password" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="••••••••" />
                   </div>
                 </>
+              )}
+              {credentialError && (
+                <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                  {credentialError}
+                </p>
               )}
               <button disabled={loading} className={`w-full py-4 ${selectedBank.color} text-white font-black rounded-2xl transition shadow-lg flex items-center justify-center gap-2 active:scale-95`}>
                 {loading ? <i className="fas fa-circle-notch fa-spin"></i> : (selectedBank.type === 'investment' ? 'Connect Portfolio' : 'Authorize API')}
@@ -185,16 +219,13 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
         )}
 
         {step === 'syncing' && (
-          <div className="p-12 text-center">
-            <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">
-              {selectedBank?.type === 'investment' ? 'Extracting Portfolio' : 'Standardizing Feed'}
-            </h3>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
-              {selectedBank?.type === 'investment' ? 'Polling Asset Balances...' : 'JSON Pipeline Processing...'}
-            </p>
-            {setTimeout(() => setStep('success'), 4000) && null}
-          </div>
+          <SyncingStep
+            selectedBank={selectedBank}
+            onDone={(holdings) => {
+              setSyncedHoldings(holdings);
+              setStep('success');
+            }}
+          />
         )}
 
         {step === 'success' && (
@@ -205,7 +236,9 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
             <h3 className="text-2xl font-black text-slate-800 mb-2">API Linked!</h3>
             <p className="text-slate-500 text-sm mb-8">
               {selectedBank?.type === 'investment' 
-                ? `Total amounts for ${selectedBank.name} have been retrieved. Approve them in the Verification Queue.`
+                ? (syncedHoldings.length > 0
+                    ? `${syncedHoldings.length} holding${syncedHoldings.length === 1 ? '' : 's'} retrieved from ${selectedBank.name}.`
+                    : `Connected to ${selectedBank.name}, but no holdings were found on the account.`)
                 : `Real-time webhooks are now active for ${selectedBank?.name}.`}
             </p>
             <button onClick={handleFinish} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl transition active:scale-95">
@@ -218,4 +251,40 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
   );
 };
 
+// Runs the actual holdings fetch while showing the syncing animation, then
+// hands the (possibly empty) result up once it's done — replacing the old
+// fixed 4-second timeout that never fetched anything.
+const SyncingStep: React.FC<{
+  selectedBank: { name: string; type: InstitutionType } | null;
+  onDone: (holdings: InvestmentHolding[]) => void;
+}> = ({ selectedBank, onDone }) => {
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (selectedBank?.type === 'investment') {
+        const holdings = await syncInvestmentHoldings(selectedBank.name as 'Binance' | 'Vanguard');
+        if (!cancelled) onDone(holdings);
+      } else {
+        await new Promise(r => setTimeout(r, 1500));
+        if (!cancelled) onDone([]);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="p-12 text-center">
+      <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
+      <h3 className="text-xl font-black text-slate-800 mb-2">
+        {selectedBank?.type === 'investment' ? 'Extracting Portfolio' : 'Standardizing Feed'}
+      </h3>
+      <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+        {selectedBank?.type === 'investment' ? 'Polling Asset Balances...' : 'JSON Pipeline Processing...'}
+      </p>
+    </div>
+  );
+};
+
 export default BankSyncModal;
+

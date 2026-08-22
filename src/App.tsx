@@ -30,6 +30,7 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
+import { backgroundSyncService } from './services/backgroundSyncService';
 import { 
   Shield, 
   ShieldCheck, 
@@ -143,6 +144,13 @@ const App: React.FC = () => {
       .catch(() => { if (!cancelled) setAuthUser(null); })
       .finally(() => { if (!cancelled) setAuthChecked(true); });
     return () => { cancelled = true; };
+  }, []);
+
+  // Register the background-sync service worker once. This is what lets a
+  // pending cloud save survive the tab being fully closed/killed, not just
+  // backgrounded — see src/services/backgroundSyncService.ts.
+  useEffect(() => {
+    backgroundSyncService.register();
   }, []);
 
   // Fetch and poll real-time market prices from our public endpoint
@@ -415,6 +423,11 @@ const App: React.FC = () => {
           updateCloudVersion(result.version);
           setCloudLastSyncTime(new Date().toISOString());
         }
+        // We're now confirmed in sync with the server — drop any background
+        // save that was queued from a previous session (its expectedVersion
+        // is almost certainly stale now; letting it fire later would just
+        // no-op as a 409 at best, so clear it proactively instead).
+        backgroundSyncService.clearPendingSave();
       } catch (err: any) {
         const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
         if (isAuthError) {
@@ -444,13 +457,15 @@ const App: React.FC = () => {
     if (!cloudLoaded || isSyncingInFlightRef.current) return;
     isSyncingInFlightRef.current = true;
     setCloudSyncing(true);
+    const currentState = getFullState();
+    const currentVer = cloudVersionRef.current;
     try {
-      const currentState = getFullState();
-      const currentVer = cloudVersionRef.current;
       const result = await dataSyncService.save(currentState, currentVer, force, keepalive);
       updateCloudVersion(result.version);
       setCloudLastSyncTime(new Date().toISOString());
       setCloudError(null);
+      // Confirmed saved — nothing left for the background sync to retry.
+      backgroundSyncService.clearPendingSave();
     } catch (err: any) {
       if (err instanceof SyncConflictError) {
         // Auto-reconcile & merge smoothly in the background
@@ -469,6 +484,7 @@ const App: React.FC = () => {
             updateCloudVersion(reSave.version);
             setCloudLastSyncTime(new Date().toISOString());
             setCloudError(null);
+            backgroundSyncService.clearPendingSave();
           }
         } catch (fetchErr) {
           console.warn('Conflict auto-merge deferred:', fetchErr);
@@ -487,6 +503,11 @@ const App: React.FC = () => {
           setCloudLastSyncTime(null);
         } else {
           console.warn('Cloud sync error (changes preserved locally):', err?.message || err);
+          // Couldn't reach the cloud right now (offline, server hiccup, etc.)
+          // — queue this exact save so the browser retries it in the
+          // background once connectivity is back, instead of relying on the
+          // user staying on this tab until the next debounce cycle succeeds.
+          backgroundSyncService.scheduleBackgroundSave(currentState, currentVer);
         }
       }
     } finally {
@@ -512,10 +533,18 @@ const App: React.FC = () => {
   // 'visibilitychange' -> 'hidden' is the reliable signal on mobile (iOS/Android
   // routinely never fire 'beforeunload' when a tab is backgrounded or a PWA is
   // swiped away). 'pagehide' covers the actual-navigation/close case on desktop.
-  // `keepalive: true` lets the fetch complete even after the page unloads.
+  // `keepalive: true` lets the fetch complete even after the page unloads —
+  // but only if the page process survives long enough for it to finish, which
+  // isn't guaranteed once a phone OS decides to kill a backgrounded tab. So
+  // alongside the keepalive attempt, also queue the same save via the
+  // background-sync service worker as a belt-and-suspenders fallback: if the
+  // keepalive fetch does complete, the queued copy just gets cleared as
+  // redundant; if it doesn't, the service worker retries it later on its own,
+  // even if this tab never runs another line of JS again.
   useEffect(() => {
     const flush = () => {
       if (cloudLoaded && !isApplyingRemoteUpdateRef.current) {
+        backgroundSyncService.scheduleBackgroundSave(getFullState(), cloudVersionRef.current);
         pushToCloud(true, true);
       }
     };
@@ -528,7 +557,7 @@ const App: React.FC = () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pagehide', flush);
     };
-  }, [cloudLoaded, pushToCloud]);
+  }, [cloudLoaded, pushToCloud, getFullState]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {
@@ -1029,8 +1058,17 @@ const App: React.FC = () => {
 
           {showBankSync && (
             <BankSyncModal 
-              onSuccess={(inst, last4, bal, type) => {
+              onSuccess={(inst, last4, bal, type, holdings) => {
                 setBankConnections(prev => [...prev, { institution: inst, institutionType: type, status: 'linked', accountLastFour: last4, openingBalance: bal, lastSynced: new Date().toISOString() }]);
+                if (type === 'investment' && holdings && holdings.length > 0) {
+                  const account: InvestmentAccount = {
+                    id: `inv-${Date.now()}`,
+                    provider: inst as 'Binance' | 'Vanguard',
+                    name: inst,
+                    holdings,
+                  };
+                  setInvestments(prev => [...prev.filter(i => i.provider !== inst), account]);
+                }
                 setShowBankSync(false);
               }}
               onClose={() => setShowBankSync(false)}

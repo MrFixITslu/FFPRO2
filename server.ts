@@ -13,6 +13,7 @@ import aiRoutes from './server/routes/ai.js';
 import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
 import realtimeRoutes from './server/routes/realtime.js';
+import investmentsRoutes from './server/routes/investments.js';
 import { createServer as createViteServer } from 'vite';
 
 import connectPgSimple from 'connect-pg-simple';
@@ -176,6 +177,7 @@ app.use('/api/data', dataRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
+app.use('/api/investments', investmentsRoutes);
 // Server-Sent Events stream for live sync. Must be mounted before the SPA
 // catch-all below — otherwise EventSource requests to /api/realtime/stream
 // fall through to index.html (200, text/html), which the browser rejects

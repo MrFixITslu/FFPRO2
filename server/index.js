@@ -16,6 +16,7 @@ import aiRoutes from './routes/ai.js';
 import projectsRoutes from './routes/projects.js';
 import invitesRoutes from './routes/invites.js';
 import realtimeRoutes from './routes/realtime.js';
+import investmentsRoutes from './routes/investments.js';
 
 // Fail fast on boot rather than on the first request if config is missing.
 for (const key of ['SESSION_SECRET', 'DATABASE_URL']) {
@@ -113,6 +114,7 @@ app.use('/api/data', dataRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
+app.use('/api/investments', investmentsRoutes);
 app.use('/api/realtime', realtimeRoutes);
 
 // Fallback error handler — never leak stack traces to clients.

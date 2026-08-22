@@ -162,6 +162,25 @@ if (hasPostgres) {
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_project_messages_project_created ON project_messages(project_id, created_at);`);
   }).then(() => {
+    // Encrypted exchange/brokerage API credentials (e.g. Binance), kept in
+    // their own table rather than inside the user_data blob so the secret
+    // never has to round-trip through the browser after the initial submit.
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS investment_credentials (
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        api_key_ciphertext BYTEA NOT NULL,
+        api_key_iv BYTEA NOT NULL,
+        api_key_auth_tag BYTEA NOT NULL,
+        api_secret_ciphertext BYTEA NOT NULL,
+        api_secret_iv BYTEA NOT NULL,
+        api_secret_auth_tag BYTEA NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, provider)
+      );
+    `);
+  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
@@ -187,7 +206,8 @@ if (!fs.existsSync(DB_FILE)) {
     project_members: [],
     project_invites: [],
     project_messages: [],
-    password_reset_tokens: []
+    password_reset_tokens: [],
+    investment_credentials: []
   }, null, 2));
 }
 
@@ -200,6 +220,7 @@ function readDB() {
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
+    parsed.investment_credentials ||= [];
     return parsed;
   } catch (e) {
     return {
@@ -212,7 +233,8 @@ function readDB() {
       project_members: [],
       project_invites: [],
       project_messages: [],
-      password_reset_tokens: []
+      password_reset_tokens: [],
+      investment_credentials: []
     };
   }
 }
@@ -452,6 +474,54 @@ export const pool = {
         user.password_hash = passwordHash;
         writeDB(db);
       }
+      return { rows: [] };
+    }
+
+    // 18. SELECT ... FROM investment_credentials WHERE user_id = $1 AND provider = $2
+    if (cleanSql.includes('FROM investment_credentials WHERE user_id =') && cleanSql.includes('provider =')) {
+      const userId = params[0];
+      const provider = params[1];
+      const row = db.investment_credentials.find(c => c.user_id === userId && c.provider === provider);
+      if (!row) return { rows: [] };
+      return {
+        rows: [{
+          api_key_ciphertext: Buffer.from(row.api_key_ciphertext, 'hex'),
+          api_key_iv: Buffer.from(row.api_key_iv, 'hex'),
+          api_key_auth_tag: Buffer.from(row.api_key_auth_tag, 'hex'),
+          api_secret_ciphertext: Buffer.from(row.api_secret_ciphertext, 'hex'),
+          api_secret_iv: Buffer.from(row.api_secret_iv, 'hex'),
+          api_secret_auth_tag: Buffer.from(row.api_secret_auth_tag, 'hex'),
+        }],
+      };
+    }
+
+    // 19. INSERT INTO investment_credentials (...) VALUES (...) ON CONFLICT (user_id, provider) DO UPDATE ...
+    if (cleanSql.startsWith('INSERT INTO investment_credentials')) {
+      const [userId, provider, akCt, akIv, akTag, asCt, asIv, asTag] = params;
+      const entry = {
+        user_id: userId,
+        provider,
+        api_key_ciphertext: akCt.toString('hex'),
+        api_key_iv: akIv.toString('hex'),
+        api_key_auth_tag: akTag.toString('hex'),
+        api_secret_ciphertext: asCt.toString('hex'),
+        api_secret_iv: asIv.toString('hex'),
+        api_secret_auth_tag: asTag.toString('hex'),
+        updated_at: new Date().toISOString(),
+      };
+      const idx = db.investment_credentials.findIndex(c => c.user_id === userId && c.provider === provider);
+      if (idx !== -1) db.investment_credentials[idx] = entry;
+      else db.investment_credentials.push(entry);
+      writeDB(db);
+      return { rows: [] };
+    }
+
+    // 20. DELETE FROM investment_credentials WHERE user_id = $1 AND provider = $2
+    if (cleanSql.startsWith('DELETE FROM investment_credentials')) {
+      const userId = params[0];
+      const provider = params[1];
+      db.investment_credentials = db.investment_credentials.filter(c => !(c.user_id === userId && c.provider === provider));
+      writeDB(db);
       return { rows: [] };
     }
 
