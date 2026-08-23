@@ -87,8 +87,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
                  <span className="font-black text-[9px] text-slate-400 tracking-[0.2em] uppercase">{p.symbol}</span>
                  <span className="font-black text-[10px] text-white tracking-tight">${p.price.toLocaleString()}</span>
                  <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded ${p.change24h >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                   <i className={`fas fa-caret-${p.change24h >= 0 ? 'up' : 'down'}`}></i>
-                   {Math.abs(p.change24h).toFixed(2)}%
+                   {p.change24h >= 0 ? '+' : '-'}{Math.abs(p.change24h).toFixed(2)}%
                  </div>
               </div>
             ))}
