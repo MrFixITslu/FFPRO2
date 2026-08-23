@@ -3,6 +3,7 @@ import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -14,16 +15,33 @@ import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
 import realtimeRoutes from './server/routes/realtime.js';
 import investmentsRoutes from './server/routes/investments.js';
+import { sameOriginOnly } from './server/middleware/sameOriginOnly.js';
 import { createServer as createViteServer } from 'vite';
 
 import connectPgSimple from 'connect-pg-simple';
 import { realPool, hasPostgres, schemaReady } from './server/db.js';
 import { assertEncryptionConfigured } from './server/crypto.js';
 
-// Auto-generate SESSION_SECRET and DATA_ENCRYPTION_KEY if not provided
+// Auto-generate SESSION_SECRET and DATA_ENCRYPTION_KEY if not provided.
+// Both are persisted to disk (not just held in memory) so a container
+// restart/redeploy doesn't silently rotate the secret out from under
+// everyone. Without this, SESSION_SECRET changing on every restart
+// invalidates every existing session cookie, signing every user out.
 if (!process.env.SESSION_SECRET) {
-  process.env.SESSION_SECRET = crypto.randomBytes(48).toString('hex');
-  console.log('[server] Automatically generated SESSION_SECRET');
+  const secretFile = process.env.SESSION_SECRET_FILE || path.join(process.cwd(), 'session.secret');
+  const secretDir = path.dirname(secretFile);
+  if (!fs.existsSync(secretDir)) {
+    fs.mkdirSync(secretDir, { recursive: true });
+  }
+  if (fs.existsSync(secretFile)) {
+    process.env.SESSION_SECRET = fs.readFileSync(secretFile, 'utf8').trim();
+    console.log('[server] Loaded persistent SESSION_SECRET from session.secret');
+  } else {
+    const secret = crypto.randomBytes(48).toString('hex');
+    fs.writeFileSync(secretFile, secret, 'utf8');
+    process.env.SESSION_SECRET = secret;
+    console.log('[server] Automatically generated and persisted SESSION_SECRET to session.secret');
+  }
 }
 
 if (!process.env.DATA_ENCRYPTION_KEY) {
@@ -65,11 +83,23 @@ const PORT = parseInt(process.env.PORT || '3010', 10);
 // Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS
 app.set('trust proxy', true);
 
-// Helmet security configuration to allow embedding in the AI Studio iframe
+// True only when actually running inside the AI Studio builder's iframe
+// preview environment (Cloud Run, or APP_URL set by that sandbox) — never
+// true for a normal self-hosted deployment behind your own domain.
+const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
+
+// Helmet security configuration. frameguard/COEP are only relaxed inside the
+// AI Studio sandbox, where the app needs to render inside that tool's own
+// iframe. Disabling X-Frame-Options for every deployment — including a real,
+// standalone production instance — means any third-party site could iframe
+// this app and clickjack a user into an unintended action (e.g. tricking a
+// click into "Connect Binance" or a fund transfer). CSP stays off either way
+// (a from-scratch CSP for a Vite/React SPA with inline styles is a larger,
+// separate piece of work, not a one-line toggle).
 app.use(helmet({
   contentSecurityPolicy: false,
-  frameguard: false,
-  crossOriginEmbedderPolicy: false,
+  frameguard: isCloudSandbox ? false : { action: 'deny' },
+  crossOriginEmbedderPolicy: isCloudSandbox ? false : undefined,
 }));
 
 // Logger middleware
@@ -144,20 +174,25 @@ app.use((req, res, next) => {
   }
 
   const xfp = req.headers['x-forwarded-proto'];
-  const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
   const isSecure = req.secure ||
     isCloudSandbox ||
     (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
 
-  // Execute session middleware, then dynamically configure cookie secure and sameSite attributes.
-  // Catch any transient session store errors so HTTP requests never return 500 if PG store has network blips.
+  // SameSite=None (needed so the session cookie works when this app is
+  // embedded in a cross-origin iframe, e.g. the AI Studio builder preview)
+  // is deliberately scoped to ONLY that sandbox scenario — not to "any
+  // secure connection." A real production deployment (self-hosted behind
+  // your own domain/reverse proxy, not iframed) is secure (HTTPS) on every
+  // request, so gating on isSecure alone would silently apply SameSite=None
+  // — the weaker setting — to 100% of normal production traffic too, which
+  // is a real CSRF-hardening regression, not just a sandbox accommodation.
   sessionMiddleware(req, res, (err) => {
     if (err) {
       console.warn('[server] Session middleware error (continuing request):', err?.message || err);
     }
     if (req.session && req.session.cookie) {
       req.session.cookie.secure = isSecure;
-      req.session.cookie.sameSite = isSecure ? 'none' : 'lax';
+      req.session.cookie.sameSite = (isCloudSandbox && isSecure) ? 'none' : 'lax';
     }
     next();
   });
@@ -166,6 +201,30 @@ app.use((req, res, next) => {
 // Passport initialization
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Defense-in-depth CSRF hardening on top of SameSite=Lax cookies, for the
+// state-changing endpoints attackers would actually target. Deliberately
+// NOT applied blanket to /api/auth or /api/data as a whole: OAuth callbacks
+// (e.g. /api/auth/google/callback) are legitimately cross-site navigations
+// from the provider's domain, and GET reads don't need this check.
+app.use(['/api/auth/login', '/api/auth/register', '/api/auth/logout'], sameOriginOnly);
+app.use('/api/data', sameOriginOnly);
+app.use(['/api/investments/binance/credentials'], sameOriginOnly);
+
+// Brute-force protection on credential endpoints. This was previously only
+// present in the unused server/index.js — meaning the actual production
+// server had NO rate limit at all on login or registration, so password
+// guessing against a real account was unthrottled. 30 attempts / 15 min is
+// generous for a legitimate user who mistypes a password a few times, while
+// still bounding an automated guessing attempt.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// Generous but bounded write limiter for data sync (client autosaves are
+// debounced client-side, so normal use is a handful of requests per minute).
+const dataWriteLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+app.use('/api/data', (req, res, next) => (req.method === 'GET' ? next() : dataWriteLimiter(req, res, next)));
 
 // Mount Backend API Routes
 app.get('/api/health', (req, res) => {

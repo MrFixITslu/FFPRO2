@@ -9,3 +9,4 @@ coverage/
 data/
 database.json
 encryption.key
+session.secret

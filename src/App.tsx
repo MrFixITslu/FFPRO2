@@ -104,7 +104,13 @@ const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB);
+    if (saved === 'dashboard' || saved === 'calendar' || saved === 'events' || saved === 'projections') {
+      return saved;
+    }
+    return 'dashboard';
+  });
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
     return match ? match[1] : null;
@@ -130,21 +136,27 @@ const App: React.FC = () => {
   };
 
   // Restore session (cookie-based) from the backend on load, including right after
-  // an OAuth provider redirects back here.
+  // an OAuth provider redirects back here. Deliberately does NOT reset activeTab —
+  // this runs on every ordinary page refresh for an already-logged-in user, and
+  // should land them back where they were, not bounce them to Dashboard. A genuine
+  // fresh login (see handleAuthenticated) is a separate path and still resets it.
   useEffect(() => {
     let cancelled = false;
     authService.me()
       .then((user) => {
         if (cancelled) return;
         setAuthUser(user);
-        if (user) {
-          setActiveTab('dashboard');
-        }
       })
       .catch(() => { if (!cancelled) setAuthUser(null); })
       .finally(() => { if (!cancelled) setAuthChecked(true); });
     return () => { cancelled = true; };
   }, []);
+
+  // Persist the active tab so a page refresh (or reopening the app) resumes
+  // on whichever tab was last open instead of always landing on Dashboard.
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
+  }, [activeTab]);
 
   // Register the background-sync service worker once. This is what lets a
   // pending cloud save survive the tab being fully closed/killed, not just
@@ -806,7 +818,7 @@ const App: React.FC = () => {
           
           <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-sm">
             <div className="flex items-center gap-3 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
-              <div className="flex items-center gap-3 sm:gap-8 min-w-0">
+              <div className="flex items-center gap-2 sm:gap-8 min-w-0">
                 {/* Logo & Brand from Design HTML */}
                 <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                   <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center shrink-0">
@@ -840,7 +852,7 @@ const App: React.FC = () => {
                     className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'events' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                   >
                     <Zap size={14} />
-                    <span>Planner</span>
+                    <span className="hidden md:inline">Planner</span>
                   </button>
                   {isAdmin && (
                     <button 
