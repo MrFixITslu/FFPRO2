@@ -15,6 +15,7 @@ import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
 import realtimeRoutes from './server/routes/realtime.js';
 import investmentsRoutes from './server/routes/investments.js';
+import gatewayRoutes from './server/routes/gateway.js';
 import { sameOriginOnly } from './server/middleware/sameOriginOnly.js';
 import { createServer as createViteServer } from 'vite';
 
@@ -210,6 +211,11 @@ app.use(passport.session());
 app.use(['/api/auth/login', '/api/auth/register', '/api/auth/logout'], sameOriginOnly);
 app.use('/api/data', sameOriginOnly);
 app.use(['/api/investments/binance/credentials'], sameOriginOnly);
+// NOT applied to /api/gateway/webhooks/* — that's a server-to-server call
+// authenticated by a shared secret, not a browser session; there is no
+// Origin/Sec-Fetch-Site header to check. It IS applied to the Settings CRUD
+// below, which is a normal cookie-authenticated browser request.
+app.use(['/api/gateway/connections'], sameOriginOnly);
 
 // Brute-force protection on credential endpoints. This was previously only
 // present in the unused server/index.js — meaning the actual production
@@ -237,6 +243,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
 app.use('/api/investments', investmentsRoutes);
+app.use('/api/gateway', gatewayRoutes);
 // Server-Sent Events stream for live sync. Must be mounted before the SPA
 // catch-all below — otherwise EventSource requests to /api/realtime/stream
 // fall through to index.html (200, text/html), which the browser rejects

@@ -17,6 +17,7 @@ import projectsRoutes from './routes/projects.js';
 import invitesRoutes from './routes/invites.js';
 import realtimeRoutes from './routes/realtime.js';
 import investmentsRoutes from './routes/investments.js';
+import gatewayRoutes from './routes/gateway.js';
 
 // Fail fast on boot rather than on the first request if config is missing.
 for (const key of ['SESSION_SECRET', 'DATABASE_URL']) {
@@ -107,6 +108,7 @@ app.use(['/api/auth/login', '/api/auth/register', '/api/auth/logout'], sameOrigi
 // debounced client-side, so normal use is a handful of requests per minute).
 const dataWriteLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 app.use('/api/data', sameOriginOnly);
+app.use(['/api/gateway/connections'], sameOriginOnly);
 app.use('/api/data', (req, res, next) => (req.method === 'GET' ? next() : dataWriteLimiter(req, res, next)));
 
 app.use('/api/auth', authRoutes);
@@ -115,6 +117,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
 app.use('/api/investments', investmentsRoutes);
+app.use('/api/gateway', gatewayRoutes);
 app.use('/api/realtime', realtimeRoutes);
 
 // Fallback error handler — never leak stack traces to clients.

@@ -181,6 +181,45 @@ if (hasPostgres) {
       );
     `);
   }).then(() => {
+    // Gateway integration: external systems (e.g. V79Tiquet) that are
+    // authorized to push events (like a paid job) into a specific FFPRO2
+    // account. workspace_number is UNIQUE across ALL users — this is the
+    // core anti-cross-tenant-write guarantee: a given external workspace
+    // number can resolve to at most one FFPRO2 user, decided here by the
+    // account owner (via Settings → Gateway), never by the inbound request.
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS gateway_connections (
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        workspace_number VARCHAR(255) NOT NULL,
+        enabled BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, provider),
+        UNIQUE (provider, workspace_number)
+      );
+    `);
+  }).then(() => {
+    // Idempotency ledger for inbound gateway events. The UNIQUE constraint
+    // on (provider, workspace_number, external_id) is what makes duplicate
+    // delivery (retries, at-least-once webhooks) safe: a second delivery of
+    // the same event hits this constraint and is treated as "already
+    // processed" rather than creating a second income transaction.
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS gateway_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        provider VARCHAR(50) NOT NULL,
+        workspace_number VARCHAR(255) NOT NULL,
+        external_id VARCHAR(255) NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        transaction_id VARCHAR(255),
+        amount NUMERIC(14,2) NOT NULL,
+        currency VARCHAR(10) NOT NULL,
+        received_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (provider, workspace_number, external_id)
+      );
+    `);
+  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
