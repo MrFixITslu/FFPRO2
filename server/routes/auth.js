@@ -5,10 +5,10 @@ import passport from '../passport.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
 import { sendPasswordResetEmail } from '../mailer.js';
+import { getFrontendUrl } from '../utils/urlHelper.js';
 import crypto from 'crypto';
 
 const router = Router();
-const FRONTEND_URL = (process.env.FRONTEND_URL || '/').replace(/\/$/, '');
 const AVAILABLE_OAUTH_PROVIDERS = [];
 const RESET_TOKEN_TTL_MS = 45 * 60 * 1000; // 45 minutes
 
@@ -255,7 +255,8 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
         [user.id, tokenHash, expiresAt]
       );
 
-      const resetLink = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
+      const baseUrl = getFrontendUrl(req);
+      const resetLink = `${baseUrl}/reset-password?token=${rawToken}`;
       await sendPasswordResetEmail({ toEmail: user.email, resetLink });
     }
 
@@ -342,8 +343,11 @@ router.get('/google', (req, res, next) => ensureOAuthProvider(req, res, next, 'g
 router.get(
   '/google/callback',
   (req, res, next) => ensureOAuthProvider(req, res, next, 'google'),
-  passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}/?auth=failed` }),
-  (_req, res) => res.redirect(`${FRONTEND_URL}/?auth=success`)
+  (req, res, next) => {
+    const baseUrl = getFrontendUrl(req);
+    passport.authenticate('google', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
+  },
+  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
 );
 
 // --- Facebook ----------------------------------------------------------------
@@ -351,8 +355,11 @@ router.get('/facebook', (req, res, next) => ensureOAuthProvider(req, res, next, 
 router.get(
   '/facebook/callback',
   (req, res, next) => ensureOAuthProvider(req, res, next, 'facebook'),
-  passport.authenticate('facebook', { failureRedirect: `${FRONTEND_URL}/?auth=failed` }),
-  (_req, res) => res.redirect(`${FRONTEND_URL}/?auth=success`)
+  (req, res, next) => {
+    const baseUrl = getFrontendUrl(req);
+    passport.authenticate('facebook', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
+  },
+  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
 );
 
 // --- Apple ----------------------------------------------------------------
@@ -361,8 +368,11 @@ router.get('/apple', (req, res, next) => ensureOAuthProvider(req, res, next, 'ap
 router.post(
   '/apple/callback',
   (req, res, next) => ensureOAuthProvider(req, res, next, 'apple'),
-  passport.authenticate('apple', { failureRedirect: `${FRONTEND_URL}/?auth=failed` }),
-  (_req, res) => res.redirect(`${FRONTEND_URL}/?auth=success`)
+  (req, res, next) => {
+    const baseUrl = getFrontendUrl(req);
+    passport.authenticate('apple', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
+  },
+  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
 );
 
 export default router;

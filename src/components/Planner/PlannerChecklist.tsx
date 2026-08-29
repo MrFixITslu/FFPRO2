@@ -29,6 +29,9 @@ interface Props {
   eventLogs?: EventLog[];
   onUpdateTasks: (updatedTasks: ProjectTask[], actionLog?: string) => void;
   onAddActionLog?: (action: string, type: 'task') => void;
+  onOpenLogsTab?: () => void;
+  onEditLog?: (log: EventLog) => void;
+  onDeleteLog?: (logId: string) => void;
 }
 
 export const PlannerChecklist: React.FC<Props> = ({
@@ -38,6 +41,9 @@ export const PlannerChecklist: React.FC<Props> = ({
   eventLogs = [],
   onUpdateTasks,
   onAddActionLog,
+  onOpenLogsTab,
+  onEditLog,
+  onDeleteLog,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -486,25 +492,37 @@ export const PlannerChecklist: React.FC<Props> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[10px] font-bold uppercase">
-              {(['all', 'task', 'transaction', 'file'] as const).map(type => (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[10px] font-bold uppercase">
+                {(['all', 'task', 'transaction', 'file'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setLogFilterType(type)}
+                    className={`px-2.5 py-1 rounded transition ${
+                      logFilterType === type ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {type === 'all' ? 'All Logs' : type}
+                  </button>
+                ))}
+              </div>
+
+              {onOpenLogsTab && (
                 <button
-                  key={type}
-                  onClick={() => setLogFilterType(type)}
-                  className={`px-2.5 py-1 rounded transition ${
-                    logFilterType === type ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                  onClick={onOpenLogsTab}
+                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1 border border-indigo-200"
                 >
-                  {type === 'all' ? 'All Logs' : type}
+                  <span>Open Full Logs & Editor</span>
+                  <span aria-hidden="true">&rarr;</span>
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             {filteredLogs.length > 0 ? (
               filteredLogs.map(log => (
-                <div key={log.id} className="p-3 bg-slate-50 hover:bg-indigo-50/30 rounded-xl border border-slate-200/80 flex items-start justify-between gap-3 transition">
+                <div key={log.id} className="p-3 bg-slate-50 hover:bg-indigo-50/30 rounded-xl border border-slate-200/80 flex items-start justify-between gap-3 transition group">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 ${
                       log.type === 'task' ? 'bg-indigo-600' : log.type === 'transaction' ? 'bg-emerald-600' : 'bg-slate-700'
@@ -515,12 +533,24 @@ export const PlannerChecklist: React.FC<Props> = ({
                       <p className="text-xs font-bold text-slate-800 break-words leading-tight">{log.action.replace(/_/g, ' ')}</p>
                       <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                         By <span className="font-semibold text-slate-600">{log.username}</span> • <span className="capitalize">{log.type}</span>
+                        {log.details && <span className="text-slate-500"> — {log.details}</span>}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400 shrink-0 whitespace-nowrap">
-                    {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">
+                      {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {onOpenLogsTab && canEdit && (
+                      <button
+                        onClick={onOpenLogsTab}
+                        title="Edit log in Logs tab"
+                        className="opacity-0 group-hover:opacity-100 text-[10px] font-bold text-indigo-600 hover:underline transition"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (

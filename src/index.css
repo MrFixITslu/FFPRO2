@@ -12,21 +12,6 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
 
-/* Used throughout the app (nav tabs, modal lists, etc.) to allow scrolling
-   without showing a visible scrollbar or its up/down/left/right arrow
-   buttons. This class was referenced in JSX in several places but never
-   actually defined anywhere, so it was a no-op — the browser's native
-   scrollbar (arrows included) rendered through it regardless. */
-.no-scrollbar {
-    -ms-overflow-style: none; /* IE and legacy Edge */
-    scrollbar-width: none; /* Firefox */
-}
-.no-scrollbar::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, and other WebKit/Blink browsers */
-    width: 0;
-    height: 0;
-}
-
 @keyframes marquee {
     0% { transform: translateX(0); }
     100% { transform: translateX(-50%); }

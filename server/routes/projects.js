@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { projectsDb } from '../projectsDb.js';
 import { sendProjectInviteEmail } from '../mailer.js';
 import { realtimeHub } from '../realtime.js';
+import { getFrontendUrl } from '../utils/urlHelper.js';
 
 const router = Router();
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -15,8 +16,8 @@ const messageLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders
 
 router.use(requireAuth);
 
-function frontendBase() {
-  return (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+function frontendBase(req) {
+  return getFrontendUrl(req);
 }
 
 function displayNameOf(user) {
@@ -239,7 +240,7 @@ router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner', 
       role,
       invitedBy: req.user.id,
     });
-    const inviteLink = `${frontendBase()}/invite/${invite.token}`;
+    const inviteLink = `${frontendBase(req)}/invite/${invite.token}`;
     const { sent } = await sendProjectInviteEmail({
       toEmail: email,
       projectName: project.name,

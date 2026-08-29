@@ -211,7 +211,8 @@ export interface EventLog {
   action: string;
   timestamp: string;
   username: string;
-  type: 'system' | 'transaction' | 'task' | 'file' | 'team' | 'contact';
+  type: 'system' | 'transaction' | 'task' | 'file' | 'team' | 'contact' | 'note';
+  details?: string;
 }
 
 export interface TripPlanDetails {
@@ -399,6 +400,5 @@ export const STORAGE_KEYS = {
   PASSWORD: 'ff_custom_password',
   DATA_OWNER: 'ff_data_owner_id',
   IDEAS: 'ff_ideas',
-  FORECAST_SETTINGS: 'ff_forecast_settings',
-  ACTIVE_TAB: 'ff_active_tab'
+  FORECAST_SETTINGS: 'ff_forecast_settings'
 };

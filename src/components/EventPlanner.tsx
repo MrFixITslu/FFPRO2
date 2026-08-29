@@ -8,13 +8,14 @@ import ProjectDashboard from './ProjectDashboard';
 import ProjectChat from './ProjectChat';
 import ShareProjectModal from './ShareProjectModal';
 import { PlannerChecklist } from './Planner/PlannerChecklist';
+import LogsManager from './LogsManager';
 import { projectsService, ProjectSyncConflictError } from '../services/projectsService';
 import { realtimeService } from '../services/realtimeService';
 import { 
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
-  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio
+  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity
 } from 'lucide-react';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -284,6 +285,30 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     };
     selectedEventRef.current = updated;
     updateEvent(updated);
+  };
+
+  const handleUpdateLogs = (newLogs: EventLog[]) => {
+    const ev = selectedEventRef.current || selectedEvent;
+    if (!ev) return;
+    const updated: BudgetEvent = {
+      ...ev,
+      logs: newLogs,
+      lastUpdated: new Date().toISOString()
+    };
+    selectedEventRef.current = updated;
+    updateEvent(updated);
+  };
+
+  const handleDeleteLedgerItem = (itemId: string) => {
+    if (!selectedEvent) return;
+    const targetItem = (selectedEvent.items || []).find(i => i.id === itemId);
+    const updatedItems = (selectedEvent.items || []).filter(i => i.id !== itemId);
+    const updatedEvent = { ...selectedEvent, items: updatedItems };
+    if (targetItem) {
+      addActionLog(updatedEvent, `Deleted ${targetItem.type}: "${targetItem.description}" ($${targetItem.amount})`, 'transaction');
+    } else {
+      updateEvent(updatedEvent);
+    }
   };
 
   const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
@@ -880,6 +905,49 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     }
   };
 
+  const handleOpenLogDocument = async () => {
+    if (!selectedEvent) return;
+    const logEntries = selectedEvent.logs || [];
+    const logTitle = `${selectedEvent.name} Activity Log`;
+
+    const htmlRows = logEntries.map(l => `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 10px 12px; font-size: 11px; color: #64748b; white-space: nowrap;">${new Date(l.timestamp).toLocaleString()}</td>
+        <td style="padding: 10px 12px; font-weight: 700; font-size: 11px; text-transform: uppercase; color: #4338ca;">${l.type || 'system'}</td>
+        <td style="padding: 10px 12px; font-weight: 700; font-size: 12px; color: #0f172a;">${l.action.replace(/_/g, ' ')}</td>
+        <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${l.username || 'System'}</td>
+        <td style="padding: 10px 12px; font-size: 11px; color: #64748b;">${l.details || '-'}</td>
+      </tr>
+    `).join('');
+
+    const docContent = `
+      <div style="font-family: system-ui, -apple-system, sans-serif; padding: 28px; max-width: 960px; margin: 0 auto; color: #1e293b;">
+        <div style="border-bottom: 2px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px;">
+          <h1 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;">${selectedEvent.name} — Activity & Audit Log File</h1>
+          <p style="font-size: 13px; color: #64748b; margin: 0;">Comprehensive audit record • ${logEntries.length} Total Registered Entries • Last Updated: ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <table style="width: 100%; border-collapse: collapse; text-align: left; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 12px; font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Timestamp</th>
+              <th style="padding: 12px; font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Category</th>
+              <th style="padding: 12px; font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Action / Description</th>
+              <th style="padding: 12px; font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Author</th>
+              <th style="padding: 12px; font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${htmlRows || '<tr><td colspan="5" style="padding: 24px; text-align: center; color: #94a3b8;">No log entries found.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    setCurrentDoc({ id: generateId(), title: logTitle, content: docContent });
+    setIsEditingDoc(true);
+  };
+
   const updateEvent = useCallback((updatedEvent: BudgetEvent) => {
     selectedEventRef.current = updatedEvent;
     if (updatedEvent.isShared && updatedEvent.sharedProjectId) {
@@ -1258,9 +1326,23 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                    : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']),
                  ...(selectedEvent.isShared ? ['chat'] : []),
                ].map(tab => {
-                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Activity' : 'Ledger';
+                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
                  return (
-                   <button key={tab} onClick={() => setActiveTab(tab as ProjectTab)} className={`px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm font-extrabold' : 'text-white/60 hover:text-white hover:bg-white/5'}`}>{label}</button>
+                   <button 
+                     key={tab} 
+                     onClick={() => setActiveTab(tab as ProjectTab)} 
+                     className={`px-3 sm:px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm font-extrabold' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                   >
+                     {tab === 'log' && <Activity size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                     <span>{label}</span>
+                     {tab === 'log' && (selectedEvent.logs || []).length > 0 && (
+                       <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                         activeTab === tab ? 'bg-indigo-100 text-indigo-800' : 'bg-white/20 text-white'
+                       }`}>
+                         {(selectedEvent.logs || []).length}
+                       </span>
+                     )}
+                   </button>
                  );
                })}
              </div>
@@ -2593,7 +2675,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm min-h-[500px]">
                   <div className="flex justify-between items-center mb-8">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Encrypted Vault Assets</h3>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={handleOpenLogDocument} className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-100 transition flex items-center gap-1.5">
+                        <i className="fas fa-file-shield text-indigo-500"></i> Editable Log File
+                      </button>
                       <button onClick={() => { setIsEditingSheet(true); setCurrentDoc(null); }} className="px-3 py-1.5 bg-emerald-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500 transition">
                         <i className="fas fa-table mr-1.5"></i> New Sheet
                       </button>
@@ -2632,7 +2717,11 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             )}
             
             {activeTab === 'dashboard' && (
-              <ProjectDashboard event={selectedEvent} members={selectedEvent.isShared ? projectMembers : undefined} />
+              <ProjectDashboard 
+                event={selectedEvent} 
+                members={selectedEvent.isShared ? projectMembers : undefined} 
+                onViewLogs={() => setActiveTab('log')}
+              />
             )}
 
             {activeTab === 'chat' && selectedEvent.isShared && selectedEvent.sharedProjectId && (
@@ -2642,22 +2731,36 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             {activeTab === 'ledger' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-6">Internal Finance</h3>
+                  <div className="flex items-center justify-between gap-4 mb-6">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Internal Finance</h3>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{selectedEvent.items.length} Entries</span>
+                  </div>
                   <div className="space-y-3">
                     {selectedEvent.items.length > 0 ? selectedEvent.items.map(item => (
-                      <div key={item.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded flex items-center justify-center text-white ${item.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                      <div key={item.id} className="p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg flex items-center justify-between gap-3 group transition">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={`w-8 h-8 rounded flex items-center justify-center text-white shrink-0 ${item.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                             <i className={`fas ${item.type === 'income' ? 'fa-plus' : 'fa-minus'} text-xs`}></i>
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-800">{item.description}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-800 break-words">{item.description}</p>
                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{item.category} • {item.date}</p>
                           </div>
                         </div>
-                        <p className={`font-bold text-sm ${item.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {item.type === 'income' ? '+' : '-'}${item.amount.toLocaleString()}
-                        </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <p className={`font-bold text-sm ${item.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {item.type === 'income' ? '+' : '-'}${item.amount.toLocaleString()}
+                          </p>
+                          {canEdit && (
+                            <button
+                              onClick={() => handleDeleteLedgerItem(item.id)}
+                              title="Delete this transaction entry"
+                              className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white rounded transition"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )) : <p className="text-center py-10 text-slate-355 uppercase font-bold text-[10px] tracking-wider">No Transactions</p>}
                   </div>
@@ -2691,6 +2794,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 currentUser={currentUser}
                 canEdit={canEdit}
                 eventLogs={selectedEvent.logs || []}
+                onOpenLogsTab={() => setActiveTab('log')}
                 onUpdateTasks={(updatedTasks, logAction) => {
                   const ev = selectedEventRef.current || selectedEvent;
                   if (!ev) return;
@@ -2833,38 +2937,20 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             )}
 
             {activeTab === 'log' && (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-6">Project Intelligence Feed</h3>
-                <div className="space-y-6 relative">
-                   <div className="absolute left-[15px] top-0 bottom-0 w-0.5 bg-slate-100"></div>
-                   {(selectedEvent.logs || []).length > 0 ? (selectedEvent.logs || []).map(log => (
-                     <div key={log.id} className="flex gap-4 relative z-10 min-w-0">
-                        <div className={`w-8 h-8 rounded flex items-center justify-center text-xs shadow-sm shrink-0 ${
-                          log.type === 'transaction' ? 'bg-emerald-600 text-white' : 
-                          log.type === 'task' ? 'bg-indigo-600 text-white' : 
-                          log.type === 'file' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          <i className={`fas ${
-                            log.type === 'transaction' ? 'fa-receipt' : 
-                            log.type === 'task' ? 'fa-check-double' : 
-                            log.type === 'file' ? 'fa-database' : 'fa-info'
-                          } text-xs`}></i>
-                        </div>
-                        <div className="flex-1 pt-0.5 min-w-0 overflow-hidden">
-                          <div className="flex flex-wrap sm:flex-nowrap justify-between items-start gap-2 mb-0.5">
-                            <p className="font-semibold text-slate-800 text-sm leading-snug break-words min-w-0 flex-1">{log.action.replace(/_/g, ' ')}</p>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                          </div>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">
-                            {log.username} • {new Date(log.timestamp).toLocaleDateString()}
-                          </p>
-                        </div>
-                     </div>
-                   )) : (
-                     <p className="text-center py-12 text-slate-200 uppercase font-bold text-xs tracking-wider">Feed Empty</p>
-                   )}
-                </div>
-              </div>
+              <LogsManager
+                logs={selectedEvent.logs || []}
+                currentUser={currentUser}
+                canEdit={canEdit}
+                projectName={selectedEvent.name}
+                onUpdateLogs={handleUpdateLogs}
+                onOpenAsDocument={(title, content) => {
+                  setCurrentDoc({ id: generateId(), title, content });
+                  setIsEditingDoc(true);
+                }}
+                onSaveToVault={async (title, content) => {
+                  await handleSaveDocument(title, content, '.fdoc');
+                }}
+              />
             )}
           </div>
         </div>

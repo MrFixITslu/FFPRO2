@@ -30,7 +30,6 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
-import { backgroundSyncService } from './services/backgroundSyncService';
 import { 
   Shield, 
   ShieldCheck, 
@@ -87,7 +86,8 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
                  <span className="font-black text-[9px] text-slate-400 tracking-[0.2em] uppercase">{p.symbol}</span>
                  <span className="font-black text-[10px] text-white tracking-tight">${p.price.toLocaleString()}</span>
                  <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded ${p.change24h >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                   {p.change24h >= 0 ? '+' : '-'}{Math.abs(p.change24h).toFixed(2)}%
+                   <i className={`fas fa-caret-${p.change24h >= 0 ? 'up' : 'down'}`}></i>
+                   {Math.abs(p.change24h).toFixed(2)}%
                  </div>
               </div>
             ))}
@@ -103,13 +103,7 @@ const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB);
-    if (saved === 'dashboard' || saved === 'calendar' || saved === 'events' || saved === 'projections') {
-      return saved;
-    }
-    return 'dashboard';
-  });
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
     return match ? match[1] : null;
@@ -124,6 +118,13 @@ const App: React.FC = () => {
     return null;
   });
 
+  // Strip sensitive token from address bar immediately upon capture so it isn't exposed
+  useEffect(() => {
+    if (resetToken && window.location.pathname === '/reset-password') {
+      window.history.replaceState({}, document.title, '/');
+    }
+  }, [resetToken]);
+
   const clearResetRoute = () => {
     window.history.replaceState({}, '', '/');
     setResetToken(null);
@@ -135,33 +136,20 @@ const App: React.FC = () => {
   };
 
   // Restore session (cookie-based) from the backend on load, including right after
-  // an OAuth provider redirects back here. Deliberately does NOT reset activeTab —
-  // this runs on every ordinary page refresh for an already-logged-in user, and
-  // should land them back where they were, not bounce them to Dashboard. A genuine
-  // fresh login (see handleAuthenticated) is a separate path and still resets it.
+  // an OAuth provider redirects back here.
   useEffect(() => {
     let cancelled = false;
     authService.me()
       .then((user) => {
         if (cancelled) return;
         setAuthUser(user);
+        if (user) {
+          setActiveTab('dashboard');
+        }
       })
       .catch(() => { if (!cancelled) setAuthUser(null); })
       .finally(() => { if (!cancelled) setAuthChecked(true); });
     return () => { cancelled = true; };
-  }, []);
-
-  // Persist the active tab so a page refresh (or reopening the app) resumes
-  // on whichever tab was last open instead of always landing on Dashboard.
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
-  }, [activeTab]);
-
-  // Register the background-sync service worker once. This is what lets a
-  // pending cloud save survive the tab being fully closed/killed, not just
-  // backgrounded — see src/services/backgroundSyncService.ts.
-  useEffect(() => {
-    backgroundSyncService.register();
   }, []);
 
   // Fetch and poll real-time market prices from our public endpoint
@@ -434,11 +422,6 @@ const App: React.FC = () => {
           updateCloudVersion(result.version);
           setCloudLastSyncTime(new Date().toISOString());
         }
-        // We're now confirmed in sync with the server — drop any background
-        // save that was queued from a previous session (its expectedVersion
-        // is almost certainly stale now; letting it fire later would just
-        // no-op as a 409 at best, so clear it proactively instead).
-        backgroundSyncService.clearPendingSave();
       } catch (err: any) {
         const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
         if (isAuthError) {
@@ -464,19 +447,17 @@ const App: React.FC = () => {
   }, [authChecked, authUser?.id, updateCloudVersion]);
 
   // --- Per-account cloud sync: debounced autosave with auto-healing ---
-  const pushToCloud = useCallback(async (force: boolean = false, keepalive: boolean = false) => {
+  const pushToCloud = useCallback(async (force: boolean = false) => {
     if (!cloudLoaded || isSyncingInFlightRef.current) return;
     isSyncingInFlightRef.current = true;
     setCloudSyncing(true);
-    const currentState = getFullState();
-    const currentVer = cloudVersionRef.current;
     try {
-      const result = await dataSyncService.save(currentState, currentVer, force, keepalive);
+      const currentState = getFullState();
+      const currentVer = cloudVersionRef.current;
+      const result = await dataSyncService.save(currentState, currentVer, force);
       updateCloudVersion(result.version);
       setCloudLastSyncTime(new Date().toISOString());
       setCloudError(null);
-      // Confirmed saved — nothing left for the background sync to retry.
-      backgroundSyncService.clearPendingSave();
     } catch (err: any) {
       if (err instanceof SyncConflictError) {
         // Auto-reconcile & merge smoothly in the background
@@ -495,7 +476,6 @@ const App: React.FC = () => {
             updateCloudVersion(reSave.version);
             setCloudLastSyncTime(new Date().toISOString());
             setCloudError(null);
-            backgroundSyncService.clearPendingSave();
           }
         } catch (fetchErr) {
           console.warn('Conflict auto-merge deferred:', fetchErr);
@@ -514,11 +494,6 @@ const App: React.FC = () => {
           setCloudLastSyncTime(null);
         } else {
           console.warn('Cloud sync error (changes preserved locally):', err?.message || err);
-          // Couldn't reach the cloud right now (offline, server hiccup, etc.)
-          // — queue this exact save so the browser retries it in the
-          // background once connectivity is back, instead of relying on the
-          // user staying on this tab until the next debounce cycle succeeds.
-          backgroundSyncService.scheduleBackgroundSave(currentState, currentVer);
         }
       }
     } finally {
@@ -533,42 +508,6 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance, cloudLoaded]);
-
-  // Flush any pending change to the cloud immediately when the tab is about
-  // to disappear (backgrounded, switched away from, or closed) instead of
-  // waiting on the 2.5s debounce above. Without this, a change made right
-  // before switching apps or closing the tab — extremely common on phones —
-  // sits in localStorage on that device only and is silently never synced,
-  // so it never shows up on any other device.
-  //
-  // 'visibilitychange' -> 'hidden' is the reliable signal on mobile (iOS/Android
-  // routinely never fire 'beforeunload' when a tab is backgrounded or a PWA is
-  // swiped away). 'pagehide' covers the actual-navigation/close case on desktop.
-  // `keepalive: true` lets the fetch complete even after the page unloads —
-  // but only if the page process survives long enough for it to finish, which
-  // isn't guaranteed once a phone OS decides to kill a backgrounded tab. So
-  // alongside the keepalive attempt, also queue the same save via the
-  // background-sync service worker as a belt-and-suspenders fallback: if the
-  // keepalive fetch does complete, the queued copy just gets cleared as
-  // redundant; if it doesn't, the service worker retries it later on its own,
-  // even if this tab never runs another line of JS again.
-  useEffect(() => {
-    const flush = () => {
-      if (cloudLoaded && !isApplyingRemoteUpdateRef.current) {
-        backgroundSyncService.scheduleBackgroundSave(getFullState(), cloudVersionRef.current);
-        pushToCloud(true, true);
-      }
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') flush();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', flush);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', flush);
-    };
-  }, [cloudLoaded, pushToCloud, getFullState]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {
@@ -817,7 +756,7 @@ const App: React.FC = () => {
           
           <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-sm">
             <div className="flex items-center gap-3 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
-              <div className="flex items-center gap-2 sm:gap-8 min-w-0">
+              <div className="flex items-center gap-3 sm:gap-8 min-w-0">
                 {/* Logo & Brand from Design HTML */}
                 <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                   <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center shrink-0">
@@ -851,7 +790,7 @@ const App: React.FC = () => {
                     className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'events' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                   >
                     <Zap size={14} />
-                    <span className="hidden md:inline">Planner</span>
+                    <span>Planner</span>
                   </button>
                   {isAdmin && (
                     <button 
@@ -1069,17 +1008,8 @@ const App: React.FC = () => {
 
           {showBankSync && (
             <BankSyncModal 
-              onSuccess={(inst, last4, bal, type, holdings) => {
+              onSuccess={(inst, last4, bal, type) => {
                 setBankConnections(prev => [...prev, { institution: inst, institutionType: type, status: 'linked', accountLastFour: last4, openingBalance: bal, lastSynced: new Date().toISOString() }]);
-                if (type === 'investment' && holdings && holdings.length > 0) {
-                  const account: InvestmentAccount = {
-                    id: `inv-${Date.now()}`,
-                    provider: inst as 'Binance' | 'Vanguard',
-                    name: inst,
-                    holdings,
-                  };
-                  setInvestments(prev => [...prev.filter(i => i.provider !== inst), account]);
-                }
                 setShowBankSync(false);
               }}
               onClose={() => setShowBankSync(false)}

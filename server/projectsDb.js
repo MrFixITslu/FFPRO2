@@ -431,50 +431,24 @@ const file = {
 
 const impl = () => (hasPostgres && realPool ? pg : file);
 
-// Postgres-backed methods have no built-in fallback the way db.js's `pool.query`
-// does — a transient connection blip here throws straight through as a raw 500,
-// which is what broke the Planning Hub's "Deploy New Milestone Task" button.
-// Wrap every method the same way db.js already does: on a transient network
-// error, log a warning and fall back to the local JSON store instead of
-// failing the request outright.
-const TRANSIENT_ERROR_CODES = new Set(['EAI_AGAIN', 'ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT']);
-const isTransientDbError = (err) => !!err && TRANSIENT_ERROR_CODES.has(err.code);
-
-function withFallback(methodName) {
-  return async (...args) => {
-    if (hasPostgres && realPool) {
-      try {
-        return await pg[methodName](...args);
-      } catch (err) {
-        if (isTransientDbError(err)) {
-          console.warn(`[projectsDb] ${methodName} failed due to network error, falling back to local database file:`, err.message);
-        } else {
-          throw err;
-        }
-      }
-    }
-    return file[methodName](...args);
-  };
-}
-
 export const projectsDb = {
-  findUserByEmail: withFallback('findUserByEmail'),
-  listProjectsForUser: withFallback('listProjectsForUser'),
-  getMembership: withFallback('getMembership'),
-  getProjectById: withFallback('getProjectById'),
-  createProject: withFallback('createProject'),
-  updateProjectData: withFallback('updateProjectData'),
-  deleteProject: withFallback('deleteProject'),
-  listMembers: withFallback('listMembers'),
-  addMember: withFallback('addMember'),
-  removeMember: withFallback('removeMember'),
-  updateMemberRole: withFallback('updateMemberRole'),
-  createInvite: withFallback('createInvite'),
-  getInviteByToken: withFallback('getInviteByToken'),
-  listPendingInvitesForProject: withFallback('listPendingInvitesForProject'),
-  revokeInvite: withFallback('revokeInvite'),
-  markInviteAccepted: withFallback('markInviteAccepted'),
-  getPendingInvitesForEmail: withFallback('getPendingInvitesForEmail'),
-  listMessages: withFallback('listMessages'),
-  createMessage: withFallback('createMessage'),
+  findUserByEmail: (...args) => impl().findUserByEmail(...args),
+  listProjectsForUser: (...args) => impl().listProjectsForUser(...args),
+  getMembership: (...args) => impl().getMembership(...args),
+  getProjectById: (...args) => impl().getProjectById(...args),
+  createProject: (...args) => impl().createProject(...args),
+  updateProjectData: (...args) => impl().updateProjectData(...args),
+  deleteProject: (...args) => impl().deleteProject(...args),
+  listMembers: (...args) => impl().listMembers(...args),
+  addMember: (...args) => impl().addMember(...args),
+  removeMember: (...args) => impl().removeMember(...args),
+  updateMemberRole: (...args) => impl().updateMemberRole(...args),
+  createInvite: (...args) => impl().createInvite(...args),
+  getInviteByToken: (...args) => impl().getInviteByToken(...args),
+  listPendingInvitesForProject: (...args) => impl().listPendingInvitesForProject(...args),
+  revokeInvite: (...args) => impl().revokeInvite(...args),
+  markInviteAccepted: (...args) => impl().markInviteAccepted(...args),
+  getPendingInvitesForEmail: (...args) => impl().getPendingInvitesForEmail(...args),
+  listMessages: (...args) => impl().listMessages(...args),
+  createMessage: (...args) => impl().createMessage(...args),
 };

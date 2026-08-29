@@ -8,14 +8,6 @@ const DB_FILE = process.env.DATABASE_FILE || path.join(process.cwd(), 'database.
 // Detect real PostgreSQL config
 const hasPostgres = !!(process.env.DATABASE_URL || process.env.PGHOST || process.env.PGUSER);
 let realPool = null;
-// Resolves once table/extension creation has finished (or immediately, if
-// there's no Postgres to set up). Callers that need the schema to actually
-// exist — i.e. the server, before it starts accepting requests — should
-// `await schemaReady` first. Without this, early requests right after a
-// fresh deploy/restart can race the CREATE TABLE calls below and fail with
-// "relation does not exist", which surfaces to users as a spurious
-// "Could not reach the cloud" error even though Postgres itself is fine.
-let schemaReady = Promise.resolve();
 
 if (hasPostgres) {
   console.log('PostgreSQL configuration detected. Initializing real PostgreSQL pool...');
@@ -58,9 +50,8 @@ if (hasPostgres) {
     console.warn('[db] Unexpected error on idle PostgreSQL client/pool:', err?.message || err);
   });
 
-  // Initialize tables asynchronously, but capture the chain so callers can
-  // await it instead of it running fully unobserved in the background.
-  schemaReady = realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
+  // Initialize tables asynchronously
+  realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
     return realPool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -162,64 +153,6 @@ if (hasPostgres) {
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_project_messages_project_created ON project_messages(project_id, created_at);`);
   }).then(() => {
-    // Encrypted exchange/brokerage API credentials (e.g. Binance), kept in
-    // their own table rather than inside the user_data blob so the secret
-    // never has to round-trip through the browser after the initial submit.
-    return realPool.query(`
-      CREATE TABLE IF NOT EXISTS investment_credentials (
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        provider VARCHAR(50) NOT NULL,
-        api_key_ciphertext BYTEA NOT NULL,
-        api_key_iv BYTEA NOT NULL,
-        api_key_auth_tag BYTEA NOT NULL,
-        api_secret_ciphertext BYTEA NOT NULL,
-        api_secret_iv BYTEA NOT NULL,
-        api_secret_auth_tag BYTEA NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, provider)
-      );
-    `);
-  }).then(() => {
-    // Gateway integration: external systems (e.g. V79Tiquet) that are
-    // authorized to push events (like a paid job) into a specific FFPRO2
-    // account. workspace_number is UNIQUE across ALL users — this is the
-    // core anti-cross-tenant-write guarantee: a given external workspace
-    // number can resolve to at most one FFPRO2 user, decided here by the
-    // account owner (via Settings → Gateway), never by the inbound request.
-    return realPool.query(`
-      CREATE TABLE IF NOT EXISTS gateway_connections (
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        provider VARCHAR(50) NOT NULL,
-        workspace_number VARCHAR(255) NOT NULL,
-        enabled BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, provider),
-        UNIQUE (provider, workspace_number)
-      );
-    `);
-  }).then(() => {
-    // Idempotency ledger for inbound gateway events. The UNIQUE constraint
-    // on (provider, workspace_number, external_id) is what makes duplicate
-    // delivery (retries, at-least-once webhooks) safe: a second delivery of
-    // the same event hits this constraint and is treated as "already
-    // processed" rather than creating a second income transaction.
-    return realPool.query(`
-      CREATE TABLE IF NOT EXISTS gateway_events (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        provider VARCHAR(50) NOT NULL,
-        workspace_number VARCHAR(255) NOT NULL,
-        external_id VARCHAR(255) NOT NULL,
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        transaction_id VARCHAR(255),
-        amount NUMERIC(14,2) NOT NULL,
-        currency VARCHAR(10) NOT NULL,
-        received_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (provider, workspace_number, external_id)
-      );
-    `);
-  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
@@ -245,8 +178,7 @@ if (!fs.existsSync(DB_FILE)) {
     project_members: [],
     project_invites: [],
     project_messages: [],
-    password_reset_tokens: [],
-    investment_credentials: []
+    password_reset_tokens: []
   }, null, 2));
 }
 
@@ -259,7 +191,6 @@ function readDB() {
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
-    parsed.investment_credentials ||= [];
     return parsed;
   } catch (e) {
     return {
@@ -272,8 +203,7 @@ function readDB() {
       project_members: [],
       project_invites: [],
       project_messages: [],
-      password_reset_tokens: [],
-      investment_credentials: []
+      password_reset_tokens: []
     };
   }
 }
@@ -516,54 +446,6 @@ export const pool = {
       return { rows: [] };
     }
 
-    // 18. SELECT ... FROM investment_credentials WHERE user_id = $1 AND provider = $2
-    if (cleanSql.includes('FROM investment_credentials WHERE user_id =') && cleanSql.includes('provider =')) {
-      const userId = params[0];
-      const provider = params[1];
-      const row = db.investment_credentials.find(c => c.user_id === userId && c.provider === provider);
-      if (!row) return { rows: [] };
-      return {
-        rows: [{
-          api_key_ciphertext: Buffer.from(row.api_key_ciphertext, 'hex'),
-          api_key_iv: Buffer.from(row.api_key_iv, 'hex'),
-          api_key_auth_tag: Buffer.from(row.api_key_auth_tag, 'hex'),
-          api_secret_ciphertext: Buffer.from(row.api_secret_ciphertext, 'hex'),
-          api_secret_iv: Buffer.from(row.api_secret_iv, 'hex'),
-          api_secret_auth_tag: Buffer.from(row.api_secret_auth_tag, 'hex'),
-        }],
-      };
-    }
-
-    // 19. INSERT INTO investment_credentials (...) VALUES (...) ON CONFLICT (user_id, provider) DO UPDATE ...
-    if (cleanSql.startsWith('INSERT INTO investment_credentials')) {
-      const [userId, provider, akCt, akIv, akTag, asCt, asIv, asTag] = params;
-      const entry = {
-        user_id: userId,
-        provider,
-        api_key_ciphertext: akCt.toString('hex'),
-        api_key_iv: akIv.toString('hex'),
-        api_key_auth_tag: akTag.toString('hex'),
-        api_secret_ciphertext: asCt.toString('hex'),
-        api_secret_iv: asIv.toString('hex'),
-        api_secret_auth_tag: asTag.toString('hex'),
-        updated_at: new Date().toISOString(),
-      };
-      const idx = db.investment_credentials.findIndex(c => c.user_id === userId && c.provider === provider);
-      if (idx !== -1) db.investment_credentials[idx] = entry;
-      else db.investment_credentials.push(entry);
-      writeDB(db);
-      return { rows: [] };
-    }
-
-    // 20. DELETE FROM investment_credentials WHERE user_id = $1 AND provider = $2
-    if (cleanSql.startsWith('DELETE FROM investment_credentials')) {
-      const userId = params[0];
-      const provider = params[1];
-      db.investment_credentials = db.investment_credentials.filter(c => !(c.user_id === userId && c.provider === provider));
-      writeDB(db);
-      return { rows: [] };
-    }
-
     console.warn('Unhandled SQL query in mock db.js:', sql, params);
     return { rows: [] };
   },
@@ -585,4 +467,4 @@ export const pool = {
   }
 };
 
-export { hasPostgres, realPool, readDB, writeDB, DB_FILE, schemaReady };
+export { hasPostgres, realPool, readDB, writeDB, DB_FILE };

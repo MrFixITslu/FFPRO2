@@ -56,12 +56,12 @@ services:
       # OAuth - Google Developer Portal
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://199.223.249.193/api/auth/google/callback}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-/api/auth/google/callback}
       
       # OAuth - Meta Developer Portal
       - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
       - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
-      - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL:-http://199.223.249.193/api/auth/facebook/callback}
+      - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL:-/api/auth/facebook/callback}
       
       # Outgoing Email - project-share invites (optional)
       - SMTP_HOST=${SMTP_HOST}
@@ -71,11 +71,8 @@ services:
       - SMTP_PASS=${SMTP_PASS}
       - SMTP_FROM=${SMTP_FROM}
       
-      # Base Application URLs
-      - FRONTEND_URL=${FRONTEND_URL:-http://199.223.249.193}
-      
-      # V79Tiquet Gateway Integration (Settings → Gateway → V79Tiquet)
-      - TIQUET_GATEWAY_SECRET=${TIQUET_GATEWAY_SECRET}
+      # Base Application URLs (auto-detected from request headers if blank)
+      - FRONTEND_URL=${FRONTEND_URL}
     volumes:
       # Persistent local data directory for encryption key + session store.
       # (App data itself now lives in the "postgres" service above.)

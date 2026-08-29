@@ -1,8 +1,7 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS } from '../types';
 import { triggerSecureDownload } from '../services/fileStorageService';
-import { gatewayService, GatewayConnectionStatus } from '../services/gatewayService';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -554,8 +553,6 @@ const Settings: React.FC<Props> = ({
                   ))}
                 </div>
               </section>
-
-              <TiquetGatewaySection />
             </div>
           )}
 
@@ -707,183 +704,6 @@ const Settings: React.FC<Props> = ({
         </div>
       )}
     </div>
-  );
-};
-
-// ── V79Tiquet Gateway ──────────────────────────────────────────────────────
-// Lets the user connect their V79Tiquet workspace so a job marked PAID there
-// automatically records as income here under "V79D — Vision79 Digital".
-// Self-contained: fetches/saves its own state via gatewayService rather than
-// threading more props through the whole Settings component.
-const TIQUET_PROVIDER = 'tiquet';
-
-const TiquetGatewaySection: React.FC = () => {
-  const [status, setStatus] = useState<GatewayConnectionStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [workspaceNumberDraft, setWorkspaceNumberDraft] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-
-  const load = () => {
-    setLoading(true);
-    setError(null);
-    gatewayService.getConnection(TIQUET_PROVIDER)
-      .then((data) => {
-        setStatus(data);
-        setWorkspaceNumberDraft(data.connection?.workspace_number || '');
-      })
-      .catch((err) => setError(err?.message || 'Could not load gateway status.'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const handleSave = async (enabled: boolean) => {
-    if (!workspaceNumberDraft.trim()) {
-      setError('Enter the V79Tiquet Workspace Number first.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await gatewayService.saveConnection(TIQUET_PROVIDER, workspaceNumberDraft.trim(), enabled);
-      setSaved(true);
-      load();
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err: any) {
-      setError(err?.message || 'Could not save the connection.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await gatewayService.deleteConnection(TIQUET_PROVIDER);
-      setWorkspaceNumberDraft('');
-      load();
-    } catch (err: any) {
-      setError(err?.message || 'Could not disconnect.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const connection = status?.connection || null;
-  const lastEvent = status?.lastEvent || null;
-
-  return (
-    <section className="space-y-4">
-      <div>
-        <h3 className="text-sm font-bold text-slate-800">V79Tiquet Gateway</h3>
-        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-          Auto-record paid jobs as income under V79D — Vision79 Digital
-        </p>
-      </div>
-
-      <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-        {loading ? (
-          <p className="text-xs text-slate-400 font-semibold">Loading…</p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${connection?.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-                <span className="text-xs font-bold text-slate-700">
-                  {connection ? (connection.enabled ? 'Connected' : 'Connected (Disabled)') : 'Not Connected'}
-                </span>
-              </div>
-              {connection && (
-                <span className="text-[9px] text-slate-400 font-semibold">
-                  Updated {new Date(connection.updated_at).toLocaleString()}
-                </span>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                V79Tiquet Workspace Number
-              </label>
-              <input
-                type="text"
-                value={workspaceNumberDraft}
-                onChange={(e) => setWorkspaceNumberDraft(e.target.value)}
-                placeholder="Paste the Workspace ID from V79Tiquet → Settings"
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded outline-none font-mono text-xs focus:ring-2 focus:ring-indigo-500/20"
-              />
-            </div>
-
-            {error && (
-              <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded p-2.5">{error}</p>
-            )}
-            {saved && (
-              <p className="text-xs font-bold text-emerald-600">Saved.</p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleSave(true)}
-                disabled={saving}
-                className="px-4 py-2 bg-slate-900 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow hover:bg-slate-800 transition-all disabled:opacity-50"
-              >
-                {connection ? 'Save' : 'Connect'}
-              </button>
-              {connection && connection.enabled && (
-                <button
-                  onClick={() => handleSave(false)}
-                  disabled={saving}
-                  className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-slate-100 transition-all disabled:opacity-50"
-                >
-                  Disable
-                </button>
-              )}
-              {connection && !connection.enabled && (
-                <button
-                  onClick={() => handleSave(true)}
-                  disabled={saving}
-                  className="px-4 py-2 bg-white border border-slate-200 text-emerald-700 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-50 transition-all disabled:opacity-50"
-                >
-                  Enable
-                </button>
-              )}
-              <button
-                onClick={load}
-                disabled={saving || loading}
-                className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-slate-100 transition-all disabled:opacity-50"
-              >
-                Test Connection
-              </button>
-              {connection && (
-                <button
-                  onClick={handleDisconnect}
-                  disabled={saving}
-                  className="px-4 py-2 text-rose-500 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-rose-50 transition-all disabled:opacity-50 ml-auto"
-                >
-                  Disconnect
-                </button>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-slate-200/80">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Last Event Received</p>
-              {lastEvent ? (
-                <p className="text-xs text-slate-600">
-                  {lastEvent.currency} {lastEvent.amount} on {new Date(lastEvent.received_at).toLocaleString()}
-                </p>
-              ) : (
-                <p className="text-xs text-slate-400">
-                  No events received yet. This updates automatically the next time a job is marked paid in V79Tiquet — that confirms the connection end-to-end.
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </section>
   );
 };
 

@@ -5,6 +5,7 @@ import { BudgetEvent, ProjectMember } from '../types';
 interface Props {
   event: BudgetEvent;
   members?: ProjectMember[];
+  onViewLogs?: () => void;
 }
 
 function countTasks(tasks: BudgetEvent['tasks']): { total: number; done: number } {
@@ -21,7 +22,7 @@ function countTasks(tasks: BudgetEvent['tasks']): { total: number; done: number 
   return { total, done };
 }
 
-const ProjectDashboard: React.FC<Props> = ({ event, members }) => {
+const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs }) => {
   const stats = useMemo(() => {
     const items = event.items || [];
     const spent = items.filter(i => i.type === 'expense').reduce((s, i) => s + i.amount, 0);
@@ -112,24 +113,72 @@ const ProjectDashboard: React.FC<Props> = ({ event, members }) => {
         </div>
       </div>
 
-      {stats.recentLogs.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Activity className="w-4 h-4 text-slate-400" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recent Activity</span>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-indigo-600" />
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recent Activity & Logs</span>
+            {(event.logs || []).length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-50 text-indigo-700">
+                {(event.logs || []).length} total
+              </span>
+            )}
           </div>
+          {onViewLogs && (
+            <button
+              onClick={onViewLogs}
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1"
+            >
+              View & Manage All Logs <span aria-hidden="true">&rarr;</span>
+            </button>
+          )}
+        </div>
+        {stats.recentLogs.length > 0 ? (
           <div className="space-y-2.5">
             {stats.recentLogs.map(log => (
-              <div key={log.id} className="flex items-start justify-between gap-3 text-sm min-w-0">
-                <span className="text-slate-700 min-w-0 break-words flex-1">
-                  <span className="font-semibold text-slate-900">{log.username}</span> {log.action.replace(/_/g, ' ')}
-                </span>
-                <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">{new Date(log.timestamp).toLocaleDateString()}</span>
+              <div 
+                key={log.id} 
+                onClick={onViewLogs}
+                className={`flex items-start justify-between gap-3 text-sm min-w-0 p-2 rounded-lg transition ${onViewLogs ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <span className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-0.5 ${
+                    log.type === 'task' ? 'bg-indigo-600' : 
+                    log.type === 'transaction' ? 'bg-emerald-600' : 
+                    log.type === 'file' ? 'bg-slate-800' :
+                    log.type === 'team' ? 'bg-purple-600' :
+                    log.type === 'contact' ? 'bg-sky-600' :
+                    log.type === 'note' ? 'bg-teal-600' : 'bg-slate-500'
+                  }`}>
+                    {log.type === 'task' ? '✓' : log.type === 'transaction' ? '$' : log.type === 'file' ? '📄' : log.type === 'team' ? '👥' : log.type === 'contact' ? '👤' : '⚡'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-slate-800 text-xs sm:text-sm font-medium leading-snug break-words">
+                      <span className="font-bold text-slate-900">{log.username}</span> {log.action.replace(/_/g, ' ')}
+                    </p>
+                    {log.details && (
+                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{log.details}</p>
+                    )}
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0 pt-0.5">{new Date(log.timestamp).toLocaleDateString()}</span>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="py-6 text-center text-slate-400 text-xs">
+            <p>No activity logs recorded yet.</p>
+            {onViewLogs && (
+              <button 
+                onClick={onViewLogs}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline"
+              >
+                + Record first log entry
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
