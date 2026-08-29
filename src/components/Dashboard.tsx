@@ -61,8 +61,6 @@ const Dashboard: React.FC<Props> = ({
   transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget
 }) => {
   const [trendTimeframe, setTrendTimeframe] = useState<Timeframe>('monthly');
-  const [aiInsight, setAiInsight] = useState<string>("");
-  const [isGeneratingInsight, setIsGeneratingInsight] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
   const [partialAmount, setPartialAmount] = useState<string>("");
@@ -315,41 +313,6 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
-  useEffect(() => {
-    const generateSummary = async () => {
-      if (transactions.length < 1) { setAiInsight("Welcome! Log spend to unlock insights."); return; }
-      setIsGeneratingInsight(true);
-      try {
-        // FIX: Call backend endpoint instead of direct Gemini API
-        const response = await fetch('/api/ai/insights', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            totalIncome: totalActualIncome,
-            totalExpenses: totalActualExpenses,
-            netWorth: netWorth,
-            cycleRollover: cycleRollover,
-            dailySafeSpend: dailySafeSpend,
-            netMargin: netMargin
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setAiInsight(data.insight || "Portfolio stable.");
-        } else {
-          setAiInsight("Gemini Advisor on standby.");
-        }
-      } catch (e) { 
-        setAiInsight("Gemini Advisor on standby."); 
-      } finally { 
-        setIsGeneratingInsight(false); 
-      }
-    };
-    generateSummary();
-  }, [totalActualIncome, totalActualExpenses, netWorth, transactions.length, cycleRollover, dailySafeSpend, netMargin]);
-
   const handleQuickPaymentAction = (item: any, isIncome: boolean) => {
     const amt = parseFloat(partialAmount) || item.remainingAmount;
     if (isIncome) {
@@ -436,26 +399,6 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </section>
       )}
-
-      {/* Strategic Advisor Insight styled beautifully as white card with slate borders */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group print:rounded-none">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="flex h-1.5 w-1.5 relative print:hidden">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
-              </span>
-              <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">Strategic Advisor Insight</p>
-            </div>
-            {isGeneratingInsight ? (
-              <div className="h-6 w-3/4 bg-slate-100 animate-pulse rounded"></div>
-            ) : (
-              <h2 className="text-slate-800 text-base font-light italic">"{aiInsight}"</h2>
-            )}
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
