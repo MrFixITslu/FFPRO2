@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Wallet, CheckCircle2, Clock, Activity, Users } from 'lucide-react';
+import { Wallet, CheckCircle2, Clock, Activity, Users, ArrowUpRight, ArrowDownRight, FileText, Tag, Shield, RefreshCw } from 'lucide-react';
 import { BudgetEvent, ProjectMember } from '../types';
 
 interface Props {
@@ -135,35 +135,62 @@ const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs }) => {
         </div>
         {stats.recentLogs.length > 0 ? (
           <div className="space-y-2.5">
-            {stats.recentLogs.map(log => (
-              <div 
-                key={log.id} 
-                onClick={onViewLogs}
-                className={`flex items-start justify-between gap-3 text-sm min-w-0 p-2 rounded-lg transition ${onViewLogs ? 'cursor-pointer hover:bg-slate-50' : ''}`}
-              >
-                <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                  <span className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-0.5 ${
-                    log.type === 'task' ? 'bg-indigo-600' : 
-                    log.type === 'transaction' ? 'bg-emerald-600' : 
-                    log.type === 'file' ? 'bg-slate-800' :
-                    log.type === 'team' ? 'bg-purple-600' :
-                    log.type === 'contact' ? 'bg-sky-600' :
-                    log.type === 'note' ? 'bg-teal-600' : 'bg-slate-500'
-                  }`}>
-                    {log.type === 'task' ? '✓' : log.type === 'transaction' ? '$' : log.type === 'file' ? '📄' : log.type === 'team' ? '👥' : log.type === 'contact' ? '👤' : '⚡'}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-slate-800 text-xs sm:text-sm font-medium leading-snug break-words">
-                      <span className="font-bold text-slate-900">{log.username}</span> {log.action.replace(/_/g, ' ')}
-                    </p>
-                    {log.details && (
-                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{log.details}</p>
-                    )}
+            {stats.recentLogs.map(log => {
+              const text = ((log.action || '') + ' ' + (log.details || '')).toLowerCase();
+              const isIncome = log.type === 'transaction' && (text.includes('income') || text.includes('inflow') || text.includes('received') || text.includes('+') || text.includes('deposit'));
+              const isExpense = log.type === 'transaction' && !isIncome;
+
+              let iconBg = 'bg-slate-600';
+              let iconNode = <Shield size={10} className="text-white" />;
+
+              if (log.type === 'transaction') {
+                if (isIncome) {
+                  iconBg = 'bg-emerald-600';
+                  iconNode = <ArrowUpRight size={11} className="text-white stroke-[3]" />;
+                } else {
+                  iconBg = 'bg-rose-600';
+                  iconNode = <ArrowDownRight size={11} className="text-white stroke-[3]" />;
+                }
+              } else if (log.type === 'task') {
+                iconBg = 'bg-violet-600';
+                iconNode = <CheckCircle2 size={10} className="text-white" />;
+              } else if (log.type === 'file') {
+                iconBg = 'bg-slate-800';
+                iconNode = <FileText size={10} className="text-white" />;
+              } else if (log.type === 'team') {
+                iconBg = 'bg-purple-600';
+                iconNode = <Users size={10} className="text-white" />;
+              } else if (log.type === 'contact') {
+                iconBg = 'bg-sky-600';
+                iconNode = <Tag size={10} className="text-white" />;
+              } else if (log.type === 'note') {
+                iconBg = 'bg-teal-600';
+                iconNode = <FileText size={10} className="text-white" />;
+              }
+
+              return (
+                <div 
+                  key={log.id} 
+                  onClick={onViewLogs}
+                  className={`flex items-start justify-between gap-3 text-sm min-w-0 p-2 rounded-xl transition ${onViewLogs ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+                >
+                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${iconBg}`}>
+                      {iconNode}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-slate-800 text-xs sm:text-sm font-medium leading-snug break-words">
+                        <span className="font-bold text-slate-900">{log.username}</span> {log.action.replace(/_/g, ' ')}
+                      </p>
+                      {log.details && (
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">{log.details}</p>
+                      )}
+                    </div>
                   </div>
+                  <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0 pt-0.5">{new Date(log.timestamp).toLocaleDateString()}</span>
                 </div>
-                <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap shrink-0 pt-0.5">{new Date(log.timestamp).toLocaleDateString()}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="py-6 text-center text-slate-400 text-xs">

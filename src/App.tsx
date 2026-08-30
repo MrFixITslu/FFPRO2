@@ -24,6 +24,7 @@ import {
   TaskStatus,
   Idea,
   ForecastSettings,
+  EventLog,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
@@ -195,6 +196,22 @@ const App: React.FC = () => {
     monthlyContribution: 500,
     expectedReturn: 8
   }));
+  const [financialLogs, setFinancialLogs] = useState<EventLog[]>(() => {
+    const saved = safeParse(STORAGE_KEYS.FINANCIAL_LOGS, null);
+    if (saved && Array.isArray(saved) && saved.length > 0) return saved;
+    const initialTx = safeParse(STORAGE_KEYS.TRANSACTIONS, []);
+    if (Array.isArray(initialTx) && initialTx.length > 0) {
+      return initialTx.map((t: Transaction) => ({
+        id: generateId(),
+        action: `Logged ${t.type.toUpperCase()}: "${t.description}" (${t.type === 'expense' ? '-' : '+'}$${t.amount.toLocaleString()})`,
+        timestamp: t.date ? new Date(t.date + 'T12:00:00').toISOString() : new Date().toISOString(),
+        username: 'nsv',
+        type: 'transaction' as const,
+        details: `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.notes ? ' | Notes: ' + t.notes : ''}`
+      }));
+    }
+    return [];
+  });
   const [cashOpeningBalance, setCashOpeningBalance] = useState<number>(() => parseFloat(localStorage.getItem(STORAGE_KEYS.CASH_OPENING) || '0'));
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
   
@@ -269,9 +286,10 @@ const App: React.FC = () => {
     contacts,
     ideas,
     forecastSettings,
+    financialLogs,
     cashOpeningBalance,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance]);
 
   // Merge helper for seamless conflict resolution without data loss
   const mergeAppStates = useCallback((local: AppState, remote: AppState): AppState => {
@@ -295,6 +313,7 @@ const App: React.FC = () => {
       calendarItems: mergeById(local.calendarItems, remote.calendarItems),
       contacts: mergeById(local.contacts, remote.contacts),
       ideas: mergeById(local.ideas, remote.ideas),
+      financialLogs: mergeById(local.financialLogs, remote.financialLogs),
       forecastSettings: local.forecastSettings || remote.forecastSettings || { yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 },
       cashOpeningBalance: local.cashOpeningBalance !== 0 ? local.cashOpeningBalance : (remote.cashOpeningBalance || 0),
       lastUpdated: new Date().toISOString()
@@ -315,6 +334,9 @@ const App: React.FC = () => {
     setCalendarItems(state.calendarItems || []);
     setContacts(state.contacts || []);
     setIdeas(state.ideas || []);
+    if (state.financialLogs) {
+      setFinancialLogs(state.financialLogs);
+    }
     if (state.forecastSettings) {
       setForecastSettings(state.forecastSettings);
     }
@@ -507,7 +529,7 @@ const App: React.FC = () => {
     const timer = setTimeout(() => { pushToCloud(); }, 2500); // 2.5s debounce
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, cashOpeningBalance, cloudLoaded]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, cloudLoaded]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {
@@ -531,6 +553,9 @@ const App: React.FC = () => {
             setCalendarItems(savedState.calendarItems || []);
             setContacts(savedState.contacts || []);
             setIdeas(savedState.ideas || []);
+            if (savedState.financialLogs) {
+              setFinancialLogs(savedState.financialLogs);
+            }
             if (savedState.forecastSettings) {
               setForecastSettings(savedState.forecastSettings);
             }
@@ -598,8 +623,9 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEYS.IDEAS, JSON.stringify(ideas));
     localStorage.setItem(STORAGE_KEYS.FORECAST_SETTINGS, JSON.stringify(forecastSettings));
     localStorage.setItem(STORAGE_KEYS.CATEGORY_LIMITS, JSON.stringify(categoryBudgets));
+    localStorage.setItem(STORAGE_KEYS.FINANCIAL_LOGS, JSON.stringify(financialLogs));
     localStorage.setItem(STORAGE_KEYS.CASH_OPENING, cashOpeningBalance.toString());
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, categoryBudgets, cashOpeningBalance]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, categoryBudgets, financialLogs, cashOpeningBalance]);
 
   // Market prices are entered/updated manually now (see Settings/Investments)
   // rather than auto-refreshed by an AI call. quotaExhausted is left `true`
@@ -639,10 +665,80 @@ const App: React.FC = () => {
     setAuthUser(null);
   };
 
+  const logFinancialActivity = useCallback((action: string, details?: string) => {
+    const newLog: EventLog = {
+      id: generateId(),
+      action,
+      timestamp: new Date().toISOString(),
+      username: currentUsername || 'nsv',
+      type: 'transaction',
+      details
+    };
+
+    setFinancialLogs(prev => [newLog, ...prev]);
+
+    // Also persist inside the active project / event so LogsManager has full audit history
+    setEvents(prev => {
+      if (prev.length === 0) {
+        const defaultEvent: BudgetEvent = {
+          id: generateId(),
+          name: 'General Ledger & Treasury',
+          date: new Date().toISOString().split('T')[0],
+          items: [],
+          notes: [],
+          tasks: [],
+          files: [],
+          contactIds: [],
+          memberUsernames: [currentUsername || 'nsv'],
+          ious: [],
+          logs: [newLog],
+          status: 'active',
+          lastUpdated: new Date().toISOString()
+        };
+        return [defaultEvent];
+      }
+      const updated = [...prev];
+      updated[0] = {
+        ...updated[0],
+        logs: [newLog, ...(updated[0].logs || [])],
+        lastUpdated: new Date().toISOString()
+      };
+      return updated;
+    });
+  }, [currentUsername]);
+
   const onAddTransaction = (t: Omit<Transaction, 'id'>) => {
-    const newT = { ...t, id: generateId() };
+    const newId = generateId();
+    const newT = { ...t, id: newId };
     setTransactions(prev => [newT, ...prev]);
     setShowForm(false);
+
+    const sign = t.type === 'expense' ? '-' : '+';
+    logFinancialActivity(
+      `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}$${t.amount.toLocaleString()})`,
+      `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}${t.notes ? ' | Notes: ' + t.notes : ''}`
+    );
+  };
+
+  const onDeleteTransaction = (id: string) => {
+    const target = transactions.find(t => t.id === id);
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    if (target) {
+      const sign = target.type === 'expense' ? '-' : '+';
+      logFinancialActivity(
+        `Removed Transaction: "${target.description}" (${sign}$${target.amount.toLocaleString()})`,
+        `Category: ${target.category} | Method: ${target.institution || 'Cash in Hand'}`
+      );
+    }
+  };
+
+  const handleUpdateCategoryBudget = (cat: string, amt: number) => {
+    const oldBudget = categoryBudgets[cat] || 0;
+    setCategoryBudgets(prev => ({ ...prev, [cat]: amt }));
+    logFinancialActivity(
+      `Adjusted Budget Limit: "${cat}" set to $${amt.toLocaleString()}`,
+      `Previous allocation was $${oldBudget.toLocaleString()}`
+    );
   };
 
   const onUpdateRecurring = (item: RecurringExpense) => {
@@ -652,6 +748,10 @@ const App: React.FC = () => {
   const onAddRecurring = (item: Omit<RecurringExpense, 'id' | 'accumulatedOverdue'>) => {
     const newRec = { ...item, id: generateId(), accumulatedOverdue: 0 };
     setRecurringExpenses(prev => [...prev, newRec]);
+    logFinancialActivity(
+      `Added Recurring Bill Commitment: "${item.description}" ($${item.amount.toLocaleString()}/mo)`,
+      `Category: ${item.category} | Due Day: ${item.dayOfMonth} | Next Due: ${item.nextDueDate}`
+    );
   };
 
   const onPayRecurring = (bill: RecurringExpense, amount: number) => {
@@ -674,6 +774,11 @@ const App: React.FC = () => {
       nextDueDate: nextDue.toISOString().split('T')[0],
       lastBilledDate: new Date().toISOString().split('T')[0]
     });
+
+    logFinancialActivity(
+      `Cleared Commitment / Paid Bill: "${bill.description}" (-$${amount.toLocaleString()})`,
+      `Category: ${bill.category} | Method: Cash in Hand | Next Cycle Due: ${nextDue.toISOString().split('T')[0]}`
+    );
   };
 
   const onReceiveRecurringIncome = (inc: RecurringIncome, amount: number, destination: string) => {
@@ -696,6 +801,11 @@ const App: React.FC = () => {
       nextConfirmationDate: nextConf.toISOString().split('T')[0],
       lastConfirmedDate: new Date().toISOString().split('T')[0]
     } : i));
+
+    logFinancialActivity(
+      `Recorded Inflow / Received Income: "${inc.description}" (+$${amount.toLocaleString()})`,
+      `Category: ${inc.category} | Destination: ${destination} | Next Expected: ${nextConf.toISOString().split('T')[0]}`
+    );
   };
 
   const liquidFunds = useMemo(() => {
@@ -862,15 +972,20 @@ const App: React.FC = () => {
                   targetMargin={0} 
                   cashOpeningBalance={cashOpeningBalance}
                   categoryBudgets={categoryBudgets}
+                  financialLogs={financialLogs}
+                  currentUser={currentUsername || 'nsv'}
                   onEdit={() => {}}
-                  onDelete={(id) => setTransactions(prev => prev.filter(t => t.id !== id))}
+                  onDelete={onDeleteTransaction}
                   onPayRecurring={onPayRecurring}
                   onReceiveRecurringIncome={onReceiveRecurringIncome}
                   onContributeSaving={() => {}}
                   onWithdrawSaving={() => {}}
                   onWithdrawal={() => {}}
                   onAddIncome={() => {}}
-                  onUpdateCategoryBudget={(cat, amt) => setCategoryBudgets(prev => ({ ...prev, [cat]: amt }))}
+                  onUpdateCategoryBudget={handleUpdateCategoryBudget}
+                  onOpenTransactionForm={() => setShowForm(true)}
+                  onDeleteFinancialLog={(id) => setFinancialLogs(prev => prev.filter(l => l.id !== id))}
+                  onNavigateToPlannerLogs={() => setActiveTab('events')}
                 />
               </div>
             )}

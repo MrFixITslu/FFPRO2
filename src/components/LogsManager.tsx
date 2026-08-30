@@ -5,7 +5,9 @@ import {
   Users, Layers, Shield, Tag, AlertTriangle, Calendar, X,
   ArrowUpDown, ArrowUp, ArrowDown, Sparkles, RefreshCw, LayoutList,
   Table as TableIcon, FileCode, ExternalLink, Save, BookOpen,
-  ChevronUp, ChevronDown, CheckSquare, Eye
+  ChevronUp, ChevronDown, CheckSquare, Eye,
+  ArrowUpRight, ArrowDownRight, ArrowLeftRight, TrendingUp, TrendingDown,
+  Sliders, UserCheck, Repeat
 } from 'lucide-react';
 import { EventLog } from '../types';
 
@@ -66,57 +68,140 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
   }, [logs]);
   const [rawDocText, setRawDocText] = useState(initialDocText);
 
-  // Helper for type badges & icons
-  const getTypeConfig = (type: EventLog['type']) => {
-    switch (type) {
-      case 'transaction':
+  // Comprehensive Helper for type badges, color-coded icons, and visual indicators
+  const getLogConfig = (log: Partial<EventLog>) => {
+    const type = log.type || 'system';
+    const text = ((log.action || '') + ' ' + (log.details || '')).toLowerCase();
+
+    if (type === 'transaction') {
+      // 1. Budget Limit / Allocation
+      if (text.includes('budget') || text.includes('limit') || text.includes('allocation') || text.includes('ceiling')) {
         return {
-          label: 'Transaction',
-          badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          iconBg: 'bg-emerald-600 text-white',
-          icon: <DollarSign size={14} className="stroke-[2.5]" />
+          label: 'Budget Limit',
+          subLabel: 'Allocation',
+          badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
+          iconBg: 'bg-amber-500 text-white shadow-amber-200',
+          borderAccent: 'border-l-amber-500',
+          dotColor: 'bg-amber-500',
+          icon: <Sliders size={14} className="stroke-[2.5]" />
         };
+      }
+      // 2. Transfer / Move Funds
+      if (text.includes('transfer') || text.includes('reallocation') || text.includes('moved')) {
+        return {
+          label: 'Transfer',
+          subLabel: 'Inter-Account',
+          badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+          iconBg: 'bg-cyan-600 text-white shadow-cyan-200',
+          borderAccent: 'border-l-cyan-500',
+          dotColor: 'bg-cyan-500',
+          icon: <ArrowLeftRight size={14} className="stroke-[2.5]" />
+        };
+      }
+      // 3. Recurring Commitment / Bill
+      if (text.includes('recurring') || text.includes('bill') || text.includes('subscription') || text.includes('commitment')) {
+        return {
+          label: 'Recurring Bill',
+          subLabel: 'Commitment',
+          badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+          iconBg: 'bg-indigo-600 text-white shadow-indigo-200',
+          borderAccent: 'border-l-indigo-500',
+          dotColor: 'bg-indigo-500',
+          icon: <RefreshCw size={14} className="stroke-[2.5]" />
+        };
+      }
+      // 4. Income / Inflow / Deposit / Received
+      if (
+        text.includes('income') || 
+        text.includes('inflow') || 
+        text.includes('received') || 
+        text.includes('deposit') || 
+        text.includes('+$') || 
+        text.includes('+ $') || 
+        (log.action && log.action.includes('+'))
+      ) {
+        return {
+          label: 'Income / Inflow',
+          subLabel: 'Inflow (+)',
+          badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          iconBg: 'bg-emerald-600 text-white shadow-emerald-200',
+          borderAccent: 'border-l-emerald-500',
+          dotColor: 'bg-emerald-500',
+          icon: <ArrowUpRight size={15} className="stroke-[3]" />
+        };
+      }
+      // 5. Expense / Outflow / Paid / Removed
+      return {
+        label: 'Expense / Outflow',
+        subLabel: 'Expense (-)',
+        badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+        iconBg: 'bg-rose-600 text-white shadow-rose-200',
+        borderAccent: 'border-l-rose-500',
+        dotColor: 'bg-rose-500',
+        icon: <ArrowDownRight size={15} className="stroke-[3]" />
+      };
+    }
+
+    switch (type) {
       case 'task':
         return {
           label: 'Task / Milestone',
-          badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-          iconBg: 'bg-indigo-600 text-white',
+          subLabel: 'Milestone',
+          badgeBg: 'bg-violet-50 text-violet-700 border-violet-200',
+          iconBg: 'bg-violet-600 text-white shadow-violet-200',
+          borderAccent: 'border-l-violet-500',
+          dotColor: 'bg-violet-500',
           icon: <CheckCircle2 size={14} className="stroke-[2.5]" />
         };
       case 'file':
         return {
           label: 'Document / Vault',
+          subLabel: 'Vault File',
           badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
-          iconBg: 'bg-slate-800 text-white',
+          iconBg: 'bg-slate-800 text-white shadow-slate-200',
+          borderAccent: 'border-l-slate-600',
+          dotColor: 'bg-slate-600',
           icon: <FileText size={14} className="stroke-[2.5]" />
         };
       case 'team':
         return {
           label: 'Team & Access',
+          subLabel: 'Access',
           badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
-          iconBg: 'bg-purple-600 text-white',
+          iconBg: 'bg-purple-600 text-white shadow-purple-200',
+          borderAccent: 'border-l-purple-500',
+          dotColor: 'bg-purple-500',
           icon: <Users size={14} className="stroke-[2.5]" />
         };
       case 'contact':
         return {
           label: 'Stakeholder',
+          subLabel: 'Contact',
           badgeBg: 'bg-sky-50 text-sky-700 border-sky-200',
-          iconBg: 'bg-sky-600 text-white',
-          icon: <Tag size={14} className="stroke-[2.5]" />
+          iconBg: 'bg-sky-600 text-white shadow-sky-200',
+          borderAccent: 'border-l-sky-500',
+          dotColor: 'bg-sky-500',
+          icon: <UserCheck size={14} className="stroke-[2.5]" />
         };
       case 'note':
         return {
           label: 'Manual Note',
+          subLabel: 'Note',
           badgeBg: 'bg-teal-50 text-teal-700 border-teal-200',
-          iconBg: 'bg-teal-600 text-white',
+          iconBg: 'bg-teal-600 text-white shadow-teal-200',
+          borderAccent: 'border-l-teal-500',
+          dotColor: 'bg-teal-500',
           icon: <FileText size={14} className="stroke-[2.5]" />
         };
       case 'system':
       default:
         return {
-          label: 'System',
+          label: 'System & Security',
+          subLabel: 'System',
           badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
-          iconBg: 'bg-amber-600 text-white',
+          iconBg: 'bg-amber-600 text-white shadow-amber-200',
+          borderAccent: 'border-l-amber-500',
+          dotColor: 'bg-amber-500',
           icon: <Shield size={14} className="stroke-[2.5]" />
         };
     }
@@ -625,25 +710,27 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-slate-150"></div>
 
               {filteredLogs.map(log => {
-                const cfg = getTypeConfig(log.type);
+                const cfg = getLogConfig(log);
                 const logDate = new Date(log.timestamp);
                 const isRecent = Date.now() - logDate.getTime() < 3600000;
 
                 return (
                   <div 
                     key={log.id} 
-                    className="group relative flex items-start gap-3 sm:gap-4 z-10 p-4 rounded-2xl bg-slate-50/80 hover:bg-indigo-50/40 border border-slate-200/90 hover:border-indigo-300 transition-all duration-150 shadow-2xs"
+                    className={`group relative flex items-start gap-3 sm:gap-4 z-10 p-4 rounded-2xl bg-white hover:bg-slate-50/90 border border-slate-200/90 hover:border-indigo-300 transition-all duration-150 shadow-2xs border-l-4 ${cfg.borderAccent}`}
                   >
-                    {/* Icon Indicator */}
+                    {/* Color-Coded Icon Indicator */}
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${cfg.iconBg}`}>
                       {cfg.icon}
                     </div>
 
                     {/* Main Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${cfg.badgeBg}`}>
+                          {/* Color-Coded Subtype / Type Badge */}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 ${cfg.badgeBg}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`}></span>
                             {cfg.label}
                           </span>
                           <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
@@ -669,7 +756,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                       </p>
 
                       {log.details && (
-                        <p className="text-xs text-slate-600 mt-1.5 bg-white p-2.5 rounded-xl border border-slate-200/70 leading-relaxed font-medium">
+                        <p className="text-xs text-slate-600 mt-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70 leading-relaxed font-medium">
                           {log.details}
                         </p>
                       )}
@@ -689,7 +776,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                         <button
                           onClick={() => setDeletingLogId(log.id)}
                           title="Delete this log record"
-                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white rounded-xl border border-transparent hover:border-rose-200 transition"
+                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 transition"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -769,14 +856,20 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredLogs.length > 0 ? (
                   filteredLogs.map(log => {
-                    const cfg = getTypeConfig(log.type);
+                    const cfg = getLogConfig(log);
                     return (
                       <tr key={log.id} className="hover:bg-slate-50/80 transition group">
                         <td className="p-3.5 pl-5 font-bold text-slate-900 max-w-xs break-words">
-                          {log.action.replace(/_/g, ' ')}
+                          <div className="flex items-start gap-2.5">
+                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${cfg.iconBg}`}>
+                              {cfg.icon}
+                            </span>
+                            <span className="leading-snug">{log.action.replace(/_/g, ' ')}</span>
+                          </div>
                         </td>
                         <td className="p-3.5 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${cfg.badgeBg}`}>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border inline-flex items-center gap-1 ${cfg.badgeBg}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`}></span>
                             {cfg.label}
                           </span>
                         </td>

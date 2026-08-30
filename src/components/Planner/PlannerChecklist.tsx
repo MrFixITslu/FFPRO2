@@ -18,7 +18,8 @@ import { DependencyGraphView } from './DependencyGraphView';
 import { 
   Plus, Search, Filter, Calendar, Clock, AlertTriangle, ShieldAlert, 
   CheckCircle2, ChevronDown, ChevronRight, Zap, Bell, Link2, Tag, 
-  ArrowUpDown, Eye, ListTodo, Layers, Trash2, Repeat, History, Activity
+  ArrowUpDown, Eye, ListTodo, Layers, Trash2, Repeat, History, Activity,
+  ArrowUpRight, ArrowDownRight, DollarSign, FileText, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -521,38 +522,76 @@ export const PlannerChecklist: React.FC<Props> = ({
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             {filteredLogs.length > 0 ? (
-              filteredLogs.map(log => (
-                <div key={log.id} className="p-3 bg-slate-50 hover:bg-indigo-50/30 rounded-xl border border-slate-200/80 flex items-start justify-between gap-3 transition group">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 ${
-                      log.type === 'task' ? 'bg-indigo-600' : log.type === 'transaction' ? 'bg-emerald-600' : 'bg-slate-700'
-                    }`}>
-                      {log.type === 'task' ? '✓' : log.type === 'transaction' ? '$' : '📄'}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-slate-800 break-words leading-tight">{log.action.replace(/_/g, ' ')}</p>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                        By <span className="font-semibold text-slate-600">{log.username}</span> • <span className="capitalize">{log.type}</span>
-                        {log.details && <span className="text-slate-500"> — {log.details}</span>}
-                      </p>
+              filteredLogs.map(log => {
+                const text = ((log.action || '') + ' ' + (log.details || '')).toLowerCase();
+                const isIncome = log.type === 'transaction' && (text.includes('income') || text.includes('inflow') || text.includes('received') || text.includes('+') || text.includes('deposit'));
+                const isExpense = log.type === 'transaction' && !isIncome;
+
+                let iconNode = <CheckCircle2 size={12} className="text-white" />;
+                let iconClass = 'bg-violet-600';
+                let typeLabel = log.type;
+                let badgeClass = 'bg-violet-50 text-violet-700 border-violet-200';
+
+                if (log.type === 'transaction') {
+                  if (isIncome) {
+                    iconNode = <ArrowUpRight size={13} className="text-white stroke-[3]" />;
+                    iconClass = 'bg-emerald-600 shadow-emerald-200';
+                    typeLabel = 'Income (+)';
+                    badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  } else {
+                    iconNode = <ArrowDownRight size={13} className="text-white stroke-[3]" />;
+                    iconClass = 'bg-rose-600 shadow-rose-200';
+                    typeLabel = 'Expense (-)';
+                    badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+                  }
+                } else if (log.type === 'file') {
+                  iconNode = <FileText size={12} className="text-white" />;
+                  iconClass = 'bg-slate-800';
+                  typeLabel = 'Document';
+                  badgeClass = 'bg-slate-100 text-slate-800 border-slate-300';
+                } else if (log.type === 'team') {
+                  iconNode = <Users size={12} className="text-white" />;
+                  iconClass = 'bg-purple-600';
+                  typeLabel = 'Team';
+                  badgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
+                }
+
+                return (
+                  <div key={log.id} className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 flex items-start justify-between gap-3 transition group">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${iconClass}`}>
+                        {iconNode}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-800 break-words leading-tight">{log.action.replace(/_/g, ' ')}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border ${badgeClass}`}>
+                            {typeLabel}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            By <span className="font-semibold text-slate-600">{log.username}</span>
+                          </span>
+                          {log.details && <span className="text-[10px] text-slate-500 truncate max-w-xs"> — {log.details}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {onOpenLogsTab && canEdit && (
+                        <button
+                          onClick={onOpenLogsTab}
+                          title="Edit log in Logs tab"
+                          className="opacity-0 group-hover:opacity-100 text-[10px] font-bold text-indigo-600 hover:underline transition"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    {onOpenLogsTab && canEdit && (
-                      <button
-                        onClick={onOpenLogsTab}
-                        title="Edit log in Logs tab"
-                        className="opacity-0 group-hover:opacity-100 text-[10px] font-bold text-indigo-600 hover:underline transition"
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-wider">
                 No logs found for this filter

@@ -400,5 +400,6 @@ export const STORAGE_KEYS = {
   PASSWORD: 'ff_custom_password',
   DATA_OWNER: 'ff_data_owner_id',
   IDEAS: 'ff_ideas',
-  FORECAST_SETTINGS: 'ff_forecast_settings'
+  FORECAST_SETTINGS: 'ff_forecast_settings',
+  FINANCIAL_LOGS: 'ff_financial_logs'
 };

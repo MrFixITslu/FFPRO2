@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
-import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal } from '../types';
+import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog } from '../types';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -20,7 +20,23 @@ import {
   Target,
   BarChart3,
   Calendar,
-  Zap
+  Zap,
+  Activity,
+  Search,
+  Filter,
+  Download,
+  Copy,
+  Check,
+  FileText,
+  RefreshCw,
+  Trash2,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  ExternalLink,
+  Sliders,
+  ArrowLeftRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -44,6 +60,8 @@ interface Props {
   targetMargin: number;
   cashOpeningBalance: number;
   categoryBudgets: Record<string, number>;
+  financialLogs?: EventLog[];
+  currentUser?: string;
   onEdit: (t: Transaction) => void;
   onDelete: (id: string) => void;
   onPayRecurring: (rec: RecurringExpense, amount: number) => void;
@@ -53,12 +71,15 @@ interface Props {
   onWithdrawal: (institution: string, amount: number) => void;
   onAddIncome: (amount: number, description: string, notes: string) => void;
   onUpdateCategoryBudget?: (category: string, amount: number) => void;
+  onOpenTransactionForm?: () => void;
+  onDeleteFinancialLog?: (id: string) => void;
+  onNavigateToPlannerLogs?: () => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs
 }) => {
   const [trendTimeframe, setTrendTimeframe] = useState<Timeframe>('monthly');
   const [searchTerm, setSearchTerm] = useState("");
@@ -67,6 +88,12 @@ const Dashboard: React.FC<Props> = ({
   const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editBudgetVal, setEditBudgetVal] = useState<string>("");
+
+  // Log Viewer State
+  const [logSearch, setLogSearch] = useState("");
+  const [logFilter, setLogFilter] = useState<'all' | 'expense' | 'income' | 'recurring' | 'budget'>('all');
+  const [copiedLogs, setCopiedLogs] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const cycleStartDate = useMemo(() => {
     const now = new Date();
@@ -351,6 +378,120 @@ const Dashboard: React.FC<Props> = ({
       setEditingCategory(null);
       setEditBudgetVal("");
     }
+  };
+
+  const filteredFinancialLogs = useMemo(() => {
+    return financialLogs.filter(log => {
+      // Type matching
+      if (logFilter === 'expense') {
+        const text = (log.action + ' ' + (log.details || '')).toLowerCase();
+        if (!text.includes('expense') && !text.includes('paid') && !text.includes('outflow') && !text.includes('-')) return false;
+      } else if (logFilter === 'income') {
+        const text = (log.action + ' ' + (log.details || '')).toLowerCase();
+        if (!text.includes('income') && !text.includes('inflow') && !text.includes('received') && !text.includes('+')) return false;
+      } else if (logFilter === 'recurring') {
+        const text = (log.action + ' ' + (log.details || '')).toLowerCase();
+        if (!text.includes('recurring') && !text.includes('bill') && !text.includes('commitment')) return false;
+      } else if (logFilter === 'budget') {
+        const text = (log.action + ' ' + (log.details || '')).toLowerCase();
+        if (!text.includes('budget') && !text.includes('limit') && !text.includes('allocation')) return false;
+      }
+
+      // Search query matching
+      if (logSearch.trim()) {
+        const q = logSearch.toLowerCase();
+        const matchesAction = log.action.toLowerCase().includes(q);
+        const matchesDetails = (log.details || '').toLowerCase().includes(q);
+        const matchesUser = (log.username || '').toLowerCase().includes(q);
+        const matchesDate = log.timestamp.toLowerCase().includes(q);
+        if (!matchesAction && !matchesDetails && !matchesUser && !matchesDate) return false;
+      }
+
+      return true;
+    });
+  }, [financialLogs, logFilter, logSearch]);
+
+  const handleCopyLogsTrail = () => {
+    const text = filteredFinancialLogs.map(l => 
+      `[${new Date(l.timestamp).toLocaleString()}] [${l.username || 'System'}] ${l.action}${l.details ? ` | ${l.details}` : ''}`
+    ).join('\n');
+
+    navigator.clipboard.writeText(text);
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2000);
+  };
+
+  const handleExportLogsCSV = () => {
+    const headers = ['ID', 'Timestamp', 'User', 'Type', 'Action', 'Details'];
+    const rows = filteredFinancialLogs.map(l => [
+      `"${l.id}"`,
+      `"${new Date(l.timestamp).toISOString()}"`,
+      `"${l.username || 'System'}"`,
+      `"${l.type || 'transaction'}"`,
+      `"${(l.action || '').replace(/"/g, '""')}"`,
+      `"${(l.details || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `financial_transaction_logs_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getLogBadge = (action: string, details?: string) => {
+    const text = (action + ' ' + (details || '')).toLowerCase();
+    if (text.includes('budget') || text.includes('allocation') || text.includes('limit')) {
+      return {
+        label: 'Budget Limit',
+        badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        iconBg: 'bg-amber-500 text-white shadow-amber-200',
+        rowAccent: 'border-l-amber-500',
+        dotColor: 'bg-amber-500',
+        icon: <Sliders size={13} className="stroke-[2.5]" />
+      };
+    }
+    if (text.includes('transfer') || text.includes('reallocation')) {
+      return {
+        label: 'Transfer',
+        badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+        iconBg: 'bg-cyan-600 text-white shadow-cyan-200',
+        rowAccent: 'border-l-cyan-500',
+        dotColor: 'bg-cyan-500',
+        icon: <ArrowLeftRight size={13} className="stroke-[2.5]" />
+      };
+    }
+    if (text.includes('income') || text.includes('inflow') || text.includes('received') || text.includes('deposit') || text.includes('+') || text.includes('+$')) {
+      return {
+        label: 'Inflow (+)',
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        iconBg: 'bg-emerald-600 text-white shadow-emerald-200',
+        rowAccent: 'border-l-emerald-500',
+        dotColor: 'bg-emerald-500',
+        icon: <ArrowUpRight size={14} className="stroke-[3]" />
+      };
+    }
+    if (text.includes('recurring') || text.includes('bill') || text.includes('commitment') || text.includes('subscription')) {
+      return {
+        label: 'Recurring',
+        badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        iconBg: 'bg-indigo-600 text-white shadow-indigo-200',
+        rowAccent: 'border-l-indigo-500',
+        dotColor: 'bg-indigo-500',
+        icon: <RefreshCw size={13} className="stroke-[2.5]" />
+      };
+    }
+    return {
+      label: 'Expense (-)',
+      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+      iconBg: 'bg-rose-600 text-white shadow-rose-200',
+      rowAccent: 'border-l-rose-500',
+      dotColor: 'bg-rose-500',
+      icon: <ArrowDownRight size={14} className="stroke-[3]" />
+    };
   };
 
   return (
@@ -726,6 +867,266 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </section>
       </div>
+
+      {/* Financial Transaction Activity Log & Audit Trail Section */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                <Activity size={16} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-sm tracking-tight">Financial Transaction Activity Log</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                    {financialLogs.length} {financialLogs.length === 1 ? 'record' : 'records'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search Input */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-none">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search transaction logs..."
+                value={logSearch}
+                onChange={(e) => setLogSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              />
+              {logSearch && (
+                <button 
+                  onClick={() => setLogSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <i className="fas fa-times text-[10px]"></i>
+                </button>
+              )}
+            </div>
+
+            {/* Quick Add Transaction */}
+            {onOpenTransactionForm && (
+              <button
+                type="button"
+                onClick={onOpenTransactionForm}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
+              >
+                <Plus size={13} />
+                <span>Add Record</span>
+              </button>
+            )}
+
+            {/* Export CSV */}
+            <button
+              type="button"
+              onClick={handleExportLogsCSV}
+              disabled={filteredFinancialLogs.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition disabled:opacity-40"
+              title="Download CSV report"
+            >
+              <Download size={13} />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+
+            {/* Copy Log Trail */}
+            <button
+              type="button"
+              onClick={handleCopyLogsTrail}
+              disabled={filteredFinancialLogs.length === 0}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${copiedLogs ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'} disabled:opacity-40`}
+              title="Copy to clipboard"
+            >
+              {copiedLogs ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+              <span className="hidden sm:inline">{copiedLogs ? 'Copied' : 'Copy Trail'}</span>
+            </button>
+
+            {/* Full Audit in Planner Logs */}
+            {onNavigateToPlannerLogs && (
+              <button
+                type="button"
+                onClick={onNavigateToPlannerLogs}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                title="Open in comprehensive Project Logs Manager"
+              >
+                <ExternalLink size={13} />
+                <span className="hidden md:inline">Planner Audit</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="px-6 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+              <Filter size={11} /> Filter:
+            </span>
+            {[
+              { id: 'all', label: 'All Transactions' },
+              { id: 'expense', label: 'Expenses & Outflows' },
+              { id: 'income', label: 'Inflows & Deposits' },
+              { id: 'recurring', label: 'Recurring Commitments' },
+              { id: 'budget', label: 'Budget Allocations' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setLogFilter(tab.id as any)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap">
+            Showing {filteredFinancialLogs.length} of {financialLogs.length}
+          </span>
+        </div>
+
+        {/* Logs Table / List */}
+        <div className="overflow-x-auto">
+          {filteredFinancialLogs.length > 0 ? (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="py-3 px-4 w-12 text-center">Type</th>
+                  <th className="py-3 px-4 min-w-[220px]">Transaction & Action</th>
+                  <th className="py-3 px-4 min-w-[180px]">Context & Details</th>
+                  <th className="py-3 px-4 w-28">Author</th>
+                  <th className="py-3 px-4 w-36">Timestamp</th>
+                  <th className="py-3 px-4 w-16 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {filteredFinancialLogs.map((log) => {
+                  const badge = getLogBadge(log.action, log.details);
+                  const isExpanded = expandedLogId === log.id;
+                  const logDate = new Date(log.timestamp);
+                  const formattedDate = !isNaN(logDate.getTime())
+                    ? logDate.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : log.timestamp;
+                  const formattedTime = !isNaN(logDate.getTime())
+                    ? logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '';
+
+                  return (
+                    <React.Fragment key={log.id}>
+                      <tr 
+                        className={`hover:bg-slate-50/80 transition-colors group cursor-pointer border-l-4 ${badge.rowAccent} ${isExpanded ? 'bg-indigo-50/30' : ''}`}
+                        onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                      >
+                        <td className="py-3.5 px-4 text-center">
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg shadow-2xs ${badge.iconBg}`} title={badge.label}>
+                            {badge.icon}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 leading-snug">{log.action}</span>
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider inline-flex items-center gap-1 ${badge.badgeClass}`}>
+                              <span className={`w-1 h-1 rounded-full ${badge.dotColor}`}></span>
+                              {badge.label}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="text-slate-500 text-[11px] truncate max-w-xs font-medium">
+                            {log.details || '—'}
+                          </p>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 font-bold text-[9px] flex items-center justify-center uppercase">
+                              {(log.username || 'S').charAt(0)}
+                            </div>
+                            <span className="text-[11px] font-semibold text-slate-700">{log.username || 'System'}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="text-[11px] font-semibold text-slate-700">{formattedDate}</div>
+                          {formattedTime && (
+                            <div className="text-[9px] text-slate-400 font-medium">{formattedTime}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                              title="Toggle details"
+                            >
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                            {onDeleteFinancialLog && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteFinancialLog(log.id)}
+                                className="p-1 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition opacity-0 group-hover:opacity-100"
+                                title="Delete log entry"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-slate-50/90 border-b border-indigo-100">
+                          <td colSpan={6} className="p-4 px-6">
+                            <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-2 text-xs shadow-inner">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                <span className="font-bold text-slate-800">Log ID: <span className="font-mono text-slate-500 text-[10px]">{log.id}</span></span>
+                                <span className="text-[10px] text-slate-400">Timestamp: {new Date(log.timestamp).toISOString()}</span>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Action Statement</p>
+                                <p className="text-slate-800 font-medium mt-0.5">{log.action}</p>
+                              </div>
+                              {log.details && (
+                                <div>
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Extended Ledger Details</p>
+                                  <p className="text-slate-700 font-mono text-[11px] mt-0.5 bg-slate-50 p-2 rounded border border-slate-150 whitespace-pre-wrap">{log.details}</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="py-12 px-6 text-center space-y-2">
+              <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <Activity size={18} />
+              </div>
+              <p className="text-sm font-semibold text-slate-700">No Transaction Activity Logs Found</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                {logSearch || logFilter !== 'all' 
+                  ? 'No activity records match your current filter criteria. Try clearing search or selecting All.' 
+                  : 'Financial actions performed on the dashboard (adding transactions, clearing bills, recording income, updating budget limits) will automatically generate an immutable audit log here.'}
+              </p>
+              {onOpenTransactionForm && (
+                <button
+                  type="button"
+                  onClick={onOpenTransactionForm}
+                  className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm inline-flex items-center gap-1.5"
+                >
+                  <Plus size={13} />
+                  <span>Log First Transaction</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 };
