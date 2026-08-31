@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Mail, RefreshCw, ExternalLink, CheckCircle, AlertCircle, Sparkles, Inbox, ArrowRight, ShieldCheck, LogIn, Clock } from 'lucide-react';
+import { Mail, RefreshCw, CheckCircle, AlertCircle, Sparkles, Inbox, ArrowRight, ShieldCheck, LogIn, Clock } from 'lucide-react';
 import { GmailPlanningNotification } from '../types';
+import { googleSignIn, getAccessToken, initAuth } from '../lib/gmailAuth';
 
 interface Props {
   userEmail?: string;
@@ -9,7 +10,6 @@ interface Props {
 }
 
 const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
-const GMAIL_CLIENT_ID = '608846965040-59ekik0g93j2j6l48a28723q9d1oal2l.apps.googleusercontent.com';
 
 export const GmailPlanningNotifications: React.FC<Props> = ({
   userEmail,
@@ -27,20 +27,11 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<boolean>(false);
 
-  // Retrieve existing stored token from session/memory
-  const getStoredToken = useCallback(() => {
-    return sessionStorage.getItem('gmail_access_token');
-  }, []);
-
-  const saveToken = (token: string) => {
-    sessionStorage.setItem('gmail_access_token', token);
-  };
-
   // Fetch unread planning notifications
   const fetchNotifications = useCallback(async (isBackground = false) => {
     if (!isAuthorized) return;
 
-    const token = getStoredToken();
+    const token = await getAccessToken();
     if (!token) {
       setTokenRequired(true);
       setLoading(false);
@@ -60,7 +51,6 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
       if (res.status === 401 || res.status === 403) {
         const data = await res.json().catch(() => ({}));
         if (data.code === 'TOKEN_EXPIRED' || data.code === 'AUTH_REQUIRED' || data.code === 'ACCOUNT_MISMATCH') {
-          sessionStorage.removeItem('gmail_access_token');
           setTokenRequired(true);
           setError(data.error || 'Gmail session expired. Please reconnect.');
           setLoading(false);
@@ -85,60 +75,32 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [isAuthorized, getStoredToken]);
+  }, [isAuthorized]);
 
-  // Request Google Identity Token for Gmail
-  const handleConnectGmail = () => {
+  // Request Google Identity Token for Gmail via Firebase Auth
+  const handleConnectGmail = async () => {
     setConnecting(true);
     setError(null);
 
     try {
-      // Check if google GIS script is loaded
-      if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
-        const client = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: GMAIL_CLIENT_ID,
-          scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify',
-          callback: (response: any) => {
-            setConnecting(false);
-            if (response.error) {
-              console.error('Google OAuth error:', response);
-              setError('Failed to authorize Gmail access. Please try again.');
-              return;
-            }
-            if (response.access_token) {
-              saveToken(response.access_token);
-              setTokenRequired(false);
-              fetchNotifications();
-            }
-          },
-        });
-        client.requestAccessToken({ prompt: 'consent', hint: AUTHORIZED_EMAIL });
-      } else {
-        // Fallback: dynamically load GIS script
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.onload = () => {
-          setConnecting(false);
-          handleConnectGmail();
-        };
-        script.onerror = () => {
-          setConnecting(false);
-          setError('Could not load Google authentication service.');
-        };
-        document.body.appendChild(script);
+      const result = await googleSignIn();
+      if (result?.accessToken) {
+        setTokenRequired(false);
+        // Immediately fetch notifications with the fresh token
+        await fetchNotifications();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Connect Gmail failed:', err);
+      setError(err?.message || 'Failed to authorize Gmail access. Please try again.');
+    } finally {
       setConnecting(false);
-      setError('Unable to initiate Gmail connection.');
     }
   };
 
   // Mark as read in Gmail and remove from dashboard
   const handleMarkAsRead = async (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const token = getStoredToken();
+    const token = await getAccessToken();
     if (!token) return;
 
     setDismissingId(messageId);
@@ -177,16 +139,28 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
     }
   };
 
-  // Initial load and periodic synchronization (every 60 seconds)
+  // Auth listener & periodic synchronization (every 60 seconds)
   useEffect(() => {
     if (!isAuthorized) return;
-    fetchNotifications();
+
+    const unsubscribe = initAuth(
+      (_user, _token) => {
+        setTokenRequired(false);
+        fetchNotifications();
+      },
+      () => {
+        setTokenRequired(true);
+      }
+    );
 
     const interval = setInterval(() => {
       fetchNotifications(true);
     }, 60000);
 
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
   }, [isAuthorized, fetchNotifications]);
 
   // CRITICAL: Do NOT render anything for any other account
@@ -195,7 +169,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
   }
 
   return (
-    <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl border border-indigo-500/30 text-white shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-3 duration-500">
+    <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl border border-indigo-500/30 text-white shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-3 duration-500 mb-6">
       {/* Header */}
       <div className="p-5 sm:p-6 border-b border-indigo-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
