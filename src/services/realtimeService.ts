@@ -90,11 +90,23 @@ class RealtimeService {
         }
       });
 
-      this.eventSource.onerror = (err) => {
-        console.warn('[realtime] stream disconnected or interrupted, scheduling reconnect...');
+      this.eventSource.onerror = async () => {
         this.cleanup();
         this.setStatus('disconnected');
         if (!this.isExplicitlyClosed) {
+          // Check if session is still active before looping
+          if (this.reconnectAttempts >= 2) {
+            try {
+              const res = await fetch('/api/auth/me', { credentials: 'include' });
+              if (!res.ok) {
+                // Not authenticated on server, stop reconnect loop
+                this.isExplicitlyClosed = true;
+                return;
+              }
+            } catch {
+              // Network down, proceed with backoff
+            }
+          }
           this.scheduleReconnect();
         }
       };
@@ -107,7 +119,7 @@ class RealtimeService {
 
   private scheduleReconnect() {
     if (this.reconnectTimer || this.isExplicitlyClosed) return;
-    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+    const delay = Math.min(2000 * Math.pow(1.5, this.reconnectAttempts), 30000);
     this.reconnectAttempts++;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -180,11 +192,11 @@ class RealtimeService {
   private emit(event: string, payload: any) {
     const set = this.handlers.get(event);
     if (set) {
-      set.forEach(handler => {
+      set.forEach(h => {
         try {
-          handler(payload);
+          h(payload);
         } catch (err) {
-          console.error(`[realtime] Error in event handler for ${event}:`, err);
+          console.error(`[realtime] Error in handler for event "${event}":`, err);
         }
       });
     }
