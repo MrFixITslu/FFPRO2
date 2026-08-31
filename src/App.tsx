@@ -105,6 +105,8 @@ const App: React.FC = () => {
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
+  const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(null);
+  const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
     return match ? match[1] : null;
@@ -974,6 +976,7 @@ const App: React.FC = () => {
                   categoryBudgets={categoryBudgets}
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'nsv'}
+                  userEmail={authUser?.email}
                   onEdit={() => {}}
                   onDelete={onDeleteTransaction}
                   onPayRecurring={onPayRecurring}
@@ -986,6 +989,20 @@ const App: React.FC = () => {
                   onOpenTransactionForm={() => setShowForm(true)}
                   onDeleteFinancialLog={(id) => setFinancialLogs(prev => prev.filter(l => l.id !== id))}
                   onNavigateToPlannerLogs={() => setActiveTab('events')}
+                  onNavigateToTask={(taskId, projectId) => {
+                    if (projectId) {
+                      setNavSelectedEventId(projectId);
+                    } else {
+                      // Find if a local event contains this taskId
+                      const found = events.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
+                      if (found) {
+                        setNavSelectedEventId(found.id);
+                      }
+                    }
+                    setNavSelectedTaskId(taskId);
+                    setActiveTab('events');
+                  }}
+                  onNavigateToPlanner={() => setActiveTab('events')}
                 />
               </div>
             )}
@@ -1020,6 +1037,8 @@ const App: React.FC = () => {
                 currentUser={currentUsername}
                 currentUserId={authUser?.id}
                 isAdmin={isAdmin}
+                initialSelectedEventId={navSelectedEventId}
+                initialSelectedTaskId={navSelectedTaskId}
                 onAddEvent={(e) => {
                   const newId = e.id || generateId();
                   setEvents(prev => [{

@@ -72,10 +72,12 @@ interface Props {
   onMountVault?: () => void;
   ideas: Idea[];
   onUpdateIdeas: (ideas: Idea[]) => void;
+  initialSelectedEventId?: string | null;
+  initialSelectedTaskId?: string | null;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas }) => {
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas, initialSelectedEventId, initialSelectedTaskId }) => {
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -113,6 +115,15 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   }, []);
 
   useEffect(() => { refreshSharedProjects(); }, [refreshSharedProjects]);
+
+  useEffect(() => {
+    if (initialSelectedEventId) {
+      setSelectedEventId(initialSelectedEventId);
+      if (initialSelectedTaskId) {
+        setActiveTab('tasks');
+      }
+    }
+  }, [initialSelectedEventId, initialSelectedTaskId]);
   
   const [selectedPlanType, setSelectedPlanType] = useState<'event' | 'trip' | 'startup'>('event');
   const [destination, setDestination] = useState('');

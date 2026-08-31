@@ -13,6 +13,7 @@ import aiRoutes from './server/routes/ai.js';
 import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
 import realtimeRoutes from './server/routes/realtime.js';
+import gmailRoutes from './server/routes/gmail.js';
 import { createServer as createViteServer } from 'vite';
 
 import connectPgSimple from 'connect-pg-simple';
@@ -166,6 +167,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
 app.use('/api/realtime', realtimeRoutes);
+app.use('/api/gmail', gmailRoutes);
 
 // Vite Integration
 async function bootstrap() {

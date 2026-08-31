@@ -39,6 +39,7 @@ import {
   ArrowLeftRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { GmailPlanningNotifications } from './GmailPlanningNotifications';
 
 interface InstitutionalBalance {
   balance: number;
@@ -62,6 +63,7 @@ interface Props {
   categoryBudgets: Record<string, number>;
   financialLogs?: EventLog[];
   currentUser?: string;
+  userEmail?: string;
   onEdit: (t: Transaction) => void;
   onDelete: (id: string) => void;
   onPayRecurring: (rec: RecurringExpense, amount: number) => void;
@@ -74,12 +76,14 @@ interface Props {
   onOpenTransactionForm?: () => void;
   onDeleteFinancialLog?: (id: string) => void;
   onNavigateToPlannerLogs?: () => void;
+  onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
+  onNavigateToPlanner?: () => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner
 }) => {
   const [trendTimeframe, setTrendTimeframe] = useState<Timeframe>('monthly');
   const [searchTerm, setSearchTerm] = useState("");
@@ -500,6 +504,13 @@ const Dashboard: React.FC<Props> = ({
       <div className="hidden print:block border-b-2 border-slate-900 pb-6 mb-8">
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
+
+      {/* Gmail Planning Notifications (Strictly restricted to vision79slu@gmail.com) */}
+      <GmailPlanningNotifications
+        userEmail={userEmail}
+        onNavigateToTask={onNavigateToTask}
+        onNavigateToPlanner={onNavigateToPlanner}
+      />
 
       {criticalNotifications.length > 0 && (
         <section className="animate-in slide-in-from-top-4 duration-500">
