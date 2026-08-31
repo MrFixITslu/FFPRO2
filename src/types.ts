@@ -403,3 +403,23 @@ export const STORAGE_KEYS = {
   FORECAST_SETTINGS: 'ff_forecast_settings',
   FINANCIAL_LOGS: 'ff_financial_logs'
 };
+
+export interface GmailPlanningNotification {
+  id: string;
+  threadId?: string;
+  from: string;
+  fromRaw?: string;
+  to?: string;
+  subject: string;
+  snippet?: string;
+  date: string;
+  isUnread: boolean;
+  taskReference?: {
+    taskId: string;
+    taskTitle: string;
+    projectName?: string;
+    projectId?: string | null;
+    source?: string;
+  } | null;
+}
+

@@ -9,6 +9,7 @@ import EventPlanner from './components/EventPlanner';
 import InviteAcceptScreen from './components/InviteAcceptScreen';
 import Projections from './components/Projections';
 import Calendar from './components/Calendar';
+import { syncBankData } from './bankApiService';
 import { 
   Transaction, 
   RecurringExpense, 
@@ -105,6 +106,8 @@ const App: React.FC = () => {
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
+  const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(null);
+  const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
     return match ? match[1] : null;
@@ -241,6 +244,7 @@ const App: React.FC = () => {
   const cloudVersionRef = useRef(0);
   const isApplyingRemoteUpdateRef = useRef(false);
   const isSyncingInFlightRef = useRef(false);
+  const pushPendingRef = useRef(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudLastSyncTime, setCloudLastSyncTime] = useState<string | null>(null);
@@ -470,7 +474,17 @@ const App: React.FC = () => {
 
   // --- Per-account cloud sync: debounced autosave with auto-healing ---
   const pushToCloud = useCallback(async (force: boolean = false) => {
-    if (!cloudLoaded || isSyncingInFlightRef.current) return;
+    if (!cloudLoaded) return;
+    if (isSyncingInFlightRef.current) {
+      // A push is already in flight. Rather than silently dropping this edit,
+      // flag it so the in-flight push retries once with the freshest state
+      // right after it finishes — otherwise an edit that lands mid-request
+      // (e.g. a second quick change while a slow save is still resolving)
+      // would never reach the cloud until some later, unrelated edit happens
+      // to fire the debounce again.
+      pushPendingRef.current = true;
+      return;
+    }
     isSyncingInFlightRef.current = true;
     setCloudSyncing(true);
     try {
@@ -521,6 +535,10 @@ const App: React.FC = () => {
     } finally {
       isSyncingInFlightRef.current = false;
       setCloudSyncing(false);
+      if (pushPendingRef.current) {
+        pushPendingRef.current = false;
+        pushToCloud();
+      }
     }
   }, [cloudLoaded, getFullState, applyRemoteState, updateCloudVersion, mergeAppStates]);
 
@@ -741,6 +759,53 @@ const App: React.FC = () => {
     );
   };
 
+  // Pulls new transactions for a linked bank/investment connection. This was
+  // previously unreachable from the UI — syncBankData() existed and worked
+  // (against the simulated /api/ai/bank-sync endpoint) but nothing ever
+  // called it, so a linked account never actually synced after the initial
+  // link. Wired up from a "Sync Now" action in Settings.
+  const handleSyncBank = useCallback(async (institution: string) => {
+    const conn = bankConnections.find(c => c.institution === institution);
+    if (!conn || conn.status === 'syncing') return;
+
+    setBankConnections(prev => prev.map(c => c.institution === institution ? { ...c, status: 'syncing' } : c));
+
+    try {
+      const results = await syncBankData(institution, conn.lastSynced);
+      if (results.length > 0) {
+        const existingKeys = new Set(
+          transactions
+            .filter(t => t.institution === institution)
+            .map(t => `${t.date}|${t.description}|${t.amount}`)
+        );
+        const newTransactions: Transaction[] = results
+          .filter((r: any) => r && typeof r.amount === 'number' && r.description)
+          .filter((r: any) => !existingKeys.has(`${r.date}|${r.description}|${r.amount}`))
+          .map((r: any) => ({
+            id: generateId(),
+            date: r.date || new Date().toISOString().split('T')[0],
+            amount: r.amount,
+            category: r.category || 'Other',
+            description: r.description,
+            type: r.type === 'income' ? 'income' : 'expense',
+            institution,
+          }));
+
+        if (newTransactions.length > 0) {
+          setTransactions(prev => [...newTransactions, ...prev]);
+          logFinancialActivity(
+            `Synced ${newTransactions.length} transaction${newTransactions.length === 1 ? '' : 's'} from ${institution}`,
+            `Bank Sync`
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Bank sync failed:', err);
+    } finally {
+      setBankConnections(prev => prev.map(c => c.institution === institution ? { ...c, status: 'linked', lastSynced: new Date().toISOString() } : c));
+    }
+  }, [bankConnections, transactions, logFinancialActivity]);
+
   const onUpdateRecurring = (item: RecurringExpense) => {
     setRecurringExpenses(prev => prev.map(e => e.id === item.id ? item : e));
   };
@@ -815,7 +880,13 @@ const App: React.FC = () => {
     
     const flow = transactions.reduce((acc, t) => {
       const isBank = t.institution && bankConnections.some(bc => bc.institution === t.institution && bc.institutionType === 'bank');
-      const isToBank = t.destinationInstitution && bankConnections.some(bc => bc.institution === t.institution && bc.institutionType === 'bank');
+      // Bug: this used to compare bc.institution to t.institution (the SOURCE
+      // institution) instead of t.destinationInstitution, so a transfer whose
+      // destination was a bank never counted toward that bank's balance (and
+      // a transfer merely originating from a bank was miscounted as if it
+      // were arriving at one), skewing the Total Liquid Funds figure whenever
+      // a transfer/withdrawal was involved.
+      const isToBank = t.destinationInstitution && bankConnections.some(bc => bc.institution === t.destinationInstitution && bc.institutionType === 'bank');
       
       if (isBank) {
         if (t.type === 'income') return acc + t.amount;
@@ -864,62 +935,62 @@ const App: React.FC = () => {
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-sm">
-            <div className="flex items-center gap-3 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
-              <div className="flex items-center gap-3 sm:gap-8 min-w-0">
-                {/* Logo & Brand from Design HTML */}
-                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                  <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center shrink-0">
-                    <span className="text-white font-bold text-xs">FF</span>
+          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
+              <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+                {/* Logo & Brand */}
+                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="text-white font-black text-xs">FF</span>
                   </div>
-                  <h1 className="text-sm font-semibold tracking-tight uppercase text-indigo-900 hidden sm:block whitespace-nowrap">
-                    FFPRO <span className="font-normal text-slate-400">V2.0</span>
+                  <h1 className="text-xs sm:text-sm font-bold tracking-tight uppercase text-indigo-950 hidden sm:block whitespace-nowrap">
+                    FFPRO <span className="font-medium text-slate-400 text-[11px]">V2.0</span>
                   </h1>
                 </div>
 
-                {/* Minimalist Tabs */}
-                <div className="flex items-center gap-0.5 sm:gap-2 overflow-x-auto no-scrollbar">
+                {/* Main Menu Tabs */}
+                <nav className="flex items-center gap-1 sm:gap-2 shrink-0">
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
-                      className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'dashboard' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                     >
-                      <LayoutDashboard size={14} />
-                      <span className="hidden md:inline">Dashboard</span>
+                      <LayoutDashboard size={15} />
+                      <span>Dashboard</span>
                     </button>
                   )}
                   <button 
                     onClick={() => setActiveTab('calendar')} 
-                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'calendar' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'calendar' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                   >
-                    <CalendarIcon size={14} />
-                    <span className="hidden md:inline">Calendar</span>
+                    <CalendarIcon size={15} />
+                    <span>Calendar</span>
                   </button>
                   <button 
                     onClick={() => setActiveTab('events')} 
-                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'events' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'events' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                   >
-                    <Zap size={14} />
+                    <Zap size={15} />
                     <span>Planner</span>
                   </button>
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('projections')} 
-                      className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'projections' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'projections' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                     >
-                      <TrendingUp size={14} />
-                      <span className="hidden md:inline">Forecast</span>
+                      <TrendingUp size={15} />
+                      <span>Forecast</span>
                     </button>
                   )}
-                </div>
+                </nav>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 {/* PWA Install Button */}
                 {deferredPrompt && (
                   <button 
                     onClick={handleInstall}
-                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
+                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
                   >
                     <Download size={12} />
                     <span>Install</span>
@@ -928,12 +999,12 @@ const App: React.FC = () => {
 
                 <button 
                   onClick={() => setShowSettings(true)} 
-                  className="w-8 h-8 flex items-center justify-center rounded bg-slate-50 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all border border-slate-150"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all border border-slate-200 shadow-2xs"
                   title="System Settings"
                 >
                   <SettingsIcon size={16} />
                 </button>
-                <div className="w-8 h-8 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs uppercase shadow-inner">
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60">
                   {currentUsername.charAt(0)}
                 </div>
               </div>
@@ -974,6 +1045,7 @@ const App: React.FC = () => {
                   categoryBudgets={categoryBudgets}
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'nsv'}
+                  userEmail={authUser?.email}
                   onEdit={() => {}}
                   onDelete={onDeleteTransaction}
                   onPayRecurring={onPayRecurring}
@@ -986,6 +1058,20 @@ const App: React.FC = () => {
                   onOpenTransactionForm={() => setShowForm(true)}
                   onDeleteFinancialLog={(id) => setFinancialLogs(prev => prev.filter(l => l.id !== id))}
                   onNavigateToPlannerLogs={() => setActiveTab('events')}
+                  onNavigateToTask={(taskId, projectId) => {
+                    if (projectId) {
+                      setNavSelectedEventId(projectId);
+                    } else {
+                      // Find if a local event contains this taskId
+                      const found = events.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
+                      if (found) {
+                        setNavSelectedEventId(found.id);
+                      }
+                    }
+                    setNavSelectedTaskId(taskId);
+                    setActiveTab('events');
+                  }}
+                  onNavigateToPlanner={() => setActiveTab('events')}
                 />
               </div>
             )}
@@ -1020,6 +1106,8 @@ const App: React.FC = () => {
                 currentUser={currentUsername}
                 currentUserId={authUser?.id}
                 isAdmin={isAdmin}
+                initialSelectedEventId={navSelectedEventId}
+                initialSelectedTaskId={navSelectedTaskId}
                 onAddEvent={(e) => {
                   const newId = e.id || generateId();
                   setEvents(prev => [{
@@ -1109,6 +1197,7 @@ const App: React.FC = () => {
               isAdmin={isAdmin}
               onOpenBankSync={() => setShowBankSync(true)}
               onUnlinkBank={(inst) => setBankConnections(prev => prev.filter(c => c.institution !== inst))}
+              onSyncBank={handleSyncBank}
               cloudSyncing={cloudSyncing}
               cloudLoaded={cloudLoaded}
               cloudError={cloudError}

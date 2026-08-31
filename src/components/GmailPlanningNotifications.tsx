@@ -1,0 +1,481 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Mail, 
+  RefreshCw, 
+  CheckCircle, 
+  AlertCircle, 
+  Sparkles, 
+  Inbox, 
+  ArrowRight, 
+  ShieldCheck, 
+  LogIn, 
+  Clock, 
+  Globe, 
+  Key, 
+  Copy, 
+  Check, 
+  HelpCircle 
+} from 'lucide-react';
+import { GmailPlanningNotification } from '../types';
+import { googleSignIn, getAccessToken, initAuth, setManualAccessToken } from '../lib/gmailAuth';
+
+interface Props {
+  userEmail?: string;
+  onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
+  onNavigateToPlanner?: () => void;
+}
+
+const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
+
+export const GmailPlanningNotifications: React.FC<Props> = ({
+  userEmail,
+  onNavigateToTask,
+  onNavigateToPlanner,
+}) => {
+  // CRITICAL: Double check client-side (server also strictly checks)
+  const isAuthorized = (userEmail || '').trim().toLowerCase() === AUTHORIZED_EMAIL.toLowerCase();
+
+  const [notifications, setNotifications] = useState<GmailPlanningNotification[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tokenRequired, setTokenRequired] = useState<boolean>(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<boolean>(false);
+  const [isDomainError, setIsDomainError] = useState<boolean>(false);
+  const [showManualInput, setShowManualInput] = useState<boolean>(false);
+  const [manualToken, setManualToken] = useState<string>('');
+  const [copiedDomain, setCopiedDomain] = useState<boolean>(false);
+
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  // Fetch unread planning notifications
+  const fetchNotifications = useCallback(async (isBackground = false) => {
+    if (!isAuthorized) return;
+
+    const token = await getAccessToken();
+    if (!token) {
+      setTokenRequired(true);
+      setLoading(false);
+      return;
+    }
+
+    if (!isBackground) setLoading(true);
+    setError(null);
+    setIsDomainError(false);
+
+    try {
+      const res = await fetch('/api/gmail/notifications', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        if (data.code === 'TOKEN_EXPIRED' || data.code === 'AUTH_REQUIRED' || data.code === 'ACCOUNT_MISMATCH') {
+          setTokenRequired(true);
+          setError(data.error || 'Gmail session expired. Please reconnect.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Planning notifications are temporarily unavailable.');
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+      setNotifications(data.notifications || []);
+      setTokenRequired(false);
+      setLastSynced(new Date());
+    } catch (err: any) {
+      console.warn('[Gmail Notifications] Fetch error:', err);
+      setError('Planning notifications are temporarily unavailable.');
+    } finally {
+      if (!isBackground) setLoading(false);
+    }
+  }, [isAuthorized]);
+
+  // Request Google Identity Token for Gmail via Firebase Auth
+  const handleConnectGmail = async () => {
+    setConnecting(true);
+    setError(null);
+    setIsDomainError(false);
+
+    try {
+      const result = await googleSignIn();
+      if (result?.accessToken) {
+        setTokenRequired(false);
+        setIsDomainError(false);
+        setShowManualInput(false);
+        await fetchNotifications();
+      }
+    } catch (err: any) {
+      console.error('Connect Gmail failed:', err);
+      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
+        setIsDomainError(true);
+      }
+      setError(err?.message || 'Failed to authorize Gmail access. Please try again.');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleApplyManualToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualToken.trim()) return;
+
+    setManualAccessToken(manualToken.trim());
+    setTokenRequired(false);
+    setShowManualInput(false);
+    setError(null);
+    setIsDomainError(false);
+    await fetchNotifications();
+  };
+
+  const copyDomainToClipboard = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(currentHost);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2000);
+    }
+  };
+
+  // Mark as read in Gmail and remove from dashboard
+  const handleMarkAsRead = async (messageId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const token = await getAccessToken();
+    if (!token) return;
+
+    setDismissingId(messageId);
+    try {
+      const res = await fetch('/api/gmail/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ messageId }),
+      });
+
+      if (res.ok) {
+        // Optimistically remove from list
+        setNotifications(prev => prev.filter(n => n.id !== messageId));
+      }
+    } catch (err) {
+      console.warn('Failed to mark email read:', err);
+    } finally {
+      setDismissingId(null);
+    }
+  };
+
+  // Click on "View Task"
+  const handleViewTask = (notif: GmailPlanningNotification, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+
+    // Mark as read so it clears upon navigation
+    handleMarkAsRead(notif.id);
+
+    if (notif.taskReference?.taskId && onNavigateToTask) {
+      onNavigateToTask(notif.taskReference.taskId, notif.taskReference.projectId);
+    } else if (onNavigateToPlanner) {
+      onNavigateToPlanner();
+    }
+  };
+
+  // Auth listener & periodic synchronization (every 60 seconds)
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    const unsubscribe = initAuth(
+      (_user, _token) => {
+        setTokenRequired(false);
+        fetchNotifications();
+      },
+      () => {
+        // Only mark token required if we don't already have one in storage
+        getAccessToken().then(token => {
+          if (!token) setTokenRequired(true);
+          else fetchNotifications();
+        });
+      }
+    );
+
+    const interval = setInterval(() => {
+      fetchNotifications(true);
+    }, 60000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [isAuthorized, fetchNotifications]);
+
+  // CRITICAL: Do NOT render anything for any other account
+  if (!isAuthorized) {
+    return null;
+  }
+
+  return (
+    <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl border border-indigo-500/30 text-white shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-3 duration-500 mb-6">
+      {/* Header */}
+      <div className="p-5 sm:p-6 border-b border-indigo-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0 shadow-inner">
+            <Mail size={20} className="stroke-[2.5]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-bold text-white text-base tracking-tight">Planning Notifications</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 flex items-center gap-1">
+                <ShieldCheck size={11} className="text-emerald-400" />
+                vision79slu@gmail.com
+              </span>
+              {notifications.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-xs">
+                  {notifications.length} Unread
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-indigo-200/70 mt-0.5">
+              Live unread email alerts and updates synchronized with your planning tasks
+            </p>
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          {!tokenRequired && (
+            <button
+              onClick={() => fetchNotifications(false)}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-800/60 hover:bg-indigo-700/80 text-indigo-100 rounded-lg text-xs font-semibold border border-indigo-500/30 transition shadow-sm disabled:opacity-50"
+              title="Synchronize unread emails"
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              <span className="hidden md:inline">Sync</span>
+            </button>
+          )}
+
+          {lastSynced && (
+            <span className="text-[10px] text-indigo-300/60 font-mono hidden lg:inline">
+              Synced {lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Body Content */}
+      <div className="p-5 sm:p-6">
+        {/* Token Required / Connect State */}
+        {tokenRequired && (
+          <div className="p-6 bg-indigo-900/40 rounded-xl border border-indigo-400/20 text-center flex flex-col items-center justify-center max-w-lg mx-auto">
+            <div className="w-12 h-12 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center mb-3">
+              <Mail size={24} />
+            </div>
+            <h4 className="text-sm font-bold text-white mb-1">Connect Gmail Planning Notifications</h4>
+            <p className="text-xs text-indigo-200/70 mb-4 max-w-sm">
+              Authorize read access for <strong>{AUTHORIZED_EMAIL}</strong> to surface planning emails and task updates on your dashboard.
+            </p>
+            
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onClick={handleConnectGmail}
+                disabled={connecting}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50"
+              >
+                {connecting ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
+                <span>{connecting ? 'Connecting Google...' : 'Connect with Google'}</span>
+              </button>
+
+              <button
+                onClick={() => setShowManualInput(!showManualInput)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-200 rounded-xl text-xs font-semibold border border-indigo-400/20 transition"
+              >
+                <Key size={13} />
+                <span>Enter Token</span>
+              </button>
+            </div>
+
+            {/* Manual Token Drawer */}
+            {showManualInput && (
+              <form onSubmit={handleApplyManualToken} className="mt-4 w-full max-w-sm text-left animate-in fade-in duration-300">
+                <label className="block text-[11px] font-semibold text-indigo-200 mb-1">
+                  Google OAuth Access Token:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={manualToken}
+                    onChange={(e) => setManualToken(e.target.value)}
+                    placeholder="ya29.a0AfH..."
+                    className="flex-1 px-3 py-1.5 bg-slate-950/80 border border-indigo-500/30 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-400 font-mono"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-xs"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* Domain Authorization Helper Warning */}
+        {isDomainError && (
+          <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs mb-4 animate-in fade-in duration-300">
+            <div className="flex items-start gap-2.5">
+              <Globe size={18} className="text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h5 className="font-bold text-white text-xs mb-1">Domain Authorization Required in Firebase</h5>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed mb-2">
+                  Your custom domain <strong>{currentHost}</strong> must be added to your Firebase project to permit Google OAuth popups.
+                </p>
+                <div className="bg-slate-950/60 p-2.5 rounded-lg border border-amber-500/20 text-[11px] font-mono flex items-center justify-between gap-2 mb-2">
+                  <span className="text-amber-300 select-all">{currentHost}</span>
+                  <button
+                    onClick={copyDomainToClipboard}
+                    className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded text-[10px] font-sans font-bold transition"
+                  >
+                    {copiedDomain ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                    <span>{copiedDomain ? 'Copied' : 'Copy Domain'}</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-300/80">
+                  <HelpCircle size={13} />
+                  <span>Firebase Console → Authentication → Settings → Authorized domains tab → Add domain.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {!tokenRequired && loading && notifications.length === 0 && (
+          <div className="py-8 flex flex-col items-center justify-center text-center">
+            <RefreshCw size={24} className="animate-spin text-indigo-400 mb-2" />
+            <p className="text-xs text-indigo-200 font-medium">Loading planning notifications...</p>
+          </div>
+        )}
+
+        {/* Generic Error State */}
+        {!tokenRequired && error && !isDomainError && (
+          <div className="p-4 bg-rose-950/40 border border-rose-500/30 rounded-xl text-rose-200 text-xs flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={16} className="text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => handleConnectGmail()}
+              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-100 rounded-md font-bold text-[10px] uppercase tracking-wider border border-rose-400/30"
+            >
+              Reconnect
+            </button>
+          </div>
+        )}
+
+        {/* Empty Notifications State */}
+        {!tokenRequired && !loading && notifications.length === 0 && !error && (
+          <div className="py-8 text-center flex flex-col items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-indigo-800/30 text-indigo-300 flex items-center justify-center mb-2">
+              <Inbox size={20} />
+            </div>
+            <p className="text-xs font-bold text-indigo-100">No new planning notifications</p>
+            <p className="text-[11px] text-indigo-300/60 mt-0.5">
+              All planning-related emails for {AUTHORIZED_EMAIL} have been reviewed.
+            </p>
+          </div>
+        )}
+
+        {/* Notifications List */}
+        {!tokenRequired && notifications.length > 0 && (
+          <div className="space-y-3">
+            {notifications.map((notif) => {
+              const dateStr = new Date(notif.date).toLocaleDateString([], {
+                month: 'short',
+                day: 'numeric',
+              });
+              const timeStr = new Date(notif.date).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              const isDismissing = dismissingId === notif.id;
+
+              return (
+                <div
+                  key={notif.id}
+                  className={`p-4 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-indigo-500/20 hover:border-indigo-400/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm group ${
+                    isDismissing ? 'opacity-40 pointer-events-none' : ''
+                  }`}
+                >
+                  {/* Left: Email Details & Task Reference */}
+                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 ring-4 ring-indigo-400/20 shrink-0 mt-1.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-white tracking-tight break-words">
+                          {notif.subject}
+                        </h4>
+                        {notif.taskReference && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1">
+                            <Sparkles size={10} className="text-indigo-300" />
+                            {notif.taskReference.projectName || 'Task'}: {notif.taskReference.taskTitle}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs text-indigo-200/70 mt-1 flex-wrap">
+                        <span>
+                          From: <strong className="text-indigo-100">{notif.from}</strong>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1 font-mono text-[11px]">
+                          <Clock size={11} className="text-indigo-300/60" />
+                          {dateStr} — {timeStr}
+                        </span>
+                      </div>
+
+                      {notif.snippet && (
+                        <p className="text-[11px] text-indigo-200/60 mt-1.5 line-clamp-1">
+                          {notif.snippet}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                    <button
+                      onClick={(e) => handleMarkAsRead(notif.id, e)}
+                      disabled={isDismissing}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-200 hover:text-white rounded-lg text-xs font-semibold border border-indigo-500/20 transition"
+                      title="Mark as read in Gmail (removes notification)"
+                    >
+                      <CheckCircle size={13} className="inline mr-1 text-emerald-400" />
+                      Dismiss
+                    </button>
+
+                    <button
+                      onClick={(e) => handleViewTask(notif, e)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                    >
+                      <span>View Task</span>
+                      <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};

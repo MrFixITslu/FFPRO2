@@ -72,10 +72,12 @@ interface Props {
   onMountVault?: () => void;
   ideas: Idea[];
   onUpdateIdeas: (ideas: Idea[]) => void;
+  initialSelectedEventId?: string | null;
+  initialSelectedTaskId?: string | null;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas }) => {
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas, initialSelectedEventId, initialSelectedTaskId }) => {
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -89,13 +91,29 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [showShareModal, setShowShareModal] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
-  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Debounced save queue for shared projects, keyed by project id. Tracks the
+  // latest pending edit plus whether a save is currently in flight, so bursts
+  // of rapid edits (e.g. deploying several milestone tasks back to back)
+  // coalesce into sequential saves instead of racing each other.
+  const pendingSaves = useRef<Record<string, {
+    latestEvent: BudgetEvent;
+    timer: ReturnType<typeof setTimeout> | null;
+    inFlight: boolean;
+    dirty: boolean;
+  }>>({});
+  // Last version number actually confirmed by the server for each shared
+  // project (from initial load, a realtime push, or a successful save).
+  // This — not an optimistically-incremented local counter — is what gets
+  // sent as expectedVersion, so it can never drift ahead of what the server
+  // really has.
+  const serverVersions = useRef<Record<string, number>>({});
 
   const allEvents = useMemo(() => [...(events || []), ...sharedEvents], [events, sharedEvents]);
 
   const refreshSharedProjects = useCallback(async () => {
     try {
       const list = await projectsService.list();
+      list.forEach(p => { serverVersions.current[p.id] = p.version; });
       setSharedEvents(list.map(p => ({
         ...(p.data as BudgetEvent),
         id: p.id,
@@ -113,6 +131,15 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   }, []);
 
   useEffect(() => { refreshSharedProjects(); }, [refreshSharedProjects]);
+
+  useEffect(() => {
+    if (initialSelectedEventId) {
+      setSelectedEventId(initialSelectedEventId);
+      if (initialSelectedTaskId) {
+        setActiveTab('tasks');
+      }
+    }
+  }, [initialSelectedEventId, initialSelectedTaskId]);
   
   const [selectedPlanType, setSelectedPlanType] = useState<'event' | 'trip' | 'startup'>('event');
   const [destination, setDestination] = useState('');
@@ -228,6 +255,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
           serverVersion: payload.version || payload.project.version,
           lastUpdated: payload.updatedAt || payload.project.updated_at || new Date().toISOString()
         };
+        serverVersions.current[payload.projectId] = updatedProj.serverVersion as number;
 
         setSharedEvents(prev => {
           const idx = prev.findIndex(p => p.id === payload.projectId);
@@ -948,50 +976,89 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     setIsEditingDoc(true);
   };
 
+  // Sends whatever is queued for `pid` once it's safe to do so. If a save for
+  // this project is already in flight, it just flags the queue as dirty and
+  // returns — the in-flight save's `finally` block will call this again with
+  // the freshest data once it lands, so edits made mid-request are never
+  // dropped and never race the request ahead of them.
+  const flushSave = useCallback(async (pid: string) => {
+    const entry = pendingSaves.current[pid];
+    if (!entry) return;
+    entry.timer = null;
+
+    if (entry.inFlight) {
+      entry.dirty = true;
+      return;
+    }
+    entry.inFlight = true;
+
+    const eventToSave = entry.latestEvent;
+    const expectedVersion = serverVersions.current[pid] ?? eventToSave.serverVersion ?? 0;
+    const { id, sharedProjectId, isShared, role, serverVersion, ...rest } = eventToSave;
+
+    try {
+      const result = await projectsService.save(pid, rest, expectedVersion);
+      serverVersions.current[pid] = result.version;
+      setSharedEvents(prev => prev.map(e => (e.id === eventToSave.id ? { ...e, serverVersion: result.version, lastUpdated: result.updatedAt } : e)));
+      setSaveError(null);
+    } catch (err: any) {
+      if (err instanceof ProjectSyncConflictError) {
+        try {
+          const latestList = await projectsService.list();
+          const latestProj = latestList.find(p => p.id === pid);
+          if (latestProj) {
+            const mergedData = { ...(latestProj.data as BudgetEvent), tasks: eventToSave.tasks, lastUpdated: new Date().toISOString() };
+            const retryResult = await projectsService.save(pid, mergedData, latestProj.version);
+            serverVersions.current[pid] = retryResult.version;
+            setSharedEvents(prev => prev.map(e => (e.id === eventToSave.id ? { ...mergedData, id: e.id, sharedProjectId: e.sharedProjectId, isShared: true, role: e.role, serverVersion: retryResult.version, lastUpdated: retryResult.updatedAt } : e)));
+            setSaveError(null);
+          } else {
+            setSaveError('This plan was updated elsewhere — syncing latest version.');
+            refreshSharedProjects();
+          }
+        } catch (retryErr) {
+          setSaveError('This plan was updated elsewhere — syncing latest version.');
+          refreshSharedProjects();
+        }
+      } else {
+        setSaveError(err.message || 'Failed to save your changes. They will retry shortly.');
+      }
+    } finally {
+      entry.inFlight = false;
+      if (entry.dirty) {
+        entry.dirty = false;
+        flushSave(pid);
+      } else {
+        delete pendingSaves.current[pid];
+      }
+    }
+  }, [refreshSharedProjects]);
+
   const updateEvent = useCallback((updatedEvent: BudgetEvent) => {
     selectedEventRef.current = updatedEvent;
     if (updatedEvent.isShared && updatedEvent.sharedProjectId) {
       const pid = updatedEvent.sharedProjectId;
-      const currentVersion = updatedEvent.serverVersion ?? 0;
-      const nextVersion = currentVersion + 1;
-      const eventWithNewVersion = { ...updatedEvent, serverVersion: nextVersion };
 
-      setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? eventWithNewVersion : e)));
+      // Reflect the edit immediately. The version field is left untouched
+      // here on purpose — it only ever advances from a confirmed source
+      // (server response or realtime push), never from a local guess. Bumping
+      // it optimistically per-edit used to be what caused rapid actions (e.g.
+      // clicking "Deploy New Milestone Task" a couple of times, or a task add
+      // followed quickly by another edit) to desync the version this client
+      // thought it was on from what the server actually had, so the very next
+      // save came back as a false conflict and the edit appeared to vanish.
+      setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? { ...updatedEvent, serverVersion: e.serverVersion } : e)));
 
-      if (saveTimers.current[pid]) clearTimeout(saveTimers.current[pid]);
-      saveTimers.current[pid] = setTimeout(async () => {
-        const { id, sharedProjectId, isShared, role, serverVersion, ...rest } = eventWithNewVersion;
-        const expectedVersion = currentVersion;
-        try {
-          const result = await projectsService.save(pid, rest, expectedVersion);
-          setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? { ...e, serverVersion: result.version, lastUpdated: result.updatedAt } : e)));
-          setSaveError(null);
-        } catch (err: any) {
-          if (err instanceof ProjectSyncConflictError) {
-            try {
-              const latestList = await projectsService.list();
-              const latestProj = latestList.find(p => p.id === pid);
-              if (latestProj) {
-                const mergedData = { ...(latestProj.data as BudgetEvent), tasks: updatedEvent.tasks, lastUpdated: new Date().toISOString() };
-                const retryResult = await projectsService.save(pid, mergedData, latestProj.version);
-                setSharedEvents(prev => prev.map(e => (e.id === updatedEvent.id ? { ...mergedData, id: e.id, sharedProjectId: e.sharedProjectId, isShared: true, role: e.role, serverVersion: retryResult.version, lastUpdated: retryResult.updatedAt } : e)));
-                setSaveError(null);
-                return;
-              }
-            } catch (retryErr) {
-              // fallback
-            }
-            setSaveError('This plan was updated elsewhere — syncing latest version.');
-            refreshSharedProjects();
-          } else {
-            setSaveError(err.message || 'Failed to save your changes. They will retry shortly.');
-          }
-        }
-      }, 150);
+      const entry = pendingSaves.current[pid] || { latestEvent: updatedEvent, timer: null, inFlight: false, dirty: false };
+      entry.latestEvent = updatedEvent;
+      pendingSaves.current[pid] = entry;
+
+      if (entry.timer) clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => { flushSave(pid); }, 150);
     } else {
       onUpdateEvent(updatedEvent);
     }
-  }, [onUpdateEvent, refreshSharedProjects]);
+  }, [onUpdateEvent, flushSave]);
 
   const handleShareClick = async (event: BudgetEvent) => {
     if (event.isShared) {
@@ -1003,6 +1070,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     try {
       const { id, isShared, sharedProjectId, role, serverVersion, ...rest } = event;
       const created = await projectsService.create(event.name, event.eventType || 'event', rest);
+      serverVersions.current[created.id] = created.version;
       // Now server-authoritative: drop the local copy, add the shared one, and open it.
       onDeleteEvent(event.id);
       setSharedEvents(prev => [

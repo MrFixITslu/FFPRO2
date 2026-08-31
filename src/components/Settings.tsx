@@ -64,6 +64,7 @@ interface Props {
   isAdmin: boolean;
   onOpenBankSync?: () => void;
   onUnlinkBank?: (inst: string) => void;
+  onSyncBank?: (inst: string) => void;
   cloudSyncing?: boolean;
   cloudLoaded?: boolean;
   cloudError?: string | null;
@@ -84,7 +85,7 @@ const Settings: React.FC<Props> = ({
   investmentGoals, onAddInvestmentGoal, onDeleteInvestmentGoal,
   onResetData, onClose, onLogout, 
   onUpdatePassword, bankConnections,
-  onOpenBankSync, onUnlinkBank,
+  onOpenBankSync, onUnlinkBank, onSyncBank,
   isAdmin,
   cloudSyncing = false,
   cloudLoaded = true,
@@ -542,10 +543,21 @@ const Settings: React.FC<Props> = ({
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-right hidden sm:block">
-                          <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Status: Linked</p>
+                          <p className={`text-[9px] font-bold uppercase tracking-wider ${conn.status === 'syncing' ? 'text-indigo-500' : 'text-emerald-600'}`}>
+                            Status: {conn.status === 'syncing' ? 'Syncing…' : 'Linked'}
+                          </p>
                           <p className="text-[8px] text-slate-400 font-bold">Synced: {conn.lastSynced ? new Date(conn.lastSynced).toLocaleTimeString() : 'Never'}</p>
                         </div>
-                        <button onClick={() => onUnlinkBank?.(conn.institution)} className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors">
+                        <button
+                          onClick={() => onSyncBank?.(conn.institution)}
+                          disabled={conn.status === 'syncing'}
+                          aria-label={`Sync ${conn.institution} now`}
+                          title="Pull latest transactions"
+                          className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <i className={`fas fa-rotate text-xs ${conn.status === 'syncing' ? 'animate-spin' : ''}`}></i>
+                        </button>
+                        <button onClick={() => onUnlinkBank?.(conn.institution)} aria-label={`Unlink ${conn.institution}`} title="Unlink" className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors">
                           <i className="fas fa-unlink text-xs"></i>
                         </button>
                       </div>

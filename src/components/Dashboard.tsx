@@ -39,6 +39,7 @@ import {
   ArrowLeftRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { GmailPlanningNotifications } from './GmailPlanningNotifications';
 
 interface InstitutionalBalance {
   balance: number;
@@ -62,6 +63,7 @@ interface Props {
   categoryBudgets: Record<string, number>;
   financialLogs?: EventLog[];
   currentUser?: string;
+  userEmail?: string;
   onEdit: (t: Transaction) => void;
   onDelete: (id: string) => void;
   onPayRecurring: (rec: RecurringExpense, amount: number) => void;
@@ -74,12 +76,14 @@ interface Props {
   onOpenTransactionForm?: () => void;
   onDeleteFinancialLog?: (id: string) => void;
   onNavigateToPlannerLogs?: () => void;
+  onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
+  onNavigateToPlanner?: () => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner
 }) => {
   const [trendTimeframe, setTrendTimeframe] = useState<Timeframe>('monthly');
   const [searchTerm, setSearchTerm] = useState("");
@@ -90,6 +94,7 @@ const Dashboard: React.FC<Props> = ({
   const [editBudgetVal, setEditBudgetVal] = useState<string>("");
 
   // Log Viewer State
+  const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
   const [logSearch, setLogSearch] = useState("");
   const [logFilter, setLogFilter] = useState<'all' | 'expense' | 'income' | 'recurring' | 'budget'>('all');
   const [copiedLogs, setCopiedLogs] = useState(false);
@@ -146,8 +151,15 @@ const Dashboard: React.FC<Props> = ({
       const flow = history.reduce((acc: number, t) => {
         if (t.destinationInstitution === conn.institution && (t.type === 'transfer' || t.type === 'withdrawal')) return acc + t.amount;
         if (t.institution === conn.institution) {
-          if (t.type === 'income' || t.type === 'savings') return acc + t.amount; 
-          if (t.type === 'expense' || t.type === 'transfer' || t.type === 'withdrawal') return acc - t.amount;
+          // Bug: 'savings' was grouped with 'income' here (adding to the
+          // balance), but everywhere else a 'savings' transaction is treated
+          // as money leaving its source account (a subtraction) — see the
+          // Cash in Hand flow and cycleRollover just below, and the
+          // equivalent App.tsx liquidFunds calc. This was the one place that
+          // added it instead, silently inflating a bank's shown balance by
+          // double-counting every savings contribution made from it.
+          if (t.type === 'income') return acc + t.amount;
+          if (t.type === 'expense' || t.type === 'transfer' || t.type === 'withdrawal' || t.type === 'savings') return acc - t.amount;
         }
         return acc;
       }, 0);
@@ -202,13 +214,19 @@ const Dashboard: React.FC<Props> = ({
   const cycleRollover = useMemo(() => {
     const pastTransactions = transactions.filter(t => new Date(t.date + 'T00:00:00').getTime() < cycleStartDate.getTime());
     const openingBalancesTotal = bankConnections.reduce((acc: number, conn) => acc + conn.openingBalance, 0) + cashOpeningBalance;
-    
+
+    // Bug: this only ever tracked '1st National Bank St. Lucia' by name, so
+    // rollover silently ignored any other linked bank (e.g. a credit union)
+    // once a user had more than the one default account. Now it checks
+    // against every connection of type 'bank', matching how liquidFunds
+    // decides what counts as liquid, instead of one hardcoded institution.
+    const bankNames = new Set(bankConnections.filter(c => c.institutionType === 'bank').map(c => c.institution));
     const historicalCashflow = pastTransactions.reduce((acc: number, t) => {
-      if (t.institution === '1st National Bank St. Lucia' || t.institution === 'Cash in Hand') {
+      if ((t.institution && bankNames.has(t.institution)) || t.institution === 'Cash in Hand') {
         if (t.type === 'income') return acc + t.amount;
         if (t.type === 'expense' || t.type === 'savings' || t.type === 'withdrawal') return acc - t.amount;
       }
-      if (t.destinationInstitution === '1st National Bank St. Lucia' || t.destinationInstitution === 'Cash in Hand') {
+      if ((t.destinationInstitution && bankNames.has(t.destinationInstitution)) || t.destinationInstitution === 'Cash in Hand') {
         if (t.type === 'transfer' || t.type === 'withdrawal') return acc + t.amount;
       }
       return acc;
@@ -500,6 +518,13 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
+      {/* Gmail Planning Notifications (Strictly restricted to vision79slu@gmail.com) */}
+      <GmailPlanningNotifications
+        userEmail={userEmail}
+        onNavigateToTask={onNavigateToTask}
+        onNavigateToPlanner={onNavigateToPlanner}
+      />
+
       {criticalNotifications.length > 0 && (
         <section className="animate-in slide-in-from-top-4 duration-500">
           <div className="flex items-center gap-2 mb-3 px-1">
@@ -679,8 +704,8 @@ const Dashboard: React.FC<Props> = ({
                             className="w-16 h-5 bg-slate-50 border border-indigo-200 rounded text-[9px] font-black px-1 outline-none focus:ring-1 focus:ring-indigo-500"
                             placeholder="Limit"
                           />
-                          <button onClick={saveCategoryBudget} className="w-5 h-5 bg-indigo-600 text-white rounded flex items-center justify-center text-[8px]"><i className="fas fa-check"></i></button>
-                          <button onClick={() => setEditingCategory(null)} className="w-5 h-5 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[8px]"><i className="fas fa-times"></i></button>
+                          <button onClick={saveCategoryBudget} aria-label="Save budget" className="w-5 h-5 bg-indigo-600 text-white rounded flex items-center justify-center text-[8px]"><i className="fas fa-check"></i></button>
+                          <button onClick={() => setEditingCategory(null)} aria-label="Cancel editing budget" className="w-5 h-5 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[8px]"><i className="fas fa-times"></i></button>
                         </div>
                       ) : (
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
@@ -784,7 +809,7 @@ const Dashboard: React.FC<Props> = ({
                         >
                           <i className="fas fa-check"></i>
                         </button>
-                        <button onClick={() => { setActivePaymentId(null); setPartialAmount(""); setSelectedDestination(null); }} className="w-7 h-7 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[9px] hover:bg-slate-200 border border-slate-200 transition-colors"><i className="fas fa-times"></i></button>
+                        <button onClick={() => { setActivePaymentId(null); setPartialAmount(""); setSelectedDestination(null); }} aria-label="Cancel payment" className="w-7 h-7 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[9px] hover:bg-slate-200 border border-slate-200 transition-colors"><i className="fas fa-times"></i></button>
                       </div>
                     ) : (
                       <button onClick={() => startRecordCommitment(bill, isIncome)} className="px-3 py-1 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-wider rounded hover:bg-indigo-600 transition-all shadow-sm">Record</button>
@@ -870,17 +895,23 @@ const Dashboard: React.FC<Props> = ({
 
       {/* Financial Transaction Activity Log & Audit Trail Section */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div className="p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div 
+          onClick={() => setIsLogsSectionOpen(prev => !prev)}
+          className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/70 transition-colors select-none"
+        >
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
                 <Activity size={16} />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-slate-900 text-sm tracking-tight">Financial Transaction Activity Log</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
                     {financialLogs.length} {financialLogs.length === 1 ? 'record' : 'records'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                    {isLogsSectionOpen ? 'Expanded' : 'Collapsed'}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-400 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
@@ -888,104 +919,122 @@ const Dashboard: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search Input */}
-            <div className="relative min-w-[200px] flex-1 sm:flex-none">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search transaction logs..."
-                value={logSearch}
-                onChange={(e) => setLogSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-              />
-              {logSearch && (
-                <button 
-                  onClick={() => setLogSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          <div className="flex items-center gap-2 self-end lg:self-center" onClick={(e) => e.stopPropagation()}>
+            {isLogsSectionOpen && (
+              <>
+                {/* Search Input */}
+                <div className="relative min-w-[180px] sm:min-w-[200px]">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search logs..."
+                    value={logSearch}
+                    onChange={(e) => setLogSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                  />
+                  {logSearch && (
+                    <button 
+                      onClick={() => setLogSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <i className="fas fa-times text-[10px]"></i>
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Add Transaction */}
+                {onOpenTransactionForm && (
+                  <button
+                    type="button"
+                    onClick={onOpenTransactionForm}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap"
+                  >
+                    <Plus size={13} />
+                    <span className="hidden sm:inline">Add Record</span>
+                  </button>
+                )}
+
+                {/* Export CSV */}
+                <button
+                  type="button"
+                  onClick={handleExportLogsCSV}
+                  disabled={filteredFinancialLogs.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition disabled:opacity-40 whitespace-nowrap"
+                  title="Download CSV report"
                 >
-                  <i className="fas fa-times text-[10px]"></i>
+                  <Download size={13} />
+                  <span className="hidden sm:inline">Export</span>
                 </button>
-              )}
+
+                {/* Copy Log Trail */}
+                <button
+                  type="button"
+                  onClick={handleCopyLogsTrail}
+                  disabled={filteredFinancialLogs.length === 0}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${copiedLogs ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'} disabled:opacity-40 whitespace-nowrap`}
+                  title="Copy to clipboard"
+                >
+                  {copiedLogs ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                  <span className="hidden sm:inline">{copiedLogs ? 'Copied' : 'Copy'}</span>
+                </button>
+
+                {/* Full Audit in Planner Logs */}
+                {onNavigateToPlannerLogs && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToPlannerLogs}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap"
+                    title="Open in comprehensive Project Logs Manager"
+                  >
+                    <ExternalLink size={13} />
+                    <span className="hidden md:inline">Planner Audit</span>
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Expand / Collapse Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsLogsSectionOpen(prev => !prev)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition"
+              title={isLogsSectionOpen ? 'Collapse log section' : 'Expand log section'}
+            >
+              <span>{isLogsSectionOpen ? 'Hide Logs' : 'View Logs'}</span>
+              {isLogsSectionOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Content */}
+        {isLogsSectionOpen && (
+          <div>
+            {/* Filter Tabs */}
+            <div className="px-6 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                  <Filter size={11} /> Filter:
+                </span>
+                {[
+                  { id: 'all', label: 'All Transactions' },
+                  { id: 'expense', label: 'Expenses & Outflows' },
+                  { id: 'income', label: 'Inflows & Deposits' },
+                  { id: 'recurring', label: 'Recurring Commitments' },
+                  { id: 'budget', label: 'Budget Allocations' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setLogFilter(tab.id as any)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap">
+                Showing {filteredFinancialLogs.length} of {financialLogs.length}
+              </span>
             </div>
-
-            {/* Quick Add Transaction */}
-            {onOpenTransactionForm && (
-              <button
-                type="button"
-                onClick={onOpenTransactionForm}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm"
-              >
-                <Plus size={13} />
-                <span>Add Record</span>
-              </button>
-            )}
-
-            {/* Export CSV */}
-            <button
-              type="button"
-              onClick={handleExportLogsCSV}
-              disabled={filteredFinancialLogs.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition disabled:opacity-40"
-              title="Download CSV report"
-            >
-              <Download size={13} />
-              <span className="hidden sm:inline">Export CSV</span>
-            </button>
-
-            {/* Copy Log Trail */}
-            <button
-              type="button"
-              onClick={handleCopyLogsTrail}
-              disabled={filteredFinancialLogs.length === 0}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${copiedLogs ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'} disabled:opacity-40`}
-              title="Copy to clipboard"
-            >
-              {copiedLogs ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-              <span className="hidden sm:inline">{copiedLogs ? 'Copied' : 'Copy Trail'}</span>
-            </button>
-
-            {/* Full Audit in Planner Logs */}
-            {onNavigateToPlannerLogs && (
-              <button
-                type="button"
-                onClick={onNavigateToPlannerLogs}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm"
-                title="Open in comprehensive Project Logs Manager"
-              >
-                <ExternalLink size={13} />
-                <span className="hidden md:inline">Planner Audit</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filter Tabs */}
-        <div className="px-6 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
-              <Filter size={11} /> Filter:
-            </span>
-            {[
-              { id: 'all', label: 'All Transactions' },
-              { id: 'expense', label: 'Expenses & Outflows' },
-              { id: 'income', label: 'Inflows & Deposits' },
-              { id: 'recurring', label: 'Recurring Commitments' },
-              { id: 'budget', label: 'Budget Allocations' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setLogFilter(tab.id as any)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap">
-            Showing {filteredFinancialLogs.length} of {financialLogs.length}
-          </span>
-        </div>
 
         {/* Logs Table / List */}
         <div className="overflow-x-auto">
@@ -1126,6 +1175,8 @@ const Dashboard: React.FC<Props> = ({
             </div>
           )}
         </div>
+        </div>
+        )}
       </section>
     </div>
   );
