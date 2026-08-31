@@ -864,62 +864,62 @@ const App: React.FC = () => {
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-sm">
-            <div className="flex items-center gap-3 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
-              <div className="flex items-center gap-3 sm:gap-8 min-w-0">
-                {/* Logo & Brand from Design HTML */}
-                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                  <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center shrink-0">
-                    <span className="text-white font-bold text-xs">FF</span>
+          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
+              <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+                {/* Logo & Brand */}
+                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0 shadow-xs">
+                    <span className="text-white font-black text-xs">FF</span>
                   </div>
-                  <h1 className="text-sm font-semibold tracking-tight uppercase text-indigo-900 hidden sm:block whitespace-nowrap">
-                    FFPRO <span className="font-normal text-slate-400">V2.0</span>
+                  <h1 className="text-xs sm:text-sm font-bold tracking-tight uppercase text-indigo-950 hidden sm:block whitespace-nowrap">
+                    FFPRO <span className="font-medium text-slate-400 text-[11px]">V2.0</span>
                   </h1>
                 </div>
 
-                {/* Minimalist Tabs */}
-                <div className="flex items-center gap-0.5 sm:gap-2 overflow-x-auto no-scrollbar">
+                {/* Main Menu Tabs */}
+                <nav className="flex items-center gap-1 sm:gap-2 shrink-0">
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
-                      className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'dashboard' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                     >
-                      <LayoutDashboard size={14} />
-                      <span className="hidden md:inline">Dashboard</span>
+                      <LayoutDashboard size={15} />
+                      <span>Dashboard</span>
                     </button>
                   )}
                   <button 
                     onClick={() => setActiveTab('calendar')} 
-                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'calendar' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'calendar' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                   >
-                    <CalendarIcon size={14} />
-                    <span className="hidden md:inline">Calendar</span>
+                    <CalendarIcon size={15} />
+                    <span>Calendar</span>
                   </button>
                   <button 
                     onClick={() => setActiveTab('events')} 
-                    className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'events' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'events' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                   >
-                    <Zap size={14} />
+                    <Zap size={15} />
                     <span>Planner</span>
                   </button>
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('projections')} 
-                      className={`flex items-center gap-1.5 px-2 sm:px-3 py-4 text-[10px] font-bold uppercase tracking-widest transition-all border-b-2 -mb-4 whitespace-nowrap ${activeTab === 'projections' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'projections' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                     >
-                      <TrendingUp size={14} />
-                      <span className="hidden md:inline">Forecast</span>
+                      <TrendingUp size={15} />
+                      <span>Forecast</span>
                     </button>
                   )}
-                </div>
+                </nav>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 {/* PWA Install Button */}
                 {deferredPrompt && (
                   <button 
                     onClick={handleInstall}
-                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
+                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
                   >
                     <Download size={12} />
                     <span>Install</span>
@@ -928,12 +928,12 @@ const App: React.FC = () => {
 
                 <button 
                   onClick={() => setShowSettings(true)} 
-                  className="w-8 h-8 flex items-center justify-center rounded bg-slate-50 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all border border-slate-150"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all border border-slate-200 shadow-2xs"
                   title="System Settings"
                 >
                   <SettingsIcon size={16} />
                 </button>
-                <div className="w-8 h-8 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs uppercase shadow-inner">
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60">
                   {currentUsername.charAt(0)}
                 </div>
               </div>
