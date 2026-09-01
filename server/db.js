@@ -153,6 +153,18 @@ if (hasPostgres) {
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_project_messages_project_created ON project_messages(project_id, created_at);`);
   }).then(() => {
+    // Encrypted Google OAuth tokens (access + refresh), captured when a user
+    // logs in with Google, so features like Gmail Planning Notifications can
+    // use the server's own stored grant instead of asking the browser for a
+    // second, separate consent every session.
+    return realPool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS google_gmail_ciphertext BYTEA,
+        ADD COLUMN IF NOT EXISTS google_gmail_iv BYTEA,
+        ADD COLUMN IF NOT EXISTS google_gmail_auth_tag BYTEA,
+        ADD COLUMN IF NOT EXISTS google_gmail_token_expiry TIMESTAMP WITH TIME ZONE;
+    `);
+  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
@@ -441,6 +453,37 @@ export const pool = {
       const user = db.users.find(u => u.id === id);
       if (user) {
         user.password_hash = passwordHash;
+        writeDB(db);
+      }
+      return { rows: [] };
+    }
+
+    // 18. SELECT google_gmail_ciphertext, google_gmail_iv, google_gmail_auth_tag, google_gmail_token_expiry FROM users WHERE id = $1
+    if (cleanSql.includes('SELECT google_gmail_ciphertext, google_gmail_iv, google_gmail_auth_tag, google_gmail_token_expiry FROM users WHERE id =')) {
+      const id = params[0];
+      const user = db.users.find(u => u.id === id);
+      if (user && user.google_gmail_ciphertext) {
+        return {
+          rows: [{
+            google_gmail_ciphertext: Buffer.from(user.google_gmail_ciphertext, 'hex'),
+            google_gmail_iv: Buffer.from(user.google_gmail_iv, 'hex'),
+            google_gmail_auth_tag: Buffer.from(user.google_gmail_auth_tag, 'hex'),
+            google_gmail_token_expiry: user.google_gmail_token_expiry,
+          }]
+        };
+      }
+      return { rows: user ? [{ google_gmail_ciphertext: null, google_gmail_iv: null, google_gmail_auth_tag: null, google_gmail_token_expiry: null }] : [] };
+    }
+
+    // 19. UPDATE users SET google_gmail_ciphertext = $1, google_gmail_iv = $2, google_gmail_auth_tag = $3, google_gmail_token_expiry = $4 WHERE id = $5
+    if (cleanSql.startsWith('UPDATE users SET google_gmail_ciphertext =')) {
+      const [ciphertext, iv, authTag, expiry, id] = params;
+      const user = db.users.find(u => u.id === id);
+      if (user) {
+        user.google_gmail_ciphertext = ciphertext.toString('hex');
+        user.google_gmail_iv = iv.toString('hex');
+        user.google_gmail_auth_tag = authTag.toString('hex');
+        user.google_gmail_token_expiry = expiry;
         writeDB(db);
       }
       return { rows: [] };

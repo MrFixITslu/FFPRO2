@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
 import { decryptForUser } from '../crypto.js';
+import { getValidGoogleAccessToken } from '../googleTokens.js';
 
 const router = Router();
 const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
@@ -162,12 +163,15 @@ function findMatchingTask(subject = '', snippet = '', allTasks = []) {
  * Validates the token with Google TokenInfo and queries the Gmail API for messages matching 'is:unread' and planning keywords.
  */
 router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
-  const authHeader = req.headers.authorization || '';
-  const accessToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+  // The access token now comes from the server-held grant captured at Google
+  // login (server/googleTokens.js), refreshed transparently as needed —
+  // there's no more separate client-side "Connect with Google" popup or
+  // Bearer token to supply.
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
 
   if (!accessToken) {
     return res.status(401).json({
-      error: 'Google OAuth token is required to fetch Gmail planning notifications.',
+      error: 'Log in with Google to enable Gmail planning notifications.',
       code: 'AUTH_REQUIRED',
     });
   }
@@ -177,7 +181,7 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const tokenInfoRes = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
     if (!tokenInfoRes.ok) {
       return res.status(401).json({
-        error: 'Google OAuth token has expired or is invalid. Please reconnect.',
+        error: 'Google access has expired or been revoked. Please log in with Google again.',
         code: 'TOKEN_EXPIRED',
       });
     }
@@ -210,7 +214,7 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
       console.warn('[gmail-sync] Gmail API list error:', listRes.status, errText);
       if (listRes.status === 401 || listRes.status === 403) {
         return res.status(401).json({
-          error: 'Gmail permissions required. Please reconnect your account.',
+          error: 'Gmail permissions required. Please log in with Google again.',
           code: 'TOKEN_EXPIRED',
         });
       }
@@ -318,11 +322,10 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
  */
 router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
   const { messageId } = req.body || {};
-  const authHeader = req.headers.authorization || '';
-  const accessToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
 
   if (!accessToken || !messageId) {
-    return res.status(400).json({ error: 'Message ID and authorization token are required.' });
+    return res.status(400).json({ error: 'Message ID is required and you must be logged in with Google.' });
   }
 
   try {

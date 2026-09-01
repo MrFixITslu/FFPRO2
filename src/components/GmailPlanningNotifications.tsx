@@ -1,23 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Mail, 
-  RefreshCw, 
-  CheckCircle, 
-  AlertCircle, 
-  Sparkles, 
-  Inbox, 
-  ArrowRight, 
-  ShieldCheck, 
-  LogIn, 
-  Clock, 
-  Globe, 
-  Key, 
-  Copy, 
-  Check, 
-  HelpCircle 
+import {
+  Mail,
+  RefreshCw,
+  CheckCircle,
+  AlertCircle,
+  Sparkles,
+  Inbox,
+  ArrowRight,
+  ShieldCheck,
+  LogIn,
+  Clock,
 } from 'lucide-react';
 import { GmailPlanningNotification } from '../types';
-import { googleSignIn, getAccessToken, initAuth, setManualAccessToken } from '../lib/gmailAuth';
 
 interface Props {
   userEmail?: string;
@@ -38,44 +32,31 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
   const [notifications, setNotifications] = useState<GmailPlanningNotification[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [tokenRequired, setTokenRequired] = useState<boolean>(false);
+  // True when the server has no usable Gmail-scoped grant for this account —
+  // fixed by logging in with Google again (which now requests Gmail access
+  // as part of the same login), not by a separate "connect" popup here.
+  const [needsGoogleLogin, setNeedsGoogleLogin] = useState<boolean>(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState<boolean>(false);
-  const [isDomainError, setIsDomainError] = useState<boolean>(false);
-  const [showManualInput, setShowManualInput] = useState<boolean>(false);
-  const [manualToken, setManualToken] = useState<string>('');
-  const [copiedDomain, setCopiedDomain] = useState<boolean>(false);
-
-  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
 
   // Fetch unread planning notifications
   const fetchNotifications = useCallback(async (isBackground = false) => {
     if (!isAuthorized) return;
 
-    const token = await getAccessToken();
-    if (!token) {
-      setTokenRequired(true);
-      setLoading(false);
-      return;
-    }
-
     if (!isBackground) setLoading(true);
     setError(null);
-    setIsDomainError(false);
 
     try {
       const res = await fetch('/api/gmail/notifications', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
       });
 
       if (res.status === 401 || res.status === 403) {
         const data = await res.json().catch(() => ({}));
         if (data.code === 'TOKEN_EXPIRED' || data.code === 'AUTH_REQUIRED' || data.code === 'ACCOUNT_MISMATCH') {
-          setTokenRequired(true);
-          setError(data.error || 'Gmail session expired. Please reconnect.');
+          setNeedsGoogleLogin(true);
+          setError(data.error || 'Log in with Google to enable this.');
           setLoading(false);
           return;
         }
@@ -90,7 +71,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
 
       const data = await res.json();
       setNotifications(data.notifications || []);
-      setTokenRequired(false);
+      setNeedsGoogleLogin(false);
       setLastSynced(new Date());
     } catch (err: any) {
       console.warn('[Gmail Notifications] Fetch error:', err);
@@ -100,65 +81,16 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
     }
   }, [isAuthorized]);
 
-  // Request Google Identity Token for Gmail via Firebase Auth
-  const handleConnectGmail = async () => {
-    setConnecting(true);
-    setError(null);
-    setIsDomainError(false);
-
-    try {
-      const result = await googleSignIn();
-      if (result?.accessToken) {
-        setTokenRequired(false);
-        setIsDomainError(false);
-        setShowManualInput(false);
-        await fetchNotifications();
-      }
-    } catch (err: any) {
-      console.error('Connect Gmail failed:', err);
-      if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
-        setIsDomainError(true);
-      }
-      setError(err?.message || 'Failed to authorize Gmail access. Please try again.');
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleApplyManualToken = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualToken.trim()) return;
-
-    setManualAccessToken(manualToken.trim());
-    setTokenRequired(false);
-    setShowManualInput(false);
-    setError(null);
-    setIsDomainError(false);
-    await fetchNotifications();
-  };
-
-  const copyDomainToClipboard = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(currentHost);
-      setCopiedDomain(true);
-      setTimeout(() => setCopiedDomain(false), 2000);
-    }
-  };
-
   // Mark as read in Gmail and remove from dashboard
   const handleMarkAsRead = async (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const token = await getAccessToken();
-    if (!token) return;
 
     setDismissingId(messageId);
     try {
       const res = await fetch('/api/gmail/mark-read', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId }),
       });
 
@@ -187,32 +119,18 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
     }
   };
 
-  // Auth listener & periodic synchronization (every 60 seconds)
+  // Initial load + periodic sync (every 60 seconds). No popup, no client-side
+  // token to manage — the server already holds a Gmail-scoped grant captured
+  // when this account last logged in with Google.
   useEffect(() => {
     if (!isAuthorized) return;
 
-    const unsubscribe = initAuth(
-      (_user, _token) => {
-        setTokenRequired(false);
-        fetchNotifications();
-      },
-      () => {
-        // Only mark token required if we don't already have one in storage
-        getAccessToken().then(token => {
-          if (!token) setTokenRequired(true);
-          else fetchNotifications();
-        });
-      }
-    );
-
+    fetchNotifications();
     const interval = setInterval(() => {
       fetchNotifications(true);
     }, 60000);
 
-    return () => {
-      unsubscribe();
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [isAuthorized, fetchNotifications]);
 
   // CRITICAL: Do NOT render anything for any other account
@@ -249,7 +167,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-end sm:self-center">
-          {!tokenRequired && (
+          {!needsGoogleLogin && (
             <button
               onClick={() => fetchNotifications(false)}
               disabled={loading}
@@ -271,93 +189,31 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
 
       {/* Body Content */}
       <div className="p-5 sm:p-6">
-        {/* Token Required / Connect State */}
-        {tokenRequired && (
+        {/* Needs Google Login State */}
+        {needsGoogleLogin && (
           <div className="p-6 bg-indigo-900/40 rounded-xl border border-indigo-400/20 text-center flex flex-col items-center justify-center max-w-lg mx-auto">
             <div className="w-12 h-12 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center mb-3">
               <Mail size={24} />
             </div>
-            <h4 className="text-sm font-bold text-white mb-1">Connect Gmail Planning Notifications</h4>
+            <h4 className="text-sm font-bold text-white mb-1">Log in with Google to enable this</h4>
             <p className="text-xs text-indigo-200/70 mb-4 max-w-sm">
-              Authorize read access for <strong>{AUTHORIZED_EMAIL}</strong> to surface planning emails and task updates on your dashboard.
+              Planning email alerts for <strong>{AUTHORIZED_EMAIL}</strong> use the same Google sign-in as your
+              account — log out and back in with Google (or sign in with Google if you haven't yet) and this
+              will start working automatically. No separate connection step needed.
             </p>
-            
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <button
-                onClick={handleConnectGmail}
-                disabled={connecting}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50"
-              >
-                {connecting ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
-                <span>{connecting ? 'Connecting Google...' : 'Connect with Google'}</span>
-              </button>
 
-              <button
-                onClick={() => setShowManualInput(!showManualInput)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-200 rounded-xl text-xs font-semibold border border-indigo-400/20 transition"
-              >
-                <Key size={13} />
-                <span>Enter Token</span>
-              </button>
-            </div>
-
-            {/* Manual Token Drawer */}
-            {showManualInput && (
-              <form onSubmit={handleApplyManualToken} className="mt-4 w-full max-w-sm text-left animate-in fade-in duration-300">
-                <label className="block text-[11px] font-semibold text-indigo-200 mb-1">
-                  Google OAuth Access Token:
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={manualToken}
-                    onChange={(e) => setManualToken(e.target.value)}
-                    placeholder="ya29.a0AfH..."
-                    className="flex-1 px-3 py-1.5 bg-slate-950/80 border border-indigo-500/30 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-400 font-mono"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-xs"
-                  >
-                    Save
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* Domain Authorization Helper Warning */}
-        {isDomainError && (
-          <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs mb-4 animate-in fade-in duration-300">
-            <div className="flex items-start gap-2.5">
-              <Globe size={18} className="text-amber-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h5 className="font-bold text-white text-xs mb-1">Domain Authorization Required in Firebase</h5>
-                <p className="text-[11px] text-amber-200/90 leading-relaxed mb-2">
-                  Your custom domain <strong>{currentHost}</strong> must be added to your Firebase project to permit Google OAuth popups.
-                </p>
-                <div className="bg-slate-950/60 p-2.5 rounded-lg border border-amber-500/20 text-[11px] font-mono flex items-center justify-between gap-2 mb-2">
-                  <span className="text-amber-300 select-all">{currentHost}</span>
-                  <button
-                    onClick={copyDomainToClipboard}
-                    className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded text-[10px] font-sans font-bold transition"
-                  >
-                    {copiedDomain ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                    <span>{copiedDomain ? 'Copied' : 'Copy Domain'}</span>
-                  </button>
-                </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-amber-300/80">
-                  <HelpCircle size={13} />
-                  <span>Firebase Console → Authentication → Settings → Authorized domains tab → Add domain.</span>
-                </div>
-              </div>
-            </div>
+            <a
+              href="/api/auth/google"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition shadow-md"
+            >
+              <LogIn size={14} />
+              <span>Log in with Google</span>
+            </a>
           </div>
         )}
 
         {/* Loading State */}
-        {!tokenRequired && loading && notifications.length === 0 && (
+        {!needsGoogleLogin && loading && notifications.length === 0 && (
           <div className="py-8 flex flex-col items-center justify-center text-center">
             <RefreshCw size={24} className="animate-spin text-indigo-400 mb-2" />
             <p className="text-xs text-indigo-200 font-medium">Loading planning notifications...</p>
@@ -365,23 +221,23 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
         )}
 
         {/* Generic Error State */}
-        {!tokenRequired && error && !isDomainError && (
+        {!needsGoogleLogin && error && (
           <div className="p-4 bg-rose-950/40 border border-rose-500/30 rounded-xl text-rose-200 text-xs flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <AlertCircle size={16} className="text-rose-400 shrink-0" />
               <span>{error}</span>
             </div>
             <button
-              onClick={() => handleConnectGmail()}
+              onClick={() => fetchNotifications()}
               className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-100 rounded-md font-bold text-[10px] uppercase tracking-wider border border-rose-400/30"
             >
-              Reconnect
+              Retry
             </button>
           </div>
         )}
 
         {/* Empty Notifications State */}
-        {!tokenRequired && !loading && notifications.length === 0 && !error && (
+        {!needsGoogleLogin && !loading && notifications.length === 0 && !error && (
           <div className="py-8 text-center flex flex-col items-center justify-center">
             <div className="w-10 h-10 rounded-xl bg-indigo-800/30 text-indigo-300 flex items-center justify-center mb-2">
               <Inbox size={20} />
@@ -394,7 +250,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
         )}
 
         {/* Notifications List */}
-        {!tokenRequired && notifications.length > 0 && (
+        {!needsGoogleLogin && notifications.length > 0 && (
           <div className="space-y-3">
             {notifications.map((notif) => {
               const dateStr = new Date(notif.date).toLocaleDateString([], {

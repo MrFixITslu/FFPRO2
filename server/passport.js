@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import AppleStrategy from 'passport-apple';
 import { pool } from './db.js';
+import { saveGoogleTokens } from './googleTokens.js';
 
 passport.serializeUser((user, done) => done(null, user.id));
 
@@ -76,7 +77,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL,
       },
-      async (_accessToken, _refreshToken, profile, done) => {
+      async (accessToken, refreshToken, profile, done) => {
         try {
           const user = await findOrCreateOAuthUser({
             provider: 'google',
@@ -85,6 +86,14 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             displayName: profile.displayName,
             avatarUrl: profile.photos?.[0]?.value,
           });
+          // Captures the Gmail-scoped grant (see the extra scope + accessType
+          // requested in routes/auth.js) so features like Gmail Planning
+          // Notifications can use this server-held token instead of asking
+          // for a second, separate consent on the dashboard. Google access
+          // tokens are always ~1hr, so getValidGoogleAccessToken's default
+          // expiry estimate is used rather than a params field this library
+          // doesn't reliably expose.
+          await saveGoogleTokens(user.id, { accessToken, refreshToken });
           done(null, user);
         } catch (err) {
           done(err);
