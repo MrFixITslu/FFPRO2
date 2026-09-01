@@ -425,6 +425,11 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         <p className="mt-6 text-center text-slate-600 text-[8px] font-bold uppercase tracking-wider">
           Auth-Shield v2.0 • OAuth2 + bcrypt
         </p>
+        <p className="mt-2 text-center text-[9px] text-slate-600">
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 transition">Terms of Service</a>
+          <span className="mx-1.5">·</span>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 transition">Privacy Policy</a>
+        </p>
       </div>
 
       {showConfigHelp && (

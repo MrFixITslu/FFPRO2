@@ -14,6 +14,7 @@ import projectsRoutes from './server/routes/projects.js';
 import invitesRoutes from './server/routes/invites.js';
 import realtimeRoutes from './server/routes/realtime.js';
 import gmailRoutes from './server/routes/gmail.js';
+import legalRoutes from './server/routes/legal.js';
 import { createServer as createViteServer } from 'vite';
 
 import connectPgSimple from 'connect-pg-simple';
@@ -168,6 +169,11 @@ app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
 app.use('/api/realtime', realtimeRoutes);
 app.use('/api/gmail', gmailRoutes);
+
+// Public legal pages — plain server-rendered HTML (not part of the SPA
+// bundle) so they're reachable, indexable, and stable even if the frontend
+// build changes. Must be registered before the SPA catch-all below.
+app.use(legalRoutes);
 
 // Vite Integration
 async function bootstrap() {
