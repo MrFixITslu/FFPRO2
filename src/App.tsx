@@ -32,6 +32,7 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
+import { projectsService } from './services/projectsService';
 import { APP_LOGO } from './assets/logo';
 import { 
   Shield, 
@@ -225,6 +226,37 @@ const App: React.FC = () => {
   const [bankConnections, setBankConnections] = useState<BankConnection[]>(() => safeParse(STORAGE_KEYS.BANK_CONNECTIONS, []));
   const [investments, setInvestments] = useState<InvestmentAccount[]>(() => safeParse(STORAGE_KEYS.INVESTMENTS, []));
   const [events, setEvents] = useState<BudgetEvent[]>(() => sanitizeEventLogs(safeParse(STORAGE_KEYS.EVENTS, [])));
+  const [sharedEvents, setSharedEvents] = useState<BudgetEvent[]>([]);
+
+  const refreshSharedProjects = useCallback(async () => {
+    try {
+      const list = await projectsService.list();
+      if (Array.isArray(list)) {
+        setSharedEvents(list.map(p => ({
+          ...(p.data as BudgetEvent),
+          id: p.id,
+          sharedProjectId: p.id,
+          isShared: true,
+          role: p.role,
+          serverVersion: p.version,
+          lastUpdated: p.updatedAt,
+        })));
+      }
+    } catch (err) {
+      console.warn('Failed to load shared projects:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSharedProjects();
+  }, [refreshSharedProjects, authUser]);
+
+  const allEvents = useMemo(() => {
+    const map = new Map<string, BudgetEvent>();
+    (events || []).forEach(e => { if (e && e.id) map.set(e.id, e); });
+    (sharedEvents || []).forEach(e => { if (e && e.id) map.set(e.id, e); });
+    return Array.from(map.values());
+  }, [events, sharedEvents]);
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
@@ -1279,7 +1311,7 @@ const App: React.FC = () => {
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'nsv'}
                   userEmail={authUser?.email}
-                  events={events}
+                  events={allEvents}
                   calendarItems={calendarItems}
                   onEdit={(t) => {
                     setEditingTransaction(t);
@@ -1303,8 +1335,8 @@ const App: React.FC = () => {
                     if (projectId) {
                       setNavSelectedEventId(projectId);
                     } else {
-                      // Find if a local event contains this taskId
-                      const found = events.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
+                      // Find if an event contains this taskId
+                      const found = allEvents.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
                       if (found) {
                         setNavSelectedEventId(found.id);
                       }
@@ -1320,7 +1352,7 @@ const App: React.FC = () => {
 
             {activeTab === 'calendar' && (
               <Calendar 
-                events={events}
+                events={allEvents}
                 calendarItems={calendarItems}
                 transactions={transactions}
                 recurringExpenses={recurringExpenses}
@@ -1343,6 +1375,8 @@ const App: React.FC = () => {
             {activeTab === 'events' && (
               <EventPlanner 
                 events={events}
+                sharedEventsProps={sharedEvents}
+                onUpdateSharedEvents={setSharedEvents}
                 contacts={contacts}
                 directoryHandle={null}
                 currentUser={currentUsername}

@@ -652,12 +652,14 @@ const Dashboard: React.FC<Props> = ({
                 </div>
 
                 {events.length > 0 ? (
-                  <div className="space-y-3">
-                    {events.slice(0, 3).map((ev) => {
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {events.map((ev) => {
                       const tasks = ev.tasks || [];
                       const done = tasks.filter(t => t.completed).length;
                       const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
                       const totalSpent = ev.ledger?.reduce((acc, l) => acc + l.amount, 0) || 0;
+                      const projectName = ev.name || (ev as any).title || 'Untitled Project';
+                      const targetBudget = ev.projectedBudget || (ev as any).budget || 0;
 
                       return (
                         <div 
@@ -674,7 +676,7 @@ const Dashboard: React.FC<Props> = ({
                               }`}>
                                 {ev.eventType === 'trip' ? '✈️ Trip' : ev.eventType === 'startup' ? '🚀 Startup' : '📋 General'}
                               </span>
-                              <h4 className="text-xs font-bold text-slate-800 group-hover:text-amber-700 transition">{ev.title}</h4>
+                              <h4 className="text-xs font-bold text-slate-800 group-hover:text-amber-700 transition">{projectName}</h4>
                             </div>
                             <span className="text-[10px] font-extrabold text-slate-600">{pct}% Done</span>
                           </div>
@@ -688,7 +690,7 @@ const Dashboard: React.FC<Props> = ({
 
                           <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
                             <span>{done}/{tasks.length} Tasks Completed</span>
-                            <span>Spent: ${totalSpent.toLocaleString()} / Target: ${(ev.budget || 0).toLocaleString()}</span>
+                            <span>Spent: ${totalSpent.toLocaleString()} / Target: ${targetBudget.toLocaleString()}</span>
                           </div>
                         </div>
                       );
