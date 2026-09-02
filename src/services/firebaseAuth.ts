@@ -112,8 +112,8 @@ export const fetchDirectGmailNotifications = async (
   userTasks: { taskId: string; taskTitle: string; projectName?: string; projectId?: string | null }[] = []
 ): Promise<GmailPlanningNotification[]> => {
   try {
-    const searchQuery = 'is:unread (planning OR task OR project OR deadline OR schedule OR milestone OR review OR update OR reminder OR finance)';
-    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=10`;
+    const searchQuery = 'label:INBOX is:unread';
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=20`;
     
     const listRes = await fetch(listUrl, {
       headers: {

@@ -204,10 +204,9 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
       });
     }
 
-    // 2. List unread messages from Gmail API
-    // Search for unread messages that contain planning, task, project, update, deadline, meeting, or schedule
-    const searchQuery = 'is:unread (planning OR task OR project OR deadline OR schedule OR milestone OR review OR update OR reminder)';
-    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=15`;
+    // 2. List unread messages from Gmail API (pull all unread emails from primary inbox)
+    const searchQuery = 'label:INBOX is:unread';
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=20`;
 
     const listRes = await fetch(listUrl, {
       headers: {

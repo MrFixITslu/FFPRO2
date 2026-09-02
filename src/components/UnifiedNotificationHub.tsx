@@ -594,17 +594,17 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- F. Gmail Planning Email Notifications ---
+    // --- F. Gmail Email Notifications ---
     gmailNotifications.forEach(g => {
       items.push({
         id: `gmail-${g.id}`,
         category: 'gmail',
         type: 'gmail_email',
         title: g.subject || '(No Subject)',
-        subtitle: `From: ${g.from}${g.taskReference ? ` • Linked Task: ${g.taskReference.taskTitle}` : ''}`,
+        subtitle: `From: ${g.from}`,
         snippet: g.snippet,
         timestamp: g.date,
-        statusText: g.taskReference ? 'Linked to Project Task' : 'Unread Planning Header',
+        statusText: 'Unread Email (Inbox)',
         statusColor: 'blue',
         sourceData: g,
         actionType: 'gmail',
@@ -848,9 +848,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                 <Mail size={20} />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Gmail Planning Alerts</h4>
+                <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Unread Inbox Alerts</h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull unread planning headers and match them with tasks.
+                  Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull all unread emails from your primary mail folder.
                 </p>
                 {gmailError && (
                   <p className="text-[10px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
@@ -881,7 +881,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               {searchQuery 
                 ? 'No alerts match your search query.' 
                 : activeFilter === 'gmail' && !gmailConnected 
-                  ? 'Connect Gmail using the button above to sync planning emails.' 
+                  ? 'Connect Gmail using the button above to sync unread inbox emails.' 
                   : 'You are completely caught up on project tasks, calendar events, and recurring commitments.'}
             </p>
           </div>
