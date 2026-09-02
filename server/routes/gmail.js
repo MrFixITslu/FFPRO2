@@ -20,21 +20,23 @@ router.use(requireAuth);
 router.use(gmailRateLimiter);
 
 /**
- * Strict Server-Side Authorization Middleware
- * Verifies that the authenticated user strictly matches the authorized email (case-insensitive).
- * For any other user, returns 403 Forbidden with zero Gmail data/endpoints exposed.
+ * Server-Side Authorization Middleware
+ * Verifies that the authenticated user or token is authorized (case-insensitive).
  */
 function requireAuthorizedAccount(req, res, next) {
   const userEmail = (req.user?.email || '').trim().toLowerCase();
-  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+  if (userEmail && (userEmail === AUTHORIZED_EMAIL.toLowerCase() || req.user)) {
     return next();
   }
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return next();
   }
+  if (req.user) {
+    return next();
+  }
   return res.status(403).json({
-    error: 'Access restricted to authorized account.',
+    error: 'Access restricted to authenticated accounts.',
   });
 }
 
@@ -194,10 +196,10 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify token identity strictly belongs to vision79slu@gmail.com
-    if (tokenEmail && tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
+    // Verify token identity strictly belongs to vision79slu@gmail.com or the current authenticated user
+    if (tokenEmail && tokenEmail !== AUTHORIZED_EMAIL.toLowerCase() && req.user?.email && tokenEmail !== req.user.email.toLowerCase()) {
       return res.status(403).json({
-        error: 'Connected Google token does not match authorized email.',
+        error: `Connected Google token does not match authorized account (${AUTHORIZED_EMAIL}).`,
         code: 'ACCOUNT_MISMATCH',
       });
     }

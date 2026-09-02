@@ -19,11 +19,15 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/gmail.readonly');
 googleProvider.addScope('https://www.googleapis.com/auth/gmail.modify');
 googleProvider.setCustomParameters({
-  prompt: 'select_account'
+  prompt: 'consent select_account',
 });
 
-// Cache the access token in memory (never localStorage)
+// Cache the access token in memory and session storage
 let cachedAccessToken: string | null = null;
+try {
+  cachedAccessToken = sessionStorage.getItem('ffpro_google_access_token');
+} catch (e) {}
+
 let isSigningIn = false;
 
 export const initFirebaseAuth = (
@@ -32,9 +36,13 @@ export const initFirebaseAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
+      const token = getFirebaseAccessToken();
+      if (onAuthSuccess) onAuthSuccess(user, token);
     } else {
       cachedAccessToken = null;
+      try {
+        sessionStorage.removeItem('ffpro_google_access_token');
+      } catch (e) {}
       if (onAuthFailure) onAuthFailure();
     }
   });
@@ -46,6 +54,11 @@ export const signInWithGooglePopup = async (): Promise<{ user: User; accessToken
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     cachedAccessToken = credential?.accessToken || null;
+    if (cachedAccessToken) {
+      try {
+        sessionStorage.setItem('ffpro_google_access_token', cachedAccessToken);
+      } catch (e) {}
+    }
     return {
       user: result.user,
       accessToken: cachedAccessToken,
@@ -64,16 +77,31 @@ export const signInWithGooglePopup = async (): Promise<{ user: User; accessToken
 };
 
 export const getFirebaseAccessToken = (): string | null => {
+  if (!cachedAccessToken) {
+    try {
+      cachedAccessToken = sessionStorage.getItem('ffpro_google_access_token');
+    } catch (e) {}
+  }
   return cachedAccessToken;
 };
 
 export const setFirebaseAccessToken = (token: string | null) => {
   cachedAccessToken = token;
+  try {
+    if (token) {
+      sessionStorage.setItem('ffpro_google_access_token', token);
+    } else {
+      sessionStorage.removeItem('ffpro_google_access_token');
+    }
+  } catch (e) {}
 };
 
 export const firebaseLogout = async () => {
   await signOut(auth);
   cachedAccessToken = null;
+  try {
+    sessionStorage.removeItem('ffpro_google_access_token');
+  } catch (e) {}
 };
 
 /**

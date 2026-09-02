@@ -41,7 +41,6 @@ import {
   ArrowLeftRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { GmailPlanningNotifications } from './GmailPlanningNotifications';
 
 interface InstitutionalBalance {
   balance: number;

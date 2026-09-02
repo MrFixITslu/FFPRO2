@@ -68,6 +68,35 @@ const safeParse = (key: string, fallback: any) => {
 
 const generateId = () => Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 
+function isGlobalFinancialLog(log: EventLog): boolean {
+  if (!log || !log.action) return false;
+  const act = log.action;
+  return (
+    act.startsWith('Recorded EXPENSE:') ||
+    act.startsWith('Recorded INCOME:') ||
+    act.startsWith('Updated EXPENSE:') ||
+    act.startsWith('Updated INCOME:') ||
+    act.startsWith('Removed Transaction:') ||
+    act.startsWith('Adjusted Budget Limit:') ||
+    act.startsWith('Added Recurring Bill Commitment:') ||
+    act.startsWith('Cleared Commitment / Paid Bill:') ||
+    act.startsWith('Recorded Inflow / Received Income:') ||
+    act.startsWith('Logged EXPENSE:') ||
+    act.startsWith('Logged INCOME:') ||
+    (act.includes('Synced ') && act.includes('transactions from'))
+  );
+}
+
+function sanitizeEventLogs(eventsList: BudgetEvent[]): BudgetEvent[] {
+  if (!Array.isArray(eventsList)) return [];
+  return eventsList.map(ev => {
+    if (!ev.logs || ev.logs.length === 0) return ev;
+    const cleanLogs = ev.logs.filter(log => !isGlobalFinancialLog(log));
+    if (cleanLogs.length === ev.logs.length) return ev;
+    return { ...ev, logs: cleanLogs };
+  });
+}
+
 const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quotaExhausted: boolean }) => {
   return (
     <div className="fixed top-0 left-0 right-0 z-[120] bg-slate-900 text-white py-1.5 shadow-md border-b border-slate-800">
@@ -191,7 +220,7 @@ const App: React.FC = () => {
   const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>(() => safeParse(STORAGE_KEYS.CATEGORY_LIMITS, {}));
   const [bankConnections, setBankConnections] = useState<BankConnection[]>(() => safeParse(STORAGE_KEYS.BANK_CONNECTIONS, []));
   const [investments, setInvestments] = useState<InvestmentAccount[]>(() => safeParse(STORAGE_KEYS.INVESTMENTS, []));
-  const [events, setEvents] = useState<BudgetEvent[]>(() => safeParse(STORAGE_KEYS.EVENTS, []));
+  const [events, setEvents] = useState<BudgetEvent[]>(() => sanitizeEventLogs(safeParse(STORAGE_KEYS.EVENTS, [])));
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
@@ -315,7 +344,7 @@ const App: React.FC = () => {
       categoryBudgets: { ...(remote.categoryBudgets || {}), ...(local.categoryBudgets || {}) },
       bankConnections: mergeById(local.bankConnections, remote.bankConnections),
       investments: mergeById(local.investments, remote.investments),
-      events: mergeById(local.events, remote.events),
+      events: sanitizeEventLogs(mergeById(local.events, remote.events)),
       calendarItems: mergeById(local.calendarItems, remote.calendarItems),
       contacts: mergeById(local.contacts, remote.contacts),
       ideas: mergeById(local.ideas, remote.ideas),
@@ -336,7 +365,7 @@ const App: React.FC = () => {
     setCategoryBudgets(state.categoryBudgets || {});
     setBankConnections(state.bankConnections || []);
     setInvestments(state.investments || []);
-    setEvents(state.events || []);
+    setEvents(sanitizeEventLogs(state.events || []));
     setCalendarItems(state.calendarItems || []);
     setContacts(state.contacts || []);
     setIdeas(state.ideas || []);
@@ -569,7 +598,7 @@ const App: React.FC = () => {
             setCategoryBudgets(savedState.categoryBudgets || {});
             setBankConnections(savedState.bankConnections || []);
             setInvestments(savedState.investments || []);
-            setEvents(savedState.events || []);
+            setEvents(sanitizeEventLogs(savedState.events || []));
             setCalendarItems(savedState.calendarItems || []);
             setContacts(savedState.contacts || []);
             setIdeas(savedState.ideas || []);
@@ -696,35 +725,6 @@ const App: React.FC = () => {
     };
 
     setFinancialLogs(prev => [newLog, ...prev]);
-
-    // Also persist inside the active project / event so LogsManager has full audit history
-    setEvents(prev => {
-      if (prev.length === 0) {
-        const defaultEvent: BudgetEvent = {
-          id: generateId(),
-          name: 'General Ledger & Treasury',
-          date: new Date().toISOString().split('T')[0],
-          items: [],
-          notes: [],
-          tasks: [],
-          files: [],
-          contactIds: [],
-          memberUsernames: [currentUsername || 'nsv'],
-          ious: [],
-          logs: [newLog],
-          status: 'active',
-          lastUpdated: new Date().toISOString()
-        };
-        return [defaultEvent];
-      }
-      const updated = [...prev];
-      updated[0] = {
-        ...updated[0],
-        logs: [newLog, ...(updated[0].logs || [])],
-        lastUpdated: new Date().toISOString()
-      };
-      return updated;
-    });
   }, [currentUsername]);
 
   const onSaveTransaction = (t: Omit<Transaction, 'id'>) => {

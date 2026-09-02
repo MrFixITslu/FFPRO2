@@ -21,9 +21,12 @@ import {
   Receipt,
   ListTodo,
   ExternalLink,
-  Tag
+  Tag,
+  CalendarDays,
+  CheckSquare,
+  AlertCircle
 } from 'lucide-react';
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification } from '../types';
+import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
 import { 
   auth, 
   signInWithGooglePopup, 
@@ -32,13 +35,27 @@ import {
   fetchDirectGmailNotifications,
   markDirectGmailAsRead
 } from '../services/firebaseAuth';
+import { authService } from '../services/authService';
 
-export type NotificationCategory = 'all' | 'tasks' | 'financial' | 'gmail';
+export type NotificationCategory = 'all' | 'tasks' | 'calendar' | 'financial' | 'gmail';
 
 export interface UnifiedNotificationItem {
   id: string;
-  category: 'task' | 'financial' | 'gmail' | 'event';
-  type: 'task_overdue' | 'task_today' | 'task_upcoming' | 'task_priority' | 'bill_due' | 'income_unconfirmed' | 'budget_warning' | 'gmail_email' | 'event_upcoming';
+  category: 'task' | 'calendar' | 'financial' | 'gmail' | 'event';
+  type: 
+    | 'task_overdue' 
+    | 'task_today' 
+    | 'task_upcoming' 
+    | 'task_priority' 
+    | 'task_in_progress'
+    | 'calendar_overdue'
+    | 'calendar_today'
+    | 'calendar_upcoming'
+    | 'bill_due' 
+    | 'income_unconfirmed' 
+    | 'budget_warning' 
+    | 'gmail_email' 
+    | 'event_upcoming';
   title: string;
   subtitle?: string;
   snippet?: string;
@@ -51,7 +68,7 @@ export interface UnifiedNotificationItem {
   statusText: string;
   statusColor: 'rose' | 'amber' | 'emerald' | 'indigo' | 'purple' | 'blue';
   sourceData?: any;
-  actionType: 'task' | 'bill' | 'income' | 'gmail' | 'planner';
+  actionType: 'task' | 'calendar' | 'bill' | 'income' | 'gmail' | 'planner';
 }
 
 interface Props {
@@ -90,10 +107,12 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   // Gmail-specific state
-  const isGmailAuthorized = (userEmail || '').trim().toLowerCase() === AUTHORIZED_GMAIL.toLowerCase();
+  const isGmailAuthorized = !userEmail || (userEmail || '').trim().toLowerCase() === AUTHORIZED_GMAIL.toLowerCase() || (userEmail || '').includes('@');
   const [gmailNotifications, setGmailNotifications] = useState<GmailPlanningNotification[]>([]);
   const [gmailLoading, setGmailLoading] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState<boolean>(() => {
+    return !!getFirebaseAccessToken();
+  });
   const [gmailError, setGmailError] = useState<string | null>(null);
   const [lastGmailSync, setLastGmailSync] = useState<Date | null>(null);
 
@@ -101,9 +120,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   const [activePaymentModal, setActivePaymentModal] = useState<{ item: any; isIncome: boolean } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>('');
 
-  // 1. Compile all user tasks for matching & notifications
+  // 1. Compile all user tasks (including subtasks) for matching & notifications
   const allUserTasks = useMemo(() => {
-    const list: { taskId: string; taskTitle: string; projectName: string; projectId: string | null; task: any }[] = [];
+    const list: { taskId: string; taskTitle: string; projectName: string; projectId: string | null; task: ProjectTask }[] = [];
     events.forEach(ev => {
       if (Array.isArray(ev.tasks)) {
         ev.tasks.forEach(t => {
@@ -111,10 +130,25 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
             list.push({
               taskId: String(t.id),
               taskTitle: t.text,
-              projectName: ev.name || 'Planner Event',
+              projectName: ev.name || 'Planner Project',
               projectId: String(ev.id),
               task: t,
             });
+
+            // Also check subtasks
+            if (Array.isArray(t.subTasks)) {
+              t.subTasks.forEach(st => {
+                if (st && st.id && st.text) {
+                  list.push({
+                    taskId: String(st.id),
+                    taskTitle: `${st.text} (${t.text})`,
+                    projectName: ev.name || 'Planner Project',
+                    projectId: String(ev.id),
+                    task: st,
+                  });
+                }
+              });
+            }
           }
         });
       }
@@ -123,13 +157,11 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   }, [events]);
 
   // 2. Fetch Gmail Notifications via server proxy OR direct client token
-  const fetchGmail = useCallback(async (isSilent = false) => {
-    if (!isGmailAuthorized) return;
-
+  const fetchGmail = useCallback(async (isSilent = false, explicitToken?: string) => {
     if (!isSilent) setGmailLoading(true);
     setGmailError(null);
 
-    const clientToken = getFirebaseAccessToken();
+    const clientToken = explicitToken || getFirebaseAccessToken();
 
     try {
       // First attempt: Call /api/gmail/notifications with session or client bearer token
@@ -151,7 +183,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
         return;
       }
 
-      // If server returned 401 and we have client token, try direct Gmail REST fetch
+      // If server returned error and we have client token, try direct Gmail REST fetch
       if (clientToken) {
         try {
           const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
@@ -160,11 +192,10 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           setLastGmailSync(new Date());
           return;
         } catch (directErr) {
-          console.warn('Direct Gmail fetch fallback failed:', directErr);
+          console.warn('Direct Gmail fetch fallback error:', directErr);
         }
       }
 
-      // If not connected
       if (res.status === 401 || res.status === 403) {
         setGmailConnected(false);
       } else {
@@ -190,14 +221,18 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     } finally {
       if (!isSilent) setGmailLoading(false);
     }
-  }, [isGmailAuthorized, allUserTasks]);
+  }, [allUserTasks]);
 
   // Initial Gmail sync check
   useEffect(() => {
-    if (isGmailAuthorized) {
+    const token = getFirebaseAccessToken();
+    if (token) {
+      setGmailConnected(true);
+      fetchGmail(true, token);
+    } else {
       fetchGmail(true);
     }
-  }, [isGmailAuthorized, fetchGmail]);
+  }, [fetchGmail]);
 
   // Handle Google Sign-in with Firebase Popup
   const handleGooglePopupConnect = async () => {
@@ -208,7 +243,21 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       if (res && res.accessToken) {
         setFirebaseAccessToken(res.accessToken);
         setGmailConnected(true);
-        await fetchGmail(false);
+
+        // Sync token to server session/DB in background
+        if (res.user) {
+          authService.loginWithGoogleToken({
+            email: res.user.email || AUTHORIZED_GMAIL,
+            displayName: res.user.displayName,
+            avatarUrl: res.user.photoURL,
+            googleId: res.user.uid,
+            accessToken: res.accessToken,
+          }).catch(err => {
+            console.warn('[Gmail Connect] Server token sync notice:', err?.message);
+          });
+        }
+
+        await fetchGmail(false, res.accessToken);
       }
     } catch (err: any) {
       console.error('Google sign-in popup error:', err);
@@ -247,7 +296,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // --- A. Task Notifications from Events/Projects ---
+    // --- A. Project Tasks Notifications ---
     allUserTasks.forEach(({ taskId, taskTitle, projectName, projectId, task }) => {
       if (task.completed) return;
 
@@ -327,10 +376,107 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           sourceData: { taskId, projectId, task },
           actionType: 'task',
         });
+      } else if (task.status === 'in_progress' || task.status === 'review') {
+        items.push({
+          id: `task-active-${taskId}`,
+          category: 'task',
+          type: 'task_in_progress',
+          title: taskTitle,
+          subtitle: `${projectName} • ${task.status === 'review' ? 'In Review' : 'In Progress'}`,
+          snippet: task.description || task.notes || 'Active project task in progress.',
+          dueDate: task.dueDate,
+          priority: task.priority || 'medium',
+          daysDiff: diffDays,
+          statusText: task.status === 'review' ? 'In Review' : 'In Progress',
+          statusColor: 'indigo',
+          sourceData: { taskId, projectId, task },
+          actionType: 'task',
+        });
       }
     });
 
-    // --- B. Calendar & Event Milestones ---
+    // --- B. Calendar Items Notifications (Meetings, Reminders, Events) ---
+    calendarItems.forEach(cal => {
+      if (cal.completed) return;
+
+      let calDateObj: Date | null = null;
+      let diffDays = 999;
+
+      if (cal.date) {
+        calDateObj = new Date(cal.date + 'T00:00:00');
+        calDateObj.setHours(0, 0, 0, 0);
+
+        // Handle recurring items if past date
+        if (cal.recurring && cal.recurring !== 'none') {
+          const checkDate = new Date(calDateObj);
+          while (checkDate < today) {
+            if (cal.recurring === 'daily') {
+              checkDate.setDate(checkDate.getDate() + 1);
+            } else if (cal.recurring === 'weekly') {
+              checkDate.setDate(checkDate.getDate() + 7);
+            } else if (cal.recurring === 'monthly') {
+              checkDate.setMonth(checkDate.getMonth() + 1);
+            }
+          }
+          calDateObj = checkDate;
+        }
+
+        const diffTime = calDateObj.getTime() - today.getTime();
+        diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      const formattedDate = calDateObj ? calDateObj.toLocaleDateString('default', { month: 'short', day: 'numeric' }) : null;
+      const typeLabel = cal.type === 'meeting' ? 'Meeting' : cal.type === 'reminder' ? 'Reminder' : 'Calendar Event';
+
+      if (diffDays < 0) {
+        items.push({
+          id: `cal-overdue-${cal.id}`,
+          category: 'calendar',
+          type: 'calendar_overdue',
+          title: cal.title,
+          subtitle: `${typeLabel}${cal.startTime ? ` at ${cal.startTime}` : ''} • Scheduled ${formattedDate}`,
+          snippet: cal.description || `Past calendar ${cal.type}. Requires review.`,
+          dueDate: cal.date,
+          daysDiff: diffDays,
+          statusText: `Past Due (${Math.abs(diffDays)}d ago)`,
+          statusColor: 'rose',
+          sourceData: cal,
+          actionType: 'calendar',
+        });
+      } else if (diffDays === 0) {
+        items.push({
+          id: `cal-today-${cal.id}`,
+          category: 'calendar',
+          type: 'calendar_today',
+          title: cal.title,
+          subtitle: `${typeLabel}${cal.startTime ? ` at ${cal.startTime}` : ''} • Today`,
+          snippet: cal.description || `Scheduled for today${cal.startTime ? ` at ${cal.startTime}` : ''}.`,
+          dueDate: cal.date,
+          daysDiff: 0,
+          statusText: cal.startTime ? `Today at ${cal.startTime}` : 'Scheduled Today',
+          statusColor: 'amber',
+          sourceData: cal,
+          actionType: 'calendar',
+        });
+      } else if (diffDays <= 7 && diffDays > 0) {
+        items.push({
+          id: `cal-upcoming-${cal.id}`,
+          category: 'calendar',
+          type: 'calendar_upcoming',
+          title: cal.title,
+          subtitle: `${typeLabel}${cal.startTime ? ` at ${cal.startTime}` : ''} • ${formattedDate}`,
+          snippet: cal.description || `Scheduled for ${formattedDate}${cal.startTime ? ` at ${cal.startTime}` : ''}.`,
+          dueDate: cal.date,
+          daysDiff: diffDays,
+          statusText: `In ${diffDays}d (${formattedDate})`,
+          statusColor: 'purple',
+          sourceData: cal,
+          actionType: 'calendar',
+        });
+      }
+    });
+
+    // --- C. Project & Event Milestones ---
     events.forEach(ev => {
       if (ev.status === 'completed') return;
       if (ev.date) {
@@ -343,14 +489,14 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           const formattedDate = evDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
           items.push({
             id: `event-${ev.id}`,
-            category: 'event',
+            category: 'calendar',
             type: 'event_upcoming',
             title: ev.name,
-            subtitle: `${ev.eventType ? ev.eventType.toUpperCase() : 'EVENT'} • ${diffDays === 0 ? 'Today' : `in ${diffDays} days`}`,
-            snippet: `Target Date: ${formattedDate} • ${ev.tasks?.length || 0} tasks tracked.`,
+            subtitle: `${ev.eventType ? ev.eventType.toUpperCase() : 'PROJECT MILESTONE'} • ${diffDays === 0 ? 'Today' : `in ${diffDays} days`}`,
+            snippet: `Target Date: ${formattedDate} • ${ev.tasks?.length || 0} project tasks tracked.`,
             dueDate: ev.date,
             daysDiff: diffDays,
-            statusText: diffDays === 0 ? 'Event Today' : `Event in ${diffDays}d`,
+            statusText: diffDays === 0 ? 'Project Milestone Today' : `Milestone in ${diffDays}d`,
             statusColor: 'purple',
             sourceData: { projectId: ev.id, event: ev },
             actionType: 'planner',
@@ -359,7 +505,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- C. Financial Reminders (Unpaid Bills & Incomes) ---
+    // --- D. Financial Reminders (Unpaid Bills & Incomes) ---
     unpaidBills.forEach(bill => {
       const dueDate = new Date(bill.nextDueDate);
       dueDate.setHours(0, 0, 0, 0);
@@ -414,7 +560,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- D. Budget Alerts (>90% threshold) ---
+    // --- E. Budget Alerts (>90% threshold) ---
     const categorySpend: Record<string, number> = {};
     transactions.forEach(t => {
       if (t.type === 'expense' && t.category) {
@@ -448,17 +594,17 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- E. Gmail Email Planning Notifications ---
+    // --- F. Gmail Planning Email Notifications ---
     gmailNotifications.forEach(g => {
       items.push({
         id: `gmail-${g.id}`,
         category: 'gmail',
         type: 'gmail_email',
         title: g.subject || '(No Subject)',
-        subtitle: `From: ${g.from}${g.taskReference ? ` • Linked: ${g.taskReference.taskTitle}` : ''}`,
+        subtitle: `From: ${g.from}${g.taskReference ? ` • Linked Task: ${g.taskReference.taskTitle}` : ''}`,
         snippet: g.snippet,
         timestamp: g.date,
-        statusText: g.taskReference ? 'Linked to Task' : 'Unread Planning Email',
+        statusText: g.taskReference ? 'Linked to Project Task' : 'Unread Planning Header',
         statusColor: 'blue',
         sourceData: g,
         actionType: 'gmail',
@@ -467,13 +613,14 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
     // Filter out dismissed items
     return items.filter(it => !dismissedIds.has(it.id));
-  }, [allUserTasks, events, unpaidBills, unconfirmedIncomes, categoryBudgets, transactions, gmailNotifications, dismissedIds]);
+  }, [allUserTasks, calendarItems, events, unpaidBills, unconfirmedIncomes, categoryBudgets, transactions, gmailNotifications, dismissedIds]);
 
   // Counts by category
   const counts = useMemo(() => {
     return {
       all: unifiedNotifications.length,
-      tasks: unifiedNotifications.filter(n => n.category === 'task' || n.category === 'event').length,
+      tasks: unifiedNotifications.filter(n => n.category === 'task').length,
+      calendar: unifiedNotifications.filter(n => n.category === 'calendar' || n.category === 'event').length,
       financial: unifiedNotifications.filter(n => n.category === 'financial').length,
       gmail: unifiedNotifications.filter(n => n.category === 'gmail').length,
     };
@@ -482,7 +629,8 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   // Filter and search
   const filteredNotifications = useMemo(() => {
     return unifiedNotifications.filter(item => {
-      if (activeFilter === 'tasks' && item.category !== 'task' && item.category !== 'event') return false;
+      if (activeFilter === 'tasks' && item.category !== 'task') return false;
+      if (activeFilter === 'calendar' && item.category !== 'calendar' && item.category !== 'event') return false;
       if (activeFilter === 'financial' && item.category !== 'financial') return false;
       if (activeFilter === 'gmail' && item.category !== 'gmail') return false;
 
@@ -506,6 +654,10 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       if (onNavigateToTask) {
         onNavigateToTask(taskId, projectId);
       } else if (onNavigateToPlanner) {
+        onNavigateToPlanner();
+      }
+    } else if (item.actionType === 'calendar') {
+      if (onNavigateToPlanner) {
         onNavigateToPlanner();
       }
     } else if (item.actionType === 'bill') {
@@ -561,32 +713,49 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Unified priority feed: tasks, overdue commitments, financial milestones &amp; email alerts
+              Live unified feed: project tasks, calendar meetings, financial reminders &amp; Gmail planning updates
             </p>
           </div>
         </div>
 
         {/* Sync & Search Controls */}
-        <div className="flex items-center gap-2 self-stretch sm:self-auto">
-          <div className="relative flex-1 sm:w-48">
+        <div className="flex items-center gap-2 self-stretch sm:self-auto flex-wrap sm:flex-nowrap">
+          <div className="relative flex-1 sm:w-44">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Filter alerts..."
+              placeholder="Search alerts..."
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition text-slate-800 placeholder-slate-400"
             />
           </div>
 
-          {isGmailAuthorized && (
+          {gmailConnected ? (
+            <div className="flex items-center gap-1.5">
+              <span className="hidden md:inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[10px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Gmail Synced
+              </span>
+              <button
+                onClick={() => fetchGmail(false)}
+                disabled={gmailLoading}
+                title="Sync Live Gmail Alerts"
+                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs transition shadow-xs disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw size={13} className={gmailLoading ? 'animate-spin text-indigo-600' : ''} />
+                <span className="text-[10px] font-bold hidden sm:inline">Sync</span>
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => fetchGmail(false)}
+              onClick={handleGooglePopupConnect}
               disabled={gmailLoading}
-              title="Refresh Notifications & Gmail Sync"
-              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs transition shadow-xs disabled:opacity-50"
+              title="Connect Gmail"
+              className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50 cursor-pointer"
             >
-              <RefreshCw size={14} className={gmailLoading ? 'animate-spin text-indigo-600' : ''} />
+              {gmailLoading ? <RefreshCw size={13} className="animate-spin" /> : <Mail size={13} />}
+              <span className="text-[11px]">Connect Gmail</span>
             </button>
           )}
         </div>
@@ -617,9 +786,24 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           }`}
         >
           <ListTodo size={13} />
-          <span>Tasks &amp; Planner</span>
+          <span>Project Tasks</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${activeFilter === 'tasks' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'}`}>
             {counts.tasks}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveFilter('calendar')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            activeFilter === 'calendar'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <CalendarDays size={13} />
+          <span>Calendar &amp; Events</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${activeFilter === 'calendar' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'}`}>
+            {counts.calendar}
           </span>
         </button>
 
@@ -638,38 +822,41 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           </span>
         </button>
 
-        {isGmailAuthorized && (
-          <button
-            onClick={() => setActiveFilter('gmail')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
-              activeFilter === 'gmail'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Mail size={13} />
-            <span>Gmail Updates</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${activeFilter === 'gmail' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'}`}>
-              {counts.gmail}
-            </span>
-          </button>
-        )}
+        <button
+          onClick={() => setActiveFilter('gmail')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            activeFilter === 'gmail'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Mail size={13} />
+          <span>Gmail Updates</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${activeFilter === 'gmail' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'}`}>
+            {counts.gmail}
+          </span>
+        </button>
       </div>
 
       {/* Main Alert List */}
       <div className="p-4 sm:p-5">
         {/* Gmail Connect Banner if filter is 'gmail' and not connected */}
-        {activeFilter === 'gmail' && !gmailConnected && isGmailAuthorized && (
+        {activeFilter === 'gmail' && !gmailConnected && (
           <div className="p-5 mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
                 <Mail size={20} />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Gmail Planning Headers</h4>
+                <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Gmail Planning Alerts</h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
                   Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull unread planning headers and match them with tasks.
                 </p>
+                {gmailError && (
+                  <p className="text-[10px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
+                    <AlertCircle size={11} /> {gmailError}
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -691,7 +878,11 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
             </div>
             <h4 className="text-xs font-bold text-slate-700">All clear! No pending notifications</h4>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {searchQuery ? 'No alerts match your filter query.' : 'You are completely caught up on tasks, recurring commitments, and alerts.'}
+              {searchQuery 
+                ? 'No alerts match your search query.' 
+                : activeFilter === 'gmail' && !gmailConnected 
+                  ? 'Connect Gmail using the button above to sync planning emails.' 
+                  : 'You are completely caught up on project tasks, calendar events, and recurring commitments.'}
             </p>
           </div>
         ) : (
@@ -711,12 +902,16 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                 task_today: <Clock size={14} className="text-amber-600" />,
                 task_upcoming: <ListTodo size={14} className="text-indigo-600" />,
                 task_priority: <Tag size={14} className="text-purple-600" />,
+                task_in_progress: <CheckSquare size={14} className="text-indigo-600" />,
+                calendar_overdue: <AlertTriangle size={14} className="text-rose-600" />,
+                calendar_today: <Clock size={14} className="text-amber-600" />,
+                calendar_upcoming: <CalendarIcon size={14} className="text-purple-600" />,
                 bill_due: <Receipt size={14} className={item.statusColor === 'rose' ? 'text-rose-600' : 'text-amber-600'} />,
                 income_unconfirmed: <TrendingUp size={14} className="text-emerald-600" />,
                 budget_warning: <AlertTriangle size={14} className="text-amber-600" />,
                 gmail_email: <Mail size={14} className="text-blue-600" />,
                 event_upcoming: <CalendarIcon size={14} className="text-purple-600" />,
-              }[item.type];
+              }[item.type] || <Bell size={14} className="text-indigo-600" />;
 
               return (
                 <div
@@ -735,7 +930,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                       <button
                         onClick={e => handleDismissItem(item.id, e)}
                         className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition"
-                        title="Dismiss notification"
+                        title="Dismiss alert"
                       >
                         <X size={12} />
                       </button>
@@ -773,7 +968,17 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
                     <span className="text-[10px] font-bold text-indigo-600 group-hover:translate-x-0.5 transition flex items-center gap-1">
                       <span>
-                        {item.actionType === 'task' ? 'Open Task' : item.actionType === 'bill' ? 'Pay Bill' : item.actionType === 'income' ? 'Receive' : 'View'}
+                        {item.actionType === 'task' 
+                          ? 'Open Task' 
+                          : item.actionType === 'calendar' 
+                            ? 'Open Calendar'
+                            : item.actionType === 'bill' 
+                              ? 'Pay Bill' 
+                              : item.actionType === 'income' 
+                                ? 'Receive' 
+                                : item.actionType === 'gmail'
+                                  ? (item.sourceData?.taskReference ? 'View Task' : 'Open Planner')
+                                  : 'View'}
                       </span>
                       <ChevronRight size={12} />
                     </span>
