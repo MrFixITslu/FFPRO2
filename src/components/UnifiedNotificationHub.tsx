@@ -26,20 +26,8 @@ import {
   CheckSquare,
   AlertCircle
 } from 'lucide-react';
-<<<<<<< HEAD
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
-=======
 import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask, BankConnection } from '../types';
 import { EmailDetailModal } from './EmailDetailModal';
-import { 
-  auth, 
-  signInWithGooglePopup, 
-  getFirebaseAccessToken, 
-  setFirebaseAccessToken,
-  fetchDirectGmailNotifications,
-  markDirectGmailAsRead
-} from '../services/firebaseAuth';
->>>>>>> 7a1bdc1ac17aac8bb0d05d716841ee10b2ee3fe7
 import { authService } from '../services/authService';
 
 // Stub out Firebase functions that were removed - this component is not currently used

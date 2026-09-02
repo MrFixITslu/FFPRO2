@@ -3,13 +3,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
 import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem, GmailPlanningNotification } from '../types';
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
-<<<<<<< HEAD
-import { GmailPlanningNotifications } from './GmailPlanningNotifications';
-=======
 import { UnifiedNotificationHub } from './UnifiedNotificationHub';
 import { EmailDetailModal } from './EmailDetailModal';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
->>>>>>> 7a1bdc1ac17aac8bb0d05d716841ee10b2ee3fe7
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -457,14 +453,6 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-<<<<<<< HEAD
-      {/* Gmail Planning Notifications */}
-      <GmailPlanningNotifications
-        userEmail={userEmail}
-        onNavigateToTask={onNavigateToTask}
-        onNavigateToPlanner={onNavigateToPlanner}
-      />
-=======
       {/* Executive vs Detailed View Mode Selector */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div className="flex items-center gap-3">
@@ -1042,7 +1030,6 @@ const Dashboard: React.FC<Props> = ({
             onDismissEmail={onDismissEmail || handleDismissEmail}
             externalDismissedIds={dismissedEmailIds}
           />
->>>>>>> 7a1bdc1ac17aac8bb0d05d716841ee10b2ee3fe7
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
