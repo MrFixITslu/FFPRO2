@@ -1,12 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { GmailPlanningNotification, BudgetEvent, ProjectTask } from '../types';
-import {
-  signInWithGooglePopup,
-  getFirebaseAccessToken,
-  setFirebaseAccessToken,
-  fetchDirectGmailNotifications,
-} from '../services/firebaseAuth';
-import { authService } from '../services/authService';
 
 const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
 
@@ -18,7 +11,7 @@ export function useGmailNotifications(
 ) {
   const [gmailNotifications, setGmailNotifications] = useState<GmailPlanningNotification[]>([]);
   const [gmailLoading, setGmailLoading] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState<boolean>(() => !!getFirebaseAccessToken());
+  const [gmailConnected, setGmailConnected] = useState<boolean>(false);
   const [gmailError, setGmailError] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
@@ -82,22 +75,15 @@ export function useGmailNotifications(
     return list;
   }, [events]);
 
-  // Fetch Gmail notifications from backend API or direct Google REST API
-  const fetchGmail = useCallback(async (isSilent = false, explicitToken?: string) => {
+  // Fetch Gmail notifications from backend API (server-stored Google OAuth token)
+  const fetchGmail = useCallback(async (isSilent = false) => {
     if (!isSilent) setGmailLoading(true);
     setGmailError(null);
 
-    const clientToken = explicitToken || getFirebaseAccessToken();
-
     try {
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (clientToken) {
-        headers['Authorization'] = `Bearer ${clientToken}`;
-      }
-
       const res = await fetch('/api/gmail/notifications', {
         credentials: 'include',
-        headers,
+        headers: { Accept: 'application/json' },
       });
 
       if (res.ok) {
@@ -108,18 +94,6 @@ export function useGmailNotifications(
         return;
       }
 
-      if (clientToken) {
-        try {
-          const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
-          setGmailNotifications(directNotes);
-          setGmailConnected(true);
-          setLastSyncTime(new Date());
-          return;
-        } catch (directErr) {
-          console.warn('Direct Gmail fetch error:', directErr);
-        }
-      }
-
       if (res.status === 401 || res.status === 403) {
         setGmailConnected(false);
       } else {
@@ -127,74 +101,29 @@ export function useGmailNotifications(
         setGmailError(errData.error || 'Gmail service temporarily unavailable');
       }
     } catch (err: any) {
-      if (clientToken) {
-        try {
-          const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
-          setGmailNotifications(directNotes);
-          setGmailConnected(true);
-          setLastSyncTime(new Date());
-          return;
-        } catch (e) {
-          setGmailError('Unable to connect to Gmail service');
-        }
-      } else {
-        setGmailConnected(false);
-      }
+      console.warn('Gmail fetch error:', err);
+      setGmailConnected(false);
     } finally {
       if (!isSilent) setGmailLoading(false);
     }
-  }, [allUserTasks]);
+  }, []);
 
   // Initial fetch and 15-minute interval timer to sync emails with Google automatically
   useEffect(() => {
-    const token = getFirebaseAccessToken();
-    if (token) {
-      setGmailConnected(true);
-      fetchGmail(true, token);
-    } else {
-      fetchGmail(true);
-    }
+    fetchGmail(true);
 
     // Auto-sync with Google every 15 minutes (900,000 ms)
     const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
     const intervalId = setInterval(() => {
-      const currentToken = getFirebaseAccessToken();
-      fetchGmail(true, currentToken || undefined);
+      fetchGmail(true);
     }, FIFTEEN_MINUTES_MS);
 
     return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
-  // Connect via Google Auth Popup
-  const handleConnectGmail = async () => {
-    setGmailLoading(true);
-    setGmailError(null);
-    try {
-      const res = await signInWithGooglePopup();
-      if (res && res.accessToken) {
-        setFirebaseAccessToken(res.accessToken);
-        setGmailConnected(true);
-
-        if (res.user) {
-          authService.loginWithGoogleToken({
-            email: res.user.email || AUTHORIZED_GMAIL,
-            displayName: res.user.displayName,
-            avatarUrl: res.user.photoURL,
-            googleId: res.user.uid,
-            accessToken: res.accessToken,
-          }).catch(err => {
-            console.warn('[Gmail Connect] Server token sync notice:', err?.message);
-          });
-        }
-
-        await fetchGmail(false, res.accessToken);
-      }
-    } catch (err: any) {
-      console.error('Google sign-in popup error:', err);
-      setGmailError(err?.message || 'Google authentication was not completed.');
-    } finally {
-      setGmailLoading(false);
-    }
+  // Connect via Google Auth - redirect to server OAuth endpoint
+  const handleConnectGmail = () => {
+    window.location.href = '/api/auth/google';
   };
 
   // Remove email from dashboard locally & persist across devices
@@ -214,12 +143,9 @@ export function useGmailNotifications(
     }
 
     // Attempt marking read on Gmail server in background
-    const token = getFirebaseAccessToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
     fetch('/api/gmail/mark-read', {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ messageId: emailId }),
     }).catch(e => console.warn('Server mark-read notice:', e));
