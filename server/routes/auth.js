@@ -340,12 +340,23 @@ router.post('/logout', (req, res) => {
 });
 
 // --- Google ----------------------------------------------------------------
-// Standard Google Sign-In (Least Privilege: openid, profile, email only).
-// Employs state: true for RFC 6749 / CASA Tier 2 CSRF protection.
-router.get('/google', (req, res, next) => ensureOAuthProvider(req, res, next, 'google'), passport.authenticate('google', {
-  scope: ['openid', 'profile', 'email'],
-  state: true,
-}));
+// Requests profile, email, and Gmail permissions up front with offline access
+// so a single Google authorization powers both account authentication and
+// the Executive Inbox Briefing without separate redirect URI mismatches.
+router.get(
+  '/google',
+  (req, res, next) => ensureOAuthProvider(req, res, next, 'google'),
+  passport.authenticate('google', {
+    scope: [
+      'profile',
+      'email',
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.modify',
+    ],
+    accessType: 'offline',
+    prompt: 'consent',
+  })
+);
 
 router.get(
   '/google/callback',
@@ -354,33 +365,13 @@ router.get(
     const baseUrl = getFrontendUrl(req);
     passport.authenticate('google', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
   },
-  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
+  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success&gmail=connected`)
 );
 
-// Incremental Authorization: Connect Gmail for Executive Inbox Briefing
-// Only requested in-context when user chooses to link Gmail from the Dashboard.
-// Streamlined to 'gmail.modify' alone with offline access for server sync.
-router.get(
-  '/google/gmail',
-  (req, res, next) => ensureOAuthProvider(req, res, next, 'google'),
-  passport.authenticate('google-gmail', {
-    scope: ['https://www.googleapis.com/auth/gmail.modify'],
-    accessType: 'offline',
-    prompt: 'consent',
-    includeGrantedScopes: true,
-    state: true,
-  })
-);
-
-router.get(
-  '/google/gmail/callback',
-  (req, res, next) => ensureOAuthProvider(req, res, next, 'google'),
-  (req, res, next) => {
-    const baseUrl = getFrontendUrl(req);
-    passport.authenticate('google-gmail', { failureRedirect: `${baseUrl}/?gmail=failed` })(req, res, next);
-  },
-  (req, res) => res.redirect(`${getFrontendUrl(req)}/?gmail=connected`)
-);
+// Incremental/Direct Gmail connection alias: points to the registered Google OAuth flow
+router.get('/google/gmail', (req, res) => {
+  res.redirect('/api/auth/google');
+});
 
 // --- Facebook ----------------------------------------------------------------
 router.get('/facebook', (req, res, next) => ensureOAuthProvider(req, res, next, 'facebook'), passport.authenticate('facebook', { scope: ['email'] }));

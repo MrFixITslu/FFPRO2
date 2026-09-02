@@ -169,9 +169,9 @@ export function useGmailNotifications(
     return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
-  // Connect via Google Auth - redirect to dedicated incremental OAuth endpoint
+  // Connect via Google Auth - redirect to server OAuth endpoint
   const handleConnectGmail = () => {
-    window.location.href = '/api/auth/google/gmail';
+    window.location.href = '/api/auth/google';
   };
 
   // Disconnect Gmail and revoke tokens

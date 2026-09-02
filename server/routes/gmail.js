@@ -9,7 +9,7 @@ import { realtimeHub } from '../realtime.js';
 
 const router = Router();
 // Primary test/demo account; reviewers and any authenticated user who connects Gmail can test their own inbox
-const PRIMARY_AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
+const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
 
 const gmailRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -239,10 +239,11 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify token identity strictly belongs to vision79slu@gmail.com
-    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
+    // Verify token identity belongs to vision79slu@gmail.com or the current user's Google account
+    const userEmail = (req.user?.email || '').trim().toLowerCase();
+    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase() && (!userEmail || tokenEmail !== userEmail)) {
       return res.status(403).json({
-        error: `Google token must belong to ${AUTHORIZED_EMAIL}.`,
+        error: `Google token must belong to ${AUTHORIZED_EMAIL} or your logged-in Google account.`,
         code: 'ACCOUNT_MISMATCH',
       });
     }

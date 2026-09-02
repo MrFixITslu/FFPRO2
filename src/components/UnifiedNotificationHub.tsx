@@ -258,9 +258,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
-  // Handle Google Sign-in - stub, use login instead
-  const handleGooglePopupConnect = async () => {
-    setGmailError('Gmail access is granted when you log in with Google. Please log out and log back in with Google.');
+  // Handle Google Sign-in & Gmail connection
+  const handleGooglePopupConnect = () => {
+    window.location.href = '/api/auth/google';
   };
 
   // Dismiss Gmail permanently from dashboard across all devices (persisted in DB + broadcast)
@@ -870,7 +870,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-2 whitespace-nowrap disabled:opacity-50 cursor-pointer"
             >
               {gmailLoading ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
-              <span>Connect via Google Popup</span>
+              <span>Connect Google Gmail</span>
             </button>
           </div>
         )}
