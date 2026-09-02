@@ -1384,7 +1384,35 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                  </p>
                </div>
               </div>
-             <div className="flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto no-scrollbar relative z-10 backdrop-blur-md">
+
+              {/* Mobile Sub-Tab Dropdown Selector */}
+              <div className="sm:hidden relative z-10 w-full mb-1">
+                <select
+                  value={activeTab}
+                  onChange={(e) => setActiveTab(e.target.value as ProjectTab)}
+                  className="w-full bg-slate-900/90 text-white font-extrabold text-xs py-2 px-3 rounded-lg border border-white/20 outline-none backdrop-blur-md shadow-sm cursor-pointer"
+                >
+                  {[
+                    'dashboard',
+                    ...(selectedEvent.eventType === 'trip' 
+                      ? ['trip_planner', 'tasks', 'vault', 'contacts', 'log']
+                      : selectedEvent.eventType === 'startup'
+                      ? ['startup_planner', 'tasks', 'vault', 'contacts', 'log']
+                      : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']),
+                    ...(selectedEvent.isShared ? ['chat'] : []),
+                  ].map(tab => {
+                    const label = tab === 'dashboard' ? '📊 Project Dashboard' : tab === 'chat' ? '💬 Live Chat' : tab === 'trip_planner' ? '✈️ Trip Itinerary' : tab === 'startup_planner' ? '🚀 Business Suite' : tab === 'tasks' ? '☑️ Milestones & Tasks' : tab === 'vault' ? '📁 Documents & Assets' : tab === 'team' ? '👥 Team & Access' : tab === 'contacts' ? '📇 Stakeholders' : tab === 'log' ? `📜 Audit Logs (${(selectedEvent.logs || []).length})` : '💰 Budget Ledger';
+                    return (
+                      <option key={tab} value={tab} className="bg-slate-900 text-white font-medium">
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Desktop & Tablet Horizontal Tab Bar */}
+              <div className="hidden sm:flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto touch-pan-x no-scrollbar relative z-10 backdrop-blur-md">
                {[
                  'dashboard',
                  ...(selectedEvent.eventType === 'trip' 
