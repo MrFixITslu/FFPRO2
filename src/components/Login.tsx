@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { authService, AuthUser } from '../services/authService';
+import { APP_LOGO } from '../assets/logo';
 
 interface Props {
   onAuthenticated: (user: AuthUser) => void;
@@ -137,11 +138,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-indigo-600 rounded flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm ring-1 ring-white/10">
-              <i className="fas fa-key text-xl"></i>
-            </div>
+            <img
+              src={APP_LOGO}
+              alt="Fire Finance Pro"
+              referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+            />
             <h1 className="text-xl font-bold text-white tracking-tight">Reset Your Password</h1>
-            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mt-1.5">Fire Finance Secure Gateway</p>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Secure Gateway</p>
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
@@ -223,11 +227,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-indigo-600 rounded flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm ring-1 ring-white/10">
-              <i className="fas fa-envelope-open-text text-xl"></i>
-            </div>
+            <img
+              src={APP_LOGO}
+              alt="Fire Finance Pro"
+              referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+            />
             <h1 className="text-xl font-bold text-white tracking-tight">Forgot Password</h1>
-            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mt-1.5">Fire Finance Secure Gateway</p>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Secure Gateway</p>
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
@@ -294,13 +301,16 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
       </div>
 
       <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-indigo-600 rounded flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm ring-1 ring-white/10">
-            <i className="fas fa-fingerprint text-xl"></i>
+          <div className="text-center mb-6">
+            <img
+              src={APP_LOGO}
+              alt="Fire Finance Pro"
+              referrerPolicy="no-referrer"
+              className="w-20 h-20 rounded-2xl mx-auto mb-3 shadow-xl ring-2 ring-white/20 object-cover"
+            />
+            <h1 className="text-xl font-bold text-white tracking-tight">Fire Finance Pro</h1>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">FIRE FINANCE PRO SECURE GATEWAY</p>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Fire Finance Pro V2.0</h1>
-          <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mt-1.5">Fire Finance Secure Gateway</p>
-        </div>
 
         <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
           <div className="space-y-2">

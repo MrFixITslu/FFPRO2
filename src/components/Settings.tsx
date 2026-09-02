@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS } from '../types';
 import { triggerSecureDownload } from '../services/fileStorageService';
+import { APP_LOGO } from '../assets/logo';
 import { 
   Settings as SettingsIcon, 
   User, 
@@ -224,9 +225,17 @@ const Settings: React.FC<Props> = ({
         
         {/* Sidebar Navigation */}
         <div className="w-full md:w-64 bg-slate-50 border-r border-slate-150 flex flex-col p-5 overflow-x-auto no-scrollbar">
-          <div className="mb-6 hidden md:block">
-            <h2 className="text-lg font-bold text-slate-800">Vault Settings</h2>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Logic Center</p>
+          <div className="mb-6 hidden md:flex items-center gap-3">
+            <img
+              src={APP_LOGO}
+              alt="Fire Finance Pro"
+              referrerPolicy="no-referrer"
+              className="w-10 h-10 rounded-xl object-cover shadow-xs ring-1 ring-slate-900/10 shrink-0"
+            />
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 leading-tight">Vault Settings</h2>
+              <p className="text-[9px] text-indigo-600 font-bold uppercase tracking-wider">Fire Finance Pro</p>
+            </div>
           </div>
           
           <div className="flex md:flex-col gap-1.5 flex-nowrap">

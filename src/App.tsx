@@ -32,6 +32,7 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
+import { APP_LOGO } from './assets/logo';
 import { 
   Shield, 
   ShieldCheck, 
@@ -939,13 +940,19 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
               <div className="flex items-center gap-2 sm:gap-6 min-w-0">
                 {/* Logo & Brand */}
-                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0 shadow-xs">
-                    <span className="text-white font-black text-xs">FF</span>
+                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 cursor-pointer" onClick={() => isAdmin && setActiveTab('dashboard')}>
+                  <img
+                    src={APP_LOGO}
+                    alt="Fire Finance Pro Logo"
+                    referrerPolicy="no-referrer"
+                    className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-xs ring-1 ring-slate-900/10"
+                  />
+                  <div className="hidden sm:block">
+                    <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-indigo-950 whitespace-nowrap leading-none">
+                      FFPRO <span className="font-semibold text-indigo-600 text-[11px]">PRO</span>
+                    </h1>
+                    <p className="text-[8px] font-bold text-slate-400 tracking-wider uppercase leading-none mt-0.5">Fire Finance</p>
                   </div>
-                  <h1 className="text-xs sm:text-sm font-bold tracking-tight uppercase text-indigo-950 hidden sm:block whitespace-nowrap">
-                    FFPRO <span className="font-medium text-slate-400 text-[11px]">V2.0</span>
-                  </h1>
                 </div>
 
                 {/* Main Menu Tabs */}
