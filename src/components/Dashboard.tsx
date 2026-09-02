@@ -55,6 +55,38 @@ interface InstitutionalBalance {
   isCash?: boolean;
 }
 
+const getSenderMonogram = (fromStr: string) => {
+  if (!fromStr) return 'EM';
+  const clean = fromStr.replace(/<.*?>/, '').replace(/["']/g, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase() || 'EM';
+};
+
+const getSenderCleanName = (fromStr: string) => {
+  if (!fromStr) return 'Unknown Sender';
+  const match = fromStr.match(/^"?([^"<]+)"?\s*(?:<.*>)?$/);
+  if (match && match[1]?.trim()) return match[1].trim();
+  const clean = fromStr.replace(/<.*?>/, '').replace(/["']/g, '').trim();
+  return clean || fromStr;
+};
+
+const getEmailCategoryBadge = (subject: string, snippet: string) => {
+  const text = `${subject} ${snippet}`.toLowerCase();
+  if (text.includes('invoice') || text.includes('receipt') || text.includes('bill') || text.includes('payment') || text.includes('statement') || text.includes('$')) {
+    return { label: 'Invoice / Financial', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/80' };
+  }
+  if (text.includes('flight') || text.includes('hotel') || text.includes('trip') || text.includes('reservation') || text.includes('ticket')) {
+    return { label: 'Travel & Booking', color: 'bg-cyan-50 text-cyan-700 border-cyan-200/80' };
+  }
+  if (text.includes('project') || text.includes('task') || text.includes('meeting') || text.includes('review') || text.includes('update') || text.includes('roadmap')) {
+    return { label: 'Project Milestone', color: 'bg-indigo-50 text-indigo-700 border-indigo-200/80' };
+  }
+  return { label: 'General', color: 'bg-slate-100 text-slate-700 border-slate-200/80' };
+};
+
 interface Props {
   transactions: Transaction[];
   recurringExpenses: RecurringExpense[];
@@ -454,43 +486,43 @@ const Dashboard: React.FC<Props> = ({
       </div>
 
       {/* Executive vs Detailed View Mode Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/85 shadow-xs">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
             viewMode === 'executive' 
-              ? 'bg-indigo-50 text-indigo-600 border-indigo-100' 
-              : 'bg-slate-100 text-slate-600 border-slate-200'
+              ? 'bg-slate-900 text-white border-slate-800' 
+              : 'bg-slate-100 text-slate-700 border-slate-200'
           }`}>
             {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                {viewMode === 'executive' ? 'Executive Briefing View' : 'Detailed Financial Analysis View'}
+                {viewMode === 'executive' ? 'Executive Briefing' : 'Detailed Financial Analysis'}
               </h2>
-              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${
+              <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
                 viewMode === 'executive' 
-                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
-                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                  ? 'bg-slate-100 text-slate-800 border-slate-200' 
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-200'
               }`}>
                 {viewMode === 'executive' ? 'High-Level Overview' : 'Granular Ledger & Analytics'}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
               {viewMode === 'executive' 
-                ? 'High-level snapshot across Financials, Projects, Calendar, Objectives & Priority Actions.' 
-                : 'Full breakdown of institutional accounts, cashflow intelligence, objectives & immutable transaction audit logs.'}
+                ? 'Strategic snapshot across Net Worth, Cash Margin, Active Suites, Commitments & Inbox.' 
+                : 'Full breakdown of institutional accounts, cashflow intelligence, objectives & immutable audit logs.'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 self-stretch sm:self-auto shrink-0">
+        <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200 self-stretch sm:self-auto shrink-0">
           <button
             type="button"
             onClick={() => handleSetViewMode('executive')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               viewMode === 'executive' 
-                ? 'bg-white text-indigo-700 shadow-xs' 
+                ? 'bg-white text-slate-900 shadow-xs' 
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -500,9 +532,9 @@ const Dashboard: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => handleSetViewMode('detailed')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               viewMode === 'detailed' 
-                ? 'bg-white text-indigo-700 shadow-xs' 
+                ? 'bg-white text-slate-900 shadow-xs' 
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -518,75 +550,77 @@ const Dashboard: React.FC<Props> = ({
           {/* Executive Hero KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Card 1: Total Net Worth */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Net Worth</span>
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
-                    <Wallet size={16} />
+                <div className="flex items-center justify-between text-slate-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Net Worth</span>
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200">
+                    <Wallet size={15} />
                   </div>
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">${netWorth.toLocaleString()}</h3>
+                <h3 className="font-tabular text-2xl font-bold text-slate-900 tracking-tight">${netWorth.toLocaleString()}</h3>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span className="text-slate-500 font-medium">Liquid Cash:</span>
-                <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${liquidFunds.toLocaleString()}</span>
+                <span className="font-tabular font-semibold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">${liquidFunds.toLocaleString()}</span>
               </div>
             </div>
 
             {/* Card 2: Cashflow Balance */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Monthly Cash Margin</span>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                    {netMargin >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                <div className="flex items-center justify-between text-slate-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Monthly Margin</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' : 'bg-rose-50 text-rose-700 border-rose-200/80'}`}>
+                    {netMargin >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                   </div>
                 </div>
-                <h3 className={`text-2xl font-black tracking-tight ${netMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <h3 className={`font-tabular text-2xl font-bold tracking-tight ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                   {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
                 </h3>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-emerald-600 font-bold">+${totalActualIncome.toLocaleString()}</span>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-tabular">
+                <span className="text-emerald-700 font-semibold">+${totalActualIncome.toLocaleString()}</span>
                 <span className="text-slate-300">/</span>
-                <span className="text-rose-600 font-bold">-${totalActualExpenses.toLocaleString()}</span>
+                <span className="text-rose-700 font-semibold">-${totalActualExpenses.toLocaleString()}</span>
               </div>
             </div>
 
             {/* Card 3: Projects & Workspaces */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Projects & Suites</span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                    <Zap size={16} />
+                <div className="flex items-center justify-between text-slate-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Project Suites</span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200/80">
+                    <Zap size={15} />
                   </div>
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">{totalProjects} <span className="text-xs font-semibold text-slate-400">Active</span></h3>
+                <h3 className="font-tabular text-2xl font-bold text-slate-900 tracking-tight">
+                  {totalProjects} <span className="text-xs font-medium text-slate-400">Active</span>
+                </h3>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">{completedTasksCount}/{allTasks.length} Checklists</span>
-                <span className="font-bold text-amber-600">{overallTaskProgress}%</span>
+                <span className="text-slate-500 font-medium">{completedTasksCount}/{allTasks.length} Tasks</span>
+                <span className="font-tabular font-bold text-amber-700">{overallTaskProgress}%</span>
               </div>
             </div>
 
             {/* Card 4: Upcoming Schedule & Commitments */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Calendar & Commitments</span>
-                  <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100">
-                    <Calendar size={16} />
+                <div className="flex items-center justify-between text-slate-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Commitments</span>
+                  <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-200/80">
+                    <Calendar size={15} />
                   </div>
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-                  {upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-semibold text-slate-400">Pending</span>
+                <h3 className="font-tabular text-2xl font-bold text-slate-900 tracking-tight">
+                  {upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-medium text-slate-400">Due</span>
                 </h3>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">Next Commitment:</span>
-                <span className="font-bold text-cyan-600 truncate max-w-[120px]">
+                <span className="text-slate-500 font-medium">Next:</span>
+                <span className="font-semibold text-cyan-700 truncate max-w-[120px]">
                   {upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All Clear'}
                 </span>
               </div>
@@ -594,7 +628,7 @@ const Dashboard: React.FC<Props> = ({
 
             {/* Card 5: Unread Emails */}
             <div 
-              className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-blue-300 transition cursor-pointer"
+              className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between cursor-pointer group"
               onClick={() => {
                 if (activeUnreadEmails.length > 0) {
                   setSelectedEmailModal(activeUnreadEmails[0]);
@@ -604,22 +638,22 @@ const Dashboard: React.FC<Props> = ({
               }}
             >
               <div>
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Unread Emails</span>
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                    <Mail size={16} />
+                <div className="flex items-center justify-between text-slate-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Unread Inbox</span>
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200 group-hover:bg-slate-900 group-hover:text-white transition">
+                    <Mail size={15} />
                   </div>
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-                  {unreadCount} <span className="text-xs font-semibold text-slate-400">Unread</span>
+                <h3 className="font-tabular text-2xl font-bold text-slate-900 tracking-tight">
+                  {unreadCount} <span className="text-xs font-medium text-slate-400">Briefing</span>
                 </h3>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">Inbox Status:</span>
-                <span className={`font-bold px-2 py-0.5 rounded-md ${
-                  gmailConnected ? 'text-blue-600 bg-blue-50' : 'text-amber-600 bg-amber-50'
+                <span className="text-slate-500 font-medium">Status:</span>
+                <span className={`font-semibold px-2 py-0.5 rounded-md ${
+                  gmailConnected ? 'text-slate-800 bg-slate-100' : 'text-amber-800 bg-amber-50'
                 }`}>
-                  {gmailConnected ? (unreadCount > 0 ? `${unreadCount} New` : 'All Clear') : 'Connect Account'}
+                  {gmailConnected ? (unreadCount > 0 ? `${unreadCount} New` : 'All Clear') : 'Connect'}
                 </span>
               </div>
             </div>
@@ -909,17 +943,17 @@ const Dashboard: React.FC<Props> = ({
             </section>
 
             {/* Module 5: Unread Inbox & Emails Briefing */}
-            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between lg:col-span-2">
+            <section className="executive-card p-6 rounded-2xl flex flex-col justify-between lg:col-span-2">
               <div>
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                      <Mail size={16} />
+                    <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                      <Mail size={15} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900">Unread Inbox Briefing</h3>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        {gmailConnected ? `${unreadCount} Unread Messages in Inbox` : 'Gmail Account Disconnected'}
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Executive Inbox Briefing</h3>
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                        {gmailConnected ? `${unreadCount} Unread Messages Pending Review` : 'Gmail Integration Offline'}
                       </p>
                     </div>
                   </div>
@@ -928,81 +962,103 @@ const Dashboard: React.FC<Props> = ({
                       type="button"
                       onClick={() => fetchGmail(false)}
                       disabled={gmailLoading}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                      title="Sync Inbox"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200/80 transition"
+                      title="Sync Inbox with Gmail"
                     >
-                      <RefreshCw size={14} className={gmailLoading ? 'animate-spin text-blue-600' : ''} />
+                      <RefreshCw size={13} className={gmailLoading ? 'animate-spin text-slate-900' : ''} />
+                      <span className="hidden sm:inline">{gmailLoading ? 'Syncing...' : 'Sync Briefing'}</span>
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={handleConnectGmail}
                       disabled={gmailLoading}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-blue-600 text-white rounded-lg shadow-xs hover:bg-blue-700 transition"
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-slate-900 text-white rounded-xl shadow-xs hover:bg-slate-800 transition"
                     >
-                      <LogIn size={12} />
+                      <LogIn size={13} />
                       <span>Connect Gmail</span>
                     </button>
                   )}
                 </div>
 
                 {activeUnreadEmails.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {activeUnreadEmails.map((g) => (
-                      <div
-                        key={g.id}
-                        onClick={() => setSelectedEmailModal(g)}
-                        className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer group flex items-start justify-between gap-3"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                            <Mail size={16} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-xs font-bold text-slate-900 truncate">{g.from}</span>
-                              <span className="text-[10px] text-slate-400 shrink-0">
-                                {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                            <h4 className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition truncate">
-                              {g.subject || '(No Subject)'}
-                            </h4>
-                            {g.snippet && (
-                              <p className="text-[11px] text-slate-500 truncate mt-0.5">{g.snippet}</p>
-                            )}
-                          </div>
-                        </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {activeUnreadEmails.map((g) => {
+                      const monogram = getSenderMonogram(g.from);
+                      const senderClean = getSenderCleanName(g.from);
+                      const category = getEmailCategoryBadge(g.subject || '', g.snippet || '');
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDismissEmail(g.id);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Permanently delete from dashboard across all devices"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                          <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+                      return (
+                        <div
+                          key={g.id}
+                          onClick={() => setSelectedEmailModal(g)}
+                          className="p-4 bg-slate-50/70 hover:bg-white rounded-xl border border-slate-200/85 hover:border-slate-300 shadow-2xs hover:shadow-sm transition cursor-pointer group flex items-start justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-slate-800 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:bg-slate-950 transition">
+                              {monogram}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${category.color}`}>
+                                  {category.label}
+                                </span>
+                                <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                                  {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div className="text-xs font-bold text-slate-900 truncate mb-0.5">
+                                {senderClean}
+                              </div>
+                              <h4 className="text-xs font-semibold text-slate-800 group-hover:text-slate-950 transition truncate">
+                                {g.subject || '(No Subject)'}
+                              </h4>
+                              {g.snippet && (
+                                <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 leading-relaxed">
+                                  {g.snippet}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDismissEmail(g.id);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="Permanently delete from dashboard across all devices"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-900 group-hover:translate-x-0.5 transition" />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="py-8 text-center text-slate-400 text-xs font-medium">
-                    {gmailConnected
-                      ? 'No unread messages in inbox. All caught up!'
-                      : 'Connect your Gmail account to view unread messages on your dashboard.'}
+                  <div className="py-12 px-4 text-center rounded-xl bg-slate-50/50 border border-dashed border-slate-200 flex flex-col items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mb-3">
+                      <Mail size={18} />
+                    </div>
+                    <p className="text-xs font-bold text-slate-800">
+                      {gmailConnected ? 'Executive Briefing Clear' : 'Connect Your Account'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-medium max-w-sm mt-1">
+                      {gmailConnected
+                        ? 'Zero unread items requiring your immediate attention. Your dashboard inbox is completely caught up.'
+                        : 'Link your Google account to stream priority emails, milestone notices, and bills directly into your briefing.'}
+                    </p>
                   </div>
                 )}
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
-                <span>Unread Messages: {unreadCount}</span>
-                <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Action Required'}</span>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
+                <span>Unread Briefing Items: {unreadCount}</span>
+                <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Offline'}</span>
               </div>
             </section>
 
