@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { authService, AuthUser } from '../services/authService';
+import { signInWithGooglePopup, setFirebaseAccessToken } from '../services/firebaseAuth';
 import { APP_LOGO } from '../assets/logo';
 
 interface Props {
@@ -16,8 +17,21 @@ const OAuthButton: React.FC<{
   label: string;
   icon: string;
   isConfigured: boolean;
+  onCustomClick?: () => void;
   onClickIfNotConfigured: (provider: 'google' | 'facebook' | 'apple') => void;
-}> = ({ provider, label, icon, isConfigured, onClickIfNotConfigured }) => {
+}> = ({ provider, label, icon, isConfigured, onCustomClick, onClickIfNotConfigured }) => {
+  if (onCustomClick) {
+    return (
+      <button
+        type="button"
+        onClick={onCustomClick}
+        className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all cursor-pointer"
+      >
+        <i className={icon}></i> Continue with {label}
+      </button>
+    );
+  }
+
   if (isConfigured) {
     return (
       <a
@@ -85,6 +99,32 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const result = await signInWithGooglePopup();
+      if (result && result.user) {
+        if (result.accessToken) {
+          setFirebaseAccessToken(result.accessToken);
+        }
+        const user = await authService.loginWithGoogleToken({
+          email: result.user.email || '',
+          displayName: result.user.displayName,
+          avatarUrl: result.user.photoURL,
+          googleId: result.user.uid,
+          accessToken: result.accessToken,
+        });
+        onAuthenticated(user);
+      }
+    } catch (err: any) {
+      console.error('Google Sign-in failed:', err);
+      setError(err?.message || 'Google authentication was cancelled or failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -145,7 +185,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
             />
             <h1 className="text-xl font-bold text-white tracking-tight">Reset Your Password</h1>
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Secure Gateway</p>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
@@ -234,7 +274,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
             />
             <h1 className="text-xl font-bold text-white tracking-tight">Forgot Password</h1>
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Secure Gateway</p>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
@@ -318,7 +358,8 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               provider="google"
               label="Google"
               icon="fab fa-google"
-              isConfigured={availableProviders.includes('google')}
+              isConfigured={true}
+              onCustomClick={handleGoogleSignIn}
               onClickIfNotConfigured={handleProviderClick}
             />
             <OAuthButton

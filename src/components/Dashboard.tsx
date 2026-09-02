@@ -1,7 +1,9 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
-import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog } from '../types';
+import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem } from '../types';
+import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
+import { UnifiedNotificationHub } from './UnifiedNotificationHub';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -64,6 +66,8 @@ interface Props {
   financialLogs?: EventLog[];
   currentUser?: string;
   userEmail?: string;
+  events?: BudgetEvent[];
+  calendarItems?: CalendarItem[];
   onEdit: (t: Transaction) => void;
   onDelete: (id: string) => void;
   onPayRecurring: (rec: RecurringExpense, amount: number) => void;
@@ -83,15 +87,12 @@ interface Props {
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onEdit, onDelete
 }) => {
-  const [trendTimeframe, setTrendTimeframe] = useState<Timeframe>('monthly');
   const [searchTerm, setSearchTerm] = useState("");
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
   const [partialAmount, setPartialAmount] = useState<string>("");
   const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
-  const [editBudgetVal, setEditBudgetVal] = useState<string>("");
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -235,59 +236,6 @@ const Dashboard: React.FC<Props> = ({
     return openingBalancesTotal + historicalCashflow;
   }, [transactions, cycleStartDate, bankConnections, cashOpeningBalance]);
 
-  const categorySpendData = useMemo(() => {
-    const spent: Record<string, number> = {};
-    transactions
-      .filter(t => t.type === 'expense' && new Date(t.date + 'T00:00:00') >= cycleStartDate)
-      .forEach(t => {
-        spent[t.category] = (spent[t.category] || 0) + t.amount;
-      });
-
-    // Ensure all budgeted categories are included even if spent amount is 0
-    const budgetedCategories = Object.keys(categoryBudgets);
-    const spentCategories = Object.keys(spent);
-    const allCategories = Array.from(new Set([...budgetedCategories, ...spentCategories]))
-      .filter(c => !['Income', 'Transfer', 'Savings', 'Investments'].includes(c));
-
-    return allCategories.map(name => {
-      const amount = spent[name] || 0;
-      const budget = categoryBudgets[name] || 0;
-      const progress = budget > 0 ? (amount / budget) * 100 : 0;
-      const dailyAvg = amount / daysPassedInCycle;
-      return { name, amount, budget, progress, dailyAvg };
-    }).sort((a, b) => b.amount - a.amount || b.budget - a.budget);
-  }, [transactions, cycleStartDate, categoryBudgets, daysPassedInCycle]);
-
-  const cashflowTrends = useMemo(() => {
-    const grouped: Record<string, { income: number; expense: number }> = {};
-    const filtered = transactions.filter(t => t.type === 'income' || t.type === 'expense');
-
-    filtered.forEach(t => {
-      const date = new Date(t.date);
-      let label = "";
-      
-      if (trendTimeframe === 'daily') {
-        label = t.date;
-      } else if (trendTimeframe === 'monthly') {
-        label = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      } else {
-        label = `${date.getFullYear()}`;
-      }
-
-      if (!grouped[label]) grouped[label] = { income: 0, expense: 0 };
-      if (t.type === 'income') grouped[label].income += t.amount;
-      else grouped[label].expense += t.amount;
-    });
-
-    const sortedData = Object.entries(grouped)
-      .map(([label, data]) => ({ label, ...data }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-
-    if (trendTimeframe === 'daily') return sortedData.slice(-30);
-    if (trendTimeframe === 'monthly') return sortedData.slice(-12);
-    return sortedData;
-  }, [transactions, trendTimeframe]);
-
   const unpaidBills = useMemo(() => {
     return recurringExpenses.map(bill => {
       const totalPaid = transactions
@@ -305,54 +253,6 @@ const Dashboard: React.FC<Props> = ({
       return { ...inc, remainingAmount: Math.max(0, inc.amount - totalReceived), receivedAmount: totalReceived };
     }).filter(inc => inc.remainingAmount > 0.01);
   }, [recurringIncomes, transactions, cycleStartDate]);
-
-  const criticalNotifications = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const notifications = [];
-
-    unpaidBills.forEach(bill => {
-      const dueDate = new Date(bill.nextDueDate);
-      dueDate.setHours(0, 0, 0, 0);
-      const diffTime = dueDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays <= 7) {
-        notifications.push({
-          id: `notif-bill-${bill.id}`,
-          type: 'bill',
-          title: bill.description,
-          amount: bill.remainingAmount,
-          dueDate: bill.nextDueDate,
-          days: diffDays,
-          item: bill,
-          isIncome: false
-        });
-      }
-    });
-
-    unconfirmedIncomes.forEach(inc => {
-      const confDate = new Date(inc.nextConfirmationDate);
-      confDate.setHours(0, 0, 0, 0);
-      const diffTime = confDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays <= 7) {
-        notifications.push({
-          id: `notif-inc-${inc.id}`,
-          type: 'income',
-          title: inc.description,
-          amount: inc.remainingAmount,
-          dueDate: inc.nextConfirmationDate,
-          days: diffDays,
-          item: inc,
-          isIncome: true
-        });
-      }
-    });
-
-    return notifications.sort((a, b) => a.days - b.days);
-  }, [unpaidBills, unconfirmedIncomes]);
 
   const dailySafeSpend = useMemo(() => {
     return Math.max(0, liquidFunds / daysUntilNextCycle);
@@ -382,19 +282,6 @@ const Dashboard: React.FC<Props> = ({
       } else {
         setSelectedDestination('Cash in Hand');
       }
-    }
-  };
-
-  const startEditCategoryBudget = (name: string, currentBudget: number) => {
-    setEditingCategory(name);
-    setEditBudgetVal(currentBudget > 0 ? currentBudget.toString() : "");
-  };
-
-  const saveCategoryBudget = () => {
-    if (editingCategory && onUpdateCategoryBudget) {
-      onUpdateCategoryBudget(editingCategory, parseFloat(editBudgetVal) || 0);
-      setEditingCategory(null);
-      setEditBudgetVal("");
     }
   };
 
@@ -518,53 +405,21 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-      {/* Gmail Planning Notifications (Strictly restricted to vision79slu@gmail.com) */}
-      <GmailPlanningNotifications
+      {/* Unified Notification & Planning Intelligence Hub */}
+      <UnifiedNotificationHub
         userEmail={userEmail}
+        events={events}
+        calendarItems={calendarItems}
+        unpaidBills={unpaidBills}
+        unconfirmedIncomes={unconfirmedIncomes}
+        categoryBudgets={categoryBudgets}
+        transactions={transactions}
         onNavigateToTask={onNavigateToTask}
         onNavigateToPlanner={onNavigateToPlanner}
+        onPayRecurring={onPayRecurring}
+        onReceiveRecurringIncome={onReceiveRecurringIncome}
+        onOpenTransactionForm={onOpenTransactionForm}
       />
-
-      {criticalNotifications.length > 0 && (
-        <section className="animate-in slide-in-from-top-4 duration-500">
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-            <div>
-              <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider">Priority Reminders</h3>
-            </div>
-          </div>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-            {criticalNotifications.map((notif) => {
-              const d = new Date(notif.dueDate);
-              const formattedDate = d.toLocaleDateString('default', { day: 'numeric', month: 'short' });
-              return (
-                <div 
-                  key={notif.id}
-                  className={`min-w-[280px] p-4 rounded-xl border transition-all flex flex-col justify-between shadow-sm bg-white ${notif.isIncome ? 'border-emerald-200 text-slate-900' : 'border-slate-200 text-slate-900'}`}
-                >
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${notif.isIncome ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
-                        {notif.days < 0 ? 'Overdue' : notif.days === 0 ? 'Due Today' : `Due ${formattedDate}`}
-                      </span>
-                      <i className={`fas ${notif.isIncome ? 'fa-arrow-trend-up' : 'fa-receipt'} opacity-30 text-slate-400`}></i>
-                    </div>
-                    <h4 className="font-bold text-sm tracking-tight text-slate-800 mb-1 truncate">{notif.title}</h4>
-                    <p className="text-base font-semibold text-slate-900">${notif.amount.toLocaleString()}</p>
-                    <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wider mt-1">Scheduled: {formattedDate}</p>
-                  </div>
-                  <button 
-                    onClick={() => startRecordCommitment(notif.item, notif.isIncome)}
-                    className={`mt-4 py-1.5 w-full rounded text-[10px] font-bold uppercase tracking-wider transition-all ${notif.isIncome ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                  >
-                    Clear Commitment
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
@@ -634,98 +489,17 @@ const Dashboard: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-[450px]">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider">Cashflow Trajectory</h3>
-            <div className="flex bg-slate-50 p-0.5 rounded-lg border border-slate-150">
-              {(['daily', 'monthly', 'yearly'] as Timeframe[]).map(tf => (
-                <button key={tf} onClick={() => setTrendTimeframe(tf)} className={`px-3 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all ${trendTimeframe === tf ? 'bg-white text-indigo-600 shadow-sm border border-slate-100' : 'text-slate-400 hover:text-slate-700'}`}>{tf}</button>
-              ))}
-            </div>
-          </div>
-          <div className="h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cashflowTrends}>
-                <defs>
-                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.05}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.05}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.05)', fontSize: '11px', fontWeight: 'bold' }} />
-                <Area type="monotone" dataKey="income" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorIncome)" name="Inflow" />
-                <Area type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorExpense)" name="Outflow" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-[450px] flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider">Category Spend Matrix</h3>
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Active Cycle</span>
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-5 pr-2">
-            {categorySpendData.map((cat, idx) => {
-              const isEditing = editingCategory === cat.name;
-              return (
-                <div key={idx} className="space-y-1.5 group">
-                  <div className="flex justify-between items-end px-1">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[11px] font-black text-slate-800">{cat.name}</p>
-                        {!isEditing && onUpdateCategoryBudget && (
-                          <button 
-                            onClick={() => startEditCategoryBudget(cat.name, cat.budget)}
-                            className="opacity-0 group-hover:opacity-100 text-[10px] text-slate-400 hover:text-indigo-600 transition-all"
-                          >
-                            <i className="fas fa-pencil-alt"></i>
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Avg: ${cat.dailyAvg.toFixed(2)}/day</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] font-black text-slate-900">${cat.amount.toLocaleString()}</p>
-                      {isEditing ? (
-                        <div className="flex items-center gap-1 mt-1 animate-in fade-in slide-in-from-right-1">
-                          <input 
-                            type="number"
-                            autoFocus
-                            value={editBudgetVal}
-                            onChange={(e) => setEditBudgetVal(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && saveCategoryBudget()}
-                            className="w-16 h-5 bg-slate-50 border border-indigo-200 rounded text-[9px] font-black px-1 outline-none focus:ring-1 focus:ring-indigo-500"
-                            placeholder="Limit"
-                          />
-                          <button onClick={saveCategoryBudget} aria-label="Save budget" className="w-5 h-5 bg-indigo-600 text-white rounded flex items-center justify-center text-[8px]"><i className="fas fa-check"></i></button>
-                          <button onClick={() => setEditingCategory(null)} aria-label="Cancel editing budget" className="w-5 h-5 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[8px]"><i className="fas fa-times"></i></button>
-                        </div>
-                      ) : (
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                          {cat.budget > 0 ? `${cat.progress.toFixed(0)}% of $${cat.budget}` : 'Uncapped'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-1000 ${cat.progress > 90 ? 'bg-rose-500' : cat.progress > 70 ? 'bg-amber-500' : 'bg-indigo-500'}`} 
-                      style={{ width: `${Math.min(100, cat.budget > 0 ? cat.progress : 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </div>
+      {/* Unified Spending, Cashflow & Financial Insights Section */}
+      <SpendingCashflowIntelligence
+        transactions={transactions}
+        recurringExpenses={recurringExpenses}
+        recurringIncomes={recurringIncomes}
+        categoryBudgets={categoryBudgets}
+        onUpdateCategoryBudget={onUpdateCategoryBudget}
+        onEditTransaction={onEdit}
+        onDeleteTransaction={onDelete}
+        onOpenTransactionForm={onOpenTransactionForm}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">

@@ -230,6 +230,7 @@ const App: React.FC = () => {
   const [quotaExhausted, setQuotaExhausted] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showBankSync, setShowBankSync] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -726,17 +727,26 @@ const App: React.FC = () => {
     });
   }, [currentUsername]);
 
-  const onAddTransaction = (t: Omit<Transaction, 'id'>) => {
-    const newId = generateId();
-    const newT = { ...t, id: newId };
-    setTransactions(prev => [newT, ...prev]);
-    setShowForm(false);
+  const onSaveTransaction = (t: Omit<Transaction, 'id'>) => {
+    if (editingTransaction) {
+      setTransactions(prev => prev.map(item => item.id === editingTransaction.id ? { ...t, id: editingTransaction.id } : item));
+      logFinancialActivity(
+        `Updated ${t.type.toUpperCase()}: "${t.description}" ($${t.amount.toLocaleString()})`,
+        `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}`
+      );
+      setEditingTransaction(null);
+    } else {
+      const newId = generateId();
+      const newT = { ...t, id: newId };
+      setTransactions(prev => [newT, ...prev]);
 
-    const sign = t.type === 'expense' ? '-' : '+';
-    logFinancialActivity(
-      `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}$${t.amount.toLocaleString()})`,
-      `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}${t.notes ? ' | Notes: ' + t.notes : ''}`
-    );
+      const sign = t.type === 'expense' ? '-' : '+';
+      logFinancialActivity(
+        `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}$${t.amount.toLocaleString()})`,
+        `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}${t.notes ? ' | Notes: ' + t.notes : ''}`
+      );
+    }
+    setShowForm(false);
   };
 
   const onDeleteTransaction = (id: string) => {
@@ -949,9 +959,9 @@ const App: React.FC = () => {
                   />
                   <div className="hidden sm:block">
                     <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-indigo-950 whitespace-nowrap leading-none">
-                      FFPRO <span className="font-semibold text-indigo-600 text-[11px]">PRO</span>
+                      FFPRO <span className="font-semibold text-indigo-600 text-[11px]">V1</span>
                     </h1>
-                    <p className="text-[8px] font-bold text-slate-400 tracking-wider uppercase leading-none mt-0.5">Fire Finance</p>
+                    <p className="text-[8px] font-bold text-slate-400 tracking-wider uppercase leading-none mt-0.5">Fire Finance Pro</p>
                   </div>
                 </div>
 
@@ -1053,7 +1063,12 @@ const App: React.FC = () => {
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'nsv'}
                   userEmail={authUser?.email}
-                  onEdit={() => {}}
+                  events={events}
+                  calendarItems={calendarItems}
+                  onEdit={(t) => {
+                    setEditingTransaction(t);
+                    setShowForm(true);
+                  }}
                   onDelete={onDeleteTransaction}
                   onPayRecurring={onPayRecurring}
                   onReceiveRecurringIncome={onReceiveRecurringIncome}
@@ -1062,7 +1077,10 @@ const App: React.FC = () => {
                   onWithdrawal={() => {}}
                   onAddIncome={() => {}}
                   onUpdateCategoryBudget={handleUpdateCategoryBudget}
-                  onOpenTransactionForm={() => setShowForm(true)}
+                  onOpenTransactionForm={() => {
+                    setEditingTransaction(null);
+                    setShowForm(true);
+                  }}
                   onDeleteFinancialLog={(id) => setFinancialLogs(prev => prev.filter(l => l.id !== id))}
                   onNavigateToPlannerLogs={() => setActiveTab('events')}
                   onNavigateToTask={(taskId, projectId) => {
@@ -1157,7 +1175,15 @@ const App: React.FC = () => {
           {showForm && (
             <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
               <div className="w-full max-w-xl">
-                <TransactionForm onAdd={onAddTransaction} onCancel={() => setShowForm(false)} bankConnections={bankConnections} />
+                <TransactionForm 
+                  initialData={editingTransaction || undefined}
+                  onAdd={onSaveTransaction} 
+                  onCancel={() => {
+                    setShowForm(false);
+                    setEditingTransaction(null);
+                  }} 
+                  bankConnections={bankConnections} 
+                />
               </div>
             </div>
           )}

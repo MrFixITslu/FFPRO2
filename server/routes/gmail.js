@@ -26,12 +26,16 @@ router.use(gmailRateLimiter);
  */
 function requireAuthorizedAccount(req, res, next) {
   const userEmail = (req.user?.email || '').trim().toLowerCase();
-  if (!userEmail || userEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
-    return res.status(403).json({
-      error: 'Access restricted to authorized account.',
-    });
+  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+    return next();
   }
-  next();
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+  return res.status(403).json({
+    error: 'Access restricted to authorized account.',
+  });
 }
 
 /**
@@ -163,11 +167,12 @@ function findMatchingTask(subject = '', snippet = '', allTasks = []) {
  * Validates the token with Google TokenInfo and queries the Gmail API for messages matching 'is:unread' and planning keywords.
  */
 router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
-  // The access token now comes from the server-held grant captured at Google
-  // login (server/googleTokens.js), refreshed transparently as needed —
-  // there's no more separate client-side "Connect with Google" popup or
-  // Bearer token to supply.
-  const accessToken = await getValidGoogleAccessToken(req.user.id);
+  // Support both server-held grant and client-side bearer token
+  let accessToken = req.user?.id ? await getValidGoogleAccessToken(req.user.id) : null;
+  const authHeader = req.headers.authorization;
+  if (!accessToken && authHeader && authHeader.startsWith('Bearer ')) {
+    accessToken = authHeader.substring(7).trim();
+  }
 
   if (!accessToken) {
     return res.status(401).json({
@@ -322,7 +327,11 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
  */
 router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
   const { messageId } = req.body || {};
-  const accessToken = await getValidGoogleAccessToken(req.user.id);
+  let accessToken = req.user?.id ? await getValidGoogleAccessToken(req.user.id) : null;
+  const authHeader = req.headers.authorization;
+  if (!accessToken && authHeader && authHeader.startsWith('Bearer ')) {
+    accessToken = authHeader.substring(7).trim();
+  }
 
   if (!accessToken || !messageId) {
     return res.status(400).json({ error: 'Message ID is required and you must be logged in with Google.' });

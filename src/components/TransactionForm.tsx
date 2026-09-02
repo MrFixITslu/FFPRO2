@@ -22,6 +22,32 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
   const [lineItems, setLineItems] = useState<LineItem[]>(initialData?.lineItems || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    if (initialData) {
+      setAmount(initialData.amount !== undefined ? initialData.amount.toString() : '');
+      setCategory(initialData.category || CATEGORIES[0]);
+      setDesc(initialData.description || '');
+      setNotes(initialData.notes || '');
+      setType(initialData.type || 'expense');
+      setDate(initialData.date || new Date().toISOString().split('T')[0]);
+      setVendor(initialData.vendor || '');
+      setInstitution(initialData.institution || 'Cash in Hand');
+      setDestinationInstitution(initialData.destinationInstitution || '1st National Bank St. Lucia');
+      setLineItems(initialData.lineItems || []);
+    } else {
+      setAmount('');
+      setCategory(CATEGORIES[0]);
+      setDesc('');
+      setNotes('');
+      setType('expense');
+      setDate(new Date().toISOString().split('T')[0]);
+      setVendor('');
+      setInstitution('Cash in Hand');
+      setDestinationInstitution('1st National Bank St. Lucia');
+      setLineItems([]);
+    }
+  }, [initialData]);
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
     const amt = parseFloat(amount);

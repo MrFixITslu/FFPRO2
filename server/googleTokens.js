@@ -23,9 +23,8 @@ export async function saveGoogleTokens(userId, { accessToken, refreshToken, expi
     const existing = await loadStoredTokens(userId);
     effectiveRefreshToken = existing?.refreshToken || null;
   }
-  if (!effectiveRefreshToken) return; // Nothing usable to persist yet.
 
-  const { ciphertext, iv, authTag } = encryptForUser(userId, { accessToken, refreshToken: effectiveRefreshToken });
+  const { ciphertext, iv, authTag } = encryptForUser(userId, { accessToken, refreshToken: effectiveRefreshToken || null });
   const expiry = expiryDate ? new Date(expiryDate) : new Date(Date.now() + 55 * 60 * 1000);
   await pool.query(
     `UPDATE users SET google_gmail_ciphertext = $1, google_gmail_iv = $2, google_gmail_auth_tag = $3, google_gmail_token_expiry = $4 WHERE id = $5`,
@@ -62,10 +61,12 @@ async function loadStoredTokens(userId) {
  */
 export async function getValidGoogleAccessToken(userId) {
   const stored = await loadStoredTokens(userId);
-  if (!stored?.refreshToken) return null;
+  if (!stored) return null;
 
   const isFresh = stored.expiry && stored.expiry.getTime() - EXPIRY_SAFETY_MARGIN_MS > Date.now();
   if (isFresh && stored.accessToken) return stored.accessToken;
+
+  if (!stored.refreshToken) return null;
 
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {

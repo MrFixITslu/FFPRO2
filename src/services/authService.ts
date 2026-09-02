@@ -77,6 +77,24 @@ export const authService = {
     });
   },
 
+  async loginWithGoogleToken(payload: {
+    email: string;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+    googleId?: string;
+    accessToken?: string | null;
+    refreshToken?: string | null;
+  }): Promise<AuthUser> {
+    const res = await fetch(`${BASE}/google-token-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await handle(res);
+    return data.user;
+  },
+
   /** Full-page redirect URL for a given OAuth provider. Use as a plain <a href>. */
   oauthUrl(provider: 'google' | 'facebook' | 'apple'): string {
     return `${BASE}/${provider}`;

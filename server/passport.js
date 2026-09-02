@@ -23,7 +23,7 @@ passport.deserializeUser(async (id, done) => {
  * Finds an existing user for a given OAuth identity, links the identity to an
  * existing account with the same verified email, or creates a brand new user.
  */
-async function findOrCreateOAuthUser({ provider, providerId, email, displayName, avatarUrl }) {
+export async function findOrCreateOAuthUser({ provider, providerId, email, displayName, avatarUrl }) {
   const linked = await pool.query(
     `SELECT u.* FROM oauth_accounts oa
      JOIN users u ON u.id = oa.user_id
