@@ -81,14 +81,25 @@ interface Props {
   onNavigateToPlannerLogs?: () => void;
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
+  onNavigateToCalendar?: () => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onEdit, onDelete
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onNavigateToCalendar, onEdit, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Executive vs Detailed View Mode
+  const [viewMode, setViewMode] = useState<'executive' | 'detailed'>(() => {
+    return (localStorage.getItem('dashboard_view_mode') as 'executive' | 'detailed') || 'executive';
+  });
+
+  const handleSetViewMode = (mode: 'executive' | 'detailed') => {
+    setViewMode(mode);
+    localStorage.setItem('dashboard_view_mode', mode);
+  };
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -254,6 +265,54 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
+  // High-Level Executive Summary Metrics
+  const totalProjects = events.length;
+  const allTasks = useMemo(() => {
+    return events.flatMap(e => e.tasks || []);
+  }, [events]);
+  const completedTasksCount = allTasks.filter(t => t.completed).length;
+  const pendingTasksCount = allTasks.length - completedTasksCount;
+  const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
+
+  const totalSavingsGoalTarget = savingGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
+  const totalSavingsGoalCurrent = savingGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
+  const savingsProgressPct = totalSavingsGoalTarget > 0 ? Math.min(100, Math.round((totalSavingsGoalCurrent / totalSavingsGoalTarget) * 100)) : 0;
+
+  const totalInvestmentGoalTarget = investmentGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
+  const totalInvestmentGoalCurrent = investmentGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
+  const investmentProgressPct = totalInvestmentGoalTarget > 0 ? Math.min(100, Math.round((totalInvestmentGoalCurrent / totalInvestmentGoalTarget) * 100)) : 0;
+
+  const upcomingCalendarItems = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return [...calendarItems]
+      .filter(item => item.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [calendarItems]);
+
+  const upcomingFinancialCommitments = useMemo(() => {
+    const bills = unpaidBills.map(b => ({
+      id: b.id,
+      title: b.description,
+      amount: b.remainingAmount,
+      date: b.nextDueDate,
+      isIncome: false,
+      category: b.category,
+    }));
+    const incomes = unconfirmedIncomes.map(i => ({
+      id: i.id,
+      title: i.description,
+      amount: i.remainingAmount,
+      date: i.nextConfirmationDate,
+      isIncome: true,
+      category: i.category,
+    }));
+    return [...bills, ...incomes]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [unpaidBills, unconfirmedIncomes]);
+
   const filteredFinancialLogs = useMemo(() => {
     return financialLogs.filter(log => {
       // Type matching
@@ -374,22 +433,465 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-      {/* Unified Notification & Planning Intelligence Hub */}
-      <UnifiedNotificationHub
-        userEmail={userEmail}
-        events={events}
-        calendarItems={calendarItems}
-        unpaidBills={unpaidBills}
-        unconfirmedIncomes={unconfirmedIncomes}
-        categoryBudgets={categoryBudgets}
-        transactions={transactions}
-        bankConnections={bankConnections}
-        onNavigateToTask={onNavigateToTask}
-        onNavigateToPlanner={onNavigateToPlanner}
-        onPayRecurring={onPayRecurring}
-        onReceiveRecurringIncome={onReceiveRecurringIncome}
-        onOpenTransactionForm={onOpenTransactionForm}
-      />
+      {/* Executive vs Detailed View Mode Selector */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
+            viewMode === 'executive' 
+              ? 'bg-indigo-50 text-indigo-600 border-indigo-100' 
+              : 'bg-slate-100 text-slate-600 border-slate-200'
+          }`}>
+            {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                {viewMode === 'executive' ? 'Executive Briefing View' : 'Detailed Financial Analysis View'}
+              </h2>
+              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${
+                viewMode === 'executive' 
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}>
+                {viewMode === 'executive' ? 'High-Level Overview' : 'Granular Ledger & Analytics'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              {viewMode === 'executive' 
+                ? 'High-level snapshot across Financials, Projects, Calendar, Objectives & Priority Actions.' 
+                : 'Full breakdown of institutional accounts, cashflow intelligence, objectives & immutable transaction audit logs.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 self-stretch sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('executive')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'executive' 
+                ? 'bg-white text-indigo-700 shadow-xs' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers size={14} />
+            <span>Executive Briefing</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('detailed')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'detailed' 
+                ? 'bg-white text-indigo-700 shadow-xs' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 size={14} />
+            <span>Detailed View</span>
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'executive' ? (
+        /* Executive High-Level Summary View */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Executive Hero KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Total Net Worth */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Net Worth</span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                    <Wallet size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">${netWorth.toLocaleString()}</h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Liquid Cash:</span>
+                <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${liquidFunds.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Card 2: Cashflow Balance */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Monthly Cash Margin</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                    {netMargin >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                  </div>
+                </div>
+                <h3 className={`text-2xl font-black tracking-tight ${netMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-emerald-600 font-bold">+${totalActualIncome.toLocaleString()}</span>
+                <span className="text-slate-300">/</span>
+                <span className="text-rose-600 font-bold">-${totalActualExpenses.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Card 3: Projects & Workspaces */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Projects & Suites</span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                    <Zap size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">{totalProjects} <span className="text-xs font-semibold text-slate-400">Active</span></h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">{completedTasksCount}/{allTasks.length} Checklists</span>
+                <span className="font-bold text-amber-600">{overallTaskProgress}%</span>
+              </div>
+            </div>
+
+            {/* Card 4: Upcoming Schedule & Commitments */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Calendar & Commitments</span>
+                  <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100">
+                    <Calendar size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-semibold text-slate-400">Pending</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Next Commitment:</span>
+                <span className="font-bold text-cyan-600 truncate max-w-[120px]">
+                  {upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All Clear'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Unified Notification & Planning Intelligence Hub */}
+          <UnifiedNotificationHub
+            userEmail={userEmail}
+            events={events}
+            calendarItems={calendarItems}
+            unpaidBills={unpaidBills}
+            unconfirmedIncomes={unconfirmedIncomes}
+            categoryBudgets={categoryBudgets}
+            transactions={transactions}
+            bankConnections={bankConnections}
+            onNavigateToTask={onNavigateToTask}
+            onNavigateToPlanner={onNavigateToPlanner}
+            onPayRecurring={onPayRecurring}
+            onReceiveRecurringIncome={onReceiveRecurringIncome}
+            onOpenTransactionForm={onOpenTransactionForm}
+          />
+
+          {/* 2-Column High-Level Overview Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Module 1: Projects & Planner High-Level Overview */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                      <Zap size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Projects & Planner Summary</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Milestone Progress & Checklists</p>
+                    </div>
+                  </div>
+                  {onNavigateToPlanner && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlanner}
+                      className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 transition"
+                    >
+                      <span>Open Planner</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {events.length > 0 ? (
+                  <div className="space-y-3">
+                    {events.slice(0, 3).map((ev) => {
+                      const tasks = ev.tasks || [];
+                      const done = tasks.filter(t => t.completed).length;
+                      const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+                      const totalSpent = ev.ledger?.reduce((acc, l) => acc + l.amount, 0) || 0;
+
+                      return (
+                        <div 
+                          key={ev.id} 
+                          onClick={() => onNavigateToTask && onNavigateToTask(ev.id, ev.id)}
+                          className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 hover:border-amber-300 hover:bg-amber-50/20 transition cursor-pointer group"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                                ev.eventType === 'trip' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
+                                ev.eventType === 'startup' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              }`}>
+                                {ev.eventType === 'trip' ? '✈️ Trip' : ev.eventType === 'startup' ? '🚀 Startup' : '📋 General'}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-800 group-hover:text-amber-700 transition">{ev.title}</h4>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-slate-600">{pct}% Done</span>
+                          </div>
+
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mb-2">
+                            <div 
+                              className="bg-amber-500 h-full transition-all duration-300 rounded-full" 
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                            <span>{done}/{tasks.length} Tasks Completed</span>
+                            <span>Spent: ${totalSpent.toLocaleString()} / Target: ${(ev.budget || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No active project suites found.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-600">
+                <span>Active Projects: {events.length}</span>
+                <span>Pending Tasks: {pendingTasksCount}</span>
+              </div>
+            </section>
+
+            {/* Module 2: Calendar & Upcoming Commitments Summary */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100">
+                      <Calendar size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Schedule & Calendar Highlights</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Upcoming Meetings & Due Dates</p>
+                    </div>
+                  </div>
+                  {onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToCalendar}
+                      className="flex items-center gap-1 text-xs font-bold text-cyan-600 hover:text-cyan-700 transition"
+                    >
+                      <span>Open Calendar</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {upcomingCalendarItems.length > 0 || upcomingFinancialCommitments.length > 0 ? (
+                    <>
+                      {upcomingCalendarItems.map(ci => (
+                        <div key={ci.id} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 font-bold text-xs flex flex-col items-center justify-center shrink-0">
+                              <span>{new Date(ci.date + 'T00:00:00').getDate()}</span>
+                              <span className="text-[8px] uppercase">{new Date(ci.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">{ci.title}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{ci.category || 'Event'} • {ci.time || 'All Day'}</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-[9px] font-extrabold uppercase rounded border border-cyan-200">
+                            Calendar
+                          </span>
+                        </div>
+                      ))}
+
+                      {upcomingFinancialCommitments.map(fc => (
+                        <div key={fc.id} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg font-bold text-xs flex flex-col items-center justify-center shrink-0 ${
+                              fc.isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              <span>{new Date(fc.date + 'T00:00:00').getDate()}</span>
+                              <span className="text-[8px] uppercase">{new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">{fc.title}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{fc.category} • Due {new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                            fc.isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {fc.isIncome ? `+$${fc.amount.toFixed(2)}` : `-$${fc.amount.toFixed(2)}`}
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                      No upcoming meetings or financial commitments scheduled.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-600">
+                <span>Calendar Events: {calendarItems.length}</span>
+                <span>Unpaid Bills: {unpaidBills.length}</span>
+              </div>
+            </section>
+
+            {/* Module 3: Financial Objectives & Targets Summary */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs">
+              <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                    <Target size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Financial Objectives Progress</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Savings & Investment Goals</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-bold text-slate-800">Saving Goals ({savingGoals.length})</span>
+                    <span className="text-xs font-extrabold text-indigo-600">${totalSavingsGoalCurrent.toLocaleString()} / ${totalSavingsGoalTarget.toLocaleString()} ({savingsProgressPct}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-indigo-600 h-full transition-all duration-300 rounded-full" style={{ width: `${savingsProgressPct}%` }} />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-bold text-slate-800">Investment Goals ({investmentGoals.length})</span>
+                    <span className="text-xs font-extrabold text-emerald-600">${totalInvestmentGoalCurrent.toLocaleString()} / ${totalInvestmentGoalTarget.toLocaleString()} ({investmentProgressPct}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-600 h-full transition-all duration-300 rounded-full" style={{ width: `${investmentProgressPct}%` }} />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Module 4: High Level Quick Actions & Status */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
+                      <Activity size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Command Quick Actions</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">High-Level Operations</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {onOpenTransactionForm && (
+                    <button
+                      type="button"
+                      onClick={onOpenTransactionForm}
+                      className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Plus size={16} className="text-indigo-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">New Entry</p>
+                        <p className="text-[10px] text-indigo-500 font-medium">Record Transaction</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {onNavigateToPlanner && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlanner}
+                      className="p-3 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl border border-amber-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Zap size={16} className="text-amber-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">Project Suite</p>
+                        <p className="text-[10px] text-amber-600 font-medium">Planner Checklists</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToCalendar}
+                      className="p-3 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 rounded-xl border border-cyan-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Calendar size={16} className="text-cyan-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">Schedule Event</p>
+                        <p className="text-[10px] text-cyan-600 font-medium">Calendar & Meetings</p>
+                      </div>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode('detailed')}
+                    className="p-3 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl border border-slate-200/80 text-left transition flex flex-col justify-between"
+                  >
+                    <BarChart3 size={16} className="text-slate-600 mb-2" />
+                    <div>
+                      <p className="text-xs font-bold">Deep Analytics</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Full Ledger & Audit</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>Accounts Connected: {bankConnections.length}</span>
+                <span>Audit Logs Recorded: {financialLogs.length}</span>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      ) : (
+        /* Detailed Financial Analytics View */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Unified Notification & Planning Intelligence Hub */}
+          <UnifiedNotificationHub
+            userEmail={userEmail}
+            events={events}
+            calendarItems={calendarItems}
+            unpaidBills={unpaidBills}
+            unconfirmedIncomes={unconfirmedIncomes}
+            categoryBudgets={categoryBudgets}
+            transactions={transactions}
+            bankConnections={bankConnections}
+            onNavigateToTask={onNavigateToTask}
+            onNavigateToPlanner={onNavigateToPlanner}
+            onPayRecurring={onPayRecurring}
+            onReceiveRecurringIncome={onReceiveRecurringIncome}
+            onOpenTransactionForm={onOpenTransactionForm}
+          />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
@@ -829,6 +1331,8 @@ const Dashboard: React.FC<Props> = ({
         </div>
         )}
       </section>
+        </div>
+      )}
     </div>
   );
 };

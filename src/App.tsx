@@ -1313,6 +1313,7 @@ const App: React.FC = () => {
                     setActiveTab('events');
                   }}
                   onNavigateToPlanner={() => setActiveTab('events')}
+                  onNavigateToCalendar={() => setActiveTab('calendar')}
                 />
               </div>
             )}
