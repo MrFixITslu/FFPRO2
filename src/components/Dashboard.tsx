@@ -87,12 +87,14 @@ interface Props {
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
   onNavigateToCalendar?: () => void;
+  dismissedEmailIds?: string[];
+  onDismissEmail?: (emailId: string) => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onNavigateToCalendar, onEdit, onDelete
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onNavigateToCalendar, onEdit, onDelete, dismissedEmailIds = [], onDismissEmail
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -115,7 +117,7 @@ const Dashboard: React.FC<Props> = ({
     fetchGmail,
     handleConnectGmail,
     handleDismissEmail,
-  } = useGmailNotifications(userEmail, events);
+  } = useGmailNotifications(userEmail, events, dismissedEmailIds, onDismissEmail);
 
   const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
 
@@ -1025,7 +1027,8 @@ const Dashboard: React.FC<Props> = ({
             onReceiveRecurringIncome={onReceiveRecurringIncome}
             onOpenTransactionForm={onOpenTransactionForm}
             onSelectEmailModal={(email) => setSelectedEmailModal(email)}
-            onDismissEmail={handleDismissEmail}
+            onDismissEmail={onDismissEmail || handleDismissEmail}
+            externalDismissedIds={dismissedEmailIds}
           />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">

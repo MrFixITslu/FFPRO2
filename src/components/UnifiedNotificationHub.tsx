@@ -88,6 +88,7 @@ interface Props {
   onOpenTransactionForm?: () => void;
   onSelectEmailModal?: (email: GmailPlanningNotification) => void;
   onDismissEmail?: (emailId: string) => void;
+  externalDismissedIds?: string[];
 }
 
 const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
@@ -108,6 +109,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   onOpenTransactionForm,
   onSelectEmailModal,
   onDismissEmail,
+  externalDismissedIds = [],
 }) => {
   const [activeFilter, setActiveFilter] = useState<NotificationCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,6 +120,23 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     } catch (e) {}
     return new Set();
   });
+
+  // Sync with cloud/external dismissed email IDs
+  useEffect(() => {
+    if (Array.isArray(externalDismissedIds) && externalDismissedIds.length > 0) {
+      setDismissedIds(prev => {
+        const next = new Set(prev);
+        let changed = false;
+        externalDismissedIds.forEach(id => {
+          if (!next.has(id)) {
+            next.add(id);
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [externalDismissedIds]);
   const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
 
   // Gmail-specific state
@@ -238,7 +257,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     }
   }, [allUserTasks]);
 
-  // Initial Gmail sync check
+  // Initial Gmail sync check and 15-minute Google interval sync
   useEffect(() => {
     const token = getFirebaseAccessToken();
     if (token) {
@@ -247,6 +266,14 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     } else {
       fetchGmail(true);
     }
+
+    const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+    const intervalId = setInterval(() => {
+      const currentToken = getFirebaseAccessToken();
+      fetchGmail(true, currentToken || undefined);
+    }, FIFTEEN_MINUTES_MS);
+
+    return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
   // Handle Google Sign-in with Firebase Popup

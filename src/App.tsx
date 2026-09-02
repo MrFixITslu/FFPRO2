@@ -260,6 +260,20 @@ const App: React.FC = () => {
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
+  const [dismissedEmailIds, setDismissedEmailIds] = useState<string[]>(() => safeParse(STORAGE_KEYS.DISMISSED_EMAIL_IDS, []));
+
+  const handleDismissEmail = useCallback((emailId: string) => {
+    setDismissedEmailIds(prev => {
+      const set = new Set(prev || []);
+      set.add(emailId);
+      set.add(`gmail-${emailId}`);
+      const nextArr = Array.from(set);
+      try {
+        localStorage.setItem(STORAGE_KEYS.DISMISSED_EMAIL_IDS, JSON.stringify(nextArr));
+      } catch (e) {}
+      return nextArr;
+    });
+  }, []);
   const [forecastSettings, setForecastSettings] = useState<ForecastSettings>(() => safeParse(STORAGE_KEYS.FORECAST_SETTINGS, {
     yearsToProject: 5,
     monthlyContribution: 500,
@@ -359,8 +373,9 @@ const App: React.FC = () => {
     forecastSettings,
     financialLogs,
     cashOpeningBalance,
+    dismissedEmailIds,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, dismissedEmailIds]);
 
   // Merge helper for seamless conflict resolution without data loss
   const mergeAppStates = useCallback((local: AppState, remote: AppState): AppState => {
@@ -370,6 +385,10 @@ const App: React.FC = () => {
       l.forEach(item => { if (item?.id) map.set(item.id, item); });
       return Array.from(map.values());
     };
+
+    const localDismissed = local.dismissedEmailIds || [];
+    const remoteDismissed = remote.dismissedEmailIds || [];
+    const combinedDismissed = Array.from(new Set([...localDismissed, ...remoteDismissed]));
 
     return {
       transactions: mergeById(local.transactions, remote.transactions),
@@ -387,6 +406,7 @@ const App: React.FC = () => {
       financialLogs: mergeById(local.financialLogs, remote.financialLogs),
       forecastSettings: local.forecastSettings || remote.forecastSettings || { yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 },
       cashOpeningBalance: local.cashOpeningBalance !== 0 ? local.cashOpeningBalance : (remote.cashOpeningBalance || 0),
+      dismissedEmailIds: combinedDismissed,
       lastUpdated: new Date().toISOString()
     };
   }, []);
@@ -410,6 +430,15 @@ const App: React.FC = () => {
     }
     if (state.forecastSettings) {
       setForecastSettings(state.forecastSettings);
+    }
+    if (Array.isArray(state.dismissedEmailIds)) {
+      setDismissedEmailIds(prev => {
+        const merged = Array.from(new Set([...(prev || []), ...(state.dismissedEmailIds || [])]));
+        try {
+          localStorage.setItem(STORAGE_KEYS.DISMISSED_EMAIL_IDS, JSON.stringify(merged));
+        } catch (e) {}
+        return merged;
+      });
     }
     setCashOpeningBalance(state.cashOpeningBalance || 0);
   }, []);
@@ -614,7 +643,7 @@ const App: React.FC = () => {
     const timer = setTimeout(() => { pushToCloud(); }, 2500); // 2.5s debounce
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, cloudLoaded]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, dismissedEmailIds, cloudLoaded]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {
@@ -1313,6 +1342,8 @@ const App: React.FC = () => {
                   userEmail={authUser?.email}
                   events={allEvents}
                   calendarItems={calendarItems}
+                  dismissedEmailIds={dismissedEmailIds}
+                  onDismissEmail={handleDismissEmail}
                   onEdit={(t) => {
                     setEditingTransaction(t);
                     setShowForm(true);

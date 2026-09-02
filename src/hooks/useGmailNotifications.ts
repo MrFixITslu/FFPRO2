@@ -10,11 +10,17 @@ import { authService } from '../services/authService';
 
 const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
 
-export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] = []) {
+export function useGmailNotifications(
+  userEmail?: string,
+  events: BudgetEvent[] = [],
+  externalDismissedIds?: string[],
+  onDismissEmailProp?: (emailId: string) => void
+) {
   const [gmailNotifications, setGmailNotifications] = useState<GmailPlanningNotification[]>([]);
   const [gmailLoading, setGmailLoading] = useState(false);
   const [gmailConnected, setGmailConnected] = useState<boolean>(() => !!getFirebaseAccessToken());
   const [gmailError, setGmailError] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   // Persistent local dismissed email IDs stored in localStorage
   const [dismissedEmailIds, setDismissedEmailIds] = useState<Set<string>>(() => {
@@ -24,6 +30,23 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
     } catch (e) {}
     return new Set();
   });
+
+  // Sync external dismissed IDs from parent state (cloud sync)
+  useEffect(() => {
+    if (Array.isArray(externalDismissedIds) && externalDismissedIds.length > 0) {
+      setDismissedEmailIds(prev => {
+        const next = new Set(prev);
+        let changed = false;
+        externalDismissedIds.forEach(id => {
+          if (!next.has(id)) {
+            next.add(id);
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [externalDismissedIds]);
 
   // Compile tasks for email matching
   const allUserTasks = useMemo(() => {
@@ -81,6 +104,7 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
         const data = await res.json();
         setGmailNotifications(data.notifications || []);
         setGmailConnected(true);
+        setLastSyncTime(new Date());
         return;
       }
 
@@ -89,6 +113,7 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
           const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
           setGmailNotifications(directNotes);
           setGmailConnected(true);
+          setLastSyncTime(new Date());
           return;
         } catch (directErr) {
           console.warn('Direct Gmail fetch error:', directErr);
@@ -107,6 +132,7 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
           const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
           setGmailNotifications(directNotes);
           setGmailConnected(true);
+          setLastSyncTime(new Date());
           return;
         } catch (e) {
           setGmailError('Unable to connect to Gmail service');
@@ -119,6 +145,7 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
     }
   }, [allUserTasks]);
 
+  // Initial fetch and 15-minute interval timer to sync emails with Google automatically
   useEffect(() => {
     const token = getFirebaseAccessToken();
     if (token) {
@@ -127,6 +154,15 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
     } else {
       fetchGmail(true);
     }
+
+    // Auto-sync with Google every 15 minutes (900,000 ms)
+    const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+    const intervalId = setInterval(() => {
+      const currentToken = getFirebaseAccessToken();
+      fetchGmail(true, currentToken || undefined);
+    }, FIFTEEN_MINUTES_MS);
+
+    return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
   // Connect via Google Auth Popup
@@ -161,7 +197,7 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
     }
   };
 
-  // Remove email from dashboard locally & persist in localStorage without deleting from Gmail
+  // Remove email from dashboard locally & persist across devices
   const handleDismissEmail = useCallback((emailId: string) => {
     setDismissedEmailIds(prev => {
       const next = new Set(prev);
@@ -173,10 +209,25 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
       return next;
     });
 
-    setGmailNotifications(prev => prev.filter(g => g.id !== emailId));
-  }, []);
+    if (onDismissEmailProp) {
+      onDismissEmailProp(emailId);
+    }
 
-  // Filtered active unread emails (excluding those dismissed locally)
+    // Attempt marking read on Gmail server in background
+    const token = getFirebaseAccessToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    fetch('/api/gmail/mark-read', {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ messageId: emailId }),
+    }).catch(e => console.warn('Server mark-read notice:', e));
+
+    setGmailNotifications(prev => prev.filter(g => g.id !== emailId));
+  }, [onDismissEmailProp]);
+
+  // Filtered active unread emails (excluding those dismissed locally/synced)
   const activeUnreadEmails = useMemo(() => {
     return gmailNotifications.filter(
       g => !dismissedEmailIds.has(g.id) && !dismissedEmailIds.has(`gmail-${g.id}`)
@@ -189,6 +240,7 @@ export function useGmailNotifications(userEmail?: string, events: BudgetEvent[] 
     gmailLoading,
     gmailConnected,
     gmailError,
+    lastSyncTime,
     fetchGmail,
     handleConnectGmail,
     handleDismissEmail,
