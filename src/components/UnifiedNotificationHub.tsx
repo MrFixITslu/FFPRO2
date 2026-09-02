@@ -26,7 +26,7 @@ import {
   CheckSquare,
   AlertCircle
 } from 'lucide-react';
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
+import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask, BankConnection } from '../types';
 import { 
   auth, 
   signInWithGooglePopup, 
@@ -79,6 +79,7 @@ interface Props {
   unconfirmedIncomes?: any[];
   categoryBudgets?: Record<string, number>;
   transactions?: Transaction[];
+  bankConnections?: BankConnection[];
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
   onPayRecurring?: (item: any, amount: number) => void;
@@ -96,6 +97,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   unconfirmedIncomes = [],
   categoryBudgets = {},
   transactions = [],
+  bankConnections = [],
   onNavigateToTask,
   onNavigateToPlanner,
   onPayRecurring,
@@ -119,6 +121,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   // Quick action state for bill/income
   const [activePaymentModal, setActivePaymentModal] = useState<{ item: any; isIncome: boolean } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>('');
+  const [selectedDestination, setSelectedDestination] = useState<string>('Cash in Hand');
 
   // 1. Compile all user tasks (including subtasks) for matching & notifications
   const allUserTasks = useMemo(() => {
@@ -505,32 +508,32 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- D. Financial Reminders (Unpaid Bills & Incomes) ---
+    // --- D. Upcoming Commitments & Financial Reminders (Unpaid Bills & Incomes) ---
     unpaidBills.forEach(bill => {
       const dueDate = new Date(bill.nextDueDate);
       dueDate.setHours(0, 0, 0, 0);
       const diffTime = dueDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const formattedDate = dueDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+      const progress = (bill.paidAmount || 0) / (bill.amount || 1) * 100;
+      const hasPaidSomething = progress > 0;
 
-      if (diffDays <= 7) {
-        items.push({
-          id: `bill-${bill.id}`,
-          category: 'financial',
-          type: 'bill_due',
-          title: bill.description,
-          subtitle: `Recurring Expense • ${bill.category}`,
-          snippet: `Amount: $${bill.remainingAmount.toLocaleString()} • Due ${formattedDate}`,
-          amount: bill.remainingAmount,
-          dueDate: bill.nextDueDate,
-          daysDiff: diffDays,
-          isIncome: false,
-          statusText: diffDays < 0 ? `Overdue by ${Math.abs(diffDays)}d` : diffDays === 0 ? 'Bill Due Today' : `Due in ${diffDays}d (${formattedDate})`,
-          statusColor: diffDays <= 0 ? 'rose' : 'amber',
-          sourceData: bill,
-          actionType: 'bill',
-        });
-      }
+      items.push({
+        id: `bill-${bill.id}`,
+        category: 'financial',
+        type: 'bill_due',
+        title: bill.description,
+        subtitle: `Recurring Expense • ${bill.category}`,
+        snippet: `Total Bill: $${(bill.amount || bill.remainingAmount).toLocaleString()} • Remaining: $${bill.remainingAmount.toFixed(2)}${hasPaidSomething ? ' (Partial Paid)' : ''} • Due ${formattedDate}`,
+        amount: bill.remainingAmount,
+        dueDate: bill.nextDueDate,
+        daysDiff: diffDays,
+        isIncome: false,
+        statusText: diffDays < 0 ? `Overdue by ${Math.abs(diffDays)}d` : diffDays === 0 ? 'Bill Due Today' : `Due in ${diffDays}d (${formattedDate})`,
+        statusColor: diffDays <= 0 ? 'rose' : diffDays <= 3 ? 'amber' : 'indigo',
+        sourceData: bill,
+        actionType: 'bill',
+      });
     });
 
     unconfirmedIncomes.forEach(inc => {
@@ -539,25 +542,25 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       const diffTime = confDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const formattedDate = confDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+      const progress = (inc.receivedAmount || 0) / (inc.amount || 1) * 100;
+      const hasReceivedSomething = progress > 0;
 
-      if (diffDays <= 7) {
-        items.push({
-          id: `income-${inc.id}`,
-          category: 'financial',
-          type: 'income_unconfirmed',
-          title: inc.description,
-          subtitle: `Expected Inflow • ${inc.category}`,
-          snippet: `Amount: +$${inc.remainingAmount.toLocaleString()} • Scheduled ${formattedDate}`,
-          amount: inc.remainingAmount,
-          dueDate: inc.nextConfirmationDate,
-          daysDiff: diffDays,
-          isIncome: true,
-          statusText: diffDays <= 0 ? 'Confirmation Ready' : `Expected in ${diffDays}d`,
-          statusColor: 'emerald',
-          sourceData: inc,
-          actionType: 'income',
-        });
-      }
+      items.push({
+        id: `income-${inc.id}`,
+        category: 'financial',
+        type: 'income_unconfirmed',
+        title: inc.description,
+        subtitle: `Expected Inflow • ${inc.category}`,
+        snippet: `Total Expected: +$${(inc.amount || inc.remainingAmount).toLocaleString()} • Remaining: +$${inc.remainingAmount.toFixed(2)}${hasReceivedSomething ? ' (Partial Received)' : ''} • Scheduled ${formattedDate}`,
+        amount: inc.remainingAmount,
+        dueDate: inc.nextConfirmationDate,
+        daysDiff: diffDays,
+        isIncome: true,
+        statusText: diffDays <= 0 ? 'Confirmation Ready' : `Expected in ${diffDays}d (${formattedDate})`,
+        statusColor: 'emerald',
+        sourceData: inc,
+        actionType: 'income',
+      });
     });
 
     // --- E. Budget Alerts (>90% threshold) ---
@@ -662,10 +665,15 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     } else if (item.actionType === 'bill') {
       setActivePaymentModal({ item: item.sourceData, isIncome: false });
-      setPaymentAmount(String(item.sourceData.remainingAmount || ''));
+      const rem = item.sourceData.remainingAmount ?? item.sourceData.amount ?? 0;
+      setPaymentAmount(typeof rem === 'number' ? rem.toFixed(2) : String(rem));
     } else if (item.actionType === 'income') {
+      const isSalary = item.sourceData.description?.toLowerCase().includes('salary');
+      const defaultDest = isSalary ? (bankConnections[0]?.institution || 'Cash in Hand') : 'Cash in Hand';
+      setSelectedDestination(defaultDest);
       setActivePaymentModal({ item: item.sourceData, isIncome: true });
-      setPaymentAmount(String(item.sourceData.remainingAmount || ''));
+      const rem = item.sourceData.remainingAmount ?? item.sourceData.amount ?? 0;
+      setPaymentAmount(typeof rem === 'number' ? rem.toFixed(2) : String(rem));
     } else if (item.actionType === 'gmail') {
       const g = item.sourceData as GmailPlanningNotification;
       if (g?.taskReference?.taskId && onNavigateToTask) {
@@ -687,9 +695,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
   const confirmModalPayment = () => {
     if (!activePaymentModal) return;
-    const amt = parseFloat(paymentAmount) || activePaymentModal.item.remainingAmount;
+    const amt = parseFloat(paymentAmount) || activePaymentModal.item.remainingAmount || activePaymentModal.item.amount || 0;
     if (activePaymentModal.isIncome && onReceiveRecurringIncome) {
-      onReceiveRecurringIncome(activePaymentModal.item, amt, 'Cash in Hand');
+      onReceiveRecurringIncome(activePaymentModal.item, amt, selectedDestination || 'Cash in Hand');
     } else if (!activePaymentModal.isIncome && onPayRecurring) {
       onPayRecurring(activePaymentModal.item, amt);
     }
@@ -816,7 +824,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           }`}
         >
           <DollarSign size={13} />
-          <span>Financial Reminders</span>
+          <span>Upcoming Commitments &amp; Financials</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${activeFilter === 'financial' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
             {counts.financial}
           </span>
@@ -992,46 +1000,101 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
       {/* Quick Payment / Income Confirmation Modal */}
       {activePaymentModal && (
-        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-900">
-                {activePaymentModal.isIncome ? 'Confirm Received Income' : 'Clear Recurring Commitment'}
-              </h3>
+        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activePaymentModal.isIncome ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                  {activePaymentModal.isIncome ? <TrendingUp size={16} /> : <Receipt size={16} />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {activePaymentModal.isIncome ? 'Record Received Inflow' : 'Clear Recurring Commitment'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                    {activePaymentModal.isIncome ? 'Incoming Inflow Record' : 'Payment Outflow Record'}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setActivePaymentModal(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 mb-3">
-              {activePaymentModal.item.description} ({activePaymentModal.item.category})
-            </p>
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 mb-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{activePaymentModal.item.description}</p>
+                  <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{activePaymentModal.item.category}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-black text-indigo-600">
+                    ${(activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount ?? 0).toFixed ? (activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount ?? 0).toFixed(2) : (activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount)}
+                  </p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remaining Due</p>
+                </div>
+              </div>
+            </div>
 
-            <div className="mb-4">
+            {activePaymentModal.isIncome && (
+              <div className="mb-4">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Select Destination Account
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedDestination('Cash in Hand')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedDestination === 'Cash in Hand' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                  >
+                    Cash In Hand
+                  </button>
+                  {bankConnections.map(conn => (
+                    <button 
+                      type="button"
+                      key={conn.institution}
+                      onClick={() => setSelectedDestination(conn.institution)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedDestination === conn.institution ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                    >
+                      {conn.institution}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mb-5">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Amount ($)
+                Amount to Record ($)
               </label>
               <input
                 type="number"
+                step="0.01"
                 value={paymentAmount}
                 onChange={e => setPaymentAmount(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900"
+                placeholder="0.00"
+                className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 shadow-xs"
               />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Enter partial or full amount to record against this commitment.
+              </p>
             </div>
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setActivePaymentModal(null)}
-                className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={confirmModalPayment}
-                className={`flex-1 py-2 text-xs font-bold text-white rounded-lg transition ${
+                className={`flex-1 py-2.5 text-xs font-bold text-white rounded-xl shadow-xs transition ${
                   activePaymentModal.isIncome ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'
                 }`}
               >
