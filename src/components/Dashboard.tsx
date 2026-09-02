@@ -573,23 +573,6 @@ const Dashboard: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Unified Notification & Planning Intelligence Hub */}
-          <UnifiedNotificationHub
-            userEmail={userEmail}
-            events={events}
-            calendarItems={calendarItems}
-            unpaidBills={unpaidBills}
-            unconfirmedIncomes={unconfirmedIncomes}
-            categoryBudgets={categoryBudgets}
-            transactions={transactions}
-            bankConnections={bankConnections}
-            onNavigateToTask={onNavigateToTask}
-            onNavigateToPlanner={onNavigateToPlanner}
-            onPayRecurring={onPayRecurring}
-            onReceiveRecurringIncome={onReceiveRecurringIncome}
-            onOpenTransactionForm={onOpenTransactionForm}
-          />
-
           {/* 2-Column High-Level Overview Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
