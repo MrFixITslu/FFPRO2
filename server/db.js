@@ -165,6 +165,17 @@ if (hasPostgres) {
         ADD COLUMN IF NOT EXISTS google_gmail_token_expiry TIMESTAMP WITH TIME ZONE;
     `);
   }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS dismissed_emails (
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message_id VARCHAR(255) NOT NULL,
+        dismissed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, message_id)
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_dismissed_emails_user ON dismissed_emails(user_id);`);
+  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
@@ -190,7 +201,8 @@ if (!fs.existsSync(DB_FILE)) {
     project_members: [],
     project_invites: [],
     project_messages: [],
-    password_reset_tokens: []
+    password_reset_tokens: [],
+    dismissed_emails: []
   }, null, 2));
 }
 
@@ -203,6 +215,7 @@ function readDB() {
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
+    parsed.dismissed_emails ||= [];
     return parsed;
   } catch (e) {
     return {
@@ -486,6 +499,38 @@ export const pool = {
         user.google_gmail_token_expiry = expiry;
         writeDB(db);
       }
+      return { rows: [] };
+    }
+
+    // 20. SELECT message_id FROM dismissed_emails WHERE user_id = $1
+    if (cleanSql.includes('SELECT message_id FROM dismissed_emails WHERE user_id =')) {
+      const userId = params[0];
+      const list = (db.dismissed_emails || []).filter(d => d.user_id === userId);
+      return { rows: list.map(d => ({ message_id: d.message_id })) };
+    }
+
+    // 21. INSERT INTO dismissed_emails (user_id, message_id) VALUES ($1, $2)
+    if (cleanSql.startsWith('INSERT INTO dismissed_emails')) {
+      const userId = params[0];
+      const messageId = params[1];
+      db.dismissed_emails = db.dismissed_emails || [];
+      const exists = db.dismissed_emails.some(d => d.user_id === userId && d.message_id === messageId);
+      if (!exists) {
+        db.dismissed_emails.push({
+          user_id: userId,
+          message_id: messageId,
+          dismissed_at: new Date().toISOString()
+        });
+        writeDB(db);
+      }
+      return { rows: [] };
+    }
+
+    // 22. DELETE FROM dismissed_emails WHERE user_id = $1
+    if (cleanSql.startsWith('DELETE FROM dismissed_emails WHERE user_id =')) {
+      const userId = params[0];
+      db.dismissed_emails = (db.dismissed_emails || []).filter(d => d.user_id !== userId);
+      writeDB(db);
       return { rows: [] };
     }
 

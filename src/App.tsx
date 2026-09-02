@@ -257,6 +257,7 @@ const App: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
   const [dismissedEmailIds, setDismissedEmailIds] = useState<string[]>(() => safeParse(STORAGE_KEYS.DISMISSED_EMAIL_IDS, []));
+  const pushToCloudRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
 
   const handleDismissEmail = useCallback((emailId: string) => {
     setDismissedEmailIds(prev => {
@@ -269,6 +270,19 @@ const App: React.FC = () => {
       } catch (e) {}
       return nextArr;
     });
+
+    // Send permanent dismiss to server database & real-time broadcast to all devices (phones, tabs, etc.)
+    fetch('/api/gmail/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ messageId: emailId }),
+    }).catch(e => console.warn('Permanent dismiss notice error:', e));
+
+    // Instantly trigger cloud push without debounce
+    setTimeout(() => {
+      pushToCloudRef.current?.(true);
+    }, 50);
   }, []);
   const [forecastSettings, setForecastSettings] = useState<ForecastSettings>(() => safeParse(STORAGE_KEYS.FORECAST_SETTINGS, {
     yearsToProject: 5,
@@ -473,9 +487,27 @@ const App: React.FC = () => {
       }
     });
 
+    const unsubEmailDismissed = realtimeService.on('email_dismissed', (payload: any) => {
+      const messageId = payload?.messageId;
+      if (messageId) {
+        setDismissedEmailIds(prev => {
+          const set = new Set(prev || []);
+          if (set.has(messageId) && set.has(`gmail-${messageId}`)) return prev;
+          set.add(messageId);
+          set.add(`gmail-${messageId}`);
+          const nextArr = Array.from(set);
+          try {
+            localStorage.setItem(STORAGE_KEYS.DISMISSED_EMAIL_IDS, JSON.stringify(nextArr));
+          } catch (e) {}
+          return nextArr;
+        });
+      }
+    });
+
     return () => {
       unsubStatus();
       unsubData();
+      unsubEmailDismissed();
     };
   }, [isAuthenticated, applyRemoteState, updateCloudVersion]);
 
@@ -633,6 +665,10 @@ const App: React.FC = () => {
       }
     }
   }, [cloudLoaded, getFullState, applyRemoteState, updateCloudVersion, mergeAppStates]);
+
+  useEffect(() => {
+    pushToCloudRef.current = pushToCloud;
+  }, [pushToCloud]);
 
   useEffect(() => {
     if (!cloudLoaded || isApplyingRemoteUpdateRef.current) return;

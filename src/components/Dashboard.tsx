@@ -982,7 +982,7 @@ const Dashboard: React.FC<Props> = ({
                               handleDismissEmail(g.id);
                             }}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Remove from Dashboard (does not delete from Gmail)"
+                            title="Permanently delete from dashboard across all devices"
                           >
                             <Trash2 size={14} />
                           </button>
