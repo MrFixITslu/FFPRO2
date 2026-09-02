@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
 import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem } from '../types';
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
-import { UnifiedNotificationHub } from './UnifiedNotificationHub';
+import { GmailPlanningNotifications } from './GmailPlanningNotifications';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -404,20 +404,11 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-      {/* Unified Notification & Planning Intelligence Hub */}
-      <UnifiedNotificationHub
+      {/* Gmail Planning Notifications */}
+      <GmailPlanningNotifications
         userEmail={userEmail}
-        events={events}
-        calendarItems={calendarItems}
-        unpaidBills={unpaidBills}
-        unconfirmedIncomes={unconfirmedIncomes}
-        categoryBudgets={categoryBudgets}
-        transactions={transactions}
         onNavigateToTask={onNavigateToTask}
         onNavigateToPlanner={onNavigateToPlanner}
-        onPayRecurring={onPayRecurring}
-        onReceiveRecurringIncome={onReceiveRecurringIncome}
-        onOpenTransactionForm={onOpenTransactionForm}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">

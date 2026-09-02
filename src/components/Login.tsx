@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { authService, AuthUser } from '../services/authService';
-import { signInWithGooglePopup, setFirebaseAccessToken } from '../services/firebaseAuth';
+
 import { APP_LOGO } from '../assets/logo';
 
 interface Props {
@@ -99,30 +99,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const result = await signInWithGooglePopup();
-      if (result && result.user) {
-        if (result.accessToken) {
-          setFirebaseAccessToken(result.accessToken);
-        }
-        const user = await authService.loginWithGoogleToken({
-          email: result.user.email || '',
-          displayName: result.user.displayName,
-          avatarUrl: result.user.photoURL,
-          googleId: result.user.uid,
-          accessToken: result.accessToken,
-        });
-        onAuthenticated(user);
-      }
-    } catch (err: any) {
-      console.error('Google Sign-in failed:', err);
-      setError(err?.message || 'Google authentication was cancelled or failed.');
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    // Redirect to server OAuth endpoint which handles everything:
+    // - Authenticates with Google
+    // - Requests Gmail scope (readonly + modify)
+    // - Creates/finds user account
+    // - Stores encrypted Gmail tokens server-side
+    // - Returns user to dashboard after auth
+    window.location.href = '/api/auth/google';
   };
 
   const handleForgotSubmit = async (e: React.FormEvent) => {

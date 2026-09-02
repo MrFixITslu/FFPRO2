@@ -27,15 +27,15 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
-import { 
-  auth, 
-  signInWithGooglePopup, 
-  getFirebaseAccessToken, 
-  setFirebaseAccessToken,
-  fetchDirectGmailNotifications,
-  markDirectGmailAsRead
-} from '../services/firebaseAuth';
 import { authService } from '../services/authService';
+
+// Stub out Firebase functions that were removed - this component is not currently used
+// It can be properly refactored to use the server-token Gmail approach later
+const getFirebaseAccessToken = () => null;
+const fetchDirectGmailNotifications = async (token: string, tasks: any) => [];
+const markDirectGmailAsRead = async (messageId: string, token: string) => {};
+const signInWithGooglePopup = async () => ({});
+const setFirebaseAccessToken = () => {};
 
 export type NotificationCategory = 'all' | 'tasks' | 'calendar' | 'financial' | 'gmail';
 
@@ -106,13 +106,11 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  // Gmail-specific state
-  const isGmailAuthorized = !userEmail || (userEmail || '').trim().toLowerCase() === AUTHORIZED_GMAIL.toLowerCase() || (userEmail || '').includes('@');
+  // Gmail-specific state (disabled - use GmailPlanningNotifications component instead)
+  const isGmailAuthorized = false;
   const [gmailNotifications, setGmailNotifications] = useState<GmailPlanningNotification[]>([]);
   const [gmailLoading, setGmailLoading] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState<boolean>(() => {
-    return !!getFirebaseAccessToken();
-  });
+  const [gmailConnected, setGmailConnected] = useState<boolean>(false);
   const [gmailError, setGmailError] = useState<string | null>(null);
   const [lastGmailSync, setLastGmailSync] = useState<Date | null>(null);
 
@@ -156,72 +154,11 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     return list;
   }, [events]);
 
-  // 2. Fetch Gmail Notifications via server proxy OR direct client token
+  // 2. Gmail notifications disabled - use GmailPlanningNotifications component instead
   const fetchGmail = useCallback(async (isSilent = false, explicitToken?: string) => {
-    if (!isSilent) setGmailLoading(true);
-    setGmailError(null);
-
-    const clientToken = explicitToken || getFirebaseAccessToken();
-
-    try {
-      // First attempt: Call /api/gmail/notifications with session or client bearer token
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (clientToken) {
-        headers['Authorization'] = `Bearer ${clientToken}`;
-      }
-
-      const res = await fetch('/api/gmail/notifications', {
-        credentials: 'include',
-        headers,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setGmailNotifications(data.notifications || []);
-        setGmailConnected(true);
-        setLastGmailSync(new Date());
-        return;
-      }
-
-      // If server returned error and we have client token, try direct Gmail REST fetch
-      if (clientToken) {
-        try {
-          const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
-          setGmailNotifications(directNotes);
-          setGmailConnected(true);
-          setLastGmailSync(new Date());
-          return;
-        } catch (directErr) {
-          console.warn('Direct Gmail fetch fallback error:', directErr);
-        }
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        setGmailConnected(false);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setGmailError(errData.error || 'Gmail notifications temporarily unavailable');
-      }
-    } catch (err: any) {
-      console.warn('Gmail fetch error:', err);
-      // Try direct if client token exists
-      if (clientToken) {
-        try {
-          const directNotes = await fetchDirectGmailNotifications(clientToken, allUserTasks);
-          setGmailNotifications(directNotes);
-          setGmailConnected(true);
-          setLastGmailSync(new Date());
-          return;
-        } catch (e) {
-          setGmailError('Unable to connect to Gmail service');
-        }
-      } else {
-        setGmailConnected(false);
-      }
-    } finally {
-      if (!isSilent) setGmailLoading(false);
-    }
-  }, [allUserTasks]);
+    // Stub - Gmail handled by separate GmailPlanningNotifications component
+    return;
+  }, []);
 
   // Initial Gmail sync check
   useEffect(() => {
@@ -234,37 +171,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     }
   }, [fetchGmail]);
 
-  // Handle Google Sign-in with Firebase Popup
+  // Handle Google Sign-in - stub, use login instead
   const handleGooglePopupConnect = async () => {
-    setGmailLoading(true);
-    setGmailError(null);
-    try {
-      const res = await signInWithGooglePopup();
-      if (res && res.accessToken) {
-        setFirebaseAccessToken(res.accessToken);
-        setGmailConnected(true);
-
-        // Sync token to server session/DB in background
-        if (res.user) {
-          authService.loginWithGoogleToken({
-            email: res.user.email || AUTHORIZED_GMAIL,
-            displayName: res.user.displayName,
-            avatarUrl: res.user.photoURL,
-            googleId: res.user.uid,
-            accessToken: res.accessToken,
-          }).catch(err => {
-            console.warn('[Gmail Connect] Server token sync notice:', err?.message);
-          });
-        }
-
-        await fetchGmail(false, res.accessToken);
-      }
-    } catch (err: any) {
-      console.error('Google sign-in popup error:', err);
-      setGmailError(err?.message || 'Google authentication was not completed.');
-    } finally {
-      setGmailLoading(false);
-    }
+    setGmailError('Gmail access is granted when you log in with Google. Please log out and log back in with Google.');
   };
 
   // Mark Gmail as read
@@ -594,17 +503,17 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- F. Gmail Email Notifications ---
+    // --- F. Gmail Planning Email Notifications ---
     gmailNotifications.forEach(g => {
       items.push({
         id: `gmail-${g.id}`,
         category: 'gmail',
         type: 'gmail_email',
         title: g.subject || '(No Subject)',
-        subtitle: `From: ${g.from}`,
+        subtitle: `From: ${g.from}${g.taskReference ? ` • Linked Task: ${g.taskReference.taskTitle}` : ''}`,
         snippet: g.snippet,
         timestamp: g.date,
-        statusText: 'Unread Email (Inbox)',
+        statusText: g.taskReference ? 'Linked to Project Task' : 'Unread Planning Header',
         statusColor: 'blue',
         sourceData: g,
         actionType: 'gmail',
@@ -848,9 +757,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                 <Mail size={20} />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Unread Inbox Alerts</h4>
+                <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Gmail Planning Alerts</h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull all unread emails from your primary mail folder.
+                  Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull unread planning headers and match them with tasks.
                 </p>
                 {gmailError && (
                   <p className="text-[10px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
@@ -881,7 +790,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               {searchQuery 
                 ? 'No alerts match your search query.' 
                 : activeFilter === 'gmail' && !gmailConnected 
-                  ? 'Connect Gmail using the button above to sync unread inbox emails.' 
+                  ? 'Connect Gmail using the button above to sync planning emails.' 
                   : 'You are completely caught up on project tasks, calendar events, and recurring commitments.'}
             </p>
           </div>

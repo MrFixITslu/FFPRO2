@@ -21,22 +21,16 @@ router.use(gmailRateLimiter);
 
 /**
  * Server-Side Authorization Middleware
- * Verifies that the authenticated user or token is authorized (case-insensitive).
+ * Verifies that the authenticated user strictly matches the authorized email (case-insensitive).
+ * For any other user, returns 403 Forbidden with zero Gmail data/endpoints exposed.
  */
 function requireAuthorizedAccount(req, res, next) {
   const userEmail = (req.user?.email || '').trim().toLowerCase();
-  if (userEmail && (userEmail === AUTHORIZED_EMAIL.toLowerCase() || req.user)) {
-    return next();
-  }
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return next();
-  }
-  if (req.user) {
+  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
     return next();
   }
   return res.status(403).json({
-    error: 'Access restricted to authenticated accounts.',
+    error: 'Access restricted to authorized account.',
   });
 }
 
@@ -169,12 +163,11 @@ function findMatchingTask(subject = '', snippet = '', allTasks = []) {
  * Validates the token with Google TokenInfo and queries the Gmail API for messages matching 'is:unread' and planning keywords.
  */
 router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
-  // Support both server-held grant and client-side bearer token
-  let accessToken = req.user?.id ? await getValidGoogleAccessToken(req.user.id) : null;
-  const authHeader = req.headers.authorization;
-  if (!accessToken && authHeader && authHeader.startsWith('Bearer ')) {
-    accessToken = authHeader.substring(7).trim();
-  }
+  // The access token comes from the server-held grant captured at Google
+  // login (server/googleTokens.js), refreshed transparently as needed —
+  // there's no client-side token supplied; all Gmail access goes through
+  // the server's stored refresh token.
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
 
   if (!accessToken) {
     return res.status(401).json({
@@ -196,17 +189,18 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify token identity strictly belongs to vision79slu@gmail.com or the current authenticated user
-    if (tokenEmail && tokenEmail !== AUTHORIZED_EMAIL.toLowerCase() && req.user?.email && tokenEmail !== req.user.email.toLowerCase()) {
+    // Verify token identity strictly belongs to vision79slu@gmail.com
+    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
       return res.status(403).json({
-        error: `Connected Google token does not match authorized account (${AUTHORIZED_EMAIL}).`,
+        error: `Google token must belong to ${AUTHORIZED_EMAIL}.`,
         code: 'ACCOUNT_MISMATCH',
       });
     }
 
-    // 2. List unread messages from Gmail API (pull all unread emails from primary inbox)
-    const searchQuery = 'label:INBOX is:unread';
-    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=20`;
+    // 2. List unread messages from Gmail API
+    // Search for unread messages that contain planning, task, project, update, deadline, meeting, or schedule
+    const searchQuery = 'is:unread (planning OR task OR project OR deadline OR schedule OR milestone OR review OR update OR reminder)';
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=15`;
 
     const listRes = await fetch(listUrl, {
       headers: {
@@ -328,11 +322,7 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
  */
 router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
   const { messageId } = req.body || {};
-  let accessToken = req.user?.id ? await getValidGoogleAccessToken(req.user.id) : null;
-  const authHeader = req.headers.authorization;
-  if (!accessToken && authHeader && authHeader.startsWith('Bearer ')) {
-    accessToken = authHeader.substring(7).trim();
-  }
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
 
   if (!accessToken || !messageId) {
     return res.status(400).json({ error: 'Message ID is required and you must be logged in with Google.' });

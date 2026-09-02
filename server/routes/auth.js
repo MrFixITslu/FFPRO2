@@ -340,44 +340,6 @@ router.post('/logout', (req, res) => {
 });
 
 // --- Google ----------------------------------------------------------------
-// Token login via Firebase Client-Side Popup
-router.post('/google-token-login', async (req, res) => {
-  const { email, displayName, avatarUrl, googleId, accessToken, refreshToken } = req.body || {};
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required.' });
-  }
-
-  try {
-    const user = await findOrCreateOAuthUser({
-      provider: 'google',
-      providerId: googleId || `google_${email}`,
-      email,
-      displayName,
-      avatarUrl,
-    });
-
-    if (accessToken || refreshToken) {
-      await saveGoogleTokens(user.id, { accessToken, refreshToken });
-    }
-
-    req.login(user, (err) => {
-      if (err) {
-        console.error('google-token-login req.login error:', err);
-        return res.status(500).json({ error: 'Session start failed.' });
-      }
-      const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-      const token = signSessionId(req.sessionID, sessionSecret);
-      res.json({
-        user: sanitizeUser(user),
-        token,
-      });
-    });
-  } catch (err) {
-    console.error('google-token-login error:', err);
-    res.status(500).json({ error: 'Authentication failed.' });
-  }
-});
-
 // Requests Gmail read-only access alongside basic profile/email up front, and
 // accessType: 'offline' + prompt: 'consent' so Google issues a refresh token
 // we can use server-side (see server/googleTokens.js) — this is what lets a

@@ -51,10 +51,7 @@ import {
   User,
   Radio,
   Wifi,
-  WifiOff,
-  Menu,
-  X,
-  ChevronRight
+  WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -139,7 +136,6 @@ const App: React.FC = () => {
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(null);
   const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -969,8 +965,8 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Main Menu Tabs (Desktop & Tablet) */}
-                <nav className="hidden md:flex items-center gap-1 sm:gap-2 shrink-0">
+                {/* Main Menu Tabs */}
+                <nav className="flex items-center gap-1 sm:gap-2 shrink-0">
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
@@ -1025,224 +1021,12 @@ const App: React.FC = () => {
                 >
                   <SettingsIcon size={16} />
                 </button>
-                <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60 shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60">
                   {currentUsername.charAt(0)}
                 </div>
-
-                {/* Mobile Menu Toggle Button */}
-                <button 
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-                  className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all border border-indigo-100 shrink-0 shadow-2xs"
-                  aria-label="Toggle Navigation Menu"
-                  title="Menu"
-                >
-                  {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-                </button>
               </div>
             </div>
           </header>
-
-          {/* Mobile Navigation Drawer Overlay */}
-          {isMobileMenuOpen && (
-            <div className="fixed inset-0 z-[140] md:hidden flex flex-col">
-              <div 
-                className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200" 
-                onClick={() => setIsMobileMenuOpen(false)} 
-              />
-              
-              <div className="relative w-full bg-white border-b border-slate-200 shadow-2xl p-5 flex flex-col gap-4 max-h-[85vh] overflow-y-auto animate-in slide-in-from-top duration-250 z-10 top-9">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2.5">
-                    <img src={APP_LOGO} alt="Fire Finance Pro" className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-900/10" />
-                    <div>
-                      <h3 className="text-sm font-black uppercase text-indigo-950 leading-none">Fire Finance Pro</h3>
-                      <p className="text-[9px] font-bold text-slate-400 tracking-wider uppercase mt-0.5">Mobile Navigation Suite</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-500 rounded-lg"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* Account Badge */}
-                <div className="flex items-center justify-between p-3 bg-indigo-50/70 rounded-xl border border-indigo-100">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs shrink-0">
-                      {currentUsername.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 leading-tight">{currentUsername}</p>
-                      <p className="text-[10px] text-indigo-600 font-semibold">{isAdmin ? 'Administrator Access' : 'Standard Member'}</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] font-extrabold uppercase rounded-full">
-                    Active
-                  </span>
-                </div>
-
-                {/* Navigation Items */}
-                <div className="space-y-1">
-                  {isAdmin && (
-                    <button
-                      onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                        activeTab === 'dashboard' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <LayoutDashboard size={18} />
-                        <div className="text-left">
-                          <p className="text-xs font-bold uppercase tracking-wider">Dashboard</p>
-                          <p className={`text-[10px] ${activeTab === 'dashboard' ? 'text-indigo-100' : 'text-slate-400'}`}>Command center & financial overview</p>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className={activeTab === 'dashboard' ? 'text-white' : 'text-slate-400'} />
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                      activeTab === 'calendar' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <CalendarIcon size={18} />
-                      <div className="text-left">
-                        <p className="text-xs font-bold uppercase tracking-wider">Calendar</p>
-                        <p className={`text-[10px] ${activeTab === 'calendar' ? 'text-indigo-100' : 'text-slate-400'}`}>Events, meetings & commitment schedules</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className={activeTab === 'calendar' ? 'text-white' : 'text-slate-400'} />
-                  </button>
-
-                  <button
-                    onClick={() => { setActiveTab('events'); setIsMobileMenuOpen(false); }}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                      activeTab === 'events' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Zap size={18} />
-                      <div className="text-left">
-                        <p className="text-xs font-bold uppercase tracking-wider">Planner & Projects</p>
-                        <p className={`text-[10px] ${activeTab === 'events' ? 'text-indigo-100' : 'text-slate-400'}`}>Manage project suites, checklists & vaults</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className={activeTab === 'events' ? 'text-white' : 'text-slate-400'} />
-                  </button>
-
-                  {isAdmin && (
-                    <button
-                      onClick={() => { setActiveTab('projections'); setIsMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                        activeTab === 'projections' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <TrendingUp size={18} />
-                        <div className="text-left">
-                          <p className="text-xs font-bold uppercase tracking-wider">Forecast & Projections</p>
-                          <p className={`text-[10px] ${activeTab === 'projections' ? 'text-indigo-100' : 'text-slate-400'}`}>Cashflow forecasts & wealth trajectories</p>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className={activeTab === 'projections' ? 'text-white' : 'text-slate-400'} />
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => { setShowSettings(true); setIsMobileMenuOpen(false); }}
-                    className="w-full flex items-center justify-between p-3 rounded-xl text-slate-700 hover:bg-slate-100 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <SettingsIcon size={18} />
-                      <div className="text-left">
-                        <p className="text-xs font-bold uppercase tracking-wider">System Settings</p>
-                        <p className="text-[10px] text-slate-400">Configure limits, API keys & security</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className="text-slate-400" />
-                  </button>
-                </div>
-
-                {/* Mobile Actions Footer */}
-                <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-                  {deferredPrompt && (
-                    <button
-                      onClick={() => { handleInstall(); setIsMobileMenuOpen(false); }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold uppercase tracking-wider border border-indigo-100"
-                    >
-                      <Download size={14} />
-                      <span>Install App</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold uppercase tracking-wider border border-rose-100"
-                  >
-                    <LogOut size={14} />
-                    <span>Log Out Account</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Mobile Bottom Navigation Bar */}
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[120] bg-white border-t border-slate-200 px-2 py-1.5 flex justify-around items-center shadow-lg print:hidden">
-            {isAdmin && (
-              <button
-                onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
-                className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                  activeTab === 'dashboard' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <LayoutDashboard size={18} />
-                <span>Dashboard</span>
-              </button>
-            )}
-            <button
-              onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
-              className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                activeTab === 'calendar' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <CalendarIcon size={18} />
-              <span>Calendar</span>
-            </button>
-            <button
-              onClick={() => { setActiveTab('events'); setIsMobileMenuOpen(false); }}
-              className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                activeTab === 'events' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Zap size={18} />
-              <span>Planner</span>
-            </button>
-            {isAdmin && (
-              <button
-                onClick={() => { setActiveTab('projections'); setIsMobileMenuOpen(false); }}
-                className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                  activeTab === 'projections' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <TrendingUp size={18} />
-                <span>Forecast</span>
-              </button>
-            )}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                isMobileMenuOpen ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Menu size={18} />
-              <span>Menu</span>
-            </button>
-          </nav>
 
           <main className="flex-1 max-w-7xl mx-auto w-full pt-32 px-3 sm:px-6 pb-12">
             {activeTab === 'dashboard' && isAdmin && (

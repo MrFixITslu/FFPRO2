@@ -242,9 +242,9 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
             <div className="w-10 h-10 rounded-xl bg-indigo-800/30 text-indigo-300 flex items-center justify-center mb-2">
               <Inbox size={20} />
             </div>
-            <p className="text-xs font-bold text-indigo-100">No unread primary emails</p>
+            <p className="text-xs font-bold text-indigo-100">No new planning notifications</p>
             <p className="text-[11px] text-indigo-300/60 mt-0.5">
-              All emails in your Primary mail folder for {AUTHORIZED_EMAIL} have been reviewed.
+              All planning-related emails for {AUTHORIZED_EMAIL} have been reviewed.
             </p>
           </div>
         )}
