@@ -1,9 +1,11 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
-import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem } from '../types';
+import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem, GmailPlanningNotification } from '../types';
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
 import { UnifiedNotificationHub } from './UnifiedNotificationHub';
+import { EmailDetailModal } from './EmailDetailModal';
+import { useGmailNotifications } from '../hooks/useGmailNotifications';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -38,7 +40,10 @@ import {
   Layers,
   ExternalLink,
   Sliders,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Mail,
+  Inbox,
+  LogIn
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -100,6 +105,19 @@ const Dashboard: React.FC<Props> = ({
     setViewMode(mode);
     localStorage.setItem('dashboard_view_mode', mode);
   };
+
+  // Gmail Sync & Notifications Engine
+  const {
+    activeUnreadEmails,
+    unreadCount,
+    gmailLoading,
+    gmailConnected,
+    fetchGmail,
+    handleConnectGmail,
+    handleDismissEmail,
+  } = useGmailNotifications(userEmail, events);
+
+  const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -496,7 +514,7 @@ const Dashboard: React.FC<Props> = ({
         /* Executive High-Level Summary View */
         <div className="space-y-6 animate-in fade-in duration-300">
           {/* Executive Hero KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Card 1: Total Net Worth */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
               <div>
@@ -568,6 +586,38 @@ const Dashboard: React.FC<Props> = ({
                 <span className="text-slate-500 font-medium">Next Commitment:</span>
                 <span className="font-bold text-cyan-600 truncate max-w-[120px]">
                   {upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All Clear'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 5: Unread Emails */}
+            <div 
+              className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-blue-300 transition cursor-pointer"
+              onClick={() => {
+                if (activeUnreadEmails.length > 0) {
+                  setSelectedEmailModal(activeUnreadEmails[0]);
+                } else if (!gmailConnected) {
+                  handleConnectGmail();
+                }
+              }}
+            >
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Unread Emails</span>
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                    <Mail size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {unreadCount} <span className="text-xs font-semibold text-slate-400">Unread</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Inbox Status:</span>
+                <span className={`font-bold px-2 py-0.5 rounded-md ${
+                  gmailConnected ? 'text-blue-600 bg-blue-50' : 'text-amber-600 bg-amber-50'
+                }`}>
+                  {gmailConnected ? (unreadCount > 0 ? `${unreadCount} New` : 'All Clear') : 'Connect Account'}
                 </span>
               </div>
             </div>
@@ -854,6 +904,104 @@ const Dashboard: React.FC<Props> = ({
               </div>
             </section>
 
+            {/* Module 5: Unread Inbox & Emails Briefing */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between lg:col-span-2">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                      <Mail size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Unread Inbox Briefing</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        {gmailConnected ? `${unreadCount} Unread Messages in Inbox` : 'Gmail Account Disconnected'}
+                      </p>
+                    </div>
+                  </div>
+                  {gmailConnected ? (
+                    <button
+                      type="button"
+                      onClick={() => fetchGmail(false)}
+                      disabled={gmailLoading}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Sync Inbox"
+                    >
+                      <RefreshCw size={14} className={gmailLoading ? 'animate-spin text-blue-600' : ''} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleConnectGmail}
+                      disabled={gmailLoading}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-blue-600 text-white rounded-lg shadow-xs hover:bg-blue-700 transition"
+                    >
+                      <LogIn size={12} />
+                      <span>Connect Gmail</span>
+                    </button>
+                  )}
+                </div>
+
+                {activeUnreadEmails.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeUnreadEmails.map((g) => (
+                      <div
+                        key={g.id}
+                        onClick={() => setSelectedEmailModal(g)}
+                        className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer group flex items-start justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                            <Mail size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-bold text-slate-900 truncate">{g.from}</span>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition truncate">
+                              {g.subject || '(No Subject)'}
+                            </h4>
+                            {g.snippet && (
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">{g.snippet}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDismissEmail(g.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Remove from Dashboard (does not delete from Gmail)"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                    {gmailConnected
+                      ? 'No unread messages in inbox. All caught up!'
+                      : 'Connect your Gmail account to view unread messages on your dashboard.'}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>Unread Messages: {unreadCount}</span>
+                <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Action Required'}</span>
+              </div>
+            </section>
+
           </div>
         </div>
       ) : (
@@ -874,6 +1022,8 @@ const Dashboard: React.FC<Props> = ({
             onPayRecurring={onPayRecurring}
             onReceiveRecurringIncome={onReceiveRecurringIncome}
             onOpenTransactionForm={onOpenTransactionForm}
+            onSelectEmailModal={(email) => setSelectedEmailModal(email)}
+            onDismissEmail={handleDismissEmail}
           />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -1316,6 +1466,13 @@ const Dashboard: React.FC<Props> = ({
       </section>
         </div>
       )}
+
+      {/* Email Detail Modal Popup */}
+      <EmailDetailModal
+        email={selectedEmailModal}
+        onClose={() => setSelectedEmailModal(null)}
+        onDeleteFromDashboard={handleDismissEmail}
+      />
     </div>
   );
 };

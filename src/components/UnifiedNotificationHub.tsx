@@ -27,6 +27,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask, BankConnection } from '../types';
+import { EmailDetailModal } from './EmailDetailModal';
 import { 
   auth, 
   signInWithGooglePopup, 
@@ -85,6 +86,8 @@ interface Props {
   onPayRecurring?: (item: any, amount: number) => void;
   onReceiveRecurringIncome?: (item: any, amount: number, dest: string) => void;
   onOpenTransactionForm?: () => void;
+  onSelectEmailModal?: (email: GmailPlanningNotification) => void;
+  onDismissEmail?: (emailId: string) => void;
 }
 
 const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
@@ -103,10 +106,19 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   onPayRecurring,
   onReceiveRecurringIncome,
   onOpenTransactionForm,
+  onSelectEmailModal,
+  onDismissEmail,
 }) => {
   const [activeFilter, setActiveFilter] = useState<NotificationCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('dashboard_dismissed_email_ids');
+      if (raw) return new Set(JSON.parse(raw));
+    } catch (e) {}
+    return new Set();
+  });
+  const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
 
   // Gmail-specific state
   const isGmailAuthorized = !userEmail || (userEmail || '').trim().toLowerCase() === AUTHORIZED_GMAIL.toLowerCase() || (userEmail || '').includes('@');
@@ -270,27 +282,24 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     }
   };
 
-  // Mark Gmail as read
-  const handleDismissGmail = async (messageId: string, e?: React.MouseEvent) => {
+  // Dismiss Gmail locally from dashboard (persisted in localStorage without deleting in Gmail)
+  const handleDismissGmail = (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setDismissedIds(prev => new Set(prev).add(`gmail-${messageId}`));
+    setDismissedIds(prev => {
+      const next = new Set(prev);
+      next.add(`gmail-${messageId}`);
+      next.add(messageId);
+      try {
+        localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
+      } catch (err) {}
+      return next;
+    });
     
+    if (onDismissEmail) {
+      onDismissEmail(messageId);
+    }
     // Optimistic removal
     setGmailNotifications(prev => prev.filter(g => g.id !== messageId));
-
-    const token = getFirebaseAccessToken();
-    if (token) {
-      markDirectGmailAsRead(messageId, token).catch(() => {});
-    }
-    fetch('/api/gmail/mark-read', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({ messageId }),
-    }).catch(() => {});
   };
 
   // 3. Build unified notifications list
@@ -676,12 +685,10 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       setPaymentAmount(typeof rem === 'number' ? rem.toFixed(2) : String(rem));
     } else if (item.actionType === 'gmail') {
       const g = item.sourceData as GmailPlanningNotification;
-      if (g?.taskReference?.taskId && onNavigateToTask) {
-        handleDismissGmail(g.id);
-        onNavigateToTask(g.taskReference.taskId, g.taskReference.projectId);
-      } else if (onNavigateToPlanner) {
-        handleDismissGmail(g.id);
-        onNavigateToPlanner();
+      if (onSelectEmailModal) {
+        onSelectEmailModal(g);
+      } else {
+        setSelectedEmailModal(g);
       }
     } else if (item.actionType === 'planner') {
       if (onNavigateToPlanner) onNavigateToPlanner();
@@ -985,7 +992,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                               : item.actionType === 'income' 
                                 ? 'Receive' 
                                 : item.actionType === 'gmail'
-                                  ? (item.sourceData?.taskReference ? 'View Task' : 'Open Planner')
+                                  ? 'View Email'
                                   : 'View'}
                       </span>
                       <ChevronRight size={12} />
@@ -1104,6 +1111,13 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* Email Detail Modal Popup */}
+      <EmailDetailModal
+        email={selectedEmailModal}
+        onClose={() => setSelectedEmailModal(null)}
+        onDeleteFromDashboard={handleDismissGmail}
+      />
     </section>
   );
 };
