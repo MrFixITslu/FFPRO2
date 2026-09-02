@@ -43,7 +43,11 @@ import {
   ArrowLeftRight,
   Mail,
   Inbox,
-  LogIn
+  LogIn,
+  LogOut,
+  ShieldCheck,
+  Info,
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -148,10 +152,13 @@ const Dashboard: React.FC<Props> = ({
     gmailConnected,
     fetchGmail,
     handleConnectGmail,
+    handleDisconnectGmail,
     handleDismissEmail,
   } = useGmailNotifications(userEmail, events, dismissedEmailIds, onDismissEmail);
 
   const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
+  const [showGmailConsentModal, setShowGmailConsentModal] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -958,20 +965,32 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                   </div>
                   {gmailConnected ? (
-                    <button
-                      type="button"
-                      onClick={() => fetchGmail(false)}
-                      disabled={gmailLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200/80 transition"
-                      title="Sync Inbox with Gmail"
-                    >
-                      <RefreshCw size={13} className={gmailLoading ? 'animate-spin text-slate-900' : ''} />
-                      <span className="hidden sm:inline">{gmailLoading ? 'Syncing...' : 'Sync Briefing'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchGmail(false)}
+                        disabled={gmailLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200/80 transition"
+                        title="Sync Inbox with Gmail"
+                      >
+                        <RefreshCw size={13} className={gmailLoading ? 'animate-spin text-slate-900' : ''} />
+                        <span className="hidden sm:inline">{gmailLoading ? 'Syncing...' : 'Sync Briefing'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDisconnectConfirm(true)}
+                        disabled={gmailLoading}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-slate-200/70 transition"
+                        title="Disconnect Gmail & revoke access"
+                      >
+                        <LogOut size={13} />
+                        <span className="hidden md:inline">Disconnect</span>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
-                      onClick={handleConnectGmail}
+                      onClick={() => setShowGmailConsentModal(true)}
                       disabled={gmailLoading}
                       className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-slate-900 text-white rounded-xl shadow-xs hover:bg-slate-800 transition"
                     >
@@ -1534,6 +1553,124 @@ const Dashboard: React.FC<Props> = ({
         onClose={() => setSelectedEmailModal(null)}
         onDeleteFromDashboard={handleDismissEmail}
       />
+
+      {/* Google Gmail Incremental Authorization Prominent Disclosure Modal */}
+      {showGmailConsentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative">
+            <button
+              onClick={() => setShowGmailConsentModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+              aria-label="Close modal"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Connect Google Gmail</h3>
+                <p className="text-xs text-slate-500">Executive Inbox &amp; Planning Synchronization</p>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-slate-600 leading-relaxed">
+              <p>
+                To surface relevant project planning updates, vendor notices, and invoices directly in your
+                <strong> Executive Inbox Briefing</strong>, Fire Finance Pro requests permission to access your Gmail messages.
+              </p>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Info size={14} className="text-indigo-600" />
+                  <span>How Fire Finance Pro uses your Gmail data:</span>
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-slate-600">
+                  <li>Scans unread message headers, subject lines, senders, and short snippets.</li>
+                  <li>Matches incoming emails to existing budget events, projects, and checklist tasks.</li>
+                  <li>Allows you to review or dismiss items directly from your dashboard.</li>
+                </ul>
+              </div>
+
+              <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-100/80 space-y-1.5 text-indigo-950">
+                <div className="font-semibold text-xs flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-indigo-600" />
+                  <span>Security &amp; Privacy Protections</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-normal">
+                  Your email data is never used for advertising, never sold, never used to train AI models, and tokens are encrypted at rest with AES-256-GCM. You can disconnect at any time.
+                </p>
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                Adheres strictly to the{' '}
+                <a
+                  href="/privacy#google-api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:underline font-medium"
+                >
+                  Google API Services User Data Policy
+                </a>.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowGmailConsentModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGmailConsentModal(false);
+                  handleConnectGmail();
+                }}
+                className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition flex items-center gap-1.5"
+              >
+                <span>Authorize &amp; Continue with Google</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnect Gmail Confirmation Modal */}
+      {showDisconnectConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-900 mb-2">Disconnect Gmail Integration?</h3>
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              This will immediately revoke Fire Finance Pro's access token with Google and delete encrypted credentials from your account. You can reconnect whenever you like.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDisconnectConfirm(false)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowDisconnectConfirm(false);
+                  await handleDisconnectGmail();
+                }}
+                className="px-3.5 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-xs"
+              >
+                Confirm Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

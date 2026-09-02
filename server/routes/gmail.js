@@ -4,11 +4,12 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
 import { decryptForUser } from '../crypto.js';
-import { getValidGoogleAccessToken } from '../googleTokens.js';
+import { getValidGoogleAccessToken, revokeGoogleTokens } from '../googleTokens.js';
 import { realtimeHub } from '../realtime.js';
 
 const router = Router();
-const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
+// Primary test/demo account; reviewers and any authenticated user who connects Gmail can test their own inbox
+const PRIMARY_AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
 
 const gmailRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -22,16 +23,15 @@ router.use(gmailRateLimiter);
 
 /**
  * Server-Side Authorization Middleware
- * Verifies that the authenticated user strictly matches the authorized email (case-insensitive).
- * For any other user, returns 403 Forbidden with zero Gmail data/endpoints exposed.
+ * Verifies that the authenticated user has an active session and access to Gmail features.
+ * Permits the designated account as well as any authenticated user who grants Google OAuth consent.
  */
 function requireAuthorizedAccount(req, res, next) {
-  const userEmail = (req.user?.email || '').trim().toLowerCase();
-  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+  if (req.user && req.user.id) {
     return next();
   }
   return res.status(403).json({
-    error: 'Access restricted to authorized account.',
+    error: 'Authentication required to access Gmail features.',
   });
 }
 
@@ -491,6 +491,21 @@ router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
   } catch (err) {
     console.error('[gmail-sync] Error marking message read:', err);
     res.status(500).json({ error: 'Failed to update email status.' });
+  }
+});
+
+/**
+ * POST /api/gmail/disconnect
+ * User-initiated Google account disconnection and token revocation.
+ * Revokes OAuth grant against Google's revocation server and purges encrypted tokens.
+ */
+router.post('/disconnect', requireAuthorizedAccount, async (req, res) => {
+  try {
+    await revokeGoogleTokens(req.user.id);
+    res.json({ ok: true, message: 'Gmail disconnected and stored tokens revoked.' });
+  } catch (err) {
+    console.error('[gmail-sync] Error disconnecting Gmail:', err);
+    res.status(500).json({ error: 'Failed to disconnect Gmail.' });
   }
 });
 

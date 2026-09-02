@@ -70,14 +70,17 @@ export async function findOrCreateOAuthUser({ provider, providerId, email, displ
 // Only registered if credentials are present, so the server still boots
 // (with that button effectively disabled) if a provider hasn't been set up yet.
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  // 1. Standard Google Sign-In (OpenID/Profile/Email - least privilege)
   passport.use(
+    'google',
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL,
+        passReqToCallback: true,
       },
-      async (accessToken, refreshToken, profile, done) => {
+      async (_req, _accessToken, _refreshToken, profile, done) => {
         try {
           const user = await findOrCreateOAuthUser({
             provider: 'google',
@@ -86,14 +89,50 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             displayName: profile.displayName,
             avatarUrl: profile.photos?.[0]?.value,
           });
-          // Captures the Gmail-scoped grant (see the extra scope + accessType
-          // requested in routes/auth.js) so features like Gmail Planning
-          // Notifications can use this server-held token instead of asking
-          // for a second, separate consent on the dashboard. Google access
-          // tokens are always ~1hr, so getValidGoogleAccessToken's default
-          // expiry estimate is used rather than a params field this library
-          // doesn't reliably expose.
-          await saveGoogleTokens(user.id, { accessToken, refreshToken });
+          done(null, user);
+        } catch (err) {
+          done(err);
+        }
+      }
+    )
+  );
+
+  // 2. Incremental Authorization: Google Gmail Connection
+  // Only called when an authenticated user explicitly requests linking their Gmail inbox
+  const gmailCallbackURL = process.env.GOOGLE_GMAIL_CALLBACK_URL ||
+    (process.env.GOOGLE_CALLBACK_URL
+      ? process.env.GOOGLE_CALLBACK_URL.replace(/\/google\/callback$/, '/google/gmail/callback')
+      : undefined);
+
+  passport.use(
+    'google-gmail',
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: gmailCallbackURL,
+        passReqToCallback: true,
+      },
+      async (req, accessToken, refreshToken, profile, done) => {
+        try {
+          // If already signed in, bind tokens to the active user
+          const activeUserId = req.user?.id;
+          let user = req.user;
+
+          if (!user) {
+            user = await findOrCreateOAuthUser({
+              provider: 'google',
+              providerId: profile.id,
+              email: profile.emails?.[0]?.value,
+              displayName: profile.displayName,
+              avatarUrl: profile.photos?.[0]?.value,
+            });
+          }
+
+          if (user?.id) {
+            await saveGoogleTokens(user.id, { accessToken, refreshToken });
+          }
+
           done(null, user);
         } catch (err) {
           done(err);

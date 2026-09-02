@@ -169,10 +169,28 @@ export function useGmailNotifications(
     return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
-  // Connect via Google Auth - redirect to server OAuth endpoint
+  // Connect via Google Auth - redirect to dedicated incremental OAuth endpoint
   const handleConnectGmail = () => {
-    window.location.href = '/api/auth/google';
+    window.location.href = '/api/auth/google/gmail';
   };
+
+  // Disconnect Gmail and revoke tokens
+  const handleDisconnectGmail = useCallback(async () => {
+    try {
+      setGmailLoading(true);
+      await fetch('/api/gmail/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      setGmailConnected(false);
+      setGmailNotifications([]);
+    } catch (err) {
+      console.warn('Error disconnecting Gmail:', err);
+    } finally {
+      setGmailLoading(false);
+    }
+  }, []);
 
   // Remove email from dashboard locally & persist across devices permanently
   const handleDismissEmail = useCallback((emailId: string) => {
@@ -228,6 +246,7 @@ export function useGmailNotifications(
     lastSyncTime,
     fetchGmail,
     handleConnectGmail,
+    handleDisconnectGmail,
     handleDismissEmail,
     dismissedEmailIds,
   };
