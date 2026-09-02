@@ -1,9 +1,15 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
-import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem } from '../types';
+import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem, GmailPlanningNotification } from '../types';
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
+<<<<<<< HEAD
 import { GmailPlanningNotifications } from './GmailPlanningNotifications';
+=======
+import { UnifiedNotificationHub } from './UnifiedNotificationHub';
+import { EmailDetailModal } from './EmailDetailModal';
+import { useGmailNotifications } from '../hooks/useGmailNotifications';
+>>>>>>> 7a1bdc1ac17aac8bb0d05d716841ee10b2ee3fe7
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -38,7 +44,10 @@ import {
   Layers,
   ExternalLink,
   Sliders,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Mail,
+  Inbox,
+  LogIn
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -81,17 +90,40 @@ interface Props {
   onNavigateToPlannerLogs?: () => void;
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
+  onNavigateToCalendar?: () => void;
+  dismissedEmailIds?: string[];
+  onDismissEmail?: (emailId: string) => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onEdit, onDelete
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onNavigateToCalendar, onEdit, onDelete, dismissedEmailIds = [], onDismissEmail
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
-  const [partialAmount, setPartialAmount] = useState<string>("");
-  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+
+  // Executive vs Detailed View Mode
+  const [viewMode, setViewMode] = useState<'executive' | 'detailed'>(() => {
+    return (localStorage.getItem('dashboard_view_mode') as 'executive' | 'detailed') || 'executive';
+  });
+
+  const handleSetViewMode = (mode: 'executive' | 'detailed') => {
+    setViewMode(mode);
+    localStorage.setItem('dashboard_view_mode', mode);
+  };
+
+  // Gmail Sync & Notifications Engine
+  const {
+    activeUnreadEmails,
+    unreadCount,
+    gmailLoading,
+    gmailConnected,
+    fetchGmail,
+    handleConnectGmail,
+    handleDismissEmail,
+  } = useGmailNotifications(userEmail, events, dismissedEmailIds, onDismissEmail);
+
+  const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -257,32 +289,53 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
-  const handleQuickPaymentAction = (item: any, isIncome: boolean) => {
-    const amt = parseFloat(partialAmount) || item.remainingAmount;
-    if (isIncome) {
-      const destination = selectedDestination || 'Cash in Hand';
-      onReceiveRecurringIncome(item, amt, destination);
-    } else {
-      onPayRecurring(item, amt);
-    }
-    setActivePaymentId(null);
-    setPartialAmount("");
-    setSelectedDestination(null);
-  };
+  // High-Level Executive Summary Metrics
+  const totalProjects = events.length;
+  const allTasks = useMemo(() => {
+    return events.flatMap(e => e.tasks || []);
+  }, [events]);
+  const completedTasksCount = allTasks.filter(t => t.completed).length;
+  const pendingTasksCount = allTasks.length - completedTasksCount;
+  const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
 
-  const startRecordCommitment = (item: any, isIncome: boolean) => {
-    setActivePaymentId(item.id);
-    setPartialAmount(item.remainingAmount.toFixed(2));
-    
-    if (isIncome) {
-      const isSalary = item.description.toLowerCase().includes('salary');
-      if (isSalary) {
-        setSelectedDestination(bankConnections[0]?.institution || 'Cash in Hand');
-      } else {
-        setSelectedDestination('Cash in Hand');
-      }
-    }
-  };
+  const totalSavingsGoalTarget = savingGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
+  const totalSavingsGoalCurrent = savingGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
+  const savingsProgressPct = totalSavingsGoalTarget > 0 ? Math.min(100, Math.round((totalSavingsGoalCurrent / totalSavingsGoalTarget) * 100)) : 0;
+
+  const totalInvestmentGoalTarget = investmentGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
+  const totalInvestmentGoalCurrent = investmentGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
+  const investmentProgressPct = totalInvestmentGoalTarget > 0 ? Math.min(100, Math.round((totalInvestmentGoalCurrent / totalInvestmentGoalTarget) * 100)) : 0;
+
+  const upcomingCalendarItems = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return [...calendarItems]
+      .filter(item => item.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [calendarItems]);
+
+  const upcomingFinancialCommitments = useMemo(() => {
+    const bills = unpaidBills.map(b => ({
+      id: b.id,
+      title: b.description,
+      amount: b.remainingAmount,
+      date: b.nextDueDate,
+      isIncome: false,
+      category: b.category,
+    }));
+    const incomes = unconfirmedIncomes.map(i => ({
+      id: i.id,
+      title: i.description,
+      amount: i.remainingAmount,
+      date: i.nextConfirmationDate,
+      isIncome: true,
+      category: i.category,
+    }));
+    return [...bills, ...incomes]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [unpaidBills, unconfirmedIncomes]);
 
   const filteredFinancialLogs = useMemo(() => {
     return financialLogs.filter(log => {
@@ -404,12 +457,592 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
+<<<<<<< HEAD
       {/* Gmail Planning Notifications */}
       <GmailPlanningNotifications
         userEmail={userEmail}
         onNavigateToTask={onNavigateToTask}
         onNavigateToPlanner={onNavigateToPlanner}
       />
+=======
+      {/* Executive vs Detailed View Mode Selector */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
+            viewMode === 'executive' 
+              ? 'bg-indigo-50 text-indigo-600 border-indigo-100' 
+              : 'bg-slate-100 text-slate-600 border-slate-200'
+          }`}>
+            {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                {viewMode === 'executive' ? 'Executive Briefing View' : 'Detailed Financial Analysis View'}
+              </h2>
+              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${
+                viewMode === 'executive' 
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}>
+                {viewMode === 'executive' ? 'High-Level Overview' : 'Granular Ledger & Analytics'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              {viewMode === 'executive' 
+                ? 'High-level snapshot across Financials, Projects, Calendar, Objectives & Priority Actions.' 
+                : 'Full breakdown of institutional accounts, cashflow intelligence, objectives & immutable transaction audit logs.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 self-stretch sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('executive')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'executive' 
+                ? 'bg-white text-indigo-700 shadow-xs' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers size={14} />
+            <span>Executive Briefing</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('detailed')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'detailed' 
+                ? 'bg-white text-indigo-700 shadow-xs' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 size={14} />
+            <span>Detailed View</span>
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'executive' ? (
+        /* Executive High-Level Summary View */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Executive Hero KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Card 1: Total Net Worth */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Net Worth</span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                    <Wallet size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">${netWorth.toLocaleString()}</h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Liquid Cash:</span>
+                <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${liquidFunds.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Card 2: Cashflow Balance */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Monthly Cash Margin</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                    {netMargin >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                  </div>
+                </div>
+                <h3 className={`text-2xl font-black tracking-tight ${netMargin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-emerald-600 font-bold">+${totalActualIncome.toLocaleString()}</span>
+                <span className="text-slate-300">/</span>
+                <span className="text-rose-600 font-bold">-${totalActualExpenses.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Card 3: Projects & Workspaces */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Projects & Suites</span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                    <Zap size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">{totalProjects} <span className="text-xs font-semibold text-slate-400">Active</span></h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">{completedTasksCount}/{allTasks.length} Checklists</span>
+                <span className="font-bold text-amber-600">{overallTaskProgress}%</span>
+              </div>
+            </div>
+
+            {/* Card 4: Upcoming Schedule & Commitments */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Calendar & Commitments</span>
+                  <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100">
+                    <Calendar size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-semibold text-slate-400">Pending</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Next Commitment:</span>
+                <span className="font-bold text-cyan-600 truncate max-w-[120px]">
+                  {upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All Clear'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 5: Unread Emails */}
+            <div 
+              className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:border-blue-300 transition cursor-pointer"
+              onClick={() => {
+                if (activeUnreadEmails.length > 0) {
+                  setSelectedEmailModal(activeUnreadEmails[0]);
+                } else if (!gmailConnected) {
+                  handleConnectGmail();
+                }
+              }}
+            >
+              <div>
+                <div className="flex items-center justify-between text-slate-400 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Unread Emails</span>
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                    <Mail size={16} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {unreadCount} <span className="text-xs font-semibold text-slate-400">Unread</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Inbox Status:</span>
+                <span className={`font-bold px-2 py-0.5 rounded-md ${
+                  gmailConnected ? 'text-blue-600 bg-blue-50' : 'text-amber-600 bg-amber-50'
+                }`}>
+                  {gmailConnected ? (unreadCount > 0 ? `${unreadCount} New` : 'All Clear') : 'Connect Account'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-Column High-Level Overview Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Module 1: Projects & Planner High-Level Overview */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                      <Zap size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Projects & Planner Summary</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Milestone Progress & Checklists</p>
+                    </div>
+                  </div>
+                  {onNavigateToPlanner && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlanner}
+                      className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 transition"
+                    >
+                      <span>Open Planner</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {events.length > 0 ? (
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {events.map((ev) => {
+                      const tasks = ev.tasks || [];
+                      const done = tasks.filter(t => t.completed).length;
+                      const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+                      const totalSpent = ev.ledger?.reduce((acc, l) => acc + l.amount, 0) || 0;
+                      const projectName = ev.name || (ev as any).title || 'Untitled Project';
+                      const targetBudget = ev.projectedBudget || (ev as any).budget || 0;
+
+                      return (
+                        <div 
+                          key={ev.id} 
+                          onClick={() => onNavigateToTask && onNavigateToTask(ev.id, ev.id)}
+                          className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 hover:border-amber-300 hover:bg-amber-50/20 transition cursor-pointer group"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                                ev.eventType === 'trip' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
+                                ev.eventType === 'startup' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              }`}>
+                                {ev.eventType === 'trip' ? '✈️ Trip' : ev.eventType === 'startup' ? '🚀 Startup' : '📋 General'}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-800 group-hover:text-amber-700 transition">{projectName}</h4>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-slate-600">{pct}% Done</span>
+                          </div>
+
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mb-2">
+                            <div 
+                              className="bg-amber-500 h-full transition-all duration-300 rounded-full" 
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                            <span>{done}/{tasks.length} Tasks Completed</span>
+                            <span>Spent: ${totalSpent.toLocaleString()} / Target: ${targetBudget.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No active project suites found.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-600">
+                <span>Active Projects: {events.length}</span>
+                <span>Pending Tasks: {pendingTasksCount}</span>
+              </div>
+            </section>
+
+            {/* Module 2: Calendar & Upcoming Commitments Summary */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100">
+                      <Calendar size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Schedule & Calendar Highlights</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Upcoming Meetings & Due Dates</p>
+                    </div>
+                  </div>
+                  {onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToCalendar}
+                      className="flex items-center gap-1 text-xs font-bold text-cyan-600 hover:text-cyan-700 transition"
+                    >
+                      <span>Open Calendar</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {upcomingCalendarItems.length > 0 || upcomingFinancialCommitments.length > 0 ? (
+                    <>
+                      {upcomingCalendarItems.map(ci => (
+                        <div key={ci.id} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 font-bold text-xs flex flex-col items-center justify-center shrink-0">
+                              <span>{new Date(ci.date + 'T00:00:00').getDate()}</span>
+                              <span className="text-[8px] uppercase">{new Date(ci.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">{ci.title}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{ci.category || 'Event'} • {ci.time || 'All Day'}</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-[9px] font-extrabold uppercase rounded border border-cyan-200">
+                            Calendar
+                          </span>
+                        </div>
+                      ))}
+
+                      {upcomingFinancialCommitments.map(fc => (
+                        <div key={fc.id} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg font-bold text-xs flex flex-col items-center justify-center shrink-0 ${
+                              fc.isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              <span>{new Date(fc.date + 'T00:00:00').getDate()}</span>
+                              <span className="text-[8px] uppercase">{new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">{fc.title}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{fc.category} • Due {new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                            fc.isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {fc.isIncome ? `+$${fc.amount.toFixed(2)}` : `-$${fc.amount.toFixed(2)}`}
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                      No upcoming meetings or financial commitments scheduled.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-600">
+                <span>Calendar Events: {calendarItems.length}</span>
+                <span>Unpaid Bills: {unpaidBills.length}</span>
+              </div>
+            </section>
+
+            {/* Module 3: Financial Objectives & Targets Summary */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs">
+              <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                    <Target size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Financial Objectives Progress</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Savings & Investment Goals</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-bold text-slate-800">Saving Goals ({savingGoals.length})</span>
+                    <span className="text-xs font-extrabold text-indigo-600">${totalSavingsGoalCurrent.toLocaleString()} / ${totalSavingsGoalTarget.toLocaleString()} ({savingsProgressPct}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-indigo-600 h-full transition-all duration-300 rounded-full" style={{ width: `${savingsProgressPct}%` }} />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-bold text-slate-800">Investment Goals ({investmentGoals.length})</span>
+                    <span className="text-xs font-extrabold text-emerald-600">${totalInvestmentGoalCurrent.toLocaleString()} / ${totalInvestmentGoalTarget.toLocaleString()} ({investmentProgressPct}%)</span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-600 h-full transition-all duration-300 rounded-full" style={{ width: `${investmentProgressPct}%` }} />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Module 4: High Level Quick Actions & Status */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
+                      <Activity size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Command Quick Actions</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">High-Level Operations</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {onOpenTransactionForm && (
+                    <button
+                      type="button"
+                      onClick={onOpenTransactionForm}
+                      className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Plus size={16} className="text-indigo-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">New Entry</p>
+                        <p className="text-[10px] text-indigo-500 font-medium">Record Transaction</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {onNavigateToPlanner && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlanner}
+                      className="p-3 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl border border-amber-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Zap size={16} className="text-amber-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">Project Suite</p>
+                        <p className="text-[10px] text-amber-600 font-medium">Planner Checklists</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToCalendar}
+                      className="p-3 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 rounded-xl border border-cyan-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Calendar size={16} className="text-cyan-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">Schedule Event</p>
+                        <p className="text-[10px] text-cyan-600 font-medium">Calendar & Meetings</p>
+                      </div>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode('detailed')}
+                    className="p-3 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl border border-slate-200/80 text-left transition flex flex-col justify-between"
+                  >
+                    <BarChart3 size={16} className="text-slate-600 mb-2" />
+                    <div>
+                      <p className="text-xs font-bold">Deep Analytics</p>
+                      <p className="text-[10px] text-slate-500 font-medium">Full Ledger & Audit</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>Accounts Connected: {bankConnections.length}</span>
+                <span>Audit Logs Recorded: {financialLogs.length}</span>
+              </div>
+            </section>
+
+            {/* Module 5: Unread Inbox & Emails Briefing */}
+            <section className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between lg:col-span-2">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                      <Mail size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Unread Inbox Briefing</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        {gmailConnected ? `${unreadCount} Unread Messages in Inbox` : 'Gmail Account Disconnected'}
+                      </p>
+                    </div>
+                  </div>
+                  {gmailConnected ? (
+                    <button
+                      type="button"
+                      onClick={() => fetchGmail(false)}
+                      disabled={gmailLoading}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Sync Inbox"
+                    >
+                      <RefreshCw size={14} className={gmailLoading ? 'animate-spin text-blue-600' : ''} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleConnectGmail}
+                      disabled={gmailLoading}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-blue-600 text-white rounded-lg shadow-xs hover:bg-blue-700 transition"
+                    >
+                      <LogIn size={12} />
+                      <span>Connect Gmail</span>
+                    </button>
+                  )}
+                </div>
+
+                {activeUnreadEmails.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeUnreadEmails.map((g) => (
+                      <div
+                        key={g.id}
+                        onClick={() => setSelectedEmailModal(g)}
+                        className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/20 transition cursor-pointer group flex items-start justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                            <Mail size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-bold text-slate-900 truncate">{g.from}</span>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition truncate">
+                              {g.subject || '(No Subject)'}
+                            </h4>
+                            {g.snippet && (
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">{g.snippet}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDismissEmail(g.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Remove from Dashboard (does not delete from Gmail)"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-400 text-xs font-medium">
+                    {gmailConnected
+                      ? 'No unread messages in inbox. All caught up!'
+                      : 'Connect your Gmail account to view unread messages on your dashboard.'}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>Unread Messages: {unreadCount}</span>
+                <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Action Required'}</span>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      ) : (
+        /* Detailed Financial Analytics View */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Unified Notification & Planning Intelligence Hub */}
+          <UnifiedNotificationHub
+            userEmail={userEmail}
+            events={events}
+            calendarItems={calendarItems}
+            unpaidBills={unpaidBills}
+            unconfirmedIncomes={unconfirmedIncomes}
+            categoryBudgets={categoryBudgets}
+            transactions={transactions}
+            bankConnections={bankConnections}
+            onNavigateToTask={onNavigateToTask}
+            onNavigateToPlanner={onNavigateToPlanner}
+            onPayRecurring={onPayRecurring}
+            onReceiveRecurringIncome={onReceiveRecurringIncome}
+            onOpenTransactionForm={onOpenTransactionForm}
+            onSelectEmailModal={(email) => setSelectedEmailModal(email)}
+            onDismissEmail={onDismissEmail || handleDismissEmail}
+            externalDismissedIds={dismissedEmailIds}
+          />
+>>>>>>> 7a1bdc1ac17aac8bb0d05d716841ee10b2ee3fe7
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
@@ -491,100 +1124,7 @@ const Dashboard: React.FC<Props> = ({
         onOpenTransactionForm={onOpenTransactionForm}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-6">Upcoming Commitments</h3>
-          <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {unpaidBills.concat(unconfirmedIncomes as any).length > 0 ? unpaidBills.concat(unconfirmedIncomes as any).slice(0, 10).map((bill: any) => {
-              const isIncome = 'nextConfirmationDate' in bill;
-              const isActive = activePaymentId === bill.id;
-              const progress = (bill.paidAmount || bill.receivedAmount || 0) / bill.amount * 100;
-              const hasPaidSomething = progress > 0;
-              const isSalary = isIncome && bill.description.toLowerCase().includes('salary');
-
-              return (
-                <div key={bill.id} className="p-4 bg-slate-50/50 border border-slate-200 rounded-lg transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded flex items-center justify-center shadow-sm border ${isIncome ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}`}>
-                        <i className={`fas ${isIncome ? 'fa-hand-holding-dollar' : 'fa-file-invoice'} text-xs`}></i>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-xs text-slate-800">{bill.description}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                            {isIncome ? 'Expect' : 'Bill'}: ${bill.amount}
-                          </p>
-                          {hasPaidSomething && (
-                            <span className="px-1 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[8px] font-bold uppercase rounded">Partial</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-xs font-bold text-indigo-600">${bill.remainingAmount.toFixed(2)}</p>
-                       <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">Due: {new Date(isIncome ? bill.nextConfirmationDate : bill.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
-                    </div>
-                  </div>
-
-                  {isActive && isIncome && (
-                    <div className="mt-3 p-3 bg-white rounded border border-indigo-100 space-y-2 animate-in fade-in slide-in-from-top-2">
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Destination</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {!isSalary && (
-                          <button 
-                            onClick={() => setSelectedDestination('Cash in Hand')}
-                            className={`px-2.5 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${selectedDestination === 'Cash in Hand' ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
-                          >
-                            Cash In Hand
-                          </button>
-                        )}
-                        {bankConnections.map(conn => (
-                          <button 
-                            key={conn.institution}
-                            onClick={() => setSelectedDestination(conn.institution)}
-                            className={`px-2.5 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${selectedDestination === conn.institution ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
-                          >
-                            {conn.institution}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200/55">
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                      Sched: {new Date(isIncome ? bill.nextConfirmationDate : bill.nextDueDate).toLocaleDateString()}
-                    </p>
-                    {isActive ? (
-                      <div className="flex gap-1.5 items-center animate-in slide-in-from-right-2">
-                        <input 
-                          type="number" 
-                          autoFocus
-                          placeholder={bill.remainingAmount.toFixed(2)}
-                          value={partialAmount}
-                          onChange={(e) => setPartialAmount(e.target.value)}
-                          className="w-20 px-2.5 py-1.5 bg-white border border-indigo-300 rounded text-[10px] font-semibold outline-none shadow-sm focus:border-indigo-500"
-                        />
-                        <button 
-                          onClick={() => handleQuickPaymentAction(bill, isIncome)} 
-                          disabled={isIncome && !selectedDestination}
-                          className={`w-7 h-7 bg-indigo-600 text-white rounded flex items-center justify-center text-[9px] disabled:opacity-30 disabled:grayscale hover:bg-indigo-700 transition-colors shadow-sm`}
-                        >
-                          <i className="fas fa-check"></i>
-                        </button>
-                        <button onClick={() => { setActivePaymentId(null); setPartialAmount(""); setSelectedDestination(null); }} aria-label="Cancel payment" className="w-7 h-7 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[9px] hover:bg-slate-200 border border-slate-200 transition-colors"><i className="fas fa-times"></i></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => startRecordCommitment(bill, isIncome)} className="px-3 py-1 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-wider rounded hover:bg-indigo-600 transition-all shadow-sm">Record</button>
-                    )}
-                  </div>
-                </div>
-              );
-            }) : <p className="py-10 text-center text-slate-300 font-bold uppercase text-[9px] tracking-wider">All clear</p>}
-          </div>
-        </section>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-6">Financial Objectives</h3>
           <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-1">
@@ -942,6 +1482,15 @@ const Dashboard: React.FC<Props> = ({
         </div>
         )}
       </section>
+        </div>
+      )}
+
+      {/* Email Detail Modal Popup */}
+      <EmailDetailModal
+        email={selectedEmailModal}
+        onClose={() => setSelectedEmailModal(null)}
+        onDeleteFromDashboard={handleDismissEmail}
+      />
     </div>
   );
 };
