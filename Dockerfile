@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install dependencies first (for better build caching)
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN if [ -f package-lock.json ]; then npm ci || npm install; else npm install; fi
 
 # Copy all source files
 COPY . .
@@ -25,7 +25,7 @@ ENV NODE_ENV=production
 
 # Install only production dependencies
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev || npm install --omit=dev; else npm install --omit=dev; fi
 
 # Copy the entire dist/ directory which contains:
 #   dist/index.html + dist/assets/*  → frontend (served as static files)
