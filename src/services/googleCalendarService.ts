@@ -58,7 +58,10 @@ export const googleCalendarService = {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || 'Failed to sync with Google Calendar.');
+      const error: any = new Error(data.error || 'Failed to sync with Google Calendar.');
+      error.code = data.code;
+      error.authUrl = data.authUrl || '/api/auth/google';
+      throw error;
     }
 
     return data;

@@ -24,7 +24,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
   // Google Calendar Integration State
   const [isSyncing, setIsSyncing] = useState(false);
   const [gcalStatus, setGcalStatus] = useState<GoogleCalendarStatus | null>(null);
-  const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'error' | 'info'; authUrl?: string } | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
   const month = viewDate.getMonth();
@@ -49,6 +49,13 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
     googleCalendarService.getStatus().then(status => {
       if (isMounted) {
         setGcalStatus(status);
+        if (status.connected && status.hasCalendarScope === false) {
+          setSyncFeedback({
+            message: 'Google Calendar permissions needed. Click Grant Permissions to enable Calendar synchronization.',
+            type: 'info',
+            authUrl: '/api/auth/google',
+          });
+        }
       }
     });
     return () => {
@@ -83,11 +90,15 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
         });
       }
     } catch (err: any) {
-      console.warn('[Calendar] Google sync error:', err?.message);
+      console.warn('[Calendar] Google sync error:', err?.message, err?.code);
       if (!isAuto) {
+        const isScopeIssue = err?.code === 'INSUFFICIENT_SCOPES' || /insufficient.*scope|permission|scope/i.test(err?.message || '');
         setSyncFeedback({
-          message: err?.message || 'Failed to sync Google Calendar. Sign in with Google to enable calendar read access.',
+          message: isScopeIssue 
+            ? 'Google Calendar read permissions are required to sync your schedule. Click Grant Permissions below to approve access.' 
+            : (err?.message || 'Failed to sync Google Calendar.'),
           type: 'error',
+          authUrl: isScopeIssue || err?.code === 'AUTH_REQUIRED' || err?.code === 'TOKEN_EXPIRED' ? (err?.authUrl || '/api/auth/google') : undefined,
         });
       }
     } finally {
@@ -261,26 +272,38 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
 
       {/* Sync Status Banner */}
       {syncFeedback && (
-        <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in slide-in-from-top-2 duration-300 ${
+        <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold animate-in fade-in slide-in-from-top-2 duration-300 ${
           syncFeedback.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
           syncFeedback.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' :
           'bg-indigo-50 border-indigo-200 text-indigo-800'
         }`}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <i className={`fas ${
-              syncFeedback.type === 'success' ? 'fa-check-circle text-emerald-600' :
-              syncFeedback.type === 'error' ? 'fa-exclamation-triangle text-rose-600' :
-              'fa-info-circle text-indigo-600'
+              syncFeedback.type === 'success' ? 'fa-check-circle text-emerald-600 text-sm' :
+              syncFeedback.type === 'error' ? 'fa-exclamation-triangle text-rose-600 text-sm' :
+              'fa-info-circle text-indigo-600 text-sm'
             }`}></i>
             <span>{syncFeedback.message}</span>
           </div>
-          <button 
-            type="button" 
-            onClick={() => setSyncFeedback(null)} 
-            className="text-stone-400 hover:text-stone-700 p-1"
-          >
-            <i className="fas fa-times text-xs"></i>
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            {syncFeedback.authUrl && (
+              <a
+                href={syncFeedback.authUrl}
+                className="px-3 py-1.5 bg-stone-900 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-xs transition-all flex items-center gap-1.5"
+              >
+                <i className="fab fa-google text-red-400"></i>
+                <span>Grant Permissions</span>
+              </a>
+            )}
+            <button 
+              type="button" 
+              onClick={() => setSyncFeedback(null)} 
+              className="text-stone-400 hover:text-stone-700 p-1"
+              aria-label="Dismiss banner"
+            >
+              <i className="fas fa-times text-xs"></i>
+            </button>
+          </div>
         </div>
       )}
 

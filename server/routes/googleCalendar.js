@@ -112,6 +112,17 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
       });
     }
 
+    const tokenScope = tokenInfo.scope || '';
+    const hasCalendarScope = tokenScope.includes('calendar.events.readonly') || tokenScope.includes('calendar.readonly') || tokenScope.includes('calendar');
+
+    if (!hasCalendarScope) {
+      return res.status(403).json({
+        error: 'Google Calendar permissions required. Please re-authenticate with Google to grant Calendar access.',
+        code: 'INSUFFICIENT_SCOPES',
+        authUrl: '/api/auth/google',
+      });
+    }
+
     // 2. Fetch primary calendar events from Google Calendar API
     // Default time range: 30 days in the past to 180 days in the future
     const timeMin = req.query.timeMin 
@@ -139,9 +150,14 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
     if (!googleRes.ok) {
       const errBody = await googleRes.json().catch(() => ({}));
       console.warn('[google-calendar] API error:', googleRes.status, errBody);
+      const isInsufficientScope = googleRes.status === 403 || 
+        (errBody.error?.message && /insufficient.*scope|permission/i.test(errBody.error.message));
       return res.status(googleRes.status).json({
-        error: errBody.error?.message || 'Failed to fetch events from Google Calendar.',
-        code: 'GOOGLE_API_ERROR',
+        error: isInsufficientScope
+          ? 'Google Calendar permissions required. Please re-authenticate with Google to grant Calendar read access.'
+          : (errBody.error?.message || 'Failed to fetch events from Google Calendar.'),
+        code: isInsufficientScope ? 'INSUFFICIENT_SCOPES' : 'GOOGLE_API_ERROR',
+        authUrl: isInsufficientScope ? '/api/auth/google' : undefined,
       });
     }
 

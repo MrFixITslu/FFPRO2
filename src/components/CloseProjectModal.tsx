@@ -3,9 +3,19 @@ import { FolderCheck, X, CheckCircle2, AlertTriangle, Archive, XCircle, CheckSqu
 import { BudgetEvent } from '../types';
 
 interface Props {
-  event: BudgetEvent;
-  onClose: () => void;
-  onConfirmClose: (closeData: {
+  event?: BudgetEvent;
+  projectName?: string;
+  totalTasks?: number;
+  completedTasks?: number;
+  onClose?: () => void;
+  onCancel?: () => void;
+  onConfirmClose?: (closeData: {
+    outcome: 'success' | 'failed' | 'cancelled' | 'neutral';
+    lessonsLearnt?: string;
+    closedReason?: string;
+    completeRemainingTasks: boolean;
+  }) => void;
+  onConfirm?: (closeData: {
     outcome: 'success' | 'failed' | 'cancelled' | 'neutral';
     lessonsLearnt?: string;
     closedReason?: string;
@@ -13,17 +23,33 @@ interface Props {
   }) => void;
 }
 
-export const CloseProjectModal: React.FC<Props> = ({ event, onClose, onConfirmClose }) => {
+export const CloseProjectModal: React.FC<Props> = ({ 
+  event, 
+  projectName, 
+  totalTasks, 
+  completedTasks, 
+  onClose, 
+  onCancel, 
+  onConfirmClose, 
+  onConfirm 
+}) => {
+  const handleClose = onClose || onCancel || (() => {});
+  const handleConfirm = onConfirmClose || onConfirm || (() => {});
+
   const [outcome, setOutcome] = useState<'success' | 'failed' | 'cancelled' | 'neutral'>('success');
   const [closedReason, setClosedReason] = useState('');
-  const [lessonsLearnt, setLessonsLearnt] = useState(event.lessonsLearnt || '');
+  const [lessonsLearnt, setLessonsLearnt] = useState(event?.lessonsLearnt || '');
   const [completeRemainingTasks, setCompleteRemainingTasks] = useState(false);
 
-  const pendingTasksCount = (event.tasks || []).filter(t => !t.completed).length;
+  const pendingTasksCount = event 
+    ? (event.tasks || []).filter(t => !t.completed).length 
+    : Math.max(0, (totalTasks || 0) - (completedTasks || 0));
+
+  const displayName = event?.name || projectName || 'Project';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirmClose({
+    handleConfirm({
       outcome,
       closedReason: closedReason.trim() || undefined,
       lessonsLearnt: lessonsLearnt.trim() || undefined,
@@ -71,7 +97,7 @@ export const CloseProjectModal: React.FC<Props> = ({ event, onClose, onConfirmCl
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div 
         className="bg-white rounded-2xl shadow-2xl border border-stone-200 max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
@@ -86,12 +112,13 @@ export const CloseProjectModal: React.FC<Props> = ({ event, onClose, onConfirmCl
             <div>
               <h2 className="text-base font-bold text-stone-900">Close Project</h2>
               <p className="text-xs text-stone-500 truncate max-w-xs font-medium">
-                {event.name}
+                {displayName}
               </p>
             </div>
           </div>
           <button 
-            onClick={onClose}
+            type="button"
+            onClick={handleClose}
             className="w-8 h-8 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-200/50 transition flex items-center justify-center"
           >
             <X size={18} />
@@ -185,7 +212,7 @@ export const CloseProjectModal: React.FC<Props> = ({ event, onClose, onConfirmCl
           <div className="pt-2 flex items-center justify-end gap-2 border-t border-stone-100">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-stone-600 hover:text-stone-900 text-xs font-bold rounded-lg hover:bg-stone-100 transition"
             >
               Cancel

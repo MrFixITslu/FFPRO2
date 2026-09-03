@@ -3760,9 +3760,12 @@ const EventPlanner: React.FC<Props> = ({
 
       {projectPendingClose && (
         <CloseProjectModal
+          event={projectPendingClose}
           projectName={projectPendingClose.name}
-          onConfirm={handleConfirmClose}
+          onClose={() => setProjectPendingClose(null)}
           onCancel={() => setProjectPendingClose(null)}
+          onConfirmClose={handleConfirmClose}
+          onConfirm={handleConfirmClose}
           totalTasks={(projectPendingClose.tasks || []).length}
           completedTasks={(projectPendingClose.tasks || []).filter(t => t.completed).length}
         />
