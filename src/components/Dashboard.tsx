@@ -47,6 +47,7 @@ import {
   LogOut,
   ShieldCheck,
   Info,
+  Users,
   X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -696,22 +697,24 @@ const Dashboard: React.FC<Props> = ({
 
                 {events.length > 0 ? (
                   <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                    {events.map((ev) => {
+                    {events.map((ev, idx) => {
                       const tasks = ev.tasks || [];
                       const done = tasks.filter(t => t.completed).length;
                       const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
-                      const totalSpent = ev.ledger?.reduce((acc, l) => acc + l.amount, 0) || 0;
+                      const totalSpent = (ev.ledger || ev.items || [])
+                        .filter((i: any) => i.type === 'expense' || !i.type)
+                        .reduce((acc: number, l: any) => acc + (Number(l.amount) || 0), 0);
                       const projectName = ev.name || (ev as any).title || 'Untitled Project';
                       const targetBudget = ev.projectedBudget || (ev as any).budget || 0;
 
                       return (
                         <div 
-                          key={ev.id} 
+                          key={ev.id || `project-${idx}`} 
                           onClick={() => onNavigateToTask && onNavigateToTask(ev.id, ev.id)}
                           className="p-4 bg-stone-50 rounded-xl border border-stone-200/80 hover:border-amber-300 hover:bg-amber-50/20 transition cursor-pointer group"
                         >
                           <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
                                 ev.eventType === 'trip' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
                                 ev.eventType === 'startup' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -719,9 +722,14 @@ const Dashboard: React.FC<Props> = ({
                               }`}>
                                 {ev.eventType === 'trip' ? '✈️ Trip' : ev.eventType === 'startup' ? '🚀 Startup' : '📋 General'}
                               </span>
-                              <h4 className="text-xs font-bold text-stone-800 group-hover:text-amber-700 transition">{projectName}</h4>
+                              {ev.isShared && (
+                                <span className="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                                  <Users size={10} /> Shared
+                                </span>
+                              )}
+                              <h4 className="text-xs font-bold text-stone-800 group-hover:text-amber-700 transition truncate max-w-[200px]">{projectName}</h4>
                             </div>
-                            <span className="text-[10px] font-extrabold text-stone-600">{pct}% Done</span>
+                            <span className="text-[10px] font-extrabold text-stone-600 shrink-0">{pct}% Done</span>
                           </div>
 
                           <div className="w-full bg-stone-200 h-1.5 rounded-full overflow-hidden mb-2">

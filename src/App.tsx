@@ -33,6 +33,7 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
+import { projectsService } from './services/projectsService';
 import { APP_LOGO } from './assets/logo';
 import { 
   Shield, 
@@ -223,6 +224,48 @@ const App: React.FC = () => {
   const [bankConnections, setBankConnections] = useState<BankConnection[]>(() => safeParse(STORAGE_KEYS.BANK_CONNECTIONS, []));
   const [investments, setInvestments] = useState<InvestmentAccount[]>(() => safeParse(STORAGE_KEYS.INVESTMENTS, []));
   const [events, setEvents] = useState<BudgetEvent[]>(() => sanitizeEventLogs(safeParse(STORAGE_KEYS.EVENTS, [])));
+  const [sharedEvents, setSharedEvents] = useState<BudgetEvent[]>([]);
+
+  // Unified list of all projects across both local encrypted storage and shared collaborative projects
+  const allProjects = useMemo(() => {
+    const map = new Map<string, BudgetEvent>();
+    (events || []).forEach(e => {
+      if (e && (e.id || e.name)) {
+        map.set(e.id || e.name, e);
+      }
+    });
+    (sharedEvents || []).forEach(e => {
+      if (e && (e.id || e.name)) {
+        const key = e.id || e.name;
+        map.set(key, {
+          ...e,
+          isShared: true,
+          sharedProjectId: e.sharedProjectId || e.id
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [events, sharedEvents]);
+
+  const refreshSharedProjects = useCallback(async () => {
+    try {
+      const list = await projectsService.list();
+      if (Array.isArray(list)) {
+        setSharedEvents(list.map(p => ({
+          ...(p.data as BudgetEvent),
+          id: p.id,
+          sharedProjectId: p.id,
+          isShared: true,
+          role: p.role,
+          serverVersion: p.version,
+          lastUpdated: p.updatedAt,
+        })));
+      }
+    } catch (err) {
+      console.debug('[App] projectsService.list():', err);
+    }
+  }, []);
+
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
@@ -414,11 +457,28 @@ const App: React.FC = () => {
       }
     });
 
+    const unsubProjectUpdate = realtimeService.on('project_updated', () => {
+      refreshSharedProjects();
+    });
+
+    const unsubProjectMembership = realtimeService.on('project_membership_updated', () => {
+      refreshSharedProjects();
+    });
+
     return () => {
       unsubStatus();
       unsubData();
+      unsubProjectUpdate();
+      unsubProjectMembership();
     };
-  }, [isAuthenticated, applyRemoteState, updateCloudVersion]);
+  }, [isAuthenticated, applyRemoteState, updateCloudVersion, refreshSharedProjects]);
+
+  // Load shared projects whenever authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshSharedProjects();
+    }
+  }, [isAuthenticated, refreshSharedProjects]);
 
   // Wipes everything local — used when switching accounts on a shared browser
   // and on logout/purge, so one account's financial data can never bleed into
@@ -433,6 +493,7 @@ const App: React.FC = () => {
     setBankConnections([]);
     setInvestments([]);
     setEvents([]);
+    setSharedEvents([]);
     setCalendarItems([]);
     setContacts([]);
     setIdeas([]);
@@ -1074,7 +1135,7 @@ const App: React.FC = () => {
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'nsv'}
                   userEmail={authUser?.email}
-                  events={events}
+                  events={allProjects}
                   calendarItems={calendarItems}
                   onEdit={(t) => {
                     setEditingTransaction(t);
@@ -1098,8 +1159,8 @@ const App: React.FC = () => {
                     if (projectId) {
                       setNavSelectedEventId(projectId);
                     } else {
-                      // Find if a local event contains this taskId
-                      const found = events.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
+                      // Find if any project contains this taskId
+                      const found = allProjects.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
                       if (found) {
                         setNavSelectedEventId(found.id);
                       }
@@ -1114,22 +1175,38 @@ const App: React.FC = () => {
 
             {activeTab === 'calendar' && (
               <Calendar 
-                events={events}
+                events={allProjects}
                 calendarItems={calendarItems}
                 transactions={transactions}
                 recurringExpenses={recurringExpenses}
                 recurringIncomes={recurringIncomes}
                 onUpdateItems={handleUpdateCalendarItems}
                 onToggleTaskCompletion={(eventId, taskId) => {
-                  setEvents(prev => prev.map(ev => {
-                    if (ev.id === eventId) {
-                      const updatedTasks = (ev.tasks || []).map(t =>
-                        t.id === taskId ? { ...t, completed: !t.completed, status: (!t.completed ? 'completed' : 'not_started') as TaskStatus } : t
-                      );
-                      return { ...ev, tasks: updatedTasks, lastUpdated: new Date().toISOString() };
-                    }
-                    return ev;
-                  }));
+                  const updateEventTasks = (ev: BudgetEvent) => {
+                    const updatedTasks = (ev.tasks || []).map(t =>
+                      t.id === taskId ? { ...t, completed: !t.completed, status: (!t.completed ? 'completed' : 'not_started') as TaskStatus } : t
+                    );
+                    return { ...ev, tasks: updatedTasks, lastUpdated: new Date().toISOString() };
+                  };
+
+                  const isShared = sharedEvents.some(se => se.id === eventId);
+                  if (isShared) {
+                    setSharedEvents(prev => prev.map(ev => {
+                      if (ev.id === eventId) {
+                        const updated = updateEventTasks(ev);
+                        projectsService.save(ev.sharedProjectId || ev.id, updated, ev.serverVersion || 1).catch(console.warn);
+                        return updated;
+                      }
+                      return ev;
+                    }));
+                  } else {
+                    setEvents(prev => prev.map(ev => {
+                      if (ev.id === eventId) {
+                        return updateEventTasks(ev);
+                      }
+                      return ev;
+                    }));
+                  }
                 }}
               />
             )}
@@ -1137,6 +1214,9 @@ const App: React.FC = () => {
             {activeTab === 'events' && (
               <EventPlanner 
                 events={events}
+                sharedEvents={sharedEvents}
+                onUpdateSharedEvents={setSharedEvents}
+                onRefreshSharedProjects={refreshSharedProjects}
                 contacts={contacts}
                 directoryHandle={null}
                 currentUser={currentUsername}

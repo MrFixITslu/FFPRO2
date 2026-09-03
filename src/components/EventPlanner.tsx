@@ -74,9 +74,31 @@ interface Props {
   onUpdateIdeas: (ideas: Idea[]) => void;
   initialSelectedEventId?: string | null;
   initialSelectedTaskId?: string | null;
+  sharedEvents?: BudgetEvent[];
+  onUpdateSharedEvents?: React.Dispatch<React.SetStateAction<BudgetEvent[]>>;
+  onRefreshSharedProjects?: () => Promise<void>;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas, initialSelectedEventId, initialSelectedTaskId }) => {
+const EventPlanner: React.FC<Props> = ({ 
+  events, 
+  contacts, 
+  directoryHandle, 
+  currentUser, 
+  currentUserId, 
+  isAdmin, 
+  onAddEvent, 
+  onDeleteEvent, 
+  onUpdateEvent, 
+  onUpdateContacts, 
+  onMountVault, 
+  ideas, 
+  onUpdateIdeas, 
+  initialSelectedEventId, 
+  initialSelectedTaskId,
+  sharedEvents: propSharedEvents,
+  onUpdateSharedEvents: propSetSharedEvents,
+  onRefreshSharedProjects
+}) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -85,8 +107,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // --- Collaboration: shared projects live server-side; local plans stay in the encrypted blob ---
-  const [sharedEvents, setSharedEvents] = useState<BudgetEvent[]>([]);
-  const [sharedLoading, setSharedLoading] = useState(true);
+  const [internalSharedEvents, setInternalSharedEvents] = useState<BudgetEvent[]>([]);
+  const sharedEvents = propSharedEvents ?? internalSharedEvents;
+  const setSharedEvents = propSetSharedEvents ?? setInternalSharedEvents;
+  const [sharedLoading, setSharedLoading] = useState(propSharedEvents && propSharedEvents.length > 0 ? false : true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -112,6 +136,9 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
   const refreshSharedProjects = useCallback(async () => {
     try {
+      if (onRefreshSharedProjects) {
+        await onRefreshSharedProjects();
+      }
       const list = await projectsService.list();
       list.forEach(p => { serverVersions.current[p.id] = p.version; });
       setSharedEvents(list.map(p => ({
@@ -128,7 +155,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     } finally {
       setSharedLoading(false);
     }
-  }, []);
+  }, [onRefreshSharedProjects, setSharedEvents]);
 
   useEffect(() => { refreshSharedProjects(); }, [refreshSharedProjects]);
 
