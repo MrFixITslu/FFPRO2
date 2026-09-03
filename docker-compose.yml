@@ -13,7 +13,6 @@ services:
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
       - proxy_network
-      - ffpro2_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
       interval: 5s
@@ -30,10 +29,10 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "3010:3010"
+      - "3010:80"
     networks:
       - proxy_network
-      - ffpro2_internal
+    
     environment:
       - NODE_ENV=production
       - PORT=3010
