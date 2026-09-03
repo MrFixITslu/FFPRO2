@@ -259,7 +259,8 @@ export function computePeriodComparison(
 export function calculateFinancialIntelligence(
   transactions: Transaction[],
   categoryBudgets: Record<string, number>,
-  periodComparison: PeriodComparison
+  periodComparison: PeriodComparison,
+  trajectoryGranularity?: Granularity
 ) {
   const { currentStart, currentEnd, previousStart, previousEnd } = periodComparison;
   const currentStartTime = currentStart.getTime();
@@ -476,7 +477,13 @@ export function calculateFinancialIntelligence(
   };
 
   // --- Cashflow Trajectory Chart Points ---
-  const trajectoryPoints: CashflowPoint[] = computeTrajectoryPoints(currentTxs, currentStart, currentEnd);
+  const trajectoryPoints: CashflowPoint[] = computeTrajectoryPoints(
+    currentTxs,
+    currentStart,
+    currentEnd,
+    trajectoryGranularity,
+    transactions
+  );
 
   // --- Automated Insights & Behavioral Detection ---
   const insights: FinancialInsightItem[] = generateFinancialInsights(
@@ -514,25 +521,41 @@ export function calculateFinancialIntelligence(
 }
 
 // ---------------------------------------------------------------------------
-// Trajectory Generation (Daily, Weekly, Monthly)
+// Trajectory Generation (Daily, Weekly, Monthly, Yearly)
 // ---------------------------------------------------------------------------
-function computeTrajectoryPoints(
-  transactions: Transaction[],
+export function computeTrajectoryPoints(
+  currentTransactions: Transaction[],
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  granularity?: Granularity,
+  allTransactions?: Transaction[]
 ): CashflowPoint[] {
-  const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const pointsMap = new Map<string, { label: string; inflow: number; outflow: number; txIds: string[] }>();
+  const durationDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+  
+  // Determine effective granularity
+  const activeGranularity: Granularity = granularity || (
+    durationDays <= 35 ? 'daily' : durationDays <= 180 ? 'weekly' : 'monthly'
+  );
 
-  if (durationDays <= 35) {
-    // Daily points
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+  const pointsMap = new Map<string, { label: string; inflow: number; outflow: number; txIds: string[]; startTime?: number; endTime?: number }>();
+  const txSource = (allTransactions && allTransactions.length > 0) ? allTransactions : currentTransactions;
+
+  if (activeGranularity === 'daily') {
+    // Daily points across the period window
+    let dStart = new Date(startDate);
+    let dEnd = new Date(endDate);
+    if (durationDays > 366) {
+      dStart = new Date(dEnd);
+      dStart.setDate(dStart.getDate() - 365);
+    }
+
+    for (let d = new Date(dStart); d <= dEnd; d.setDate(d.getDate() + 1)) {
       const key = formatDateISO(d);
       const label = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
       pointsMap.set(key, { label, inflow: 0, outflow: 0, txIds: [] });
     }
 
-    transactions.forEach(t => {
+    currentTransactions.forEach(t => {
       const key = t.date;
       if (pointsMap.has(key)) {
         const p = pointsMap.get(key)!;
@@ -541,40 +564,115 @@ function computeTrajectoryPoints(
         p.txIds.push(t.id);
       }
     });
-  } else if (durationDays <= 180) {
-    // Weekly points
+  } else if (activeGranularity === 'weekly') {
+    // Weekly points across the period
+    let wStart = new Date(startDate);
+    let wEnd = new Date(endDate);
+    
+    // If the active window is short (e.g. 1 week), show trailing 8 weeks for a meaningful trajectory
+    const isSingleWeek = durationDays <= 7;
+    if (isSingleWeek) {
+      wStart = new Date(wEnd);
+      wStart.setDate(wStart.getDate() - 7 * 7); // 8 weeks total
+    }
+
     let weekIndex = 1;
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 7)) {
-      const key = `W${weekIndex}_${formatDateISO(d)}`;
-      const label = `Wk ${weekIndex} (${d.toLocaleDateString('default', { month: 'short', day: 'numeric' })})`;
-      pointsMap.set(key, { label, inflow: 0, outflow: 0, txIds: [] });
+    let curr = new Date(wStart);
+    while (curr <= wEnd) {
+      const intervalStart = new Date(curr);
+      intervalStart.setHours(0, 0, 0, 0);
+      const intervalEnd = new Date(curr);
+      intervalEnd.setDate(intervalEnd.getDate() + 6);
+      intervalEnd.setHours(23, 59, 59, 999);
+      const effectiveEnd = intervalEnd > wEnd ? new Date(wEnd) : intervalEnd;
+
+      const key = `W${weekIndex}_${formatDateISO(intervalStart)}`;
+      const label = `Wk ${weekIndex} (${intervalStart.toLocaleDateString('default', { month: 'short', day: 'numeric' })})`;
+      pointsMap.set(key, {
+        label,
+        inflow: 0,
+        outflow: 0,
+        txIds: [],
+        startTime: intervalStart.getTime(),
+        endTime: effectiveEnd.getTime()
+      });
+
+      curr.setDate(curr.getDate() + 7);
       weekIndex++;
     }
 
-    transactions.forEach(t => {
+    const sourceTxs = isSingleWeek ? txSource : currentTransactions;
+    sourceTxs.forEach(t => {
+      const tTime = parseDateSafe(t.date).getTime();
+      for (const [, p] of pointsMap.entries()) {
+        if (p.startTime !== undefined && p.endTime !== undefined) {
+          if (tTime >= p.startTime && tTime <= p.endTime) {
+            if (t.type === 'income') p.inflow += t.amount;
+            else if (t.type === 'expense') p.outflow += t.amount;
+            p.txIds.push(t.id);
+            break;
+          }
+        }
+      }
+    });
+  } else if (activeGranularity === 'monthly') {
+    // Monthly points
+    // If current window is short (< 3 months, e.g. 1 month view), show trailing 12 months for a continuous trajectory
+    let mStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1, 0, 0, 0, 0);
+    let mEnd = new Date(endDate.getFullYear(), endDate.getMonth(), 1, 0, 0, 0, 0);
+
+    const monthCount = (mEnd.getFullYear() - mStart.getFullYear()) * 12 + (mEnd.getMonth() - mStart.getMonth()) + 1;
+    const isShortPeriod = monthCount < 3;
+
+    if (isShortPeriod) {
+      mStart = new Date(mEnd.getFullYear(), mEnd.getMonth() - 11, 1, 0, 0, 0, 0);
+    }
+
+    let currM = new Date(mStart);
+    while (currM <= mEnd) {
+      const key = `${currM.getFullYear()}-${String(currM.getMonth() + 1).padStart(2, '0')}`;
+      const label = currM.toLocaleDateString('default', { month: 'short', year: '2-digit' });
+      pointsMap.set(key, { label, inflow: 0, outflow: 0, txIds: [] });
+      currM.setMonth(currM.getMonth() + 1);
+    }
+
+    const sourceTxs = isShortPeriod ? txSource : currentTransactions;
+    sourceTxs.forEach(t => {
       const tDate = parseDateSafe(t.date);
-      const daysFromStart = Math.floor((tDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const targetWeek = Math.max(1, Math.floor(daysFromStart / 7) + 1);
-      const keys = Array.from(pointsMap.keys());
-      const matchingKey = keys[targetWeek - 1] || keys[keys.length - 1];
-      if (matchingKey) {
-        const p = pointsMap.get(matchingKey)!;
+      const key = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}`;
+      if (pointsMap.has(key)) {
+        const p = pointsMap.get(key)!;
         if (t.type === 'income') p.inflow += t.amount;
         else if (t.type === 'expense') p.outflow += t.amount;
         p.txIds.push(t.id);
       }
     });
-  } else {
-    // Monthly points
-    for (let d = new Date(startDate.getFullYear(), startDate.getMonth(), 1); d <= endDate; d.setMonth(d.getMonth() + 1)) {
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('default', { month: 'short', year: '2-digit' });
+  } else if (activeGranularity === 'yearly') {
+    // Yearly points across historical data
+    let minYear = endDate.getFullYear() - 2;
+    let maxYear = endDate.getFullYear();
+
+    txSource.forEach(t => {
+      const yr = parseDateSafe(t.date).getFullYear();
+      if (!isNaN(yr) && yr > 2000 && yr < 2100) {
+        if (yr < minYear) minYear = yr;
+        if (yr > maxYear) maxYear = yr;
+      }
+    });
+
+    if (maxYear - minYear < 2) {
+      minYear = maxYear - 2;
+    }
+
+    for (let y = minYear; y <= maxYear; y++) {
+      const key = String(y);
+      const label = String(y);
       pointsMap.set(key, { label, inflow: 0, outflow: 0, txIds: [] });
     }
 
-    transactions.forEach(t => {
-      const tDate = parseDateSafe(t.date);
-      const key = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}`;
+    txSource.forEach(t => {
+      const yr = parseDateSafe(t.date).getFullYear();
+      const key = String(yr);
       if (pointsMap.has(key)) {
         const p = pointsMap.get(key)!;
         if (t.type === 'income') p.inflow += t.amount;
@@ -593,10 +691,10 @@ function computeTrajectoryPoints(
     result.push({
       dateKey,
       label: val.label,
-      inflow: val.inflow,
-      outflow: val.outflow,
-      net,
-      cumulativeNet: cumulative,
+      inflow: Math.round(val.inflow * 100) / 100,
+      outflow: Math.round(val.outflow * 100) / 100,
+      net: Math.round(net * 100) / 100,
+      cumulativeNet: Math.round(cumulative * 100) / 100,
       transactionIds: val.txIds,
     });
   });

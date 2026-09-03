@@ -57,8 +57,10 @@ import {
 import {
   TimePeriodType,
   ComparisonType,
+  Granularity,
   computePeriodComparison,
   calculateFinancialIntelligence,
+  computeTrajectoryPoints,
   CategoryMetric,
   FinancialInsightItem,
   AnomalyItem,
@@ -119,7 +121,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
   // --- View Mode & Matrix Settings ---
   const [viewMode, setViewMode] = useState<SectionViewMode>('all');
-  const [trajectoryGranularity, setTrajectoryGranularity] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [trajectoryGranularity, setTrajectoryGranularity] = useState<Granularity>('daily');
   const [matrixSort, setMatrixSort] = useState<MatrixSortKey>('amount');
   const [selectedCategoryForTrend, setSelectedCategoryForTrend] = useState<string | null>(null);
 
@@ -161,13 +163,23 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
   const {
     summaryMetrics,
     categoryMatrix,
-    trajectoryPoints,
     insights,
     anomalies,
     forecast,
     intelligence,
     currentTransactions
   } = analytics;
+
+  // Trajectory points dynamically calculated based on selected granularity (daily, weekly, monthly, yearly)
+  const trajectoryPoints = useMemo(() => {
+    return computeTrajectoryPoints(
+      currentTransactions,
+      periodComparison.currentStart,
+      periodComparison.currentEnd,
+      trajectoryGranularity,
+      transactions
+    );
+  }, [currentTransactions, periodComparison, trajectoryGranularity, transactions]);
 
   // Sorted Category Matrix
   const sortedCategories = useMemo(() => {
@@ -567,22 +579,23 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   Cashflow Trajectory
                 </h3>
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
-                  {trajectoryPoints.length} Data Points
+                  {trajectoryPoints.length} {trajectoryGranularity === 'daily' ? 'Days' : trajectoryGranularity === 'weekly' ? 'Weeks' : trajectoryGranularity === 'monthly' ? 'Months' : 'Years'}
                 </span>
               </div>
               <p className="text-[11px] text-stone-600 font-medium mt-0.5">
-                Dynamic Inflow vs Outflow curves with interactive transaction drill-down
+                Dynamic Inflow vs Outflow curves ({trajectoryGranularity} view) with interactive transaction drill-down
               </p>
             </div>
 
             {/* Trajectory Granularity Toggles */}
             <div className="flex items-center gap-2">
               <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200">
-                {(['daily', 'weekly', 'monthly'] as ('daily' | 'weekly' | 'monthly')[]).map(g => (
+                {(['daily', 'weekly', 'monthly', 'yearly'] as Granularity[]).map(g => (
                   <button
                     key={g}
+                    id={`btn-cashflow-trajectory-${g}`}
                     onClick={() => setTrajectoryGranularity(g)}
-                    className={`px-3 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all ${
+                    className={`px-3 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
                       trajectoryGranularity === g
                         ? 'bg-white text-indigo-600 shadow-xs border border-stone-100'
                         : 'text-stone-600 hover:text-stone-800'
