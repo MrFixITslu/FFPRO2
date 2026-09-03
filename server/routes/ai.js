@@ -170,7 +170,7 @@ const handleMarketData = async (req, res) => {
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-2.5-flash',
           contents: `Provide current market prices and 24h percent changes for these specific symbols: ${missingSymbols.join(', ')}.`,
           config: {
             tools: [{ googleSearch: {} }],

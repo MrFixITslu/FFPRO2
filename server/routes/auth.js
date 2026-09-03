@@ -323,9 +323,8 @@ router.post('/logout', (req, res) => {
       const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
       const xfp = req.headers['x-forwarded-proto'];
       const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
-      const isSecure = req.secure || 
+      const isSecure = req.secure ||
         isCloudSandbox ||
-        (!isLocalhost) || 
         (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
 
       res.clearCookie('ffpro.sid', { 
