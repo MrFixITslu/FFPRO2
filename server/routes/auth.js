@@ -340,7 +340,7 @@ router.post('/logout', (req, res) => {
 });
 
 // --- Google ----------------------------------------------------------------
-// Requests profile, email, and Gmail permissions up front with offline access
+// Requests openid, profile, email, and Gmail permissions up front with offline access
 // so a single Google authorization powers both account authentication and
 // the Executive Inbox Briefing without separate redirect URI mismatches.
 router.get(
@@ -348,6 +348,7 @@ router.get(
   (req, res, next) => ensureOAuthProvider(req, res, next, 'google'),
   passport.authenticate('google', {
     scope: [
+      'openid',
       'profile',
       'email',
       'https://www.googleapis.com/auth/gmail.readonly',
@@ -355,6 +356,7 @@ router.get(
     ],
     accessType: 'offline',
     prompt: 'consent',
+    state: true,
   })
 );
 
