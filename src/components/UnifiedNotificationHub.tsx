@@ -27,8 +27,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask, BankConnection } from '../types';
 import { EmailDetailModal } from './EmailDetailModal';
+=======
+import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
+>>>>>>> Stashed changes
 =======
 import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
 >>>>>>> Stashed changes
@@ -111,6 +115,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   const [activeFilter, setActiveFilter] = useState<NotificationCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('dashboard_dismissed_email_ids');
@@ -180,6 +185,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     }
   }, [externalDismissedIds]);
   const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
+=======
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+>>>>>>> Stashed changes
 =======
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 >>>>>>> Stashed changes
@@ -255,6 +263,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   };
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   // Dismiss Gmail permanently from dashboard across all devices (persisted in DB + broadcast)
   const handleDismissGmail = (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -272,6 +281,13 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     if (onDismissEmail) {
       onDismissEmail(cleanId);
     }
+=======
+  // Mark Gmail as read
+  const handleDismissGmail = async (messageId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDismissedIds(prev => new Set(prev).add(`gmail-${messageId}`));
+    
+>>>>>>> Stashed changes
     // Optimistic removal
     setGmailNotifications(prev => prev.filter(g => g.id !== cleanId && `gmail-${g.id}` !== messageId));
 
@@ -304,6 +320,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       },
       body: JSON.stringify({ messageId }),
     }).catch(() => {});
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
   };
 
