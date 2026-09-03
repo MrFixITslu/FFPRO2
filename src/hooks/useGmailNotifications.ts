@@ -25,16 +25,16 @@ export function useGmailNotifications(
     return new Set();
   });
 
-  // Pull server-persisted dismissed email IDs on mount so fresh devices/phones immediately reflect deletions
+  // Pull server-persisted processed (read or dismissed) email IDs on mount so fresh devices/phones immediately reflect status
   useEffect(() => {
     let isMounted = true;
-    fetch('/api/gmail/dismissed', { credentials: 'include' })
+    fetch('/api/gmail/processed', { credentials: 'include' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (isMounted && data && Array.isArray(data.dismissedIds) && data.dismissedIds.length > 0) {
+        if (isMounted && data && Array.isArray(data.processedIds) && data.processedIds.length > 0) {
           setDismissedEmailIds(prev => {
             const next = new Set(prev);
-            data.dismissedIds.forEach((id: string) => {
+            data.processedIds.forEach((id: string) => {
               next.add(id);
               next.add(`gmail-${id}`);
             });
@@ -174,6 +174,36 @@ export function useGmailNotifications(
     }
   }, []);
 
+  // Mark email as read: immediately remove from unread briefing and inform server so it is never pulled again
+  const handleReadEmail = useCallback((emailId: string) => {
+    // 1. Instantly update local state and localStorage
+    setDismissedEmailIds(prev => {
+      const next = new Set(prev);
+      next.add(emailId);
+      next.add(`gmail-${emailId}`);
+      try {
+        localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
+      } catch (e) {}
+      return next;
+    });
+
+    // 2. Instantly remove from local notification list
+    setGmailNotifications(prev => prev.filter(g => g.id !== emailId && `gmail-${g.id}` !== emailId));
+
+    // 3. Notify parent callback
+    if (onDismissEmailProp) {
+      onDismissEmailProp(emailId);
+    }
+
+    // 4. Send permanent read to server (which also marks read on Gmail API)
+    fetch('/api/gmail/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ messageId: emailId }),
+    }).catch(e => console.warn('Server permanent read notice:', e));
+  }, [onDismissEmailProp]);
+
   // Remove email from dashboard locally & persist across devices permanently
   const handleDismissEmail = useCallback((emailId: string) => {
     // 1. Instantly update local state and localStorage
@@ -202,17 +232,9 @@ export function useGmailNotifications(
       credentials: 'include',
       body: JSON.stringify({ messageId: emailId }),
     }).catch(e => console.warn('Server permanent dismiss notice:', e));
-
-    // 5. Attempt marking read on Gmail server in background (as a courtesy if token is valid)
-    fetch('/api/gmail/mark-read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ messageId: emailId }),
-    }).catch(e => console.warn('Server mark-read notice:', e));
   }, [onDismissEmailProp]);
 
-  // Filtered active unread emails (excluding those dismissed locally/synced)
+  // Filtered active unread emails (excluding those dismissed/read locally/synced)
   const activeUnreadEmails = useMemo(() => {
     return gmailNotifications.filter(
       g => !dismissedEmailIds.has(g.id) && !dismissedEmailIds.has(`gmail-${g.id}`)
@@ -229,6 +251,7 @@ export function useGmailNotifications(
     fetchGmail,
     handleConnectGmail,
     handleDisconnectGmail,
+    handleReadEmail,
     handleDismissEmail,
     dismissedEmailIds,
   };

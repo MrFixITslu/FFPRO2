@@ -277,6 +277,29 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     }).catch(err => console.warn('Permanent dismiss error:', err));
   };
 
+  // Mark Gmail as read permanently so it is never pulled again
+  const handleReadGmail = (messageId: string) => {
+    const cleanId = messageId.replace(/^gmail-/, '');
+    setDismissedIds(prev => {
+      const next = new Set(prev);
+      next.add(`gmail-${cleanId}`);
+      next.add(cleanId);
+      try {
+        localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
+      } catch (err) {}
+      return next;
+    });
+
+    setGmailNotifications(prev => prev.filter(g => g.id !== cleanId && `gmail-${g.id}` !== messageId));
+
+    fetch('/api/gmail/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ messageId: cleanId }),
+    }).catch(err => console.warn('Permanent read error:', err));
+  };
+
   // 3. Build unified notifications list
   const unifiedNotifications = useMemo(() => {
     const items: UnifiedNotificationItem[] = [];
@@ -1092,6 +1115,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
         email={selectedEmailModal}
         onClose={() => setSelectedEmailModal(null)}
         onDeleteFromDashboard={handleDismissGmail}
+        onMarkAsRead={handleReadGmail}
       />
     </section>
   );

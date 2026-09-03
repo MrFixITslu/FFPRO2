@@ -1,11 +1,12 @@
 import React from 'react';
-import { Mail, X, ExternalLink, Trash2, Clock, User, Inbox, Tag } from 'lucide-react';
+import { Mail, X, ExternalLink, Trash2, Clock, User, Check, FolderKanban, CheckSquare, Receipt, Plane } from 'lucide-react';
 import { GmailPlanningNotification } from '../types';
 
 interface EmailDetailModalProps {
   email: GmailPlanningNotification | null;
   onClose: () => void;
   onDeleteFromDashboard: (emailId: string) => void;
+  onMarkAsRead?: (emailId: string) => void;
 }
 
 const getSenderMonogram = (fromStr: string) => {
@@ -18,24 +19,53 @@ const getSenderMonogram = (fromStr: string) => {
   return clean.slice(0, 2).toUpperCase() || 'EM';
 };
 
-const getCategoryDetails = (subject: string, snippet: string) => {
+const getEntryTypeDetails = (email: GmailPlanningNotification) => {
+  const subject = email.subject || '';
+  const snippet = email.snippet || '';
   const text = `${subject} ${snippet}`.toLowerCase();
+  const isLinkedToProject = Boolean(email.taskReference?.projectName || email.taskReference?.taskId);
+
+  if (isLinkedToProject || text.includes('project') || text.includes('task') || text.includes('milestone') || text.includes('roadmap') || text.includes('deadline') || text.includes('sprint')) {
+    return {
+      type: 'project' as const,
+      label: 'Project Milestone',
+      icon: FolderKanban,
+      color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      avatarBg: 'bg-indigo-600 text-white',
+    };
+  }
   if (text.includes('invoice') || text.includes('receipt') || text.includes('bill') || text.includes('payment') || text.includes('statement') || text.includes('$')) {
-    return { label: 'Invoice & Billing', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    return {
+      type: 'financial' as const,
+      label: 'Invoice & Billing',
+      icon: Receipt,
+      color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      avatarBg: 'bg-emerald-600 text-white',
+    };
   }
-  if (text.includes('flight') || text.includes('hotel') || text.includes('trip') || text.includes('reservation') || text.includes('ticket')) {
-    return { label: 'Travel & Booking', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+  if (text.includes('flight') || text.includes('hotel') || text.includes('trip') || text.includes('reservation') || text.includes('ticket') || text.includes('booking')) {
+    return {
+      type: 'travel' as const,
+      label: 'Travel & Booking',
+      icon: Plane,
+      color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+      avatarBg: 'bg-cyan-600 text-white',
+    };
   }
-  if (text.includes('project') || text.includes('task') || text.includes('meeting') || text.includes('review') || text.includes('update') || text.includes('roadmap')) {
-    return { label: 'Project Milestone', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-  }
-  return { label: 'General Correspondence', color: 'bg-stone-100 text-stone-700 border-stone-200' };
+  return {
+    type: 'email' as const,
+    label: 'Email Message',
+    icon: Mail,
+    color: 'bg-stone-100 text-stone-700 border-stone-200',
+    avatarBg: 'bg-stone-800 text-white',
+  };
 };
 
 export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
   email,
   onClose,
   onDeleteFromDashboard,
+  onMarkAsRead,
 }) => {
   if (!email) return null;
 
@@ -51,6 +81,13 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
     onClose();
   };
 
+  const handleRead = () => {
+    if (onMarkAsRead) {
+      onMarkAsRead(email.id);
+    }
+    onClose();
+  };
+
   const formattedDate = email.date
     ? new Date(email.date).toLocaleString(undefined, {
         weekday: 'short',
@@ -63,7 +100,8 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
     : 'Unknown Date';
 
   const monogram = getSenderMonogram(email.from);
-  const category = getCategoryDetails(email.subject || '', email.snippet || '');
+  const entryType = getEntryTypeDetails(email);
+  const TypeIcon = entryType.icon;
 
   return (
     <div className="fixed inset-0 z-[300] bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -71,14 +109,17 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
         {/* Executive Header Bar */}
         <div className="bg-stone-50/80 p-5 border-b border-stone-200/80 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-stone-900 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-xs">
+            <div className={`w-10 h-10 rounded-xl ${entryType.avatarBg} font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-xs relative`}>
               {monogram}
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white text-stone-900 flex items-center justify-center shadow-xs border border-stone-200">
+                <TypeIcon size={9} />
+              </span>
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border flex items-center gap-1 ${category.color}`}>
-                  <Tag size={9} />
-                  <span>{category.label}</span>
+                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border flex items-center gap-1.5 ${entryType.color}`}>
+                  <TypeIcon size={11} />
+                  <span>{entryType.label}</span>
                 </span>
                 <span className="text-[11px] font-medium text-stone-400 flex items-center gap-1">
                   <Clock size={11} />
@@ -99,6 +140,31 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
             <X size={18} />
           </button>
         </div>
+
+        {/* Linked Project Banner (if linked to a planner project or task) */}
+        {email.taskReference && (
+          <div className="mx-5 my-3 p-3 bg-indigo-50/75 border border-indigo-200/85 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <FolderKanban size={15} />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-indigo-950 flex items-center gap-1.5 truncate">
+                  <span>Project: {email.taskReference.projectName || 'Planner Project'}</span>
+                </div>
+                {email.taskReference.taskTitle && (
+                  <div className="text-[11px] text-indigo-700 flex items-center gap-1 truncate mt-0.5 font-medium">
+                    <CheckSquare size={11} className="shrink-0" />
+                    <span className="truncate">Task: {email.taskReference.taskTitle}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-md shrink-0 border border-indigo-200">
+              Linked Project
+            </span>
+          </div>
+        )}
 
         {/* Sender & Receiver Info */}
         <div className="px-6 py-3 bg-stone-50/40 border-b border-stone-200/60 flex flex-wrap items-center justify-between text-xs text-stone-600 gap-2">
@@ -124,14 +190,26 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
 
         {/* Action Footer */}
         <div className="p-4 bg-stone-50/80 border-t border-stone-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <button
-            onClick={handleDelete}
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition"
-            title="Permanently delete from dashboard across all devices"
-          >
-            <Trash2 size={14} />
-            <span>Delete from Dashboard</span>
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleDelete}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition"
+              title="Permanently delete from dashboard across all devices"
+            >
+              <Trash2 size={14} />
+              <span>Delete from Dashboard</span>
+            </button>
+            {onMarkAsRead && (
+              <button
+                onClick={handleRead}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-stone-700 bg-white hover:bg-stone-100 border border-stone-200 transition shadow-2xs"
+                title="Mark as read and remove from unread briefing"
+              >
+                <Check size={14} className="text-emerald-600" />
+                <span>Mark Read</span>
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
@@ -142,6 +220,7 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
               <span>Open in Gmail</span>
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-600 bg-white hover:bg-stone-100 border border-stone-200 transition"
             >

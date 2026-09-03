@@ -48,7 +48,10 @@ import {
   ShieldCheck,
   Info,
   Users,
-  X
+  X,
+  FolderKanban,
+  Receipt,
+  Plane
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -90,6 +93,53 @@ const getEmailCategoryBadge = (subject: string, snippet: string) => {
     return { label: 'Project Milestone', color: 'bg-indigo-50 text-indigo-700 border-indigo-200/80' };
   }
   return { label: 'General', color: 'bg-stone-100 text-stone-700 border-stone-200/80' };
+};
+
+const getEntryTypeInfo = (g: GmailPlanningNotification) => {
+  const isLinkedToProject = Boolean(g.taskReference?.projectName || g.taskReference?.taskId);
+  const text = `${g.subject || ''} ${g.snippet || ''}`.toLowerCase();
+
+  if (isLinkedToProject || text.includes('project') || text.includes('task') || text.includes('milestone') || text.includes('roadmap') || text.includes('deadline') || text.includes('sprint')) {
+    return {
+      type: 'project' as const,
+      label: 'Project',
+      projectName: g.taskReference?.projectName,
+      icon: FolderKanban,
+      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200/90',
+      avatarBg: 'bg-indigo-600 text-white',
+    };
+  }
+
+  if (text.includes('invoice') || text.includes('receipt') || text.includes('bill') || text.includes('payment') || text.includes('statement') || text.includes('$')) {
+    return {
+      type: 'financial' as const,
+      label: 'Invoice / Bill',
+      projectName: undefined,
+      icon: Receipt,
+      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200/90',
+      avatarBg: 'bg-emerald-600 text-white',
+    };
+  }
+
+  if (text.includes('flight') || text.includes('hotel') || text.includes('trip') || text.includes('reservation') || text.includes('ticket') || text.includes('booking')) {
+    return {
+      type: 'travel' as const,
+      label: 'Travel',
+      projectName: undefined,
+      icon: Plane,
+      badgeColor: 'bg-cyan-50 text-cyan-700 border-cyan-200/90',
+      avatarBg: 'bg-cyan-600 text-white',
+    };
+  }
+
+  return {
+    type: 'email' as const,
+    label: 'Email',
+    projectName: undefined,
+    icon: Mail,
+    badgeColor: 'bg-stone-100 text-stone-700 border-stone-200/90',
+    avatarBg: 'bg-stone-800 text-white',
+  };
 };
 
 interface Props {
@@ -154,6 +204,7 @@ const Dashboard: React.FC<Props> = ({
     fetchGmail,
     handleConnectGmail,
     handleDisconnectGmail,
+    handleReadEmail,
     handleDismissEmail,
   } = useGmailNotifications(userEmail, events, dismissedEmailIds, onDismissEmail);
 
@@ -1013,23 +1064,37 @@ const Dashboard: React.FC<Props> = ({
                     {activeUnreadEmails.map((g) => {
                       const monogram = getSenderMonogram(g.from);
                       const senderClean = getSenderCleanName(g.from);
-                      const category = getEmailCategoryBadge(g.subject || '', g.snippet || '');
+                      const entryType = getEntryTypeInfo(g);
+                      const TypeIcon = entryType.icon;
 
                       return (
                         <div
                           key={g.id}
-                          onClick={() => setSelectedEmailModal(g)}
+                          onClick={() => {
+                            setSelectedEmailModal(g);
+                            handleReadEmail(g.id);
+                          }}
                           className="p-4 bg-stone-50/70 hover:bg-white rounded-xl border border-stone-200/85 hover:border-stone-300 shadow-2xs hover:shadow-sm transition cursor-pointer group flex items-start justify-between gap-3"
                         >
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className="w-9 h-9 rounded-xl bg-stone-800 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:bg-stone-950 transition">
+                            <div className={`w-9 h-9 rounded-xl ${entryType.avatarBg} font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:scale-105 transition relative`}>
                               {monogram}
+                              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white text-stone-800 flex items-center justify-center shadow-xs border border-stone-200">
+                                <TypeIcon size={9} />
+                              </span>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${category.color}`}>
-                                  {category.label}
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${entryType.badgeColor}`}>
+                                  <TypeIcon size={10} />
+                                  <span>{entryType.label}</span>
                                 </span>
+                                {entryType.projectName && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 bg-indigo-50/80 rounded-md border border-indigo-100/90 truncate max-w-[130px]">
+                                    <FolderKanban size={9} className="shrink-0" />
+                                    <span className="truncate">{entryType.projectName}</span>
+                                  </span>
+                                )}
                                 <span className="text-[10px] font-medium text-stone-400 shrink-0">
                                   {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
@@ -1053,6 +1118,17 @@ const Dashboard: React.FC<Props> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                handleReadEmail(g.id);
+                              }}
+                              className="p-1.5 text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                              title="Mark as read & remove from briefing"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleDismissEmail(g.id);
                               }}
                               className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
@@ -1060,7 +1136,7 @@ const Dashboard: React.FC<Props> = ({
                             >
                               <Trash2 size={14} />
                             </button>
-                            <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 group-hover:transtone-x-0.5 transition" />
+                            <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 group-hover:translate-x-0.5 transition" />
                           </div>
                         </div>
                       );
@@ -1560,6 +1636,7 @@ const Dashboard: React.FC<Props> = ({
         email={selectedEmailModal}
         onClose={() => setSelectedEmailModal(null)}
         onDeleteFromDashboard={handleDismissEmail}
+        onMarkAsRead={handleReadEmail}
       />
 
       {/* Google Gmail Incremental Authorization Prominent Disclosure Modal */}
