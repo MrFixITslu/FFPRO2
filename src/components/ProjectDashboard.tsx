@@ -1,11 +1,14 @@
 import React, { useMemo } from 'react';
-import { Wallet, CheckCircle2, Clock, Activity, Users, ArrowUpRight, ArrowDownRight, FileText, Tag, Shield, RefreshCw } from 'lucide-react';
+import { Wallet, CheckCircle2, Clock, Activity, Users, ArrowUpRight, ArrowDownRight, FileText, Tag, Shield, RefreshCw, FolderCheck, RotateCcw, Award, Archive, XCircle } from 'lucide-react';
 import { BudgetEvent, ProjectMember } from '../types';
 
 interface Props {
   event: BudgetEvent;
   members?: ProjectMember[];
   onViewLogs?: () => void;
+  onCloseProject?: () => void;
+  onReopenProject?: () => void;
+  canEdit?: boolean;
 }
 
 function countTasks(tasks: BudgetEvent['tasks']): { total: number; done: number } {
@@ -22,7 +25,9 @@ function countTasks(tasks: BudgetEvent['tasks']): { total: number; done: number 
   return { total, done };
 }
 
-const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs }) => {
+const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs, onCloseProject, onReopenProject, canEdit = true }) => {
+  const isClosed = event.status === 'closed';
+
   const stats = useMemo(() => {
     const items = event.items || [];
     const spent = items.filter(i => i.type === 'expense').reduce((s, i) => s + i.amount, 0);
@@ -53,6 +58,64 @@ const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs }) => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Project Status / Closeout Banner */}
+      {isClosed && (
+        <div className="bg-stone-900 text-white rounded-xl p-4 sm:p-5 border border-stone-800 shadow-sm relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-stone-800 border border-stone-700 flex items-center justify-center shrink-0 text-amber-400">
+                <FolderCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-stone-800 text-stone-300 border border-stone-700">
+                    Project Closed
+                  </span>
+                  {event.outcome && (
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border ${
+                      event.outcome === 'success' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800' :
+                      event.outcome === 'cancelled' ? 'bg-amber-950/80 text-amber-300 border-amber-800' :
+                      event.outcome === 'failed' ? 'bg-rose-950/80 text-rose-300 border-rose-800' :
+                      'bg-indigo-950/80 text-indigo-300 border-indigo-800'
+                    }`}>
+                      Outcome: {event.outcome}
+                    </span>
+                  )}
+                  {event.closedAt && (
+                    <span className="text-[11px] text-stone-400 font-medium">
+                      on {new Date(event.closedAt).toLocaleDateString()} {event.closedBy ? `by ${event.closedBy}` : ''}
+                    </span>
+                  )}
+                </div>
+
+                {event.closedReason && (
+                  <p className="text-xs text-stone-300 mt-2 font-medium">
+                    <span className="text-stone-400 font-bold">Reason:</span> {event.closedReason}
+                  </p>
+                )}
+
+                {event.lessonsLearnt && (
+                  <div className="mt-2 text-xs text-stone-300 bg-stone-800/80 p-2.5 rounded-lg border border-stone-700/60 max-w-2xl">
+                    <span className="font-bold text-stone-400 text-[10px] uppercase tracking-wider block mb-0.5">Lessons Learned / Retrospective:</span>
+                    <p className="leading-relaxed whitespace-pre-wrap">{event.lessonsLearnt}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {canEdit && onReopenProject && (
+              <button
+                onClick={onReopenProject}
+                className="self-start sm:self-center px-3.5 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 hover:text-white rounded-lg border border-stone-700 text-xs font-bold transition flex items-center gap-1.5 shrink-0"
+              >
+                <RotateCcw size={13} />
+                Reopen Project
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -82,13 +145,46 @@ const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs }) => {
           <p className="text-[10px] text-stone-400 mt-1">{stats.taskPct}% complete</p>
         </div>
 
-        <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-amber-500" />
-            <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Timeline</span>
+        <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-500" />
+                <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Status & Timeline</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider border ${
+                isClosed ? 'bg-stone-100 text-stone-600 border-stone-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                {isClosed ? 'Closed' : 'Active'}
+              </span>
+            </div>
+            <p className="text-base sm:text-lg font-bold text-stone-800">{stats.daysLabel || (isClosed ? 'Concluded' : 'In Progress')}</p>
           </div>
-          <p className="text-base sm:text-lg font-bold text-stone-800">{stats.daysLabel || '—'}</p>
-          <p className="text-[10px] text-stone-400 mt-1">{event.status}</p>
+          {canEdit && (
+            <div className="mt-2 pt-2 border-t border-stone-100">
+              {isClosed ? (
+                onReopenProject && (
+                  <button
+                    onClick={onReopenProject}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition"
+                  >
+                    <RotateCcw size={12} />
+                    Reopen Project
+                  </button>
+                )
+              ) : (
+                onCloseProject && (
+                  <button
+                    onClick={onCloseProject}
+                    className="text-[11px] font-bold text-stone-500 hover:text-stone-800 flex items-center gap-1 transition"
+                  >
+                    <FolderCheck size={12} />
+                    Close Project
+                  </button>
+                )
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-sm">

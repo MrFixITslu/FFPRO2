@@ -67,6 +67,39 @@ app.use(helmet({
 // Logger middleware
 app.use(morgan('dev'));
 
+// Security guard: block any requests attempting to read server files, credentials, dotfiles, or database files
+app.use((req, res, next) => {
+  const reqPath = decodeURIComponent(req.path || '').toLowerCase();
+  const isBlocked = 
+    reqPath.startsWith('/.') ||
+    reqPath.includes('/..') ||
+    reqPath.endsWith('.key') ||
+    reqPath.endsWith('.env') ||
+    reqPath.endsWith('.sql') ||
+    reqPath.endsWith('.sqlite') ||
+    reqPath.endsWith('.db') ||
+    reqPath.endsWith('.pem') ||
+    reqPath.endsWith('.crt') ||
+    reqPath.endsWith('.log') ||
+    reqPath.startsWith('/server/') ||
+    reqPath.startsWith('/server.') ||
+    reqPath === '/database.json' ||
+    reqPath === '/encryption.key' ||
+    reqPath === '/package.json' ||
+    reqPath === '/package-lock.json' ||
+    reqPath === '/tsconfig.json' ||
+    reqPath === '/dockerfile' ||
+    reqPath === '/docker-compose.yml' ||
+    reqPath === '/firebase-applet-config.json' ||
+    reqPath === '/metadata.json' ||
+    reqPath === '/update_css.cjs';
+
+  if (isBlocked) {
+    return res.status(404).send('Not found');
+  }
+  next();
+});
+
 // Payload parsing
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));

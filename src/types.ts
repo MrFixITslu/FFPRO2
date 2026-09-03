@@ -311,9 +311,12 @@ export interface BudgetEvent {
   memberUsernames: string[]; 
   ious: IOU[];
   logs?: EventLog[];
-  status: 'planned' | 'active' | 'completed';
-  outcome?: 'success' | 'failed';
+  status: 'planned' | 'active' | 'completed' | 'closed';
+  outcome?: 'success' | 'failed' | 'cancelled' | 'neutral';
   lessonsLearnt?: string;
+  closedAt?: string;
+  closedBy?: string;
+  closedReason?: string;
   projectedBudget?: number;
   lastUpdated: string;
   activeCollaborators?: string[];
