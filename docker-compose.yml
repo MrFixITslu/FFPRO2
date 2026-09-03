@@ -52,19 +52,6 @@ services:
       
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-
-      # Funding Finder — uses the EXISTING Ollama container (already running
-      # on proxy_network, which this service already joins below). Never
-      # installs/manages Ollama itself.
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b}
-      - OLLAMA_MAX_CONCURRENT=${OLLAMA_MAX_CONCURRENT:-1}
-      - OLLAMA_REQUEST_TIMEOUT_MS=${OLLAMA_REQUEST_TIMEOUT_MS:-60000}
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
-      - FUNDING_RESEARCH_SCHEDULE=${FUNDING_RESEARCH_SCHEDULE:-0 2 * * *}
-      - FUNDING_RESEARCH_MAX_URLS_PER_RUN=${FUNDING_RESEARCH_MAX_URLS_PER_RUN:-15}
-      - FUNDING_RESEARCH_MAX_RUN_MINUTES=${FUNDING_RESEARCH_MAX_RUN_MINUTES:-45}
-      - FUNDING_SEARCH_QUERIES=${FUNDING_SEARCH_QUERIES:-}
       
       # OAuth - Google Developer Portal
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}

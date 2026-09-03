@@ -107,6 +107,23 @@ class RealtimeHub extends EventEmitter {
   }
 
   /**
+   * Broadcast that an email was permanently dismissed from the dashboard
+   */
+  broadcastEmailDismissed(userId, payload) {
+    const clientSet = this.clients.get(userId);
+    if (!clientSet || clientSet.size === 0) return;
+    const message = {
+      userId,
+      messageId: payload.messageId,
+      dismissedAt: payload.dismissedAt || new Date().toISOString(),
+      type: 'email_dismissed'
+    };
+    clientSet.forEach((client) => {
+      this.sendToClient(client, 'email_dismissed', message);
+    });
+  }
+
+  /**
    * Broadcast shared project changes in real time to all project members
    */
   async broadcastProjectUpdate(projectId, payload) {

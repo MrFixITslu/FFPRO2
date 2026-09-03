@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Login from './components/Login';
 import TransactionForm from './components/TransactionForm';
 import Dashboard from './components/Dashboard';
-import { FundingFinder } from './components/FundingFinder';
 import Settings from './components/Settings';
 import BankSyncModal from './components/BankSyncModal';
 import EventPlanner from './components/EventPlanner';
@@ -33,6 +32,7 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
+import { projectsService } from './services/projectsService';
 import { APP_LOGO } from './assets/logo';
 import { 
   Shield, 
@@ -45,7 +45,6 @@ import {
   Settings as SettingsIcon,
   Plus,
   LayoutDashboard,
-  Landmark,
   Calendar as CalendarIcon,
   Zap,
   TrendingUp,
@@ -137,7 +136,7 @@ const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections' | 'funding'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections'>('dashboard');
   const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(null);
   const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -223,9 +222,68 @@ const App: React.FC = () => {
   const [bankConnections, setBankConnections] = useState<BankConnection[]>(() => safeParse(STORAGE_KEYS.BANK_CONNECTIONS, []));
   const [investments, setInvestments] = useState<InvestmentAccount[]>(() => safeParse(STORAGE_KEYS.INVESTMENTS, []));
   const [events, setEvents] = useState<BudgetEvent[]>(() => sanitizeEventLogs(safeParse(STORAGE_KEYS.EVENTS, [])));
+  const [sharedEvents, setSharedEvents] = useState<BudgetEvent[]>([]);
+
+  const refreshSharedProjects = useCallback(async () => {
+    try {
+      const list = await projectsService.list();
+      if (Array.isArray(list)) {
+        setSharedEvents(list.map(p => ({
+          ...(p.data as BudgetEvent),
+          id: p.id,
+          sharedProjectId: p.id,
+          isShared: true,
+          role: p.role,
+          serverVersion: p.version,
+          lastUpdated: p.updatedAt,
+        })));
+      }
+    } catch (err) {
+      console.warn('Failed to load shared projects:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSharedProjects();
+  }, [refreshSharedProjects, authUser]);
+
+  const allEvents = useMemo(() => {
+    const map = new Map<string, BudgetEvent>();
+    (events || []).forEach(e => { if (e && e.id) map.set(e.id, e); });
+    (sharedEvents || []).forEach(e => { if (e && e.id) map.set(e.id, e); });
+    return Array.from(map.values());
+  }, [events, sharedEvents]);
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
+  const [dismissedEmailIds, setDismissedEmailIds] = useState<string[]>(() => safeParse(STORAGE_KEYS.DISMISSED_EMAIL_IDS, []));
+  const pushToCloudRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
+
+  const handleDismissEmail = useCallback((emailId: string) => {
+    setDismissedEmailIds(prev => {
+      const set = new Set(prev || []);
+      set.add(emailId);
+      set.add(`gmail-${emailId}`);
+      const nextArr = Array.from(set);
+      try {
+        localStorage.setItem(STORAGE_KEYS.DISMISSED_EMAIL_IDS, JSON.stringify(nextArr));
+      } catch (e) {}
+      return nextArr;
+    });
+
+    // Send permanent dismiss to server database & real-time broadcast to all devices (phones, tabs, etc.)
+    fetch('/api/gmail/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ messageId: emailId }),
+    }).catch(e => console.warn('Permanent dismiss notice error:', e));
+
+    // Instantly trigger cloud push without debounce
+    setTimeout(() => {
+      pushToCloudRef.current?.(true);
+    }, 50);
+  }, []);
   const [forecastSettings, setForecastSettings] = useState<ForecastSettings>(() => safeParse(STORAGE_KEYS.FORECAST_SETTINGS, {
     yearsToProject: 5,
     monthlyContribution: 500,
@@ -325,8 +383,9 @@ const App: React.FC = () => {
     forecastSettings,
     financialLogs,
     cashOpeningBalance,
+    dismissedEmailIds,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, dismissedEmailIds]);
 
   // Merge helper for seamless conflict resolution without data loss
   const mergeAppStates = useCallback((local: AppState, remote: AppState): AppState => {
@@ -336,6 +395,10 @@ const App: React.FC = () => {
       l.forEach(item => { if (item?.id) map.set(item.id, item); });
       return Array.from(map.values());
     };
+
+    const localDismissed = local.dismissedEmailIds || [];
+    const remoteDismissed = remote.dismissedEmailIds || [];
+    const combinedDismissed = Array.from(new Set([...localDismissed, ...remoteDismissed]));
 
     return {
       transactions: mergeById(local.transactions, remote.transactions),
@@ -353,6 +416,7 @@ const App: React.FC = () => {
       financialLogs: mergeById(local.financialLogs, remote.financialLogs),
       forecastSettings: local.forecastSettings || remote.forecastSettings || { yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 },
       cashOpeningBalance: local.cashOpeningBalance !== 0 ? local.cashOpeningBalance : (remote.cashOpeningBalance || 0),
+      dismissedEmailIds: combinedDismissed,
       lastUpdated: new Date().toISOString()
     };
   }, []);
@@ -376,6 +440,15 @@ const App: React.FC = () => {
     }
     if (state.forecastSettings) {
       setForecastSettings(state.forecastSettings);
+    }
+    if (Array.isArray(state.dismissedEmailIds)) {
+      setDismissedEmailIds(prev => {
+        const merged = Array.from(new Set([...(prev || []), ...(state.dismissedEmailIds || [])]));
+        try {
+          localStorage.setItem(STORAGE_KEYS.DISMISSED_EMAIL_IDS, JSON.stringify(merged));
+        } catch (e) {}
+        return merged;
+      });
     }
     setCashOpeningBalance(state.cashOpeningBalance || 0);
   }, []);
@@ -414,9 +487,27 @@ const App: React.FC = () => {
       }
     });
 
+    const unsubEmailDismissed = realtimeService.on('email_dismissed', (payload: any) => {
+      const messageId = payload?.messageId;
+      if (messageId) {
+        setDismissedEmailIds(prev => {
+          const set = new Set(prev || []);
+          if (set.has(messageId) && set.has(`gmail-${messageId}`)) return prev;
+          set.add(messageId);
+          set.add(`gmail-${messageId}`);
+          const nextArr = Array.from(set);
+          try {
+            localStorage.setItem(STORAGE_KEYS.DISMISSED_EMAIL_IDS, JSON.stringify(nextArr));
+          } catch (e) {}
+          return nextArr;
+        });
+      }
+    });
+
     return () => {
       unsubStatus();
       unsubData();
+      unsubEmailDismissed();
     };
   }, [isAuthenticated, applyRemoteState, updateCloudVersion]);
 
@@ -576,11 +667,15 @@ const App: React.FC = () => {
   }, [cloudLoaded, getFullState, applyRemoteState, updateCloudVersion, mergeAppStates]);
 
   useEffect(() => {
+    pushToCloudRef.current = pushToCloud;
+  }, [pushToCloud]);
+
+  useEffect(() => {
     if (!cloudLoaded || isApplyingRemoteUpdateRef.current) return;
     const timer = setTimeout(() => { pushToCloud(); }, 2500); // 2.5s debounce
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, cloudLoaded]);
+  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, dismissedEmailIds, cloudLoaded]);
 
   // Restore Vault Handle on Mount
   useEffect(() => {
@@ -1001,15 +1096,6 @@ const App: React.FC = () => {
                       <span>Forecast</span>
                     </button>
                   )}
-                  {isAdmin && (
-                    <button 
-                      onClick={() => setActiveTab('funding')} 
-                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'funding' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
-                    >
-                      <Landmark size={15} />
-                      <span>Funding</span>
-                    </button>
-                  )}
                 </nav>
               </div>
 
@@ -1074,8 +1160,10 @@ const App: React.FC = () => {
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'nsv'}
                   userEmail={authUser?.email}
-                  events={events}
+                  events={allEvents}
                   calendarItems={calendarItems}
+                  dismissedEmailIds={dismissedEmailIds}
+                  onDismissEmail={handleDismissEmail}
                   onEdit={(t) => {
                     setEditingTransaction(t);
                     setShowForm(true);
@@ -1098,8 +1186,8 @@ const App: React.FC = () => {
                     if (projectId) {
                       setNavSelectedEventId(projectId);
                     } else {
-                      // Find if a local event contains this taskId
-                      const found = events.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
+                      // Find if an event contains this taskId
+                      const found = allEvents.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
                       if (found) {
                         setNavSelectedEventId(found.id);
                       }
@@ -1108,13 +1196,14 @@ const App: React.FC = () => {
                     setActiveTab('events');
                   }}
                   onNavigateToPlanner={() => setActiveTab('events')}
+                  onNavigateToCalendar={() => setActiveTab('calendar')}
                 />
               </div>
             )}
 
             {activeTab === 'calendar' && (
               <Calendar 
-                events={events}
+                events={allEvents}
                 calendarItems={calendarItems}
                 transactions={transactions}
                 recurringExpenses={recurringExpenses}
@@ -1137,6 +1226,8 @@ const App: React.FC = () => {
             {activeTab === 'events' && (
               <EventPlanner 
                 events={events}
+                sharedEventsProps={sharedEvents}
+                onUpdateSharedEvents={setSharedEvents}
                 contacts={contacts}
                 directoryHandle={null}
                 currentUser={currentUsername}
@@ -1180,10 +1271,6 @@ const App: React.FC = () => {
                 onUpdateForecastSettings={setForecastSettings}
                 currentNetWorth={liquidFunds + investments.reduce((acc, inv) => acc + inv.holdings.reduce((hAcc, h) => hAcc + (h.quantity * (marketPrices.find(m => m.symbol === h.symbol)?.price || 0)), 0), 0)}
               />
-            )}
-
-            {activeTab === 'funding' && isAdmin && (
-              <FundingFinder />
             )}
           </main>
 

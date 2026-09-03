@@ -74,9 +74,11 @@ interface Props {
   onUpdateIdeas: (ideas: Idea[]) => void;
   initialSelectedEventId?: string | null;
   initialSelectedTaskId?: string | null;
+  sharedEventsProps?: BudgetEvent[];
+  onUpdateSharedEvents?: (sharedEvents: BudgetEvent[]) => void;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas, initialSelectedEventId, initialSelectedTaskId }) => {
+const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas, initialSelectedEventId, initialSelectedTaskId, sharedEventsProps, onUpdateSharedEvents }) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -131,6 +133,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   }, []);
 
   useEffect(() => { refreshSharedProjects(); }, [refreshSharedProjects]);
+
+  useEffect(() => {
+    if (onUpdateSharedEvents) {
+      onUpdateSharedEvents(sharedEvents);
+    }
+  }, [sharedEvents, onUpdateSharedEvents]);
 
   useEffect(() => {
     if (initialSelectedEventId) {

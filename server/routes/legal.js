@@ -4,7 +4,7 @@ const router = Router();
 
 const EFFECTIVE_DATE = 'September 1, 2026';
 const COMPANY_NAME = 'Vision79 Digital';
-const APP_NAME = 'Fire Finance Pro (FFPRO2)';
+const APP_NAME = 'Fire Finance Pro';
 const CONTACT_EMAIL = 'vision79slu@gmail.com';
 
 const pageShell = (title, bodyHtml) => `<!DOCTYPE html>
@@ -183,14 +183,15 @@ router.get('/privacy', (_req, res) => {
     </ul>
 
     <h2 id="google-api">2. Google account &amp; Gmail data</h2>
-    <p>If you sign in with Google, we request the minimum scopes needed for the features you use. This may include read-only and modify access to Gmail, used only to power the optional <strong>Planning Notifications</strong> feature, which surfaces unread emails related to your planning tasks directly on your dashboard.</p>
+    <p>When you sign in with Google or connect your Gmail account, we request only the minimum scopes necessary to provide the features you explicitly choose to use. Access to Gmail is strictly optional and is used solely to power the <strong>Executive Inbox Briefing &amp; Planning Notifications</strong>, which displays unread emails related to planning tasks, invoices, and milestones directly on your dashboard.</p>
     <div class="callout">
-      <strong>Google API Services User Data Policy.</strong> ${APP_NAME}'s use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. Specifically:
+      <strong>Google API Services User Data Policy.</strong> ${APP_NAME}'s use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. Specifically:
       <ul>
-        <li>Gmail data is used only to display planning-related email notifications and task links within the Service to the account that granted access — it is never used to serve advertising.</li>
+        <li>Gmail data is used solely to display planning-related email notifications, sender details, subject headers, snippets, and task links within the Service to the user who granted access — it is never used to serve advertising.</li>
         <li>Gmail data is never sold, transferred, or shared with third parties for purposes unrelated to providing or improving this specific feature.</li>
-        <li>Gmail data is never used to train generalized AI/ML models.</li>
-        <li>Access is limited to the specific, authorized account this feature is configured for, and can be revoked at any time via your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">Google Account permissions page</a>, which immediately stops all further access.</li>
+        <li>Gmail data is never used to train generalized artificial intelligence (AI) or machine learning (ML) models.</li>
+        <li>Humans will not read your email data unless you provide explicit affirmative consent for specific messages, doing so is necessary for security purposes (such as investigating abuse or bugs), or as required by law.</li>
+        <li>You can disconnect your Google account and revoke access at any time directly within the application via the "Disconnect Gmail" control or through your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">Google Account permissions page</a>, which immediately terminates all access and clears stored tokens.</li>
       </ul>
     </div>
 
