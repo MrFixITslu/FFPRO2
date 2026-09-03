@@ -18,9 +18,9 @@ export const PlannerDashboardSummary: React.FC<Props> = ({ stats, activeFilter, 
       label: 'Total Tasks',
       value: stats.total,
       icon: ListTodo,
-      bg: 'bg-slate-900',
+      bg: 'bg-stone-900',
       textColor: 'text-white',
-      badgeBg: 'bg-white/10 text-slate-300',
+      badgeBg: 'bg-white/10 text-stone-300',
     },
     {
       id: 'completed',
@@ -101,7 +101,7 @@ export const PlannerDashboardSummary: React.FC<Props> = ({ stats, activeFilter, 
             className={`p-3.5 rounded-xl border transition-all text-left flex flex-col justify-between shadow-xs relative overflow-hidden group ${
               w.bg
             } ${
-              isSelected ? 'ring-2 ring-indigo-600 scale-[1.02] shadow-sm' : 'hover:border-slate-300 hover:shadow-sm'
+              isSelected ? 'ring-2 ring-indigo-600 scale-[1.02] shadow-sm' : 'hover:border-stone-300 hover:shadow-sm'
             }`}
           >
             <div className="flex items-center justify-between w-full mb-2">

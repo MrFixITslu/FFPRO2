@@ -1,9 +1,11 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
-import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem } from '../types';
+import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem, GmailPlanningNotification } from '../types';
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
-import { GmailPlanningNotifications } from './GmailPlanningNotifications';
+import { UnifiedNotificationHub } from './UnifiedNotificationHub';
+import { EmailDetailModal } from './EmailDetailModal';
+import { useGmailNotifications } from '../hooks/useGmailNotifications';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -38,7 +40,14 @@ import {
   Layers,
   ExternalLink,
   Sliders,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Mail,
+  Inbox,
+  LogIn,
+  LogOut,
+  ShieldCheck,
+  Info,
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -49,6 +58,38 @@ interface InstitutionalBalance {
   holdings?: any[];
   isCash?: boolean;
 }
+
+const getSenderMonogram = (fromStr: string) => {
+  if (!fromStr) return 'EM';
+  const clean = fromStr.replace(/<.*?>/, '').replace(/["']/g, '').trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase() || 'EM';
+};
+
+const getSenderCleanName = (fromStr: string) => {
+  if (!fromStr) return 'Unknown Sender';
+  const match = fromStr.match(/^"?([^"<]+)"?\s*(?:<.*>)?$/);
+  if (match && match[1]?.trim()) return match[1].trim();
+  const clean = fromStr.replace(/<.*?>/, '').replace(/["']/g, '').trim();
+  return clean || fromStr;
+};
+
+const getEmailCategoryBadge = (subject: string, snippet: string) => {
+  const text = `${subject} ${snippet}`.toLowerCase();
+  if (text.includes('invoice') || text.includes('receipt') || text.includes('bill') || text.includes('payment') || text.includes('statement') || text.includes('$')) {
+    return { label: 'Invoice / Financial', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/80' };
+  }
+  if (text.includes('flight') || text.includes('hotel') || text.includes('trip') || text.includes('reservation') || text.includes('ticket')) {
+    return { label: 'Travel & Booking', color: 'bg-cyan-50 text-cyan-700 border-cyan-200/80' };
+  }
+  if (text.includes('project') || text.includes('task') || text.includes('meeting') || text.includes('review') || text.includes('update') || text.includes('roadmap')) {
+    return { label: 'Project Milestone', color: 'bg-indigo-50 text-indigo-700 border-indigo-200/80' };
+  }
+  return { label: 'General', color: 'bg-stone-100 text-stone-700 border-stone-200/80' };
+};
 
 interface Props {
   transactions: Transaction[];
@@ -81,17 +122,43 @@ interface Props {
   onNavigateToPlannerLogs?: () => void;
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
+  onNavigateToCalendar?: () => void;
+  dismissedEmailIds?: string[];
+  onDismissEmail?: (emailId: string) => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onEdit, onDelete
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onNavigateToCalendar, onEdit, onDelete, dismissedEmailIds = [], onDismissEmail
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
-  const [partialAmount, setPartialAmount] = useState<string>("");
-  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+
+  // Executive vs Detailed View Mode
+  const [viewMode, setViewMode] = useState<'executive' | 'detailed'>(() => {
+    return (localStorage.getItem('dashboard_view_mode') as 'executive' | 'detailed') || 'executive';
+  });
+
+  const handleSetViewMode = (mode: 'executive' | 'detailed') => {
+    setViewMode(mode);
+    localStorage.setItem('dashboard_view_mode', mode);
+  };
+
+  // Gmail Sync & Notifications Engine
+  const {
+    activeUnreadEmails,
+    unreadCount,
+    gmailLoading,
+    gmailConnected,
+    fetchGmail,
+    handleConnectGmail,
+    handleDisconnectGmail,
+    handleDismissEmail,
+  } = useGmailNotifications(userEmail, events, dismissedEmailIds, onDismissEmail);
+
+  const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
+  const [showGmailConsentModal, setShowGmailConsentModal] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -257,32 +324,53 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
-  const handleQuickPaymentAction = (item: any, isIncome: boolean) => {
-    const amt = parseFloat(partialAmount) || item.remainingAmount;
-    if (isIncome) {
-      const destination = selectedDestination || 'Cash in Hand';
-      onReceiveRecurringIncome(item, amt, destination);
-    } else {
-      onPayRecurring(item, amt);
-    }
-    setActivePaymentId(null);
-    setPartialAmount("");
-    setSelectedDestination(null);
-  };
+  // High-Level Executive Summary Metrics
+  const totalProjects = events.length;
+  const allTasks = useMemo(() => {
+    return events.flatMap(e => e.tasks || []);
+  }, [events]);
+  const completedTasksCount = allTasks.filter(t => t.completed).length;
+  const pendingTasksCount = allTasks.length - completedTasksCount;
+  const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
 
-  const startRecordCommitment = (item: any, isIncome: boolean) => {
-    setActivePaymentId(item.id);
-    setPartialAmount(item.remainingAmount.toFixed(2));
-    
-    if (isIncome) {
-      const isSalary = item.description.toLowerCase().includes('salary');
-      if (isSalary) {
-        setSelectedDestination(bankConnections[0]?.institution || 'Cash in Hand');
-      } else {
-        setSelectedDestination('Cash in Hand');
-      }
-    }
-  };
+  const totalSavingsGoalTarget = savingGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
+  const totalSavingsGoalCurrent = savingGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
+  const savingsProgressPct = totalSavingsGoalTarget > 0 ? Math.min(100, Math.round((totalSavingsGoalCurrent / totalSavingsGoalTarget) * 100)) : 0;
+
+  const totalInvestmentGoalTarget = investmentGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
+  const totalInvestmentGoalCurrent = investmentGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
+  const investmentProgressPct = totalInvestmentGoalTarget > 0 ? Math.min(100, Math.round((totalInvestmentGoalCurrent / totalInvestmentGoalTarget) * 100)) : 0;
+
+  const upcomingCalendarItems = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return [...calendarItems]
+      .filter(item => item.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [calendarItems]);
+
+  const upcomingFinancialCommitments = useMemo(() => {
+    const bills = unpaidBills.map(b => ({
+      id: b.id,
+      title: b.description,
+      amount: b.remainingAmount,
+      date: b.nextDueDate,
+      isIncome: false,
+      category: b.category,
+    }));
+    const incomes = unconfirmedIncomes.map(i => ({
+      id: i.id,
+      title: i.description,
+      amount: i.remainingAmount,
+      date: i.nextConfirmationDate,
+      isIncome: true,
+      category: i.category,
+    }));
+    return [...bills, ...incomes]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [unpaidBills, unconfirmedIncomes]);
 
   const filteredFinancialLogs = useMemo(() => {
     return financialLogs.filter(log => {
@@ -400,38 +488,645 @@ const Dashboard: React.FC<Props> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-24 print:p-0">
-      <div className="hidden print:block border-b-2 border-slate-900 pb-6 mb-8">
-        <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
+      <div className="hidden print:block border-b-2 border-stone-900 pb-6 mb-8">
+        <h1 className="text-2xl font-light text-stone-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-      {/* Gmail Planning Notifications */}
-      <GmailPlanningNotifications
-        userEmail={userEmail}
-        onNavigateToTask={onNavigateToTask}
-        onNavigateToPlanner={onNavigateToPlanner}
-      />
+      {/* Executive vs Detailed View Mode Selector */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-stone-200/85 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
+            viewMode === 'executive' 
+              ? 'bg-stone-900 text-white border-stone-800' 
+              : 'bg-stone-100 text-stone-700 border-stone-200'
+          }`}>
+            {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-stone-900 tracking-tight">
+                {viewMode === 'executive' ? 'Executive Briefing' : 'Detailed Financial Analysis'}
+              </h2>
+              <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
+                viewMode === 'executive' 
+                  ? 'bg-stone-100 text-stone-800 border-stone-200' 
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+              }`}>
+                {viewMode === 'executive' ? 'High-Level Overview' : 'Granular Ledger & Analytics'}
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-500 font-medium mt-0.5">
+              {viewMode === 'executive' 
+                ? 'Strategic snapshot across Net Worth, Cash Margin, Active Suites, Commitments & Inbox.' 
+                : 'Full breakdown of institutional accounts, cashflow intelligence, objectives & immutable audit logs.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200 self-stretch sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('executive')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'executive' 
+                ? 'bg-white text-stone-900 shadow-xs' 
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Layers size={14} />
+            <span>Executive Briefing</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('detailed')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'detailed' 
+                ? 'bg-white text-stone-900 shadow-xs' 
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <BarChart3 size={14} />
+            <span>Detailed View</span>
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'executive' ? (
+        /* Executive High-Level Summary View */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Executive Hero KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Card 1: Total Net Worth */}
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-stone-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Total Net Worth</span>
+                  <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200">
+                    <Wallet size={15} />
+                  </div>
+                </div>
+                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">${netWorth.toLocaleString()}</h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+                <span className="text-stone-500 font-medium">Liquid Cash:</span>
+                <span className="font-tabular font-semibold text-stone-900 bg-stone-100 px-2 py-0.5 rounded-md">${liquidFunds.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Card 2: Cashflow Balance */}
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-stone-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Monthly Margin</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' : 'bg-rose-50 text-rose-700 border-rose-200/80'}`}>
+                    {netMargin >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+                  </div>
+                </div>
+                <h3 className={`font-tabular text-2xl font-bold tracking-tight ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-tabular">
+                <span className="text-emerald-700 font-semibold">+${totalActualIncome.toLocaleString()}</span>
+                <span className="text-stone-300">/</span>
+                <span className="text-rose-700 font-semibold">-${totalActualExpenses.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Card 3: Projects & Workspaces */}
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-stone-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Project Suites</span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200/80">
+                    <Zap size={15} />
+                  </div>
+                </div>
+                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">
+                  {totalProjects} <span className="text-xs font-medium text-stone-400">Active</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+                <span className="text-stone-500 font-medium">{completedTasksCount}/{allTasks.length} Tasks</span>
+                <span className="font-tabular font-bold text-amber-700">{overallTaskProgress}%</span>
+              </div>
+            </div>
+
+            {/* Card 4: Upcoming Schedule & Commitments */}
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-stone-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Commitments</span>
+                  <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-200/80">
+                    <Calendar size={15} />
+                  </div>
+                </div>
+                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">
+                  {upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-medium text-stone-400">Due</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+                <span className="text-stone-500 font-medium">Next:</span>
+                <span className="font-semibold text-cyan-700 truncate max-w-[120px]">
+                  {upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All Clear'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 5: Unread Emails */}
+            <div 
+              className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between cursor-pointer group"
+              onClick={() => {
+                if (activeUnreadEmails.length > 0) {
+                  setSelectedEmailModal(activeUnreadEmails[0]);
+                } else if (!gmailConnected) {
+                  handleConnectGmail();
+                }
+              }}
+            >
+              <div>
+                <div className="flex items-center justify-between text-stone-400 mb-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Unread Inbox</span>
+                  <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200 group-hover:bg-stone-900 group-hover:text-white transition">
+                    <Mail size={15} />
+                  </div>
+                </div>
+                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">
+                  {unreadCount} <span className="text-xs font-medium text-stone-400">Briefing</span>
+                </h3>
+              </div>
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+                <span className="text-stone-500 font-medium">Status:</span>
+                <span className={`font-semibold px-2 py-0.5 rounded-md ${
+                  gmailConnected ? 'text-stone-800 bg-stone-100' : 'text-amber-800 bg-amber-50'
+                }`}>
+                  {gmailConnected ? (unreadCount > 0 ? `${unreadCount} New` : 'All Clear') : 'Connect'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-Column High-Level Overview Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Module 1: Projects & Planner High-Level Overview */}
+            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                      <Zap size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-900">Projects & Planner Summary</h3>
+                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Milestone Progress & Checklists</p>
+                    </div>
+                  </div>
+                  {onNavigateToPlanner && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlanner}
+                      className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 transition"
+                    >
+                      <span>Open Planner</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {events.length > 0 ? (
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {events.map((ev) => {
+                      const tasks = ev.tasks || [];
+                      const done = tasks.filter(t => t.completed).length;
+                      const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
+                      const totalSpent = ev.ledger?.reduce((acc, l) => acc + l.amount, 0) || 0;
+                      const projectName = ev.name || (ev as any).title || 'Untitled Project';
+                      const targetBudget = ev.projectedBudget || (ev as any).budget || 0;
+
+                      return (
+                        <div 
+                          key={ev.id} 
+                          onClick={() => onNavigateToTask && onNavigateToTask(ev.id, ev.id)}
+                          className="p-4 bg-stone-50 rounded-xl border border-stone-200/80 hover:border-amber-300 hover:bg-amber-50/20 transition cursor-pointer group"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                                ev.eventType === 'trip' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
+                                ev.eventType === 'startup' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              }`}>
+                                {ev.eventType === 'trip' ? '✈️ Trip' : ev.eventType === 'startup' ? '🚀 Startup' : '📋 General'}
+                              </span>
+                              <h4 className="text-xs font-bold text-stone-800 group-hover:text-amber-700 transition">{projectName}</h4>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-stone-600">{pct}% Done</span>
+                          </div>
+
+                          <div className="w-full bg-stone-200 h-1.5 rounded-full overflow-hidden mb-2">
+                            <div 
+                              className="bg-amber-500 h-full transition-all duration-300 rounded-full" 
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-stone-500">
+                            <span>{done}/{tasks.length} Tasks Completed</span>
+                            <span>Spent: ${totalSpent.toLocaleString()} / Target: ${targetBudget.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-stone-400 text-xs font-medium">
+                    No active project suites found.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-600">
+                <span>Active Projects: {events.length}</span>
+                <span>Pending Tasks: {pendingTasksCount}</span>
+              </div>
+            </section>
+
+            {/* Module 2: Calendar & Upcoming Commitments Summary */}
+            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center border border-cyan-100">
+                      <Calendar size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-900">Schedule & Calendar Highlights</h3>
+                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Upcoming Meetings & Due Dates</p>
+                    </div>
+                  </div>
+                  {onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToCalendar}
+                      className="flex items-center gap-1 text-xs font-bold text-cyan-600 hover:text-cyan-700 transition"
+                    >
+                      <span>Open Calendar</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {upcomingCalendarItems.length > 0 || upcomingFinancialCommitments.length > 0 ? (
+                    <>
+                      {upcomingCalendarItems.map(ci => (
+                        <div key={ci.id} className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 font-bold text-xs flex flex-col items-center justify-center shrink-0">
+                              <span>{new Date(ci.date + 'T00:00:00').getDate()}</span>
+                              <span className="text-[8px] uppercase">{new Date(ci.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-stone-800">{ci.title}</p>
+                              <p className="text-[10px] text-stone-400 font-medium">{ci.category || 'Event'} • {ci.time || 'All Day'}</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-[9px] font-extrabold uppercase rounded border border-cyan-200">
+                            Calendar
+                          </span>
+                        </div>
+                      ))}
+
+                      {upcomingFinancialCommitments.map(fc => (
+                        <div key={fc.id} className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg font-bold text-xs flex flex-col items-center justify-center shrink-0 ${
+                              fc.isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              <span>{new Date(fc.date + 'T00:00:00').getDate()}</span>
+                              <span className="text-[8px] uppercase">{new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-stone-800">{fc.title}</p>
+                              <p className="text-[10px] text-stone-400 font-medium">{fc.category} • Due {new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                            fc.isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {fc.isIncome ? `+$${fc.amount.toFixed(2)}` : `-$${fc.amount.toFixed(2)}`}
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="py-8 text-center text-stone-400 text-xs font-medium">
+                      No upcoming meetings or financial commitments scheduled.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-600">
+                <span>Calendar Events: {calendarItems.length}</span>
+                <span>Unpaid Bills: {unpaidBills.length}</span>
+              </div>
+            </section>
+
+            {/* Module 3: Financial Objectives & Targets Summary */}
+            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs">
+              <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                    <Target size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-900">Financial Objectives Progress</h3>
+                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Savings & Investment Goals</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-stone-50 rounded-xl border border-stone-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-bold text-stone-800">Saving Goals ({savingGoals.length})</span>
+                    <span className="text-xs font-extrabold text-indigo-600">${totalSavingsGoalCurrent.toLocaleString()} / ${totalSavingsGoalTarget.toLocaleString()} ({savingsProgressPct}%)</span>
+                  </div>
+                  <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-indigo-600 h-full transition-all duration-300 rounded-full" style={{ width: `${savingsProgressPct}%` }} />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-stone-50 rounded-xl border border-stone-200/80">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-bold text-stone-800">Investment Goals ({investmentGoals.length})</span>
+                    <span className="text-xs font-extrabold text-emerald-600">${totalInvestmentGoalCurrent.toLocaleString()} / ${totalInvestmentGoalTarget.toLocaleString()} ({investmentProgressPct}%)</span>
+                  </div>
+                  <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-600 h-full transition-all duration-300 rounded-full" style={{ width: `${investmentProgressPct}%` }} />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Module 4: High Level Quick Actions & Status */}
+            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
+                      <Activity size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-900">Command Quick Actions</h3>
+                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">High-Level Operations</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {onOpenTransactionForm && (
+                    <button
+                      type="button"
+                      onClick={onOpenTransactionForm}
+                      className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Plus size={16} className="text-indigo-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">New Entry</p>
+                        <p className="text-[10px] text-indigo-500 font-medium">Record Transaction</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {onNavigateToPlanner && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlanner}
+                      className="p-3 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl border border-amber-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Zap size={16} className="text-amber-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">Project Suite</p>
+                        <p className="text-[10px] text-amber-600 font-medium">Planner Checklists</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {onNavigateToCalendar && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToCalendar}
+                      className="p-3 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 rounded-xl border border-cyan-200/80 text-left transition flex flex-col justify-between"
+                    >
+                      <Calendar size={16} className="text-cyan-600 mb-2" />
+                      <div>
+                        <p className="text-xs font-bold">Schedule Event</p>
+                        <p className="text-[10px] text-cyan-600 font-medium">Calendar & Meetings</p>
+                      </div>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode('detailed')}
+                    className="p-3 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-xl border border-stone-200/80 text-left transition flex flex-col justify-between"
+                  >
+                    <BarChart3 size={16} className="text-stone-600 mb-2" />
+                    <div>
+                      <p className="text-xs font-bold">Deep Analytics</p>
+                      <p className="text-[10px] text-stone-500 font-medium">Full Ledger & Audit</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-500">
+                <span>Accounts Connected: {bankConnections.length}</span>
+                <span>Audit Logs Recorded: {financialLogs.length}</span>
+              </div>
+            </section>
+
+            {/* Module 5: Unread Inbox & Emails Briefing */}
+            <section className="executive-card p-6 rounded-xl flex flex-col justify-between lg:col-span-2">
+              <div>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-xs">
+                      <Mail size={15} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-900 tracking-tight">Executive Inbox Briefing</h3>
+                      <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider">
+                        {gmailConnected ? `${unreadCount} Unread Messages Pending Review` : 'Gmail Integration Offline'}
+                      </p>
+                    </div>
+                  </div>
+                  {gmailConnected ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchGmail(false)}
+                        disabled={gmailLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-xl border border-stone-200/80 transition"
+                        title="Sync Inbox with Gmail"
+                      >
+                        <RefreshCw size={13} className={gmailLoading ? 'animate-spin text-stone-900' : ''} />
+                        <span className="hidden sm:inline">{gmailLoading ? 'Syncing...' : 'Sync Briefing'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDisconnectConfirm(true)}
+                        disabled={gmailLoading}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-stone-200/70 transition"
+                        title="Disconnect Gmail & revoke access"
+                      >
+                        <LogOut size={13} />
+                        <span className="hidden md:inline">Disconnect</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowGmailConsentModal(true)}
+                      disabled={gmailLoading}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-stone-900 text-white rounded-xl shadow-xs hover:bg-stone-800 transition"
+                    >
+                      <LogIn size={13} />
+                      <span>Connect Gmail</span>
+                    </button>
+                  )}
+                </div>
+
+                {activeUnreadEmails.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {activeUnreadEmails.map((g) => {
+                      const monogram = getSenderMonogram(g.from);
+                      const senderClean = getSenderCleanName(g.from);
+                      const category = getEmailCategoryBadge(g.subject || '', g.snippet || '');
+
+                      return (
+                        <div
+                          key={g.id}
+                          onClick={() => setSelectedEmailModal(g)}
+                          className="p-4 bg-stone-50/70 hover:bg-white rounded-xl border border-stone-200/85 hover:border-stone-300 shadow-2xs hover:shadow-sm transition cursor-pointer group flex items-start justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-stone-800 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:bg-stone-950 transition">
+                              {monogram}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${category.color}`}>
+                                  {category.label}
+                                </span>
+                                <span className="text-[10px] font-medium text-stone-400 shrink-0">
+                                  {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div className="text-xs font-bold text-stone-900 truncate mb-0.5">
+                                {senderClean}
+                              </div>
+                              <h4 className="text-xs font-semibold text-stone-800 group-hover:text-stone-950 transition truncate">
+                                {g.subject || '(No Subject)'}
+                              </h4>
+                              {g.snippet && (
+                                <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5 leading-relaxed">
+                                  {g.snippet}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDismissEmail(g.id);
+                              }}
+                              className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="Permanently delete from dashboard across all devices"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 group-hover:transtone-x-0.5 transition" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-12 px-4 text-center rounded-xl bg-stone-50/50 border border-dashed border-stone-200 flex flex-col items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center mb-3">
+                      <Mail size={18} />
+                    </div>
+                    <p className="text-xs font-bold text-stone-800">
+                      {gmailConnected ? 'Executive Briefing Clear' : 'Connect Your Account'}
+                    </p>
+                    <p className="text-[11px] text-stone-500 font-medium max-w-sm mt-1">
+                      {gmailConnected
+                        ? 'Zero unread items requiring your immediate attention. Your dashboard inbox is completely caught up.'
+                        : 'Link your Google account to stream priority emails, milestone notices, and bills directly into your briefing.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-semibold text-stone-500">
+                <span>Unread Briefing Items: {unreadCount}</span>
+                <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Offline'}</span>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      ) : (
+        /* Detailed Financial Analytics View */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Unified Notification & Planning Intelligence Hub */}
+          <UnifiedNotificationHub
+            userEmail={userEmail}
+            events={events}
+            calendarItems={calendarItems}
+            unpaidBills={unpaidBills}
+            unconfirmedIncomes={unconfirmedIncomes}
+            categoryBudgets={categoryBudgets}
+            transactions={transactions}
+            bankConnections={bankConnections}
+            onNavigateToTask={onNavigateToTask}
+            onNavigateToPlanner={onNavigateToPlanner}
+            onPayRecurring={onPayRecurring}
+            onReceiveRecurringIncome={onReceiveRecurringIncome}
+            onOpenTransactionForm={onOpenTransactionForm}
+            onSelectEmailModal={(email) => setSelectedEmailModal(email)}
+            onDismissEmail={onDismissEmail || handleDismissEmail}
+            externalDismissedIds={dismissedEmailIds}
+          />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
-           <h3 className="text-xs font-bold text-slate-600 text-center">${cycleRollover.toLocaleString()}</h3>
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
+           <h3 className="text-xs font-bold text-stone-600 text-center">${cycleRollover.toLocaleString()}</h3>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Inflow</p>
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Inflow</p>
            <h3 className="text-xs font-bold text-emerald-600 text-center">+${totalActualIncome.toLocaleString()}</h3>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Outflow</p>
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Outflow</p>
            <h3 className="text-xs font-bold text-rose-600 text-center">-${totalActualExpenses.toLocaleString()}</h3>
         </div>
         <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-center ${netMargin >= 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'}`}>
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Net Margin</p>
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Net Margin</p>
            <h3 className={`text-xs font-bold text-center ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
              {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
            </h3>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Cash On Hand</p>
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Cash On Hand</p>
            <h3 className="text-xs font-bold text-indigo-600 text-center">${liquidFunds.toLocaleString()}</h3>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
@@ -442,38 +1137,38 @@ const Dashboard: React.FC<Props> = ({
            <p className="text-indigo-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Days left</p>
            <h3 className="text-sm font-bold text-indigo-700">{daysUntilNextCycle} <span className="text-[8px] text-indigo-600/60 uppercase">Days</span></h3>
         </div>
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-sm text-white flex flex-col justify-center text-center">
+        <div className="bg-stone-900 p-4 rounded-xl border border-stone-800 shadow-sm text-white flex flex-col justify-center text-center">
            <p className="text-white/50 text-[8px] font-bold uppercase tracking-wider mb-1">Net Worth</p>
            <h3 className="text-xs font-semibold text-white">${netWorth.toLocaleString()}</h3>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1">Traditional Bank</p>
-           <h3 className="text-sm font-semibold text-slate-800">${bankTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Traditional Bank</p>
+           <h3 className="text-sm font-semibold text-stone-800">${bankTotal.toLocaleString()}</h3>
+           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (bankTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1">Credit Union</p>
-           <h3 className="text-sm font-semibold text-slate-800">${cuTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Credit Union</p>
+           <h3 className="text-sm font-semibold text-stone-800">${cuTotal.toLocaleString()}</h3>
+           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cuTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1">Crypto (Digital)</p>
-           <h3 className="text-sm font-semibold text-slate-800">${cryptoTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Crypto (Digital)</p>
+           <h3 className="text-sm font-semibold text-stone-800">${cryptoTotal.toLocaleString()}</h3>
+           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cryptoTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-           <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wider mb-1">Other Investments</p>
-           <h3 className="text-sm font-semibold text-slate-800">${vanguardTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
+           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Other Investments</p>
+           <h3 className="text-sm font-semibold text-stone-800">${vanguardTotal.toLocaleString()}</h3>
+           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (vanguardTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
@@ -491,102 +1186,9 @@ const Dashboard: React.FC<Props> = ({
         onOpenTransactionForm={onOpenTransactionForm}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-6">Upcoming Commitments</h3>
-          <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {unpaidBills.concat(unconfirmedIncomes as any).length > 0 ? unpaidBills.concat(unconfirmedIncomes as any).slice(0, 10).map((bill: any) => {
-              const isIncome = 'nextConfirmationDate' in bill;
-              const isActive = activePaymentId === bill.id;
-              const progress = (bill.paidAmount || bill.receivedAmount || 0) / bill.amount * 100;
-              const hasPaidSomething = progress > 0;
-              const isSalary = isIncome && bill.description.toLowerCase().includes('salary');
-
-              return (
-                <div key={bill.id} className="p-4 bg-slate-50/50 border border-slate-200 rounded-lg transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded flex items-center justify-center shadow-sm border ${isIncome ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}`}>
-                        <i className={`fas ${isIncome ? 'fa-hand-holding-dollar' : 'fa-file-invoice'} text-xs`}></i>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-xs text-slate-800">{bill.description}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                            {isIncome ? 'Expect' : 'Bill'}: ${bill.amount}
-                          </p>
-                          {hasPaidSomething && (
-                            <span className="px-1 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[8px] font-bold uppercase rounded">Partial</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-xs font-bold text-indigo-600">${bill.remainingAmount.toFixed(2)}</p>
-                       <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">Due: {new Date(isIncome ? bill.nextConfirmationDate : bill.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
-                    </div>
-                  </div>
-
-                  {isActive && isIncome && (
-                    <div className="mt-3 p-3 bg-white rounded border border-indigo-100 space-y-2 animate-in fade-in slide-in-from-top-2">
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Destination</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {!isSalary && (
-                          <button 
-                            onClick={() => setSelectedDestination('Cash in Hand')}
-                            className={`px-2.5 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${selectedDestination === 'Cash in Hand' ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
-                          >
-                            Cash In Hand
-                          </button>
-                        )}
-                        {bankConnections.map(conn => (
-                          <button 
-                            key={conn.institution}
-                            onClick={() => setSelectedDestination(conn.institution)}
-                            className={`px-2.5 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${selectedDestination === conn.institution ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
-                          >
-                            {conn.institution}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200/55">
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                      Sched: {new Date(isIncome ? bill.nextConfirmationDate : bill.nextDueDate).toLocaleDateString()}
-                    </p>
-                    {isActive ? (
-                      <div className="flex gap-1.5 items-center animate-in slide-in-from-right-2">
-                        <input 
-                          type="number" 
-                          autoFocus
-                          placeholder={bill.remainingAmount.toFixed(2)}
-                          value={partialAmount}
-                          onChange={(e) => setPartialAmount(e.target.value)}
-                          className="w-20 px-2.5 py-1.5 bg-white border border-indigo-300 rounded text-[10px] font-semibold outline-none shadow-sm focus:border-indigo-500"
-                        />
-                        <button 
-                          onClick={() => handleQuickPaymentAction(bill, isIncome)} 
-                          disabled={isIncome && !selectedDestination}
-                          className={`w-7 h-7 bg-indigo-600 text-white rounded flex items-center justify-center text-[9px] disabled:opacity-30 disabled:grayscale hover:bg-indigo-700 transition-colors shadow-sm`}
-                        >
-                          <i className="fas fa-check"></i>
-                        </button>
-                        <button onClick={() => { setActivePaymentId(null); setPartialAmount(""); setSelectedDestination(null); }} aria-label="Cancel payment" className="w-7 h-7 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[9px] hover:bg-slate-200 border border-slate-200 transition-colors"><i className="fas fa-times"></i></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => startRecordCommitment(bill, isIncome)} className="px-3 py-1 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-wider rounded hover:bg-indigo-600 transition-all shadow-sm">Record</button>
-                    )}
-                  </div>
-                </div>
-              );
-            }) : <p className="py-10 text-center text-slate-300 font-bold uppercase text-[9px] tracking-wider">All clear</p>}
-          </div>
-        </section>
-
-        <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-6">Financial Objectives</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm overflow-hidden flex flex-col">
+          <h3 className="font-bold text-stone-800 uppercase text-xs tracking-wider mb-6">Financial Objectives</h3>
           <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {savingGoals.length > 0 || investmentGoals.length > 0 ? (
               <>
@@ -594,15 +1196,15 @@ const Dashboard: React.FC<Props> = ({
                   <div key={goal.id} className="space-y-2">
                     <div className="flex justify-between items-end px-1">
                       <div>
-                        <p className="text-xs font-semibold text-slate-800">{goal.name}</p>
+                        <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
                         <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-wider">{goal.institution}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-slate-900">${goal.currentAmount.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Savings Target</p>
+                        <p className="text-xs font-bold text-stone-900">${goal.currentAmount.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
+                        <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Savings Target</p>
                       </div>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-indigo-600 transition-all duration-1000" 
                         style={{ width: `${Math.min(100, (goal.currentAmount / goal.targetAmount) * 100)}%` }}
@@ -617,15 +1219,15 @@ const Dashboard: React.FC<Props> = ({
                     <div key={goal.id} className="space-y-2">
                       <div className="flex justify-between items-end px-1">
                         <div>
-                          <p className="text-xs font-semibold text-slate-800">{goal.name}</p>
+                          <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
                           <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">{goal.provider} Portfolio</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-bold text-slate-900">${currentVal.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Asset Target</p>
+                          <p className="text-xs font-bold text-stone-900">${currentVal.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
+                          <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Asset Target</p>
                         </div>
                       </div>
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-indigo-600 transition-all duration-1000" 
                           style={{ width: `${Math.min(100, progress)}%` }}
@@ -636,17 +1238,17 @@ const Dashboard: React.FC<Props> = ({
                 })}
               </>
             ) : (
-              <p className="py-10 text-center text-slate-300 font-bold uppercase text-[9px] tracking-wider">No Active Objectives</p>
+              <p className="py-10 text-center text-stone-300 font-bold uppercase text-[9px] tracking-wider">No Active Objectives</p>
             )}
           </div>
         </section>
 
-        <section className="bg-slate-900 p-6 rounded-xl text-white shadow-sm overflow-hidden flex flex-col">
+        <section className="bg-stone-900 p-6 rounded-xl text-white shadow-sm overflow-hidden flex flex-col">
           <h3 className="font-bold uppercase text-xs tracking-wider text-indigo-400 mb-6">Market Pulse</h3>
           <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {marketPrices.slice(0, 4).map(p => (
               <div key={p.symbol} className="p-3.5 bg-white/5 border border-white/10 rounded-lg flex flex-col justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{p.symbol}</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{p.symbol}</span>
                 <h4 className="text-sm font-semibold mt-1.5">${p.price.toLocaleString()}</h4>
                 <div className={`text-[9px] font-bold mt-1 ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {p.change24h > 0 ? '+' : ''}{p.change24h.toFixed(1)}%
@@ -658,10 +1260,10 @@ const Dashboard: React.FC<Props> = ({
       </div>
 
       {/* Financial Transaction Activity Log & Audit Trail Section */}
-      <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <section className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div 
           onClick={() => setIsLogsSectionOpen(prev => !prev)}
-          className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/70 transition-colors select-none"
+          className="p-6 sm:p-6 border-b border-stone-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 cursor-pointer hover:bg-stone-50/70 transition-colors select-none"
         >
           <div>
             <div className="flex items-center gap-2.5">
@@ -670,15 +1272,15 @@ const Dashboard: React.FC<Props> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold text-slate-900 text-sm tracking-tight">Financial Transaction Activity Log</h3>
+                  <h3 className="font-bold text-stone-900 text-sm tracking-tight">Financial Transaction Activity Log</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
                     {financialLogs.length} {financialLogs.length === 1 ? 'record' : 'records'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-stone-100 text-stone-600 border border-stone-200">
                     {isLogsSectionOpen ? 'Expanded' : 'Collapsed'}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
+                <p className="text-[10px] text-stone-400 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
               </div>
             </div>
           </div>
@@ -688,18 +1290,18 @@ const Dashboard: React.FC<Props> = ({
               <>
                 {/* Search Input */}
                 <div className="relative min-w-[180px] sm:min-w-[200px]">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={13} className="absolute left-3 top-1/2 -transtone-y-1/2 text-stone-400" />
                   <input
                     type="text"
                     placeholder="Search logs..."
                     value={logSearch}
                     onChange={(e) => setLogSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                    className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-medium placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
                   />
                   {logSearch && (
                     <button 
                       onClick={() => setLogSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2.5 top-1/2 -transtone-y-1/2 text-stone-400 hover:text-stone-600"
                     >
                       <i className="fas fa-times text-[10px]"></i>
                     </button>
@@ -723,7 +1325,7 @@ const Dashboard: React.FC<Props> = ({
                   type="button"
                   onClick={handleExportLogsCSV}
                   disabled={filteredFinancialLogs.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition disabled:opacity-40 whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition disabled:opacity-40 whitespace-nowrap"
                   title="Download CSV report"
                 >
                   <Download size={13} />
@@ -735,7 +1337,7 @@ const Dashboard: React.FC<Props> = ({
                   type="button"
                   onClick={handleCopyLogsTrail}
                   disabled={filteredFinancialLogs.length === 0}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${copiedLogs ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'} disabled:opacity-40 whitespace-nowrap`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${copiedLogs ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'} disabled:opacity-40 whitespace-nowrap`}
                   title="Copy to clipboard"
                 >
                   {copiedLogs ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
@@ -747,7 +1349,7 @@ const Dashboard: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={onNavigateToPlannerLogs}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap"
                     title="Open in comprehensive Project Logs Manager"
                   >
                     <ExternalLink size={13} />
@@ -761,7 +1363,7 @@ const Dashboard: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsLogsSectionOpen(prev => !prev)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition"
+              className="flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-bold transition"
               title={isLogsSectionOpen ? 'Collapse log section' : 'Expand log section'}
             >
               <span>{isLogsSectionOpen ? 'Hide Logs' : 'View Logs'}</span>
@@ -774,9 +1376,9 @@ const Dashboard: React.FC<Props> = ({
         {isLogsSectionOpen && (
           <div>
             {/* Filter Tabs */}
-            <div className="px-6 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+            <div className="px-6 py-2.5 bg-stone-50/70 border-b border-stone-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mr-1 flex items-center gap-1">
                   <Filter size={11} /> Filter:
                 </span>
                 {[
@@ -789,13 +1391,13 @@ const Dashboard: React.FC<Props> = ({
                   <button
                     key={tab.id}
                     onClick={() => setLogFilter(tab.id as any)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-stone-200' : 'text-stone-500 hover:text-stone-800'}`}
                   >
                     {tab.label}
                   </button>
                 ))}
               </div>
-              <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap">
+              <span className="text-[10px] text-stone-400 font-semibold whitespace-nowrap">
                 Showing {filteredFinancialLogs.length} of {financialLogs.length}
               </span>
             </div>
@@ -805,7 +1407,7 @@ const Dashboard: React.FC<Props> = ({
           {filteredFinancialLogs.length > 0 ? (
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                <tr className="border-b border-stone-100 bg-stone-50/50 text-[9px] font-bold text-stone-400 uppercase tracking-wider">
                   <th className="py-3 px-4 w-12 text-center">Type</th>
                   <th className="py-3 px-4 min-w-[220px]">Transaction & Action</th>
                   <th className="py-3 px-4 min-w-[180px]">Context & Details</th>
@@ -814,7 +1416,7 @@ const Dashboard: React.FC<Props> = ({
                   <th className="py-3 px-4 w-16 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-stone-100 text-xs">
                 {filteredFinancialLogs.map((log) => {
                   const badge = getLogBadge(log.action, log.details);
                   const isExpanded = expandedLogId === log.id;
@@ -829,7 +1431,7 @@ const Dashboard: React.FC<Props> = ({
                   return (
                     <React.Fragment key={log.id}>
                       <tr 
-                        className={`hover:bg-slate-50/80 transition-colors group cursor-pointer border-l-4 ${badge.rowAccent} ${isExpanded ? 'bg-indigo-50/30' : ''}`}
+                        className={`hover:bg-stone-50 transition-colors group cursor-pointer border-l-4 ${badge.rowAccent} ${isExpanded ? 'bg-indigo-50/30' : ''}`}
                         onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
                       >
                         <td className="py-3.5 px-4 text-center">
@@ -839,7 +1441,7 @@ const Dashboard: React.FC<Props> = ({
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 leading-snug">{log.action}</span>
+                            <span className="font-bold text-stone-900 leading-snug">{log.action}</span>
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider inline-flex items-center gap-1 ${badge.badgeClass}`}>
                               <span className={`w-1 h-1 rounded-full ${badge.dotColor}`}></span>
                               {badge.label}
@@ -847,7 +1449,7 @@ const Dashboard: React.FC<Props> = ({
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <p className="text-slate-500 text-[11px] truncate max-w-xs font-medium">
+                          <p className="text-stone-500 text-[11px] truncate max-w-xs font-medium">
                             {log.details || '—'}
                           </p>
                         </td>
@@ -856,13 +1458,13 @@ const Dashboard: React.FC<Props> = ({
                             <div className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 font-bold text-[9px] flex items-center justify-center uppercase">
                               {(log.username || 'S').charAt(0)}
                             </div>
-                            <span className="text-[11px] font-semibold text-slate-700">{log.username || 'System'}</span>
+                            <span className="text-[11px] font-semibold text-stone-700">{log.username || 'System'}</span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="text-[11px] font-semibold text-slate-700">{formattedDate}</div>
+                          <div className="text-[11px] font-semibold text-stone-700">{formattedDate}</div>
                           {formattedTime && (
-                            <div className="text-[9px] text-slate-400 font-medium">{formattedTime}</div>
+                            <div className="text-[9px] text-stone-400 font-medium">{formattedTime}</div>
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
@@ -870,7 +1472,7 @@ const Dashboard: React.FC<Props> = ({
                             <button
                               type="button"
                               onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                              className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition"
                               title="Toggle details"
                             >
                               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -879,7 +1481,7 @@ const Dashboard: React.FC<Props> = ({
                               <button
                                 type="button"
                                 onClick={() => onDeleteFinancialLog(log.id)}
-                                className="p-1 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition opacity-0 group-hover:opacity-100"
+                                className="p-1 rounded text-stone-300 hover:text-rose-600 hover:bg-rose-50 transition opacity-0 group-hover:opacity-100"
                                 title="Delete log entry"
                               >
                                 <Trash2 size={13} />
@@ -889,21 +1491,21 @@ const Dashboard: React.FC<Props> = ({
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-slate-50/90 border-b border-indigo-100">
+                        <tr className="bg-stone-50/90 border-b border-indigo-100">
                           <td colSpan={6} className="p-4 px-6">
-                            <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-2 text-xs shadow-inner">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                                <span className="font-bold text-slate-800">Log ID: <span className="font-mono text-slate-500 text-[10px]">{log.id}</span></span>
-                                <span className="text-[10px] text-slate-400">Timestamp: {new Date(log.timestamp).toISOString()}</span>
+                            <div className="bg-white p-3.5 rounded-lg border border-stone-200 space-y-2 text-xs shadow-inner">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
+                                <span className="font-bold text-stone-800">Log ID: <span className="font-mono text-stone-500 text-[10px]">{log.id}</span></span>
+                                <span className="text-[10px] text-stone-400">Timestamp: {new Date(log.timestamp).toISOString()}</span>
                               </div>
                               <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Action Statement</p>
-                                <p className="text-slate-800 font-medium mt-0.5">{log.action}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Action Statement</p>
+                                <p className="text-stone-800 font-medium mt-0.5">{log.action}</p>
                               </div>
                               {log.details && (
                                 <div>
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Extended Ledger Details</p>
-                                  <p className="text-slate-700 font-mono text-[11px] mt-0.5 bg-slate-50 p-2 rounded border border-slate-150 whitespace-pre-wrap">{log.details}</p>
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Extended Ledger Details</p>
+                                  <p className="text-stone-700 font-mono text-[11px] mt-0.5 bg-stone-50 p-2 rounded border border-stone-150 whitespace-pre-wrap">{log.details}</p>
                                 </div>
                               )}
                             </div>
@@ -917,11 +1519,11 @@ const Dashboard: React.FC<Props> = ({
             </table>
           ) : (
             <div className="py-12 px-6 text-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
                 <Activity size={18} />
               </div>
-              <p className="text-sm font-semibold text-slate-700">No Transaction Activity Logs Found</p>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <p className="text-sm font-semibold text-stone-700">No Transaction Activity Logs Found</p>
+              <p className="text-xs text-stone-400 max-w-sm mx-auto">
                 {logSearch || logFilter !== 'all' 
                   ? 'No activity records match your current filter criteria. Try clearing search or selecting All.' 
                   : 'Financial actions performed on the dashboard (adding transactions, clearing bills, recording income, updating budget limits) will automatically generate an immutable audit log here.'}
@@ -942,6 +1544,133 @@ const Dashboard: React.FC<Props> = ({
         </div>
         )}
       </section>
+        </div>
+      )}
+
+      {/* Email Detail Modal Popup */}
+      <EmailDetailModal
+        email={selectedEmailModal}
+        onClose={() => setSelectedEmailModal(null)}
+        onDeleteFromDashboard={handleDismissEmail}
+      />
+
+      {/* Google Gmail Incremental Authorization Prominent Disclosure Modal */}
+      {showGmailConsentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 relative">
+            <button
+              onClick={() => setShowGmailConsentModal(false)}
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition"
+              aria-label="Close modal"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900">Connect Google Gmail</h3>
+                <p className="text-xs text-stone-500">Executive Inbox &amp; Planning Synchronization</p>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-stone-600 leading-relaxed">
+              <p>
+                To surface relevant project planning updates, vendor notices, and invoices directly in your
+                <strong> Executive Inbox Briefing</strong>, Fire Finance Pro requests permission to access your Gmail messages.
+              </p>
+
+              <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80 space-y-2">
+                <div className="font-semibold text-stone-800 flex items-center gap-1.5">
+                  <Info size={14} className="text-indigo-600" />
+                  <span>How Fire Finance Pro uses your Gmail data:</span>
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-stone-600">
+                  <li>Scans unread message headers, subject lines, senders, and short snippets.</li>
+                  <li>Matches incoming emails to existing budget events, projects, and checklist tasks.</li>
+                  <li>Allows you to review or dismiss items directly from your dashboard.</li>
+                </ul>
+              </div>
+
+              <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-100/80 space-y-1.5 text-indigo-950">
+                <div className="font-semibold text-xs flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-indigo-600" />
+                  <span>Security &amp; Privacy Protections</span>
+                </div>
+                <p className="text-[11px] text-stone-600 leading-normal">
+                  Your email data is never used for advertising, never sold, never used to train AI models, and tokens are encrypted at rest with AES-256-GCM. You can disconnect at any time.
+                </p>
+              </div>
+
+              <p className="text-[11px] text-stone-400">
+                Adheres strictly to the{' '}
+                <a
+                  href="/privacy#google-api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:underline font-medium"
+                >
+                  Google API Services User Data Policy
+                </a>.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={() => setShowGmailConsentModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGmailConsentModal(false);
+                  handleConnectGmail();
+                }}
+                className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition flex items-center gap-1.5"
+              >
+                <span>Authorize &amp; Continue with Google</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnect Gmail Confirmation Modal */}
+      {showDisconnectConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl border border-stone-200">
+            <h3 className="text-sm font-bold text-stone-900 mb-2">Disconnect Gmail Integration?</h3>
+            <p className="text-xs text-stone-600 leading-relaxed mb-4">
+              This will immediately revoke Fire Finance Pro's access token with Google and delete encrypted credentials from your account. You can reconnect whenever you like.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDisconnectConfirm(false)}
+                className="px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowDisconnectConfirm(false);
+                  await handleDisconnectGmail();
+                }}
+                className="px-3.5 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-xs"
+              >
+                Confirm Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

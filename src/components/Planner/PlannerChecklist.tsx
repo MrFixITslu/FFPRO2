@@ -361,7 +361,7 @@ export const PlannerChecklist: React.FC<Props> = ({
 
       {/* 2. Notifications Banner */}
       {notifications.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white shadow-sm space-y-2">
+        <div className="bg-stone-900 border border-stone-800 p-4 rounded-2xl text-white shadow-sm space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
               <Bell size={14} /> Smart Planner Notifications ({notifications.length})
@@ -391,17 +391,17 @@ export const PlannerChecklist: React.FC<Props> = ({
       )}
 
       {/* 3. Search & Toolbar Controls */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         
         {/* Search Bar */}
         <div className="relative flex-1 w-full">
-          <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
+          <Search size={16} className="absolute left-3.5 top-3 text-stone-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search by task name, notes, tags, or dependencies..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+            className="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-medium text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
           />
         </div>
 
@@ -414,7 +414,7 @@ export const PlannerChecklist: React.FC<Props> = ({
             className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
               showLogsDrawer
                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
             }`}
             title="Toggle Activity & Execution Logs"
           >
@@ -429,11 +429,11 @@ export const PlannerChecklist: React.FC<Props> = ({
             )}
           </button>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
             <button
               onClick={() => setSortOption('manual')}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition ${
-                sortOption === 'manual' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                sortOption === 'manual' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
               }`}
             >
               Manual
@@ -441,7 +441,7 @@ export const PlannerChecklist: React.FC<Props> = ({
             <button
               onClick={() => setSortOption('dueDate')}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition ${
-                sortOption === 'dueDate' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                sortOption === 'dueDate' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
               }`}
             >
               Due Date
@@ -449,18 +449,18 @@ export const PlannerChecklist: React.FC<Props> = ({
             <button
               onClick={() => setSortOption('priority')}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition ${
-                sortOption === 'priority' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                sortOption === 'priority' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
               }`}
             >
               Priority
             </button>
           </div>
 
-          <div className="flex bg-slate-900 text-white p-1 rounded-xl">
+          <div className="flex bg-stone-900 text-white p-1 rounded-xl">
             <button
               onClick={() => setViewMode('list')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                viewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                viewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-stone-400 hover:text-white'
               }`}
             >
               Checklist
@@ -468,7 +468,7 @@ export const PlannerChecklist: React.FC<Props> = ({
             <button
               onClick={() => setViewMode('architecture')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                viewMode === 'architecture' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                viewMode === 'architecture' ? 'bg-indigo-600 text-white' : 'text-stone-400 hover:text-white'
               }`}
             >
               Gantt & Graph
@@ -482,25 +482,25 @@ export const PlannerChecklist: React.FC<Props> = ({
       {/* Execution Logs Drawer / History Panel */}
       {showLogsDrawer && (
         <div className="bg-white p-5 rounded-2xl border border-indigo-150 shadow-sm space-y-4 animate-in slide-in-from-top-2 duration-200">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-stone-100">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                 <Activity size={16} />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Project Execution & Task Activity Feed</h3>
-                <p className="text-[10px] text-slate-400 font-medium">All logged updates, milestone actions, and project history ({eventLogs.length} total entries)</p>
+                <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Project Execution & Task Activity Feed</h3>
+                <p className="text-[10px] text-stone-400 font-medium">All logged updates, milestone actions, and project history ({eventLogs.length} total entries)</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[10px] font-bold uppercase">
+              <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-lg text-[10px] font-bold uppercase">
                 {(['all', 'task', 'transaction', 'file'] as const).map(type => (
                   <button
                     key={type}
                     onClick={() => setLogFilterType(type)}
                     className={`px-2.5 py-1 rounded transition ${
-                      logFilterType === type ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      logFilterType === type ? 'bg-white text-indigo-600 shadow-xs' : 'text-stone-500 hover:text-stone-800'
                     }`}
                   >
                     {type === 'all' ? 'All Logs' : type}
@@ -546,9 +546,9 @@ export const PlannerChecklist: React.FC<Props> = ({
                   }
                 } else if (log.type === 'file') {
                   iconNode = <FileText size={12} className="text-white" />;
-                  iconClass = 'bg-slate-800';
+                  iconClass = 'bg-stone-800';
                   typeLabel = 'Document';
-                  badgeClass = 'bg-slate-100 text-slate-800 border-slate-300';
+                  badgeClass = 'bg-stone-100 text-stone-800 border-stone-300';
                 } else if (log.type === 'team') {
                   iconNode = <Users size={12} className="text-white" />;
                   iconClass = 'bg-purple-600';
@@ -557,26 +557,26 @@ export const PlannerChecklist: React.FC<Props> = ({
                 }
 
                 return (
-                  <div key={log.id} className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 flex items-start justify-between gap-3 transition group">
+                  <div key={log.id} className="p-3 bg-stone-50 hover:bg-stone-100/80 rounded-xl border border-stone-200/80 flex items-start justify-between gap-3 transition group">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${iconClass}`}>
                         {iconNode}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-800 break-words leading-tight">{log.action.replace(/_/g, ' ')}</p>
+                        <p className="text-xs font-bold text-stone-800 break-words leading-tight">{log.action.replace(/_/g, ' ')}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider border ${badgeClass}`}>
                             {typeLabel}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            By <span className="font-semibold text-slate-600">{log.username}</span>
+                          <span className="text-[10px] text-stone-400 font-medium">
+                            By <span className="font-semibold text-stone-600">{log.username}</span>
                           </span>
-                          {log.details && <span className="text-[10px] text-slate-500 truncate max-w-xs"> — {log.details}</span>}
+                          {log.details && <span className="text-[10px] text-stone-500 truncate max-w-xs"> — {log.details}</span>}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">
+                      <span className="text-[10px] font-mono text-stone-400 whitespace-nowrap">
                         {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       {onOpenLogsTab && canEdit && (
@@ -593,7 +593,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                 );
               })
             ) : (
-              <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-wider">
+              <div className="text-center py-8 text-stone-400 text-xs font-bold uppercase tracking-wider">
                 No logs found for this filter
               </div>
             )}
@@ -616,7 +616,7 @@ export const PlannerChecklist: React.FC<Props> = ({
             {/* Active (Incomplete) or Filtered Tasks Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5">
                   <ListTodo size={14} className="text-indigo-600" />
                   {activeFilter === 'completed' 
                     ? `Completed Tasks (${completedTasks.length})` 
@@ -668,12 +668,12 @@ export const PlannerChecklist: React.FC<Props> = ({
                                   className="flex-1 cursor-pointer"
                                 >
                                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                                    <h4 className="text-sm font-bold text-slate-700 leading-snug line-through hover:text-indigo-600 transition">
+                                    <h4 className="text-sm font-bold text-stone-700 leading-snug line-through hover:text-indigo-600 transition">
                                       {task.text}
                                     </h4>
 
                                     {task.priority && (
-                                      <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                      <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
                                         {task.priority}
                                       </span>
                                     )}
@@ -683,7 +683,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                                     </span>
                                   </div>
 
-                                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-medium mt-1">
+                                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-400 font-medium mt-1">
                                     {task.completionDate && (
                                       <span className="flex items-center gap-1 text-emerald-600 font-bold">
                                         <CheckCircle2 size={12} /> Finished: {task.completionDate}
@@ -698,7 +698,7 @@ export const PlannerChecklist: React.FC<Props> = ({
 
                                   {/* Subtasks Count */}
                                   {task.subTasks && task.subTasks.length > 0 && (
-                                    <div className="mt-2 text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded w-fit">
+                                    <div className="mt-2 text-[10px] text-stone-500 font-bold bg-stone-100 px-2 py-0.5 rounded w-fit">
                                       Subtasks: {task.subTasks.filter(s => s.completed).length}/{task.subTasks.length} completed
                                     </div>
                                   )}
@@ -716,7 +716,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                                 <button
                                   onClick={() => handleDeleteTask(task.id)}
                                   disabled={!canEdit}
-                                  className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                                  className="text-stone-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
                                 >
                                   <Trash2 size={14} />
                                 </button>
@@ -728,9 +728,9 @@ export const PlannerChecklist: React.FC<Props> = ({
                     </AnimatePresence>
                   </div>
                 ) : (
-                  <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center">
-                    <CheckCircle2 size={24} className="text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Completed Tasks Yet</p>
+                  <div className="bg-white p-8 rounded-2xl border border-stone-200 text-center">
+                    <CheckCircle2 size={24} className="text-stone-300 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">No Completed Tasks Yet</p>
                   </div>
                 )
               ) : activeTasks.length > 0 ? (
@@ -757,7 +757,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                               ? 'border-rose-300 bg-rose-50/10'
                               : status === 'blocked'
                               ? 'border-amber-300 bg-amber-50/10'
-                              : 'border-slate-200'
+                              : 'border-stone-200'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -775,7 +775,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                                 className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all shrink-0 mt-0.5 cursor-pointer ${
                                   task.completed
                                     ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                                    : 'border-slate-300 text-slate-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
+                                    : 'border-stone-300 text-stone-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
                                 }`}
                               >
                                 <CheckCircle2 size={16} className="pointer-events-none" />
@@ -787,7 +787,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                                 className="flex-1 cursor-pointer"
                               >
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <h4 className="text-sm font-bold text-slate-900 leading-snug hover:text-indigo-600 transition">
+                                  <h4 className="text-sm font-bold text-stone-900 leading-snug hover:text-indigo-600 transition">
                                     {task.text}
                                   </h4>
 
@@ -801,7 +801,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                                           ? 'bg-amber-100 text-amber-800'
                                           : task.priority === 'medium'
                                           ? 'bg-indigo-100 text-indigo-800'
-                                          : 'bg-slate-100 text-slate-700'
+                                          : 'bg-stone-100 text-stone-700'
                                       }`}
                                     >
                                       {task.priority}
@@ -822,15 +822,15 @@ export const PlannerChecklist: React.FC<Props> = ({
                                 </div>
 
                                 {/* Dates & Schedule Info */}
-                                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 font-medium mt-1">
+                                <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-500 font-medium mt-1">
                                   {task.startDate && (
                                     <span className="flex items-center gap-1">
-                                      <Calendar size={12} className="text-slate-400" /> Start: {task.startDate}
+                                      <Calendar size={12} className="text-stone-400" /> Start: {task.startDate}
                                     </span>
                                   )}
                                   {task.dueDate && (
                                     <span className="flex items-center gap-1">
-                                      <Clock size={12} className="text-slate-400" /> Due: {task.dueDate}
+                                      <Clock size={12} className="text-stone-400" /> Due: {task.dueDate}
                                     </span>
                                   )}
                                   {daysRem.days !== null && (
@@ -871,14 +871,14 @@ export const PlannerChecklist: React.FC<Props> = ({
                             <button
                               onClick={() => handleDeleteTask(task.id)}
                               disabled={!canEdit}
-                              className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                              className="text-stone-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
                             >
                               <Trash2 size={14} />
                             </button>
                           </div>
 
                           {/* Subtasks */}
-                          <div className="ml-10 mt-3 pt-3 border-t border-slate-100 space-y-2">
+                          <div className="ml-10 mt-3 pt-3 border-t border-stone-100 space-y-2">
                             {(task.subTasks || []).map(st => (
                               <div key={st.id} className="flex items-center gap-2">
                                 <button
@@ -892,12 +892,12 @@ export const PlannerChecklist: React.FC<Props> = ({
                                   className={`w-5 h-5 rounded flex items-center justify-center border text-[10px] cursor-pointer transition ${
                                     st.completed
                                       ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                                      : 'border-slate-300 text-slate-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
+                                      : 'border-stone-300 text-stone-300 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
                                   }`}
                                 >
                                   ✓
                                 </button>
-                                <span className={`text-xs ${st.completed ? 'text-slate-400 line-through' : 'text-slate-700 font-medium'}`}>
+                                <span className={`text-xs ${st.completed ? 'text-stone-400 line-through' : 'text-stone-700 font-medium'}`}>
                                   {st.text}
                                 </span>
                               </div>
@@ -913,11 +913,11 @@ export const PlannerChecklist: React.FC<Props> = ({
                                     setSubTaskInputs(prev => ({ ...prev, [task.id]: e.target.value }))
                                   }
                                   onKeyDown={e => e.key === 'Enter' && handleAddSubTask(task.id)}
-                                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                                  className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                                 <button
                                   onClick={() => handleAddSubTask(task.id)}
-                                  className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs font-bold"
+                                  className="px-2.5 py-1 bg-stone-900 text-white rounded-lg text-xs font-bold"
                                 >
                                   + Add
                                 </button>
@@ -937,25 +937,25 @@ export const PlannerChecklist: React.FC<Props> = ({
                   <p className="text-[11px] text-emerald-700 mt-1">All {completedTasks.length} milestones in this plan are finished. View or reopen them below.</p>
                 </div>
               ) : (
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Tasks Found</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Create a milestone task using the quick deploy form on the right.</p>
+                <div className="bg-white p-8 rounded-2xl border border-stone-200 text-center">
+                  <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">No Tasks Found</p>
+                  <p className="text-[11px] text-stone-400 mt-1">Create a milestone task using the quick deploy form on the right.</p>
                 </div>
               )}
             </div>
 
             {/* Completed Tasks Accordion (Shown when not already filtered by completed) */}
             {activeFilter !== 'completed' && completedTasks.length > 0 && (
-              <div className="pt-4 border-t border-slate-200 space-y-3">
+              <div className="pt-4 border-t border-stone-200 space-y-3">
                 <button
                   onClick={() => setIsCompletedCollapsed(!isCompletedCollapsed)}
-                  className="flex items-center justify-between w-full p-3.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition text-xs font-bold text-slate-700"
+                  className="flex items-center justify-between w-full p-3.5 bg-stone-100 hover:bg-stone-200 rounded-xl transition text-xs font-bold text-stone-700"
                 >
                   <span className="flex items-center gap-2">
                     <CheckCircle2 size={16} className="text-emerald-600" />
                     Completed Tasks ({completedTasks.length})
                   </span>
-                  <div className="flex items-center gap-2 text-slate-500">
+                  <div className="flex items-center gap-2 text-stone-500">
                     <span className="text-[10px] uppercase font-bold">{isCompletedCollapsed ? 'Show' : 'Hide'}</span>
                     {isCompletedCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </div>
@@ -966,7 +966,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                     {completedTasks.map(task => (
                       <div
                         key={task.id}
-                        className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-300 flex items-center justify-between gap-3 transition"
+                        className="bg-white p-4 rounded-xl border border-stone-200 hover:border-emerald-300 flex items-center justify-between gap-3 transition"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <button
@@ -982,7 +982,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                             <CheckCircle2 size={16} />
                           </button>
                           <div className="min-w-0 flex-1">
-                            <span className="text-xs font-bold text-slate-600 line-through block truncate">{task.text}</span>
+                            <span className="text-xs font-bold text-stone-600 line-through block truncate">{task.text}</span>
                             {task.completionDate && (
                               <span className="text-[10px] text-emerald-600 font-semibold">Completed on {task.completionDate}</span>
                             )}
@@ -998,7 +998,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                           <button
                             onClick={() => handleDeleteTask(task.id)}
                             disabled={!canEdit}
-                            className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                            className="text-stone-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1013,15 +1013,15 @@ export const PlannerChecklist: React.FC<Props> = ({
           </div>
 
           {/* Quick Deploy Task Sidebar Form */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs h-fit space-y-4">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs h-fit space-y-4">
+            <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-2">
               <Plus size={16} className="text-indigo-600" /> Deploy New Milestone Task
             </h3>
 
             {canEdit ? (
               <form onSubmit={handleAddTask} className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                     Task Title *
                   </label>
                   <input
@@ -1030,30 +1030,30 @@ export const PlannerChecklist: React.FC<Props> = ({
                     value={newTaskText}
                     onChange={e => setNewTaskText(e.target.value)}
                     placeholder="e.g. Install & Configure Firewall"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                     Due Date
                   </label>
                   <input
                     type="date"
                     value={newTaskDueDate}
                     onChange={e => setNewTaskDueDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                     Priority
                   </label>
                   <select
                     value={newTaskPriority}
                     onChange={e => setNewTaskPriority(e.target.value as TaskPriority)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                   >
                     <option value="low">Low Priority</option>
                     <option value="medium">Medium Priority</option>
@@ -1071,7 +1071,7 @@ export const PlannerChecklist: React.FC<Props> = ({
                 </button>
               </form>
             ) : (
-              <p className="text-xs text-slate-500">You have view-only access to this project.</p>
+              <p className="text-xs text-stone-500">You have view-only access to this project.</p>
             )}
           </div>
 

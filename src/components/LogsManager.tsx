@@ -157,10 +157,10 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
         return {
           label: 'Document / Vault',
           subLabel: 'Vault File',
-          badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
-          iconBg: 'bg-slate-800 text-white shadow-slate-200',
+          badgeBg: 'bg-stone-100 text-stone-800 border-stone-300',
+          iconBg: 'bg-stone-800 text-white shadow-slate-200',
           borderAccent: 'border-l-slate-600',
-          dotColor: 'bg-slate-600',
+          dotColor: 'bg-stone-600',
           icon: <FileText size={14} className="stroke-[2.5]" />
         };
       case 'team':
@@ -449,7 +449,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* 1. Header & Quick Actions Bar */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-100">
@@ -457,7 +457,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">System & Activity Logs</h2>
+                <h2 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">System & Activity Logs</h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 border border-indigo-200">
                   {logs.length} Total Records
                 </span>
@@ -467,7 +467,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
+              <p className="text-xs text-stone-500 font-medium mt-0.5">
                 Sortable and editable audit history tracking transactions, tasks, files, and project execution.
               </p>
             </div>
@@ -479,7 +479,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
           {onOpenAsDocument && (
             <button
               onClick={handleOpenDocumentEditor}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
+              className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
               title="Open full editable log document in DocumentEditor"
             >
               <FileText size={14} className="text-indigo-300" />
@@ -515,7 +515,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
           <button
             onClick={handleCopyLogs}
             disabled={filteredLogs.length === 0}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50"
             title="Copy filtered logs to clipboard"
           >
             {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
@@ -525,7 +525,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
           <button
             onClick={handleExportCSV}
             disabled={filteredLogs.length === 0}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50"
             title="Export logs as CSV file"
           >
             <Download size={14} />
@@ -535,7 +535,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
       </div>
 
       {/* 2. Filter Tabs, Search & Dedicated Sort Controller */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-sm space-y-4">
         {/* Category Tabs */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 flex-1">
@@ -555,12 +555,12 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 ${
                   selectedType === cat.id
                     ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200 hover:text-stone-900'
                 }`}
               >
                 <span>{cat.label}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                  selectedType === cat.id ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700'
+                  selectedType === cat.id ? 'bg-white/25 text-white' : 'bg-stone-200 text-stone-700'
                 }`}>
                   {cat.count}
                 </span>
@@ -569,11 +569,11 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl shrink-0">
+          <div className="flex items-center bg-stone-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('cards')}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                viewMode === 'cards' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                viewMode === 'cards' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
               }`}
               title="Feed / Card View"
             >
@@ -583,7 +583,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
             <button
               onClick={() => setViewMode('table')}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                viewMode === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                viewMode === 'table' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
               }`}
               title="Table View (with sortable columns)"
             >
@@ -593,7 +593,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
             <button
               onClick={() => setViewMode('document')}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                viewMode === 'document' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                viewMode === 'document' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
               }`}
               title="Raw / Editable Document View"
             >
@@ -604,21 +604,21 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
         </div>
 
         {/* Search & Sort Controller */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-3 border-t border-stone-100">
           {/* Search Field */}
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-stone-400" />
             <input
               type="text"
               placeholder="Search logs by action title, author, keyword, or note..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+              className="w-full pl-9.5 pr-8 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm font-medium text-stone-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-600"
               >
                 <X size={16} />
               </button>
@@ -627,18 +627,18 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
 
           {/* Quick Sort Action Chips (Explicit Title Sorting Requested by User) */}
           <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Sort:</span>
+            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mr-1">Sort:</span>
             
             <button
               onClick={() => setSortBy('title-asc')}
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 border ${
                 sortBy === 'title-asc'
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100 hover:border-stone-300'
               }`}
               title="Sort Alphabetically by Action Title (A to Z)"
             >
-              <ArrowUp size={13} className={sortBy === 'title-asc' ? 'text-white' : 'text-slate-400'} />
+              <ArrowUp size={13} className={sortBy === 'title-asc' ? 'text-white' : 'text-stone-400'} />
               <span>Title (A → Z)</span>
             </button>
 
@@ -647,11 +647,11 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 border ${
                 sortBy === 'title-desc'
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100 hover:border-stone-300'
               }`}
               title="Sort Alphabetically by Action Title (Z to A)"
             >
-              <ArrowDown size={13} className={sortBy === 'title-desc' ? 'text-white' : 'text-slate-400'} />
+              <ArrowDown size={13} className={sortBy === 'title-desc' ? 'text-white' : 'text-stone-400'} />
               <span>Title (Z → A)</span>
             </button>
 
@@ -660,11 +660,11 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 border ${
                 sortBy === 'date-desc'
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100 hover:border-stone-300'
               }`}
               title="Sort by Timestamp: Newest First"
             >
-              <Clock size={13} className={sortBy === 'date-desc' ? 'text-white' : 'text-slate-400'} />
+              <Clock size={13} className={sortBy === 'date-desc' ? 'text-white' : 'text-stone-400'} />
               <span>Newest</span>
             </button>
 
@@ -673,11 +673,11 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 border ${
                 sortBy === 'date-asc'
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100 hover:border-stone-300'
               }`}
               title="Sort by Timestamp: Oldest First"
             >
-              <Clock size={13} className={sortBy === 'date-asc' ? 'text-white' : 'text-slate-400'} />
+              <Clock size={13} className={sortBy === 'date-asc' ? 'text-white' : 'text-stone-400'} />
               <span>Oldest</span>
             </button>
 
@@ -686,7 +686,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as LogSortOption)}
-                className="pl-3 pr-7 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs outline-none cursor-pointer border border-slate-200 transition"
+                className="pl-3 pr-7 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold rounded-xl text-xs outline-none cursor-pointer border border-stone-200 transition"
               >
                 <option value="title-asc">Title: A to Z</option>
                 <option value="title-desc">Title: Z to A</option>
@@ -704,10 +704,10 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
       
       {/* 3A. View Mode: Cards / Timeline Feed */}
       {viewMode === 'cards' && (
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-sm">
           {filteredLogs.length > 0 ? (
             <div className="space-y-3.5 relative">
-              <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-slate-150"></div>
+              <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-stone-150"></div>
 
               {filteredLogs.map(log => {
                 const cfg = getLogConfig(log);
@@ -717,7 +717,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                 return (
                   <div 
                     key={log.id} 
-                    className={`group relative flex items-start gap-3 sm:gap-4 z-10 p-4 rounded-2xl bg-white hover:bg-slate-50/90 border border-slate-200/90 hover:border-indigo-300 transition-all duration-150 shadow-2xs border-l-4 ${cfg.borderAccent}`}
+                    className={`group relative flex items-start gap-3 sm:gap-4 z-10 p-4 rounded-2xl bg-white hover:bg-stone-50/90 border border-stone-200/90 hover:border-indigo-300 transition-all duration-150 shadow-2xs border-l-4 ${cfg.borderAccent}`}
                   >
                     {/* Color-Coded Icon Indicator */}
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${cfg.iconBg}`}>
@@ -733,9 +733,9 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor}`}></span>
                             {cfg.label}
                           </span>
-                          <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                            <User size={12} className="text-slate-400" />
-                            <span className="font-bold text-slate-800">{log.username || 'System'}</span>
+                          <span className="text-xs font-semibold text-stone-600 flex items-center gap-1">
+                            <User size={12} className="text-stone-400" />
+                            <span className="font-bold text-stone-800">{log.username || 'System'}</span>
                           </span>
                           {isRecent && (
                             <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded">
@@ -744,19 +744,19 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-stone-400 whitespace-nowrap">
                           <Clock size={12} />
                           <span>{logDate.toLocaleDateString()} at {logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
 
                       {/* Log Action / Title */}
-                      <p className="text-sm font-bold text-slate-900 break-words leading-snug">
+                      <p className="text-sm font-bold text-stone-900 break-words leading-snug">
                         {log.action.replace(/_/g, ' ')}
                       </p>
 
                       {log.details && (
-                        <p className="text-xs text-slate-600 mt-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70 leading-relaxed font-medium">
+                        <p className="text-xs text-stone-600 mt-1.5 bg-stone-50 p-2.5 rounded-xl border border-stone-200/70 leading-relaxed font-medium">
                           {log.details}
                         </p>
                       )}
@@ -768,7 +768,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                         <button
                           onClick={() => handleStartEdit(log)}
                           title="Edit this log record (action title, category, timestamp, or notes)"
-                          className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs active:scale-95"
+                          className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 border border-stone-200 hover:border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs active:scale-95"
                         >
                           <Edit3 size={13} />
                           <span className="hidden sm:inline">Edit</span>
@@ -776,7 +776,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                         <button
                           onClick={() => setDeletingLogId(log.id)}
                           title="Delete this log record"
-                          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 transition"
+                          className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-200 transition"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -788,11 +788,11 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
             </div>
           ) : (
             <div className="py-14 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
+              <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-400 mx-auto flex items-center justify-center mb-3">
                 <Activity size={26} />
               </div>
-              <h3 className="text-sm font-bold text-slate-800">No matching logs found</h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              <h3 className="text-sm font-bold text-stone-800">No matching logs found</h3>
+              <p className="text-xs text-stone-400 mt-1 max-w-sm mx-auto">
                 {searchQuery 
                   ? `No logs match the query "${searchQuery}". Try changing your search keywords or sorting criteria.` 
                   : 'No activity records found in this category.'}
@@ -804,25 +804,25 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
 
       {/* 3B. View Mode: Structured Table with Sortable Headers */}
       {viewMode === 'table' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                <tr className="bg-stone-50 border-b border-stone-200 text-[11px] font-bold uppercase tracking-wider text-stone-600">
                   <th 
                     onClick={() => setSortBy(sortBy === 'title-asc' ? 'title-desc' : 'title-asc')}
-                    className="p-3.5 pl-5 cursor-pointer hover:bg-slate-100 transition select-none"
+                    className="p-3.5 pl-5 cursor-pointer hover:bg-stone-100 transition select-none"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>Action Title</span>
                       {sortBy === 'title-asc' && <ArrowUp size={13} className="text-indigo-600" />}
                       {sortBy === 'title-desc' && <ArrowDown size={13} className="text-indigo-600" />}
-                      {sortBy !== 'title-asc' && sortBy !== 'title-desc' && <ArrowUpDown size={12} className="text-slate-300" />}
+                      {sortBy !== 'title-asc' && sortBy !== 'title-desc' && <ArrowUpDown size={12} className="text-stone-300" />}
                     </div>
                   </th>
                   <th 
                     onClick={() => setSortBy('type-asc')}
-                    className="p-3.5 cursor-pointer hover:bg-slate-100 transition select-none"
+                    className="p-3.5 cursor-pointer hover:bg-stone-100 transition select-none"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>Category</span>
@@ -831,18 +831,18 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   </th>
                   <th 
                     onClick={() => setSortBy(sortBy === 'date-desc' ? 'date-asc' : 'date-desc')}
-                    className="p-3.5 cursor-pointer hover:bg-slate-100 transition select-none"
+                    className="p-3.5 cursor-pointer hover:bg-stone-100 transition select-none"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>Date & Time</span>
                       {sortBy === 'date-desc' && <ArrowDown size={13} className="text-indigo-600" />}
                       {sortBy === 'date-asc' && <ArrowUp size={13} className="text-indigo-600" />}
-                      {sortBy !== 'date-desc' && sortBy !== 'date-asc' && <ArrowUpDown size={12} className="text-slate-300" />}
+                      {sortBy !== 'date-desc' && sortBy !== 'date-asc' && <ArrowUpDown size={12} className="text-stone-300" />}
                     </div>
                   </th>
                   <th 
                     onClick={() => setSortBy('user-asc')}
-                    className="p-3.5 cursor-pointer hover:bg-slate-100 transition select-none"
+                    className="p-3.5 cursor-pointer hover:bg-stone-100 transition select-none"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>Author</span>
@@ -858,8 +858,8 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   filteredLogs.map(log => {
                     const cfg = getLogConfig(log);
                     return (
-                      <tr key={log.id} className="hover:bg-slate-50/80 transition group">
-                        <td className="p-3.5 pl-5 font-bold text-slate-900 max-w-xs break-words">
+                      <tr key={log.id} className="hover:bg-stone-50/80 transition group">
+                        <td className="p-3.5 pl-5 font-bold text-stone-900 max-w-xs break-words">
                           <div className="flex items-start gap-2.5">
                             <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${cfg.iconBg}`}>
                               {cfg.icon}
@@ -873,13 +873,13 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                             {cfg.label}
                           </span>
                         </td>
-                        <td className="p-3.5 whitespace-nowrap text-slate-500 font-medium">
+                        <td className="p-3.5 whitespace-nowrap text-stone-500 font-medium">
                           {new Date(log.timestamp).toLocaleString()}
                         </td>
-                        <td className="p-3.5 whitespace-nowrap font-bold text-slate-700">
+                        <td className="p-3.5 whitespace-nowrap font-bold text-stone-700">
                           {log.username || 'System'}
                         </td>
-                        <td className="p-3.5 text-slate-600 max-w-sm font-medium">
+                        <td className="p-3.5 text-stone-600 max-w-sm font-medium">
                           {log.details || '-'}
                         </td>
                         <td className="p-3.5 pr-5 text-right whitespace-nowrap">
@@ -887,14 +887,14 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => handleStartEdit(log)}
-                                className="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                                className="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-stone-200 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1"
                               >
                                 <Edit3 size={12} />
                                 <span>Edit</span>
                               </button>
                               <button
                                 onClick={() => setDeletingLogId(log.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 title="Delete"
                               >
                                 <Trash2 size={13} />
@@ -907,7 +907,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
+                    <td colSpan={6} className="py-12 text-center text-stone-400 font-medium">
                       No logs found.
                     </td>
                   </tr>
@@ -920,22 +920,22 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
 
       {/* 3C. View Mode: Raw / Editable Document Log File */}
       {viewMode === 'document' && (
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
                 <FileCode size={16} className="text-indigo-600" />
                 <span>Editable Log Document & Raw Trail</span>
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Direct text-based editing of all log records. One log entry per line format: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-[11px]">[TIMESTAMP] [CATEGORY] [USER] Title -- Details</code>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Direct text-based editing of all log records. One log entry per line format: <code className="bg-stone-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-[11px]">[TIMESTAMP] [CATEGORY] [USER] Title -- Details</code>
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setRawDocText(initialDocText)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
               >
                 <RefreshCw size={13} />
                 <span>Reset to Current</span>
@@ -957,7 +957,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
               rows={16}
               value={rawDocText}
               onChange={e => setRawDocText(e.target.value)}
-              className="w-full p-4 bg-slate-900 text-emerald-400 font-mono text-xs leading-relaxed rounded-xl border border-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 transition resize-y selection:bg-indigo-600 selection:text-white"
+              className="w-full p-4 bg-stone-900 text-emerald-400 font-mono text-xs leading-relaxed rounded-xl border border-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 transition resize-y selection:bg-indigo-600 selection:text-white"
               spellCheck={false}
             />
           </div>
@@ -967,20 +967,20 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
       {/* 4. Edit Log Modal */}
       {editingLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="p-5 bg-stone-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center">
                   <Edit3 size={16} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold">Edit Log Entry</h3>
-                  <p className="text-[11px] text-slate-400">Update title, change category, or edit timestamp/notes</p>
+                  <p className="text-[11px] text-stone-400">Update title, change category, or edit timestamp/notes</p>
                 </div>
               </div>
               <button
                 onClick={() => setEditingLog(null)}
-                className="text-slate-400 hover:text-white transition"
+                className="text-stone-400 hover:text-white transition"
               >
                 <X size={18} />
               </button>
@@ -988,7 +988,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
 
             <form onSubmit={handleSaveEdit} className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                   Action Title / Description <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -997,19 +997,19 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   value={editAction}
                   onChange={e => setEditAction(e.target.value)}
                   placeholder="e.g. Completed milestone review..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                     Category / Type
                   </label>
                   <select
                     value={editType}
                     onChange={e => setEditType(e.target.value as EventLog['type'])}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                   >
                     <option value="task">Task / Milestone</option>
                     <option value="transaction">Transaction</option>
@@ -1022,7 +1022,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                     Author / Logger
                   </label>
                   <input
@@ -1030,13 +1030,13 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                     required
                     value={editUsername}
                     onChange={e => setEditUsername(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                   Timestamp (Date & Time)
                 </label>
                 <input
@@ -1044,12 +1044,12 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   required
                   value={editTimestamp}
                   onChange={e => setEditTimestamp(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                   Additional Details & Notes (Optional)
                 </label>
                 <textarea
@@ -1057,15 +1057,15 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   value={editDetails}
                   onChange={e => setEditDetails(e.target.value)}
                   placeholder="Add context, references, or notes..."
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition resize-none"
+                  className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm font-medium text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition resize-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
                   type="button"
                   onClick={() => setEditingLog(null)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition"
                 >
                   Cancel
                 </button>
@@ -1084,7 +1084,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
       {/* 5. Add Manual Log Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-2xl max-w-lg w-full overflow-hidden">
             <div className="p-5 bg-indigo-600 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-white/20 text-white flex items-center justify-center">
@@ -1105,7 +1105,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
 
             <form onSubmit={handleSaveNewLog} className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                   Action Title / Description <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1114,19 +1114,19 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   value={newAction}
                   onChange={e => setNewAction(e.target.value)}
                   placeholder="e.g. Conducted weekly planning review..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                     Category / Type
                   </label>
                   <select
                     value={newType}
                     onChange={e => setNewType(e.target.value as EventLog['type'])}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                   >
                     <option value="task">Task / Milestone</option>
                     <option value="transaction">Transaction</option>
@@ -1139,7 +1139,7 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                     Author / Logger
                   </label>
                   <input
@@ -1147,13 +1147,13 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                     required
                     value={newUsername}
                     onChange={e => setNewUsername(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                   Date & Time
                 </label>
                 <input
@@ -1161,12 +1161,12 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   required
                   value={newTimestamp}
                   onChange={e => setNewTimestamp(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                   Detailed Notes / Memo (Optional)
                 </label>
                 <textarea
@@ -1174,15 +1174,15 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
                   value={newDetails}
                   onChange={e => setNewDetails(e.target.value)}
                   placeholder="Add any extra details, reference numbers, or notes..."
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition resize-none"
+                  className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm font-medium text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition resize-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition"
                 >
                   Cancel
                 </button>
@@ -1201,21 +1201,21 @@ export const LogsManager: React.FC<LogsManagerProps> = ({
       {/* 6. Delete Confirmation Modal */}
       {deletingLogId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
+          <div className="bg-white rounded-2xl border border-stone-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                 <AlertTriangle size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Delete Log Entry?</h3>
-                <p className="text-xs text-slate-500">This log entry will be permanently removed from the audit trail.</p>
+                <h3 className="text-sm font-bold text-stone-900">Delete Log Entry?</h3>
+                <p className="text-xs text-stone-500">This log entry will be permanently removed from the audit trail.</p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
               <button
                 onClick={() => setDeletingLogId(null)}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition"
               >
                 Cancel
               </button>

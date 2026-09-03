@@ -715,7 +715,7 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
 
   return (
     <div 
-      className="fixed inset-0 z-[250] bg-slate-100 flex flex-col animate-in fade-in duration-300 overflow-hidden text-slate-900 select-none outline-none"
+      className="fixed inset-0 z-[250] bg-stone-100 flex flex-col animate-in fade-in duration-300 overflow-hidden text-stone-900 select-none outline-none"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onKeyDown={handleKeyDown}
@@ -724,8 +724,8 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
       tabIndex={0}
     >
       {/* RIBBON */}
-      <div className="w-full bg-white border-b border-slate-300 shadow-sm shrink-0">
-        <div className="px-6 py-2 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+      <div className="w-full bg-white border-b border-stone-300 shadow-sm shrink-0">
+        <div className="px-6 py-2 flex items-center justify-between border-b border-stone-100 bg-stone-50/50">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1 bg-emerald-600 rounded-lg shadow-lg">
               <i className="fas fa-file-excel text-white text-lg"></i>
@@ -735,47 +735,47 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
               type="text" 
               value={title} 
               onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
-              className="bg-transparent border-none outline-none font-bold text-slate-700 text-sm w-64 focus:ring-2 focus:ring-emerald-500 rounded px-2"
+              className="bg-transparent border-none outline-none font-bold text-stone-700 text-sm w-64 focus:ring-2 focus:ring-emerald-500 rounded px-2"
             />
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={undo} title="Undo (Ctrl+Z)" className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-500 hover:text-slate-800 rounded-lg border border-slate-200 transition-colors">
+            <button onClick={undo} title="Undo (Ctrl+Z)" className="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-500 hover:text-stone-800 rounded-lg border border-stone-200 transition-colors">
               <i className="fas fa-rotate-left"></i>
             </button>
-            <button onClick={redo} title="Redo (Ctrl+Y)" className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-500 hover:text-slate-800 rounded-lg border border-slate-200 transition-colors">
+            <button onClick={redo} title="Redo (Ctrl+Y)" className="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-500 hover:text-stone-800 rounded-lg border border-stone-200 transition-colors">
               <i className="fas fa-rotate-right"></i>
             </button>
-            <button onClick={exportCsv} title="Export CSV" className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 flex items-center gap-2">
+            <button onClick={exportCsv} title="Export CSV" className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-white border-stone-200 text-stone-600 hover:bg-stone-50 flex items-center gap-2">
               <i className="fas fa-download"></i> CSV
             </button>
-            <div className="w-px h-8 bg-slate-200"></div>
+            <div className="w-px h-8 bg-stone-200"></div>
             <button 
               onClick={handleSave}
               disabled={isSaving || !isDirty}
               title={!isDirty && !isSaving ? 'No unsaved changes' : undefined}
               className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md transition flex items-center gap-2 ${
                 isSaving
-                  ? 'bg-slate-100 text-slate-400 cursor-wait'
+                  ? 'bg-stone-100 text-stone-400 cursor-wait'
                   : !isDirty
-                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
+                  ? 'bg-stone-100 text-stone-400 cursor-not-allowed shadow-none'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
               {isSaving ? <i className="fas fa-sync fa-spin"></i> : <i className={`fas ${isDirty ? 'fa-floppy-disk' : 'fa-check'}`}></i>}
               {isSaving ? 'Saving...' : isDirty ? 'Save Matrix' : 'Saved'}
             </button>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-rose-600 rounded-lg border border-slate-200 transition-colors">
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-400 hover:text-rose-600 rounded-lg border border-stone-200 transition-colors">
               <i className="fas fa-times"></i>
             </button>
           </div>
         </div>
 
-        <div className="flex px-6 border-b border-slate-100 bg-white">
+        <div className="flex px-6 border-b border-stone-100 bg-white">
           {(['home', 'formulas'] as const).map(tab => (
             <button 
               key={tab} 
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === tab ? 'border-emerald-500 text-emerald-600 bg-emerald-50/30' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              className={`px-6 py-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === tab ? 'border-emerald-500 text-emerald-600 bg-emerald-50/30' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
             >
               {tab}
             </button>
@@ -785,32 +785,32 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
         <div className="px-6 py-3 flex items-center gap-8 bg-white/50 h-16">
           {activeTab === 'home' && (
             <div className="flex items-center gap-4">
-              <button onClick={() => updateGridRange({ bold: !activeCell?.bold })} className={`w-10 h-10 rounded flex items-center justify-center border ${activeCell?.bold ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}><i className="fas fa-bold"></i></button>
-              <button onClick={() => updateGridRange({ italic: !activeCell?.italic })} className={`w-10 h-10 rounded flex items-center justify-center border ${activeCell?.italic ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}><i className="fas fa-italic"></i></button>
-              <div className="w-px h-8 bg-slate-200"></div>
-              <button onClick={() => updateGridRange({ align: 'left' })} className={`w-8 h-8 rounded ${activeCell?.align === 'left' ? 'bg-slate-200' : 'hover:bg-slate-100'} text-slate-500`}><i className="fas fa-align-left"></i></button>
-              <button onClick={() => updateGridRange({ align: 'center' })} className={`w-8 h-8 rounded ${activeCell?.align === 'center' ? 'bg-slate-200' : 'hover:bg-slate-100'} text-slate-500`}><i className="fas fa-align-center"></i></button>
-              <button onClick={() => updateGridRange({ align: 'right' })} className={`w-8 h-8 rounded ${activeCell?.align === 'right' ? 'bg-slate-200' : 'hover:bg-slate-100'} text-slate-500`}><i className="fas fa-align-right"></i></button>
-              <div className="w-px h-8 bg-slate-200"></div>
-              <button onClick={() => updateGridRange({ wrap: !activeCell?.wrap })} className={`px-3 py-1.5 rounded flex items-center gap-2 border text-[9px] font-black uppercase tracking-widest ${activeCell?.wrap ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600'}`}><i className="fas fa-text-width"></i> Wrap</button>
+              <button onClick={() => updateGridRange({ bold: !activeCell?.bold })} className={`w-10 h-10 rounded flex items-center justify-center border ${activeCell?.bold ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}><i className="fas fa-bold"></i></button>
+              <button onClick={() => updateGridRange({ italic: !activeCell?.italic })} className={`w-10 h-10 rounded flex items-center justify-center border ${activeCell?.italic ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}><i className="fas fa-italic"></i></button>
+              <div className="w-px h-8 bg-stone-200"></div>
+              <button onClick={() => updateGridRange({ align: 'left' })} className={`w-8 h-8 rounded ${activeCell?.align === 'left' ? 'bg-stone-200' : 'hover:bg-stone-100'} text-stone-500`}><i className="fas fa-align-left"></i></button>
+              <button onClick={() => updateGridRange({ align: 'center' })} className={`w-8 h-8 rounded ${activeCell?.align === 'center' ? 'bg-stone-200' : 'hover:bg-stone-100'} text-stone-500`}><i className="fas fa-align-center"></i></button>
+              <button onClick={() => updateGridRange({ align: 'right' })} className={`w-8 h-8 rounded ${activeCell?.align === 'right' ? 'bg-stone-200' : 'hover:bg-stone-100'} text-stone-500`}><i className="fas fa-align-right"></i></button>
+              <div className="w-px h-8 bg-stone-200"></div>
+              <button onClick={() => updateGridRange({ wrap: !activeCell?.wrap })} className={`px-3 py-1.5 rounded flex items-center gap-2 border text-[9px] font-black uppercase tracking-widest ${activeCell?.wrap ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-stone-200 text-stone-600'}`}><i className="fas fa-text-width"></i> Wrap</button>
               <div className="flex items-center gap-1" title="Text color">
-                <i className="fas fa-font text-slate-400 text-xs"></i>
-                <input type="color" value={activeCell?.color || '#1e293b'} onChange={(e) => updateGridRange({ color: e.target.value })} className="w-7 h-7 border border-slate-200 rounded cursor-pointer p-0.5" />
+                <i className="fas fa-font text-stone-400 text-xs"></i>
+                <input type="color" value={activeCell?.color || '#1e293b'} onChange={(e) => updateGridRange({ color: e.target.value })} className="w-7 h-7 border border-stone-200 rounded cursor-pointer p-0.5" />
               </div>
               <div className="flex items-center gap-1" title="Fill color">
-                <i className="fas fa-fill-drip text-slate-400 text-xs"></i>
-                <input type="color" value={activeCell?.bgColor || '#ffffff'} onChange={(e) => updateGridRange({ bgColor: e.target.value })} className="w-7 h-7 border border-slate-200 rounded cursor-pointer p-0.5" />
+                <i className="fas fa-fill-drip text-stone-400 text-xs"></i>
+                <input type="color" value={activeCell?.bgColor || '#ffffff'} onChange={(e) => updateGridRange({ bgColor: e.target.value })} className="w-7 h-7 border border-stone-200 rounded cursor-pointer p-0.5" />
               </div>
-              <div className="w-px h-8 bg-slate-200"></div>
-              <button onClick={mergeSelection} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50"><i className="fas fa-object-group"></i> Merge</button>
-              <button onClick={unmergeSelection} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50"><i className="fas fa-object-ungroup"></i> Unmerge</button>
-              <div className="w-px h-8 bg-slate-200"></div>
-              <button onClick={() => insertRow(true)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50"><i className="fas fa-arrow-up"></i> Row</button>
-              <button onClick={() => insertRow(false)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50"><i className="fas fa-arrow-down"></i> Row</button>
-              <button onClick={deleteRow} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-50"><i className="fas fa-trash"></i> Row</button>
-              <button onClick={() => insertCol(true)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50"><i className="fas fa-arrow-left"></i> Col</button>
-              <button onClick={() => insertCol(false)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest hover:bg-slate-50"><i className="fas fa-arrow-right"></i> Col</button>
-              <button onClick={deleteCol} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-slate-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-50"><i className="fas fa-trash"></i> Col</button>
+              <div className="w-px h-8 bg-stone-200"></div>
+              <button onClick={mergeSelection} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-object-group"></i> Merge</button>
+              <button onClick={unmergeSelection} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-object-ungroup"></i> Unmerge</button>
+              <div className="w-px h-8 bg-stone-200"></div>
+              <button onClick={() => insertRow(true)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-up"></i> Row</button>
+              <button onClick={() => insertRow(false)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-down"></i> Row</button>
+              <button onClick={deleteRow} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-50"><i className="fas fa-trash"></i> Row</button>
+              <button onClick={() => insertCol(true)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-left"></i> Col</button>
+              <button onClick={() => insertCol(false)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-right"></i> Col</button>
+              <button onClick={deleteCol} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-50"><i className="fas fa-trash"></i> Col</button>
             </div>
           )}
           {activeTab === 'formulas' && (
@@ -829,15 +829,15 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
       </div>
 
       {/* FORMULA BAR */}
-      <div className="w-full bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center gap-3">
-        <div className="bg-white border border-slate-300 rounded px-4 py-1.5 text-[11px] font-black text-slate-600 min-w-[70px] text-center shadow-sm">
+      <div className="w-full bg-stone-50 border-b border-stone-200 px-4 py-2 flex items-center gap-3">
+        <div className="bg-white border border-stone-300 rounded px-4 py-1.5 text-[11px] font-black text-stone-600 min-w-[70px] text-center shadow-sm">
           {selection ? `${getColLabel(selection.sc)}${selection.sr + 1}` : '--'}
         </div>
-        <div className="flex-1 bg-white border border-slate-300 rounded-lg px-4 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-emerald-500 transition-all">
-          <span className="italic text-slate-300 font-serif mr-3 text-lg font-bold">fx</span>
+        <div className="flex-1 bg-white border border-stone-300 rounded-lg px-4 flex items-center shadow-sm focus-within:ring-2 focus-within:ring-emerald-500 transition-all">
+          <span className="italic text-stone-300 font-serif mr-3 text-lg font-bold">fx</span>
           <input 
             type="text"
-            className="w-full py-2 text-sm font-medium outline-none text-slate-700"
+            className="w-full py-2 text-sm font-medium outline-none text-stone-700"
             value={selection ? grid[selection.sr][selection.sc].value : ''}
             onChange={(e) => updateGridRange({ value: e.target.value })}
             placeholder="Enter formula or value..."
@@ -846,17 +846,17 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
       </div>
 
       {/* GRID CONTAINER */}
-      <div className="flex-1 overflow-auto custom-scrollbar bg-slate-200 p-1">
+      <div className="flex-1 overflow-auto custom-scrollbar bg-stone-200 p-1">
         <div className="inline-block">
           <table className="border-collapse table-fixed bg-white shadow-lg">
             <thead>
-              <tr className="bg-slate-100">
-                <th className="w-12 border border-slate-300 sticky left-0 top-0 z-40 bg-slate-100"></th>
+              <tr className="bg-stone-100">
+                <th className="w-12 border border-stone-300 sticky left-0 top-0 z-40 bg-stone-100"></th>
                 {grid[0]?.map((_, c) => (
                   <th 
                     key={c} 
                     style={{ width: colWidths[c] }}
-                    className="h-8 border border-slate-300 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0 z-30 bg-slate-100 group relative"
+                    className="h-8 border border-stone-300 text-[10px] font-black text-stone-500 uppercase tracking-widest sticky top-0 z-30 bg-stone-100 group relative"
                   >
                     {getColLabel(c)}
                     <div 
@@ -870,7 +870,7 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
             <tbody>
               {grid.map((row, r) => (
                 <tr key={r} style={{ height: rowHeights[r] }}>
-                  <td className="w-12 border border-slate-300 bg-slate-100 text-[10px] font-black text-slate-400 text-center sticky left-0 z-20 group relative">
+                  <td className="w-12 border border-stone-300 bg-stone-100 text-[10px] font-black text-stone-400 text-center sticky left-0 z-20 group relative">
                     {r + 1}
                     <div 
                       onMouseDown={(e) => handleHeaderMouseDown(e, 'row', r)}
@@ -897,7 +897,7 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
                         colSpan={colSpan}
                         onMouseDown={() => handleMouseDown(r, c)}
                         onMouseEnter={() => handleMouseEnter(r, c)}
-                        className={`border border-slate-200 relative p-0 overflow-hidden ${isSelected ? 'bg-emerald-50/50' : ''}`}
+                        className={`border border-stone-200 relative p-0 overflow-hidden ${isSelected ? 'bg-emerald-50/50' : ''}`}
                         style={{
                           textAlign: cell.align || 'left',
                           fontWeight: cell.bold ? '900' : 'normal',
@@ -910,12 +910,12 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
                         {isActive ? (
                           <textarea 
                             autoFocus
-                            className={`w-full h-full p-2 text-[13px] outline-none bg-white font-medium text-slate-800 resize-none ${cell.wrap ? 'whitespace-pre-wrap' : 'whitespace-nowrap overflow-hidden'}`}
+                            className={`w-full h-full p-2 text-[13px] outline-none bg-white font-medium text-stone-800 resize-none ${cell.wrap ? 'whitespace-pre-wrap' : 'whitespace-nowrap overflow-hidden'}`}
                             value={cell.value}
                             onChange={(e) => updateGridRange({ value: e.target.value })}
                           />
                         ) : (
-                          <div className={`w-full h-full p-2 text-[13px] font-medium text-slate-800 ${cell.wrap ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
+                          <div className={`w-full h-full p-2 text-[13px] font-medium text-stone-800 ${cell.wrap ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
                             {cell.computed || cell.value}
                           </div>
                         )}

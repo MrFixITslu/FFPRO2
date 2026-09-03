@@ -120,13 +120,13 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
 
   return (
     <div className="relative group">
-      <form onSubmit={handleMagicSubmit} className="flex items-center gap-2 p-1.5 bg-white border-2 border-slate-200 rounded-2xl focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100 transition shadow-sm">
+      <form onSubmit={handleMagicSubmit} className="flex items-center gap-2 p-1.5 bg-white border-2 border-stone-200 rounded-2xl focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100 transition shadow-sm">
         <div className="flex-1 flex items-center">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="w-full bg-transparent px-3 py-2 text-slate-800 outline-none placeholder:text-slate-400 font-medium"
+            className="w-full bg-transparent px-3 py-2 text-stone-800 outline-none placeholder:text-stone-400 font-medium"
             placeholder="Log coffee, or upload receipts batch..."
           />
         </div>
@@ -146,7 +146,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            className={`w-10 h-10 flex items-center justify-center rounded-xl transition ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-slate-100 text-slate-500'}`}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl transition ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-stone-100 text-stone-500'}`}
             title="Voice Record"
           >
             <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'}`}></i>
@@ -155,7 +155,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-500 transition"
+            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-stone-100 text-stone-500 transition"
             title="Upload Multi-Receipt (Turbo Mode)"
           >
             <i className="fas fa-images"></i>
@@ -164,7 +164,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
           <button
             type="submit"
             disabled={!input.trim()}
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 disabled:bg-slate-400 shadow-md shadow-indigo-200"
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 disabled:bg-stone-400 shadow-md shadow-indigo-200"
           >
             <i className="fas fa-magic"></i>
           </button>
@@ -180,7 +180,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
         multiple
       />
 
-      <div className="absolute -bottom-6 left-3 text-[10px] text-slate-400 flex gap-4 uppercase font-black tracking-wider">
+      <div className="absolute -bottom-6 left-3 text-[10px] text-stone-400 flex gap-4 uppercase font-black tracking-wider">
         <span>Turbo Batch Engine Active</span>
         <i className="fas fa-bolt text-amber-400"></i>
       </div>

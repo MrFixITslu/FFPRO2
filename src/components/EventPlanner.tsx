@@ -514,7 +514,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               type="text"
               value={editingContactName}
               onChange={e => setEditingContactName(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
               placeholder="Name"
             />
           </div>
@@ -525,7 +525,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 type="text"
                 value={editingContactNumber}
                 onChange={e => setEditingContactNumber(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                 placeholder="Phone"
               />
             </div>
@@ -535,7 +535,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 type="email"
                 value={editingContactEmail}
                 onChange={e => setEditingContactEmail(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                 placeholder="Email"
               />
             </div>
@@ -543,7 +543,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
           <div className="flex justify-end gap-2 pt-1 border-t border-indigo-100">
             <button
               onClick={() => setEditingContactId(null)}
-              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800"
+              className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-500 hover:text-stone-800"
             >
               Cancel
             </button>
@@ -569,22 +569,22 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     }
 
     return (
-      <div key={contact.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition hover:border-indigo-150 hover:shadow-xs">
+      <div key={contact.id} className="p-4 bg-stone-50 border border-stone-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 group transition hover:border-indigo-150 hover:shadow-xs">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
+          <div className="w-9 h-9 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-indigo-600 shadow-xs shrink-0">
             <i className="fas fa-id-badge text-base"></i>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-800 truncate">{contact.name}</p>
+            <p className="text-sm font-bold text-stone-800 truncate">{contact.name}</p>
             <div className="flex flex-col gap-0.5 mt-0.5">
               {contact.number && (
-                <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
-                  <i className="fas fa-phone-alt text-[8px] text-slate-400"></i> {contact.number}
+                <p className="text-[10px] text-stone-500 font-semibold flex items-center gap-1">
+                  <i className="fas fa-phone-alt text-[8px] text-stone-400"></i> {contact.number}
                 </p>
               )}
               {contact.email && (
-                <p className="text-[10px] text-slate-500 font-medium truncate flex items-center gap-1">
-                  <i className="fas fa-envelope text-[8px] text-slate-400"></i> {contact.email}
+                <p className="text-[10px] text-stone-500 font-medium truncate flex items-center gap-1">
+                  <i className="fas fa-envelope text-[8px] text-stone-400"></i> {contact.email}
                 </p>
               )}
             </div>
@@ -621,7 +621,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               setEditingContactEmail(contact.email || '');
             }}
             title="Edit Contact"
-            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+            className="w-7 h-7 flex items-center justify-center text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
           >
             <i className="fas fa-edit text-xs"></i>
           </button>
@@ -634,7 +634,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               }
             }}
             title="Delete Contact"
-            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+            className="w-7 h-7 flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
           >
             <i className="fas fa-trash-alt text-xs"></i>
           </button>
@@ -1144,7 +1144,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       )}
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-light tracking-tight text-slate-800">Projects</h2>
+        <h2 className="text-2xl font-light tracking-tight text-stone-800">Projects</h2>
         {isAdmin && !selectedEventId && (
           <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-500 transition-all">
             {showAddForm ? 'Cancel' : 'Initiate Framework'}
@@ -1153,72 +1153,72 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       </div>
 
       {showAddForm && !selectedEventId && (
-        <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm animate-in zoom-in-95 mb-6 space-y-6">
+        <div className="p-6 bg-white border border-stone-200 rounded-2xl shadow-sm animate-in zoom-in-95 mb-6 space-y-6">
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-3">Select Planning Framework</label>
+            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-3">Select Planning Framework</label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button 
                 type="button"
                 onClick={() => { setSelectedPlanType('event'); if (newName.startsWith('Vacation to ') || newName.startsWith('Startup: ')) setNewName(''); }}
-                className={`p-4 rounded-xl border text-left transition-all flex items-start gap-3 ${selectedPlanType === 'event' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                className={`p-4 rounded-xl border text-left transition-all flex items-start gap-3 ${selectedPlanType === 'event' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-stone-200 hover:border-stone-300 bg-white'}`}
               >
-                <div className={`p-2 rounded-lg ${selectedPlanType === 'event' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`p-2 rounded-lg ${selectedPlanType === 'event' ? 'bg-indigo-600 text-white' : 'bg-stone-100 text-stone-500'}`}>
                   <Sparkles size={18} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-xs text-slate-800">Standard Event</h4>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-normal">Plan corporate events, fundraisers, gatherings, or custom ledgers.</p>
+                  <h4 className="font-bold text-xs text-stone-800">Standard Event</h4>
+                  <p className="text-[10px] text-stone-400 mt-1 leading-normal">Plan corporate events, fundraisers, gatherings, or custom ledgers.</p>
                 </div>
               </button>
 
               <button 
                 type="button"
                 onClick={() => setSelectedPlanType('trip')}
-                className={`p-4 rounded-xl border text-left transition-all flex items-start gap-3 ${selectedPlanType === 'trip' ? 'border-sky-600 bg-sky-50/50 ring-1 ring-sky-600' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                className={`p-4 rounded-xl border text-left transition-all flex items-start gap-3 ${selectedPlanType === 'trip' ? 'border-sky-600 bg-sky-50/50 ring-1 ring-sky-600' : 'border-stone-200 hover:border-stone-300 bg-white'}`}
               >
-                <div className={`p-2 rounded-lg ${selectedPlanType === 'trip' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`p-2 rounded-lg ${selectedPlanType === 'trip' ? 'bg-sky-600 text-white' : 'bg-stone-100 text-stone-500'}`}>
                   <Plane size={18} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-xs text-slate-800">Vacation / Trip Plan</h4>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-normal">Estimate flights, hotels, rentals, set up savings schedule, or log travel contacts.</p>
+                  <h4 className="font-bold text-xs text-stone-800">Vacation / Trip Plan</h4>
+                  <p className="text-[10px] text-stone-400 mt-1 leading-normal">Estimate flights, hotels, rentals, set up savings schedule, or log travel contacts.</p>
                 </div>
               </button>
 
               <button 
                 type="button"
                 onClick={() => { setSelectedPlanType('startup'); if (newName.startsWith('Vacation to ')) setNewName(''); }}
-                className={`p-4 rounded-xl border text-left transition-all flex items-start gap-3 ${selectedPlanType === 'startup' ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                className={`p-4 rounded-xl border text-left transition-all flex items-start gap-3 ${selectedPlanType === 'startup' ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600' : 'border-stone-200 hover:border-stone-300 bg-white'}`}
               >
-                <div className={`p-2 rounded-lg ${selectedPlanType === 'startup' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`p-2 rounded-lg ${selectedPlanType === 'startup' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-500'}`}>
                   <Briefcase size={18} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-xs text-slate-800">Startup Planner</h4>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-normal">Establish price models, generate 1/3/5 yr P&L statements for Caribbean bank loans.</p>
+                  <h4 className="font-bold text-xs text-stone-800">Startup Planner</h4>
+                  <p className="text-[10px] text-stone-400 mt-1 leading-normal">Establish price models, generate 1/3/5 yr P&L statements for Caribbean bank loans.</p>
                 </div>
               </button>
             </div>
           </div>
 
-          <div className="space-y-4 pt-2 border-t border-slate-100">
+          <div className="space-y-4 pt-2 border-t border-stone-100">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Plan Title / Project Designation</label>
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">Plan Title / Project Designation</label>
               <input 
                 type="text" 
                 value={newName} 
                 onChange={(e) => setNewName(e.target.value)} 
                 placeholder={selectedPlanType === 'trip' ? "e.g. Summer Getaway 2026" : selectedPlanType === 'startup' ? "e.g. Island Grocers Ltd." : "e.g. Charity Gala Opening"} 
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 text-stone-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
               />
             </div>
 
             {selectedPlanType === 'trip' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-200">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Find Destination</label>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">Find Destination</label>
                   <div className="relative">
-                    <MapPin size={14} className="absolute left-3 top-3.5 text-slate-400" />
+                    <MapPin size={14} className="absolute left-3 top-3.5 text-stone-400" />
                     <input 
                       type="text" 
                       value={destination} 
@@ -1229,28 +1229,28 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         }
                       }} 
                       placeholder="e.g. Barbados, Paris" 
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 text-slate-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
+                      className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 text-stone-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Start Date</label>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">Start Date</label>
                   <input 
                     type="date" 
                     value={startDate} 
                     onChange={(e) => setStartDate(e.target.value)} 
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 text-stone-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">End Date</label>
+                  <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">End Date</label>
                   <input 
                     type="date" 
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 text-stone-850 rounded-lg outline-none font-semibold text-sm focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all" 
                   />
                 </div>
               </div>
@@ -1399,7 +1399,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                    <button 
                      key={tab} 
                      onClick={() => setActiveTab(tab as ProjectTab)} 
-                     className={`px-3 sm:px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm font-extrabold' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                     className={`px-3 sm:px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab ? 'bg-white text-stone-900 shadow-sm font-extrabold' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
                    >
                      {tab === 'log' && <Activity size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
                      <span>{label}</span>
@@ -1423,7 +1423,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                  <i className="fas fa-lightbulb text-amber-300 text-xs"></i>
                  <span className="hidden sm:inline">Idea Bin</span>
                  {(ideas || []).length > 0 && (
-                   <span className="px-1.5 py-0.5 bg-amber-400 text-slate-950 rounded-full text-[9px] font-extrabold leading-none">
+                   <span className="px-1.5 py-0.5 bg-amber-400 text-stone-950 rounded-full text-[9px] font-extrabold leading-none">
                      {(ideas || []).length}
                    </span>
                  )}
@@ -1484,33 +1484,33 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               return (
                 <div className="space-y-6 animate-in fade-in duration-350">
                   {/* Financial Summary Dashboard Banner */}
-                  <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-md">
+                  <div className="bg-stone-900 border border-stone-800 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-md">
                     <div>
                       <span className="text-[9px] font-bold text-sky-400 uppercase tracking-widest block mb-1">Financial Blueprint</span>
                       <h3 className="text-xl font-light">Trip to <span className="font-semibold text-sky-300">{td.destination}</span></h3>
-                      <div className="flex gap-4 mt-2 text-xs text-slate-400">
+                      <div className="flex gap-4 mt-2 text-xs text-stone-400">
                         {td.startDate && <span className="flex items-center gap-1"><CalendarIcon size={12} className="text-sky-400" /> {new Date(td.startDate).toLocaleDateString()}</span>}
                         {td.endDate && <span>to {new Date(td.endDate).toLocaleDateString()}</span>}
                       </div>
                     </div>
                     <div className="flex items-baseline gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Total</span>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Estimated Total</span>
                       <span className="text-2xl font-black text-white">${totalCost.toLocaleString()}</span>
                     </div>
                   </div>
 
                   {/* Bento Grid Cost Estimator */}
                   <div>
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Cost Estimations & Details</h4>
+                    <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-4">Cost Estimations & Details</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       
                       {/* Flight Card */}
-                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                      <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2.5">
                               <div className="p-2 bg-sky-100 text-sky-600 rounded-lg"><Plane size={16} /></div>
-                              <h5 className="font-bold text-xs text-slate-800">Flights / Airfare</h5>
+                              <h5 className="font-bold text-xs text-stone-800">Flights / Airfare</h5>
                             </div>
                             <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${td.flightBooked ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                               {td.flightBooked ? 'Booked' : 'Tentative'}
@@ -1518,35 +1518,35 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           </div>
                           <div className="space-y-3">
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
                               <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-3 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   type="number" 
                                   value={td.flightCost || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ flightCost: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
+                                  className="w-full pl-7 pr-3 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
                                 />
                               </div>
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Booking Notes / Airline</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Booking Notes / Airline</label>
                               <textarea 
                                 value={td.flightNotes || ''} 
                                 onChange={(e) => handleUpdateTripDetails({ flightNotes: e.target.value })}
                                 placeholder="Carrier, route, baggage allowances..." 
-                                className="w-full p-2 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-16 resize-none" 
+                                className="w-full p-2 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-16 resize-none" 
                               />
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
-                          <span className="text-[10px] text-slate-500 font-medium">Mark as Booked</span>
+                        <div className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center">
+                          <span className="text-[10px] text-stone-500 font-medium">Mark as Booked</span>
                           <button 
                             type="button"
                             onClick={() => handleUpdateTripDetails({ flightBooked: !td.flightBooked })}
-                            className={`w-10 h-6 rounded-full p-1 transition-all ${td.flightBooked ? 'bg-emerald-500 flex justify-end' : 'bg-slate-200 flex justify-start'}`}
+                            className={`w-10 h-6 rounded-full p-1 transition-all ${td.flightBooked ? 'bg-emerald-500 flex justify-end' : 'bg-stone-200 flex justify-start'}`}
                           >
                             <span className="w-4 h-4 bg-white rounded-full shadow-sm block"></span>
                           </button>
@@ -1554,12 +1554,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {/* Accommodation Card */}
-                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                      <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2.5">
                               <div className="p-2 bg-sky-100 text-sky-600 rounded-lg"><Hotel size={16} /></div>
-                              <h5 className="font-bold text-xs text-slate-800">Accommodation</h5>
+                              <h5 className="font-bold text-xs text-stone-800">Accommodation</h5>
                             </div>
                             <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${td.accommodationBooked ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                               {td.accommodationBooked ? 'Booked' : 'Tentative'}
@@ -1567,35 +1567,35 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           </div>
                           <div className="space-y-3">
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
                               <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-3 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   type="number" 
                                   value={td.accommodationCost || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ accommodationCost: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
+                                  className="w-full pl-7 pr-3 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
                                 />
                               </div>
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Hotel / Airbnb Notes</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Hotel / Airbnb Notes</label>
                               <textarea 
                                 value={td.accommodationNotes || ''} 
                                 onChange={(e) => handleUpdateTripDetails({ accommodationNotes: e.target.value })}
                                 placeholder="Hotel name, check-in details, room type..." 
-                                className="w-full p-2 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-16 resize-none" 
+                                className="w-full p-2 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-16 resize-none" 
                               />
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
-                          <span className="text-[10px] text-slate-500 font-medium">Mark as Booked</span>
+                        <div className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center">
+                          <span className="text-[10px] text-stone-500 font-medium">Mark as Booked</span>
                           <button 
                             type="button"
                             onClick={() => handleUpdateTripDetails({ accommodationBooked: !td.accommodationBooked })}
-                            className={`w-10 h-6 rounded-full p-1 transition-all ${td.accommodationBooked ? 'bg-emerald-500 flex justify-end' : 'bg-slate-200 flex justify-start'}`}
+                            className={`w-10 h-6 rounded-full p-1 transition-all ${td.accommodationBooked ? 'bg-emerald-500 flex justify-end' : 'bg-stone-200 flex justify-start'}`}
                           >
                             <span className="w-4 h-4 bg-white rounded-full shadow-sm block"></span>
                           </button>
@@ -1603,12 +1603,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {/* Transport Card */}
-                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                      <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2.5">
                               <div className="p-2 bg-sky-100 text-sky-600 rounded-lg"><Car size={16} /></div>
-                              <h5 className="font-bold text-xs text-slate-800">Ground Transport</h5>
+                              <h5 className="font-bold text-xs text-stone-800">Ground Transport</h5>
                             </div>
                             <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${td.transportBooked ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                               {td.transportBooked ? 'Booked' : 'Tentative'}
@@ -1621,42 +1621,42 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                                   key={mode}
                                   type="button"
                                   onClick={() => handleUpdateTripDetails({ transportType: mode })}
-                                  className={`py-1 rounded text-[9px] font-bold capitalize border transition-all ${td.transportType === mode ? 'bg-sky-600 text-white border-sky-600 shadow-sm' : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'}`}
+                                  className={`py-1 rounded text-[9px] font-bold capitalize border transition-all ${td.transportType === mode ? 'bg-sky-600 text-white border-sky-600 shadow-sm' : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-600'}`}
                                 >
                                   {mode}
                                 </button>
                               ))}
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
                               <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-3 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   type="number" 
                                   value={td.transportCost || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ transportCost: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
+                                  className="w-full pl-7 pr-3 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
                                 />
                               </div>
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Car Rental / Cab Details</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Car Rental / Cab Details</label>
                               <textarea 
                                 value={td.transportNotes || ''} 
                                 onChange={(e) => handleUpdateTripDetails({ transportNotes: e.target.value })}
                                 placeholder="Hertz, airport pickup, taxi options..." 
-                                className="w-full p-2 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-12 resize-none" 
+                                className="w-full p-2 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-12 resize-none" 
                               />
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
-                          <span className="text-[10px] text-slate-500 font-medium">Mark as Booked</span>
+                        <div className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center">
+                          <span className="text-[10px] text-stone-500 font-medium">Mark as Booked</span>
                           <button 
                             type="button"
                             onClick={() => handleUpdateTripDetails({ transportBooked: !td.transportBooked })}
-                            className={`w-10 h-6 rounded-full p-1 transition-all ${td.transportBooked ? 'bg-emerald-500 flex justify-end' : 'bg-slate-200 flex justify-start'}`}
+                            className={`w-10 h-6 rounded-full p-1 transition-all ${td.transportBooked ? 'bg-emerald-500 flex justify-end' : 'bg-stone-200 flex justify-start'}`}
                           >
                             <span className="w-4 h-4 bg-white rounded-full shadow-sm block"></span>
                           </button>
@@ -1664,33 +1664,33 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {/* Dining / Food Card */}
-                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                      <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
                         <div>
                           <div className="flex items-center gap-2.5 mb-4">
                             <div className="p-2 bg-amber-100 text-amber-600 rounded-lg"><Utensils size={16} /></div>
-                            <h5 className="font-bold text-xs text-slate-800">Dining & Food</h5>
+                            <h5 className="font-bold text-xs text-stone-800">Dining & Food</h5>
                           </div>
                           <div className="space-y-3">
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
                               <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-3 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   type="number" 
                                   value={td.foodCost || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ foodCost: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
+                                  className="w-full pl-7 pr-3 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
                                 />
                               </div>
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Dining Plan & Notes</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Dining Plan & Notes</label>
                               <textarea 
                                 value={td.foodNotes || ''} 
                                 onChange={(e) => handleUpdateTripDetails({ foodNotes: e.target.value })}
                                 placeholder="Breakfast included, estimated $60/day..." 
-                                className="w-full p-2 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-24 resize-none" 
+                                className="w-full p-2 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-24 resize-none" 
                               />
                             </div>
                           </div>
@@ -1698,33 +1698,33 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {/* Sights & Excursions Card */}
-                      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                      <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
                         <div>
                           <div className="flex items-center gap-2.5 mb-4">
                             <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Compass size={16} /></div>
-                            <h5 className="font-bold text-xs text-slate-800">Sites & Activities</h5>
+                            <h5 className="font-bold text-xs text-stone-800">Sites & Activities</h5>
                           </div>
                           <div className="space-y-3">
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Estimated Cost ($)</label>
                               <div className="relative">
-                                <span className="absolute left-3 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-3 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   type="number" 
                                   value={td.sitesCost || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ sitesCost: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
+                                  className="w-full pl-7 pr-3 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500 focus:bg-white" 
                                 />
                               </div>
                             </div>
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Sights, Tickets & Excursions</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Sights, Tickets & Excursions</label>
                               <textarea 
                                 value={td.sitesNotes || ''} 
                                 onChange={(e) => handleUpdateTripDetails({ sitesNotes: e.target.value })}
                                 placeholder="Snorkeling tour, museum entry, guided hikes..." 
-                                className="w-full p-2 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-24 resize-none" 
+                                className="w-full p-2 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-[11px] font-medium focus:ring-1 focus:ring-sky-500 focus:bg-white h-24 resize-none" 
                               />
                             </div>
                           </div>
@@ -1738,7 +1738,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
                     
                     {/* Strategy Selection Card */}
-                    <div className="bg-slate-900 border border-slate-850 p-6 rounded-2xl text-white lg:col-span-1 shadow-sm flex flex-col justify-between">
+                    <div className="bg-stone-900 border border-stone-850 p-6 rounded-2xl text-white lg:col-span-1 shadow-sm flex flex-col justify-between">
                       <div>
                         <h4 className="text-[10px] font-bold uppercase tracking-wider text-sky-400 mb-4 flex items-center gap-1.5"><Tag size={12} /> Funding Strategy</h4>
                         <div className="space-y-3">
@@ -1752,7 +1752,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             </span>
                             <div>
                               <h5 className="font-bold text-xs text-white">Save For Trip</h5>
-                              <p className="text-[10px] text-slate-400 mt-1 leading-tight">I need to accumulate savings weekly/monthly towards this goal.</p>
+                              <p className="text-[10px] text-stone-400 mt-1 leading-tight">I need to accumulate savings weekly/monthly towards this goal.</p>
                             </div>
                           </button>
 
@@ -1766,67 +1766,67 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             </span>
                             <div>
                               <h5 className="font-bold text-xs text-white">Ready to Book / Secure</h5>
-                              <p className="text-[10px] text-slate-400 mt-1 leading-tight">I have the funds ready. Move to locking in bookings.</p>
+                              <p className="text-[10px] text-stone-400 mt-1 leading-tight">I have the funds ready. Move to locking in bookings.</p>
                             </div>
                           </button>
                         </div>
                       </div>
                       
-                      <div className="mt-8 text-[9px] text-slate-500 leading-normal border-t border-white/5 pt-4">
+                      <div className="mt-8 text-[9px] text-stone-500 leading-normal border-t border-white/5 pt-4">
                         Strategy is synced to your financial dashboard. Saving schedules adjust dynamically.
                       </div>
                     </div>
 
                     {/* Detailed Interactive Panel for Selected Strategy */}
-                    <div className="bg-white border border-slate-200 p-6 rounded-2xl lg:col-span-2 shadow-sm">
+                    <div className="bg-white border border-stone-200 p-6 rounded-2xl lg:col-span-2 shadow-sm">
                       {td.savingMode === 'save' ? (
                         <div className="space-y-6">
-                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5"><Clock size={14} className="text-sky-500" /> Savings Schedule & Milestones</h4>
+                          <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5"><Clock size={14} className="text-sky-500" /> Savings Schedule & Milestones</h4>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-150">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-stone-50 p-5 rounded-xl border border-stone-150">
                             <div className="space-y-4">
                               <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Target Travel Date</label>
+                                <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Target Travel Date</label>
                                 <input 
                                   type="date" 
                                   value={td.targetDate || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ targetDate: e.target.value })}
-                                  className="w-full px-3 py-1.5 bg-white border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500" 
+                                  className="w-full px-3 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500" 
                                 />
                               </div>
                               <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Amount Saved So Far ($)</label>
+                                <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Amount Saved So Far ($)</label>
                                 <input 
                                   type="number" 
                                   value={td.amountSaved || ''} 
                                   onChange={(e) => handleUpdateTripDetails({ amountSaved: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full px-3 py-1.5 bg-white border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500" 
+                                  className="w-full px-3 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500" 
                                 />
                               </div>
                             </div>
 
-                            <div className="flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-6">
+                            <div className="flex flex-col justify-between border-t md:border-t-0 md:border-l border-stone-200 pt-4 md:pt-0 md:pl-6">
                               {td.targetDate ? (
                                 <div className="space-y-3">
-                                  <div className="flex justify-between text-xs text-slate-600 font-medium">
+                                  <div className="flex justify-between text-xs text-stone-600 font-medium">
                                     <span>Time Left:</span>
-                                    <span className="font-bold text-slate-800">{daysLeft} Days ({weeksLeft} Weeks / {monthsLeft} Months)</span>
+                                    <span className="font-bold text-stone-800">{daysLeft} Days ({weeksLeft} Weeks / {monthsLeft} Months)</span>
                                   </div>
-                                  <div className="flex justify-between items-baseline pt-2 border-t border-slate-200/50">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Weekly Goal</span>
-                                    <span className="text-lg font-black text-slate-800">${weeklySavings.toLocaleString()}<span className="text-xs font-normal text-slate-400">/week</span></span>
+                                  <div className="flex justify-between items-baseline pt-2 border-t border-stone-200/50">
+                                    <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Weekly Goal</span>
+                                    <span className="text-lg font-black text-stone-800">${weeklySavings.toLocaleString()}<span className="text-xs font-normal text-stone-400">/week</span></span>
                                   </div>
                                   <div className="flex justify-between items-baseline">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Monthly Goal</span>
-                                    <span className="text-lg font-black text-slate-800">${monthlySavings.toLocaleString()}<span className="text-xs font-normal text-slate-400">/month</span></span>
+                                    <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Monthly Goal</span>
+                                    <span className="text-lg font-black text-stone-800">${monthlySavings.toLocaleString()}<span className="text-xs font-normal text-stone-400">/month</span></span>
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex flex-col items-center justify-center text-center h-full text-slate-400 py-6">
-                                  <AlertCircle size={18} className="mb-1.5 text-slate-300" />
+                                <div className="flex flex-col items-center justify-center text-center h-full text-stone-400 py-6">
+                                  <AlertCircle size={18} className="mb-1.5 text-stone-300" />
                                   <p className="text-[10px] font-bold uppercase tracking-wider leading-snug">Set Travel Date</p>
-                                  <p className="text-[9px] text-slate-400 mt-0.5">Define travel date to automatically calculate your required savings rate.</p>
+                                  <p className="text-[9px] text-stone-400 mt-0.5">Define travel date to automatically calculate your required savings rate.</p>
                                 </div>
                               )}
                             </div>
@@ -1835,10 +1835,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           {/* Progress bar */}
                           <div className="space-y-2">
                             <div className="flex justify-between items-baseline">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Goal Progress</span>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Goal Progress</span>
                               <span className="text-xs font-bold text-sky-600">{progressPct}% Secured (${td.amountSaved.toLocaleString()} of ${totalCost.toLocaleString()})</span>
                             </div>
-                            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                            <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden border border-stone-200">
                               <div 
                                 className="h-full bg-gradient-to-r from-sky-500 to-teal-500 rounded-full transition-all duration-500" 
                                 style={{ width: `${progressPct}%` }}
@@ -1887,13 +1887,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                               className="flex gap-2 w-full md:w-auto"
                             >
                               <div className="relative flex-1 md:w-32">
-                                <span className="absolute left-2.5 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   name="depositAmount"
                                   type="number" 
                                   placeholder="Deposit" 
                                   required
-                                  className="w-full pl-6 pr-2 py-1.5 bg-white border border-sky-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500" 
+                                  className="w-full pl-6 pr-2 py-1.5 bg-white border border-sky-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-sky-500" 
                                 />
                               </div>
                               <button type="submit" className="px-4 py-1.5 bg-sky-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg shadow-sm hover:bg-sky-500 transition">Save</button>
@@ -1903,59 +1903,59 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       ) : (
                         <div className="space-y-6 h-full flex flex-col justify-between">
                           <div className="space-y-4">
-                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-500" /> Booking Status Tracker</h4>
-                            <p className="text-xs text-slate-500 leading-relaxed">Funding is secure! Track your checkout status. Toggle items as you book flights, hotels, and vehicles.</p>
+                            <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-500" /> Booking Status Tracker</h4>
+                            <p className="text-xs text-stone-500 leading-relaxed">Funding is secure! Track your checkout status. Toggle items as you book flights, hotels, and vehicles.</p>
                             
                             <div className="space-y-3 pt-2">
                               {/* Flight booking checker */}
-                              <div className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${td.flightBooked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                              <div className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${td.flightBooked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-stone-50 border-stone-200'}`}>
                                 <div className="flex items-center gap-3">
-                                  <div className={`p-2 rounded-lg ${td.flightBooked ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}><Plane size={14} /></div>
+                                  <div className={`p-2 rounded-lg ${td.flightBooked ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-500'}`}><Plane size={14} /></div>
                                   <div>
-                                    <h5 className="font-bold text-xs text-slate-800">Lock in Flights</h5>
-                                    <p className="text-[10px] text-slate-400 leading-tight">{td.flightNotes || 'No airline details specified.'}</p>
+                                    <h5 className="font-bold text-xs text-stone-800">Lock in Flights</h5>
+                                    <p className="text-[10px] text-stone-400 leading-tight">{td.flightNotes || 'No airline details specified.'}</p>
                                   </div>
                                 </div>
                                 <button 
                                   type="button"
                                   onClick={() => handleUpdateTripDetails({ flightBooked: !td.flightBooked })}
-                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${td.flightBooked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'}`}
+                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${td.flightBooked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-600'}`}
                                 >
                                   {td.flightBooked ? 'Booked ✓' : 'To Book'}
                                 </button>
                               </div>
 
                               {/* Accommodation booking checker */}
-                              <div className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${td.accommodationBooked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                              <div className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${td.accommodationBooked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-stone-50 border-stone-200'}`}>
                                 <div className="flex items-center gap-3">
-                                  <div className={`p-2 rounded-lg ${td.accommodationBooked ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}><Hotel size={14} /></div>
+                                  <div className={`p-2 rounded-lg ${td.accommodationBooked ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-500'}`}><Hotel size={14} /></div>
                                   <div>
-                                    <h5 className="font-bold text-xs text-slate-800">Secure Accommodation</h5>
-                                    <p className="text-[10px] text-slate-400 leading-tight">{td.accommodationNotes || 'No lodging details specified.'}</p>
+                                    <h5 className="font-bold text-xs text-stone-800">Secure Accommodation</h5>
+                                    <p className="text-[10px] text-stone-400 leading-tight">{td.accommodationNotes || 'No lodging details specified.'}</p>
                                   </div>
                                 </div>
                                 <button 
                                   type="button"
                                   onClick={() => handleUpdateTripDetails({ accommodationBooked: !td.accommodationBooked })}
-                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${td.accommodationBooked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'}`}
+                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${td.accommodationBooked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-600'}`}
                                 >
                                   {td.accommodationBooked ? 'Booked ✓' : 'To Book'}
                                 </button>
                               </div>
 
                               {/* Transport booking checker */}
-                              <div className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${td.transportBooked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                              <div className={`p-3.5 border rounded-xl flex items-center justify-between transition-all ${td.transportBooked ? 'bg-emerald-50/50 border-emerald-200' : 'bg-stone-50 border-stone-200'}`}>
                                 <div className="flex items-center gap-3">
-                                  <div className={`p-2 rounded-lg ${td.transportBooked ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}><Car size={14} /></div>
+                                  <div className={`p-2 rounded-lg ${td.transportBooked ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-500'}`}><Car size={14} /></div>
                                   <div>
-                                    <h5 className="font-bold text-xs text-slate-800">Reserve Transport ({td.transportType})</h5>
-                                    <p className="text-[10px] text-slate-400 leading-tight">{td.transportNotes || 'No ground travel details specified.'}</p>
+                                    <h5 className="font-bold text-xs text-stone-800">Reserve Transport ({td.transportType})</h5>
+                                    <p className="text-[10px] text-stone-400 leading-tight">{td.transportNotes || 'No ground travel details specified.'}</p>
                                   </div>
                                 </div>
                                 <button 
                                   type="button"
                                   onClick={() => handleUpdateTripDetails({ transportBooked: !td.transportBooked })}
-                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${td.transportBooked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'}`}
+                                  className={`px-3 py-1 text-[9px] font-bold uppercase rounded border transition-all ${td.transportBooked ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-600'}`}
                                 >
                                   {td.transportBooked ? 'Booked ✓' : 'To Book'}
                                 </button>
@@ -2115,19 +2115,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
                   {/* Financial projections banner */}
-                  <div className="bg-slate-900 border border-slate-850 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
+                  <div className="bg-stone-900 border border-stone-850 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
                     <div>
                       <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest block mb-1">Caribbean Commercial Standard</span>
                       <h3 className="text-xl font-light">Startup: <span className="font-semibold text-emerald-300">{selectedEvent.name}</span></h3>
-                      <p className="text-xs text-slate-400 mt-1 leading-normal">Interactive price models & multi-year commercial lending statements.</p>
+                      <p className="text-xs text-stone-400 mt-1 leading-normal">Interactive price models & multi-year commercial lending statements.</p>
                     </div>
                     <div className="flex gap-4">
                       <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-center">
-                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Year 1 Net (Proj)</span>
+                        <span className="text-[8px] font-bold text-stone-400 uppercase block">Year 1 Net (Proj)</span>
                         <span className={`text-sm font-bold ${y1Net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>${Math.round(y1Net).toLocaleString()}</span>
                       </div>
                       <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-center">
-                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Year 5 Net (Proj)</span>
+                        <span className="text-[8px] font-bold text-stone-400 uppercase block">Year 5 Net (Proj)</span>
                         <span className={`text-sm font-bold ${y5Net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>${Math.round(y5Net).toLocaleString()}</span>
                       </div>
                     </div>
@@ -2136,9 +2136,9 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   {/* Pricing and operating expenses calculator */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Unit Pricing & Sale Price Calculator */}
-                    <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm space-y-5">
+                      <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                        <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
                           <Calculator size={14} className="text-emerald-500" /> 
                           Interactive Sale Price Costing
                         </h4>
@@ -2147,7 +2147,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             <Sparkles size={10} /> Live-Linked
                           </span>
                         ) : (
-                          <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          <span className="text-[9px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
                             Manual mode
                           </span>
                         )}
@@ -2156,21 +2156,21 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       {/* Section 1: Raw Materials / Ingredients */}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block">1. Production Items / Materials List</label>
-                          <span className="text-[10px] text-slate-600 font-bold">Total Batch Cost: ${totalMaterialsCost.toFixed(2)}</span>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block">1. Production Items / Materials List</label>
+                          <span className="text-[10px] text-stone-600 font-bold">Total Batch Cost: ${totalMaterialsCost.toFixed(2)}</span>
                         </div>
                         
                         {/* Material List Items */}
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 max-h-44 overflow-y-auto">
+                        <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2 max-h-44 overflow-y-auto">
                           {productionItems.length === 0 ? (
-                            <p className="text-[11px] text-slate-400 text-center py-4">No materials listed yet. Use the fields below to add materials/ingredients.</p>
+                            <p className="text-[11px] text-stone-400 text-center py-4">No materials listed yet. Use the fields below to add materials/ingredients.</p>
                           ) : (
                             <div className="divide-y divide-slate-200/60">
                               {productionItems.map((item) => (
                                 <div key={item.id} className="flex justify-between items-center py-1.5 text-xs">
-                                  <span className="text-slate-700 font-medium truncate max-w-[180px]">{item.name}</span>
+                                  <span className="text-stone-700 font-medium truncate max-w-[180px]">{item.name}</span>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-slate-900 font-semibold">${item.cost.toFixed(2)}</span>
+                                    <span className="text-stone-900 font-semibold">${item.cost.toFixed(2)}</span>
                                     <button 
                                       type="button" 
                                       onClick={() => handleRemoveMaterial(item.id)} 
@@ -2193,16 +2193,16 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             value={calcItemName}
                             onChange={(e) => setCalcItemName(e.target.value)}
                             placeholder="e.g. Raw materials, Flour, Packaging" 
-                            className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white font-medium"
+                            className="flex-1 px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white font-medium"
                           />
                           <div className="relative w-24">
-                            <span className="absolute left-2.5 top-2.5 text-slate-400 text-xs">$</span>
+                            <span className="absolute left-2.5 top-2.5 text-stone-400 text-xs">$</span>
                             <input 
                               type="number" 
                               value={calcItemCost}
                               onChange={(e) => setCalcItemCost(e.target.value)}
                               placeholder="Cost" 
-                              className="w-full pl-6 pr-2 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white font-medium"
+                              className="w-full pl-6 pr-2 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white font-medium"
                             />
                           </div>
                           <button 
@@ -2217,21 +2217,21 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {/* Section 2: Yield & Contingency */}
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-100">
                         <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">2. Batch Yield (Units Derived)</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">2. Batch Yield (Units Derived)</label>
                           <input 
                             type="number" 
                             min="1"
                             value={derivedUnits} 
                             onChange={(e) => handleUpdateStartup({ derivedUnits: Math.max(1, parseInt(e.target.value) || 1) })}
                             placeholder="e.g. 1" 
-                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                            className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                           />
                         </div>
 
                         <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Contingency / Waste (%)</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Contingency / Waste (%)</label>
                           <div className="relative">
                             <input 
                               type="number" 
@@ -2240,33 +2240,33 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                               value={contingencyPercent} 
                               onChange={(e) => handleUpdateStartup({ contingencyPercent: Math.max(0, parseFloat(e.target.value) || 0) })}
                               placeholder="e.g. 5" 
-                              className="w-full pr-6 pl-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                              className="w-full pr-6 pl-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                             />
-                            <span className="absolute right-2.5 top-2 text-slate-400 text-xs">%</span>
+                            <span className="absolute right-2.5 top-2 text-stone-400 text-xs">%</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Section 3: Labor Input */}
-                      <div className="space-y-2 pt-2 border-t border-slate-100">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block">3. Labor Cost (To Produce Batch)</label>
+                      <div className="space-y-2 pt-2 border-t border-stone-100">
+                        <label className="text-[9px] font-bold text-stone-400 uppercase block">3. Labor Cost (To Produce Batch)</label>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <span className="text-[8px] font-bold text-slate-400 uppercase block mb-1">Hourly Labor Rate ($/hr)</span>
+                            <span className="text-[8px] font-bold text-stone-400 uppercase block mb-1">Hourly Labor Rate ($/hr)</span>
                             <div className="relative">
-                              <span className="absolute left-2.5 top-2 text-slate-400 text-xs">$</span>
+                              <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>
                               <input 
                                 type="number" 
                                 min="0"
                                 value={hourlyRate} 
                                 onChange={(e) => handleUpdateStartup({ hourlyRate: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                className="w-full pl-6 pr-2 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                                className="w-full pl-6 pr-2 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                               />
                             </div>
                           </div>
 
                           <div>
-                            <span className="text-[8px] font-bold text-slate-400 uppercase block mb-1">Total Labor Hours (hrs)</span>
+                            <span className="text-[8px] font-bold text-stone-400 uppercase block mb-1">Total Labor Hours (hrs)</span>
                             <input 
                               type="number" 
                               min="0"
@@ -2274,28 +2274,28 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                               value={laborHours} 
                               onChange={(e) => handleUpdateStartup({ laborHours: Math.max(0, parseFloat(e.target.value) || 0) })}
                               placeholder="Hours" 
-                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                              className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Section 4: Desired Profit & Overheads */}
-                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                      <div className="space-y-3 pt-2 border-t border-stone-100">
                         <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block">4. Desired Profit Target</label>
-                          <div className="flex gap-1 bg-slate-100 p-0.5 rounded text-[9px] font-bold">
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block">4. Desired Profit Target</label>
+                          <div className="flex gap-1 bg-stone-100 p-0.5 rounded text-[9px] font-bold">
                             <button
                               type="button"
                               onClick={() => handleUpdateStartup({ desiredProfitType: 'percentage' })}
-                              className={`px-1.5 py-0.5 rounded ${desiredProfitType === 'percentage' ? 'bg-white shadow text-slate-800' : 'text-slate-400'}`}
+                              className={`px-1.5 py-0.5 rounded ${desiredProfitType === 'percentage' ? 'bg-white shadow text-stone-800' : 'text-stone-400'}`}
                             >
                               Markup %
                             </button>
                             <button
                               type="button"
                               onClick={() => handleUpdateStartup({ desiredProfitType: 'fixed' })}
-                              className={`px-1.5 py-0.5 rounded ${desiredProfitType === 'fixed' ? 'bg-white shadow text-slate-800' : 'text-slate-400'}`}
+                              className={`px-1.5 py-0.5 rounded ${desiredProfitType === 'fixed' ? 'bg-white shadow text-stone-800' : 'text-stone-400'}`}
                             >
                               Fixed $
                             </button>
@@ -2304,19 +2304,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <span className="text-[8px] font-bold text-slate-400 uppercase block mb-1">
+                            <span className="text-[8px] font-bold text-stone-400 uppercase block mb-1">
                               {desiredProfitType === 'percentage' ? 'Profit Markup (%)' : 'Desired Unit Profit ($)'}
                             </span>
                             <div className="relative">
-                              {desiredProfitType === 'fixed' && <span className="absolute left-2.5 top-2 text-slate-400 text-xs">$</span>}
+                              {desiredProfitType === 'fixed' && <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>}
                               <input 
                                 type="number" 
                                 min="0"
                                 value={desiredProfitValue} 
                                 onChange={(e) => handleUpdateStartup({ desiredProfitValue: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                className={`w-full py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white ${desiredProfitType === 'fixed' ? 'pl-6 pr-2' : 'px-2.5'}`} 
+                                className={`w-full py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white ${desiredProfitType === 'fixed' ? 'pl-6 pr-2' : 'px-2.5'}`} 
                               />
-                              {desiredProfitType === 'percentage' && <span className="absolute right-2.5 top-2 text-slate-400 text-xs">%</span>}
+                              {desiredProfitType === 'percentage' && <span className="absolute right-2.5 top-2 text-stone-400 text-xs">%</span>}
                             </div>
                           </div>
 
@@ -2326,11 +2326,11 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                                 type="checkbox"
                                 checked={allocateOverhead}
                                 onChange={(e) => handleUpdateStartup({ allocateOverhead: e.target.checked })}
-                                className="w-3.5 h-3.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                                className="w-3.5 h-3.5 text-emerald-600 border-stone-300 rounded focus:ring-emerald-500"
                               />
                               <div>
-                                <span className="text-[10px] font-bold text-slate-600 block">Allocate Overheads</span>
-                                <span className="text-[8px] text-slate-400 leading-none">Share fixed monthly costs</span>
+                                <span className="text-[10px] font-bold text-stone-600 block">Allocate Overheads</span>
+                                <span className="text-[8px] text-stone-400 leading-none">Share fixed monthly costs</span>
                               </div>
                             </label>
                           </div>
@@ -2338,19 +2338,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {/* Section 5: Taxes & Levies */}
-                      <div className="space-y-2 pt-2 border-t border-slate-100">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block">5. Taxes & Legal Levies</label>
-                        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-150">
+                      <div className="space-y-2 pt-2 border-t border-stone-100">
+                        <label className="text-[9px] font-bold text-stone-400 uppercase block">5. Taxes & Legal Levies</label>
+                        <div className="grid grid-cols-2 gap-4 bg-stone-50 p-2.5 rounded-xl border border-stone-150">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input 
                               type="checkbox"
                               checked={includeVat}
                               onChange={(e) => handleUpdateStartup({ includeVat: e.target.checked })}
-                              className="w-3.5 h-3.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                              className="w-3.5 h-3.5 text-emerald-600 border-stone-300 rounded focus:ring-emerald-500"
                             />
                             <div>
-                              <span className="text-[10px] font-bold text-slate-700 block">VAT (12.5%)</span>
-                              <span className="text-[8px] text-slate-400 leading-none">Standard indirect tax</span>
+                              <span className="text-[10px] font-bold text-stone-700 block">VAT (12.5%)</span>
+                              <span className="text-[8px] text-stone-400 leading-none">Standard indirect tax</span>
                             </div>
                           </label>
 
@@ -2359,59 +2359,59 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                               type="checkbox"
                               checked={includeLevy}
                               onChange={(e) => handleUpdateStartup({ includeLevy: e.target.checked })}
-                              className="w-3.5 h-3.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                              className="w-3.5 h-3.5 text-emerald-600 border-stone-300 rounded focus:ring-emerald-500"
                             />
                             <div>
-                              <span className="text-[10px] font-bold text-slate-700 block">Health & Safety Levy (2.5%)</span>
-                              <span className="text-[8px] text-slate-400 leading-none">Local safety surcharge</span>
+                              <span className="text-[10px] font-bold text-stone-700 block">Health & Safety Levy (2.5%)</span>
+                              <span className="text-[8px] text-stone-400 leading-none">Local safety surcharge</span>
                             </div>
                           </label>
                         </div>
                       </div>
 
                       {/* Section 6: Receipt Breakdown */}
-                      <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-3 font-mono shadow-inner border border-slate-800">
-                        <div className="text-center pb-2 border-b border-dashed border-slate-700">
+                      <div className="bg-stone-900 text-stone-100 p-4 rounded-xl space-y-3 font-mono shadow-inner border border-stone-800">
+                        <div className="text-center pb-2 border-b border-dashed border-stone-700">
                           <p className="text-[10px] uppercase font-bold tracking-widest text-emerald-400">Unit Pricing Receipt</p>
-                          <p className="text-[8px] text-slate-400">Caribbean Commercial Standards</p>
+                          <p className="text-[8px] text-stone-400">Caribbean Commercial Standards</p>
                         </div>
                         
                         <div className="space-y-1.5 text-[10px]">
                           <div className="flex justify-between">
-                            <span className="text-slate-400">Raw Material / Unit:</span>
+                            <span className="text-stone-400">Raw Material / Unit:</span>
                             <span>${materialsCostPerUnit.toFixed(2)}</span>
                           </div>
                           
                           {contingencyPercent > 0 && (
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Contingency ({contingencyPercent}%):</span>
+                              <span className="text-stone-400">Contingency ({contingencyPercent}%):</span>
                               <span>+${contingencyCostPerUnit.toFixed(2)}</span>
                             </div>
                           )}
 
                           <div className="flex justify-between">
-                            <span className="text-slate-400">Direct Labor / Unit:</span>
+                            <span className="text-stone-400">Direct Labor / Unit:</span>
                             <span>+${laborCostPerUnit.toFixed(2)}</span>
                           </div>
 
                           {allocateOverhead && (
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Allocated Overhead:</span>
+                              <span className="text-stone-400">Allocated Overhead:</span>
                               <span>+${allocatedOverheadPerUnit.toFixed(2)}</span>
                             </div>
                           )}
 
-                          <div className="flex justify-between font-bold text-emerald-300 pt-1 border-t border-slate-800 text-xs">
+                          <div className="flex justify-between font-bold text-emerald-300 pt-1 border-t border-stone-800 text-xs">
                             <span>Cost of Goods (COGS):</span>
                             <span>${calculatedCogs.toFixed(2)}</span>
                           </div>
 
-                          <div className="flex justify-between text-slate-300 pt-1">
+                          <div className="flex justify-between text-stone-300 pt-1">
                             <span>Desired Profit:</span>
                             <span>+${calculatedProfitPerUnit.toFixed(2)} ({desiredProfitType === 'percentage' ? `${desiredProfitValue}%` : `$${desiredProfitValue} unit`})</span>
                           </div>
 
-                          <div className="flex justify-between font-bold text-white pt-1 border-t border-slate-800">
+                          <div className="flex justify-between font-bold text-white pt-1 border-t border-stone-800">
                             <span>Pre-Tax Selling Price:</span>
                             <span>${preTaxSellingPrice.toFixed(2)}</span>
                           </div>
@@ -2430,7 +2430,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             </div>
                           )}
 
-                          <div className="flex justify-between font-bold text-emerald-400 pt-2 border-t border-dashed border-slate-700 text-sm">
+                          <div className="flex justify-between font-bold text-emerald-400 pt-2 border-t border-dashed border-stone-700 text-sm">
                             <span>FINAL SALE PRICE:</span>
                             <span className="text-base font-black">${finalSuggestedPrice.toFixed(2)}</span>
                           </div>
@@ -2453,7 +2453,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                                 });
                               }
                             }}
-                            className="text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                            className="text-[10px] font-bold text-stone-400 hover:text-stone-600 transition-colors"
                           >
                             Reset Pricing Builder & Use Manual Entry
                           </button>
@@ -2462,110 +2462,110 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
                       {/* Fallback Manual input fields if they are not using dynamic costing */}
                       {!hasDynamicCosting && (
-                        <div className="border-t border-slate-100 pt-4 space-y-4">
-                          <p className="text-[10px] text-slate-400 italic">No materials or labor logged. Using standard manual pricing fields below:</p>
+                        <div className="border-t border-stone-100 pt-4 space-y-4">
+                          <p className="text-[10px] text-stone-400 italic">No materials or labor logged. Using standard manual pricing fields below:</p>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Manual Production Cost (COGS) ($)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Manual Production Cost (COGS) ($)</label>
                               <div className="relative">
-                                <span className="absolute left-2.5 top-2 text-slate-400 text-xs">$</span>
+                                <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>
                                 <input 
                                   type="number" 
                                   value={sd.cogs || ''} 
                                   onChange={(e) => handleUpdateStartup({ cogs: parseFloat(e.target.value) || 0 })}
                                   placeholder="0.00" 
-                                  className="w-full pl-6 pr-2 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                                  className="w-full pl-6 pr-2 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                                 />
                               </div>
                             </div>
 
                             <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Manual Markup (%)</label>
+                              <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Manual Markup (%)</label>
                               <div className="relative">
                                 <input 
                                   type="number" 
                                   value={sd.markup || ''} 
                                   onChange={(e) => handleUpdateStartup({ markup: parseFloat(e.target.value) || 0 })}
                                   placeholder="e.g. 50" 
-                                  className="w-full pr-6 pl-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                                  className="w-full pr-6 pl-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                                 />
-                                <span className="absolute right-2.5 top-2 text-slate-400 text-xs">%</span>
+                                <span className="absolute right-2.5 top-2 text-stone-400 text-xs">%</span>
                               </div>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      <div className="pt-2 border-t border-slate-100">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Target Monthly Volume (Units)</label>
+                      <div className="pt-2 border-t border-stone-100">
+                        <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Target Monthly Volume (Units)</label>
                         <input 
                           type="number" 
                           value={sd.monthlyVolume || ''} 
                           onChange={(e) => handleUpdateStartup({ monthlyVolume: parseInt(e.target.value) || 0 })}
                           placeholder="e.g. 500" 
-                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-xl border border-slate-150">
+                      <div className="grid grid-cols-2 gap-4 text-xs bg-stone-50 p-3 rounded-xl border border-stone-150">
                         <div>
-                          <p className="text-slate-400 font-medium text-[10px]">Monthly Revenue:</p>
-                          <p className="font-bold text-slate-800">${Math.round(monthlyRevenue).toLocaleString()}</p>
+                          <p className="text-stone-400 font-medium text-[10px]">Monthly Revenue:</p>
+                          <p className="font-bold text-stone-800">${Math.round(monthlyRevenue).toLocaleString()}</p>
                         </div>
                         <div>
-                          <p className="text-slate-400 font-medium text-[10px]">Gross Margin %:</p>
-                          <p className="font-bold text-slate-800">{grossMarginPercent}%</p>
+                          <p className="text-stone-400 font-medium text-[10px]">Gross Margin %:</p>
+                          <p className="font-bold text-stone-800">{grossMarginPercent}%</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Operating Expenses */}
-                    <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-1.5"><TrendingUp size={14} className="text-emerald-500" /> Monthly Fixed Operating Expenses</h4>
+                    <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm">
+                      <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider mb-4 flex items-center gap-1.5"><TrendingUp size={14} className="text-emerald-500" /> Monthly Fixed Operating Expenses</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Rent / Workspace</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Rent / Workspace</label>
                           <input 
                             type="number" 
                             value={sd.rent || ''} 
                             onChange={(e) => handleUpdateStartup({ rent: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
                           />
                         </div>
                         <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Salaries / Payroll</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Salaries / Payroll</label>
                           <input 
                             type="number" 
                             value={sd.salaries || ''} 
                             onChange={(e) => handleUpdateStartup({ salaries: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
                           />
                         </div>
                         <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Marketing / Promo</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Marketing / Promo</label>
                           <input 
                             type="number" 
                             value={sd.marketing || ''} 
                             onChange={(e) => handleUpdateStartup({ marketing: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
                           />
                         </div>
                         <div>
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Utilities / Tech</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Utilities / Tech</label>
                           <input 
                             type="number" 
                             value={sd.utilities || ''} 
                             onChange={(e) => handleUpdateStartup({ utilities: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
                           />
                         </div>
                         <div className="col-span-2">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Other / Miscellaneous Expenses</label>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Other / Miscellaneous Expenses</label>
                           <input 
                             type="number" 
                             value={sd.otherExpenses || ''} 
                             onChange={(e) => handleUpdateStartup({ otherExpenses: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
                           />
                         </div>
                       </div>
@@ -2573,11 +2573,11 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   </div>
 
                   {/* 1, 3, and 5 Year P&L Statement */}
-                  <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                       <div>
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5"><FileText size={14} className="text-emerald-500" /> Multi-Year Profit & Loss Projections</h4>
-                        <p className="text-[10px] text-slate-400 leading-normal mt-0.5">Compliant presentation for Commercial Banks, Credit Unions, or Caribbean Export Development Agency grants.</p>
+                        <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5"><FileText size={14} className="text-emerald-500" /> Multi-Year Profit & Loss Projections</h4>
+                        <p className="text-[10px] text-stone-400 leading-normal mt-0.5">Compliant presentation for Commercial Banks, Credit Unions, or Caribbean Export Development Agency grants.</p>
                       </div>
                       
                       <button
@@ -2664,7 +2664,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                     <div className="overflow-x-auto no-scrollbar">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead>
-                          <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[9px] bg-slate-50">
+                          <tr className="border-b border-stone-200 text-stone-400 font-bold uppercase tracking-wider text-[9px] bg-stone-50">
                             <th className="py-3 px-4">Revenue Statement Item</th>
                             <th className="py-3 px-4">Year 1</th>
                             <th className="py-3 px-4">Year 3 (+{sd.growthRateYear3}% vol)</th>
@@ -2672,29 +2672,29 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                            <td className="py-3 px-4 font-semibold text-slate-800">Gross revenue</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y1Rev).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y3Rev).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y5Rev).toLocaleString()}</td>
+                          <tr className="border-b border-stone-100 hover:bg-stone-50/50">
+                            <td className="py-3 px-4 font-semibold text-stone-800">Gross revenue</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y1Rev).toLocaleString()}</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y3Rev).toLocaleString()}</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y5Rev).toLocaleString()}</td>
                           </tr>
-                          <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                            <td className="py-3 px-4 text-slate-500">Cost of Goods Sold (COGS)</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y1COGS).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y3COGS).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y5COGS).toLocaleString()}</td>
+                          <tr className="border-b border-stone-100 hover:bg-stone-50/50">
+                            <td className="py-3 px-4 text-stone-500">Cost of Goods Sold (COGS)</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y1COGS).toLocaleString()}</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y3COGS).toLocaleString()}</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y5COGS).toLocaleString()}</td>
                           </tr>
-                          <tr className="border-b border-slate-150 font-bold bg-emerald-50/20 text-emerald-900">
+                          <tr className="border-b border-stone-150 font-bold bg-emerald-50/20 text-emerald-900">
                             <td className="py-3 px-4 text-emerald-800">Gross Profit Margin</td>
                             <td className="py-3 px-4">${Math.round(y1Gross).toLocaleString()}</td>
                             <td className="py-3 px-4">${Math.round(y3Gross).toLocaleString()}</td>
                             <td className="py-3 px-4">${Math.round(y5Gross).toLocaleString()}</td>
                           </tr>
-                          <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                            <td className="py-3 px-4 text-slate-500">Operating Expenses</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y1OpEx).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y3OpEx).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-slate-700">${Math.round(y5OpEx).toLocaleString()}</td>
+                          <tr className="border-b border-stone-100 hover:bg-stone-50/50">
+                            <td className="py-3 px-4 text-stone-500">Operating Expenses</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y1OpEx).toLocaleString()}</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y3OpEx).toLocaleString()}</td>
+                            <td className="py-3 px-4 text-stone-700">${Math.round(y5OpEx).toLocaleString()}</td>
                           </tr>
                           <tr className="font-extrabold bg-emerald-100/30 text-emerald-950 text-sm border-b border-emerald-200">
                             <td className="py-4 px-4 text-emerald-900">Net Operating Profit</td>
@@ -2702,7 +2702,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             <td className="py-4 px-4">${Math.round(y3Net).toLocaleString()}</td>
                             <td className="py-4 px-4">${Math.round(y5Net).toLocaleString()}</td>
                           </tr>
-                          <tr className="text-[10px] text-slate-400 bg-slate-50">
+                          <tr className="text-[10px] text-stone-400 bg-stone-50">
                             <td className="py-2.5 px-4">EBIT Margin %</td>
                             <td className="py-2.5 px-4">{netMarginPercent}%</td>
                             <td className="py-2.5 px-4">{y3Rev > 0 ? Math.round((y3Net / y3Rev) * 100) : 0}%</td>
@@ -2713,23 +2713,23 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                     </div>
 
                     {/* Projections controls */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-150 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-stone-150 text-xs">
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Year 3 Growth Estimate (+%)</label>
+                        <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Year 3 Growth Estimate (+%)</label>
                         <input 
                           type="number" 
                           value={sd.growthRateYear3 || ''} 
                           onChange={(e) => handleUpdateStartup({ growthRateYear3: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500" 
+                          className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 rounded outline-none focus:ring-1 focus:ring-emerald-500" 
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Year 5 Growth Estimate (+%)</label>
+                        <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Year 5 Growth Estimate (+%)</label>
                         <input 
                           type="number" 
                           value={sd.growthRateYear5 || ''} 
                           onChange={(e) => handleUpdateStartup({ growthRateYear5: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-emerald-500" 
+                          className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 rounded outline-none focus:ring-1 focus:ring-emerald-500" 
                         />
                       </div>
                     </div>
@@ -2740,9 +2740,9 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
             {activeTab === 'vault' && (
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm min-h-[500px]">
+                <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-stone-200 shadow-sm min-h-[500px]">
                   <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Encrypted Vault Assets</h3>
+                    <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Encrypted Vault Assets</h3>
                     <div className="flex gap-2 flex-wrap">
                       <button onClick={handleOpenLogDocument} className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-100 transition flex items-center gap-1.5">
                         <i className="fas fa-file-shield text-indigo-500"></i> Editable Log File
@@ -2763,18 +2763,18 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       const isInternal = file.storageType === 'indexeddb';
                       
                       return (
-                        <div key={file.id} className="p-5 bg-slate-50 border border-slate-200 rounded-lg flex flex-col items-center text-center group cursor-pointer hover:border-indigo-500 transition-all shadow-sm" onClick={() => handleAssetClick(file)}>
-                          <div className={`w-12 h-12 rounded flex items-center justify-center shadow-sm mb-4 group-hover:scale-105 transition-transform ${isSheet ? 'bg-emerald-600 text-white' : (isDoc ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-slate-250')}`}>
+                        <div key={file.id} className="p-5 bg-stone-50 border border-stone-200 rounded-lg flex flex-col items-center text-center group cursor-pointer hover:border-indigo-500 transition-all shadow-sm" onClick={() => handleAssetClick(file)}>
+                          <div className={`w-12 h-12 rounded flex items-center justify-center shadow-sm mb-4 group-hover:scale-105 transition-transform ${isSheet ? 'bg-emerald-600 text-white' : (isDoc ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-stone-250')}`}>
                             <i className={`fas ${isSheet ? 'fa-table' : (isDoc ? 'fa-file-lines' : 'fa-file-invoice')} text-lg`}></i>
                           </div>
-                          <p className="font-bold text-[11px] text-slate-800 truncate w-full mb-1" title={file.name.replace(/_/g, ' ')}>{file.name.replace(/_/g, ' ')}</p>
+                          <p className="font-bold text-[11px] text-stone-800 truncate w-full mb-1" title={file.name.replace(/_/g, ' ')}>{file.name.replace(/_/g, ' ')}</p>
                           <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${isInternal ? 'bg-indigo-50 text-indigo-500 border border-indigo-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>
                             {isInternal ? 'SECURE_VAULT' : 'MIRROR_DRIVE'}
                           </span>
                         </div>
                       );
                     })}
-                    <div className="p-5 border border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-200 cursor-pointer transition-all" onClick={() => fileInputRef.current?.click()}>
+                    <div className="p-5 border border-dashed border-stone-300 rounded-lg flex flex-col items-center justify-center text-stone-400 hover:text-indigo-600 hover:border-indigo-200 cursor-pointer transition-all" onClick={() => fileInputRef.current?.click()}>
                       <i className="fas fa-file-circle-plus text-lg mb-2"></i>
                       <span className="text-[9px] font-bold uppercase tracking-wider">Link Physical</span>
                       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
@@ -2798,21 +2798,21 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
             {activeTab === 'ledger' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
                   <div className="flex items-center justify-between gap-4 mb-6">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Internal Finance</h3>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{selectedEvent.items.length} Entries</span>
+                    <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Internal Finance</h3>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">{selectedEvent.items.length} Entries</span>
                   </div>
                   <div className="space-y-3">
                     {selectedEvent.items.length > 0 ? selectedEvent.items.map(item => (
-                      <div key={item.id} className="p-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg flex items-center justify-between gap-3 group transition">
+                      <div key={item.id} className="p-3 bg-stone-50 hover:bg-stone-100/80 border border-stone-200 rounded-lg flex items-center justify-between gap-3 group transition">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className={`w-8 h-8 rounded flex items-center justify-center text-white shrink-0 ${item.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                             <i className={`fas ${item.type === 'income' ? 'fa-plus' : 'fa-minus'} text-xs`}></i>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-800 break-words">{item.description}</p>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{item.category} • {item.date}</p>
+                            <p className="text-xs font-semibold text-stone-800 break-words">{item.description}</p>
+                            <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider">{item.category} • {item.date}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -2823,28 +2823,28 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             <button
                               onClick={() => handleDeleteLedgerItem(item.id)}
                               title="Delete this transaction entry"
-                              className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white rounded transition"
+                              className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-white rounded transition"
                             >
                               <Trash2 size={13} />
                             </button>
                           )}
                         </div>
                       </div>
-                    )) : <p className="text-center py-10 text-slate-355 uppercase font-bold text-[10px] tracking-wider">No Transactions</p>}
+                    )) : <p className="text-center py-10 text-stone-355 uppercase font-bold text-[10px] tracking-wider">No Transactions</p>}
                   </div>
                 </div>
 
-                <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white shadow-sm">
+                <div className="bg-stone-900 p-6 rounded-xl border border-stone-800 text-white shadow-sm">
                   <h3 className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 mb-6">Authorize Entry</h3>
                   {canEdit ? (
                     <form onSubmit={handleAddItem} className="space-y-4">
                       <input name="description" placeholder="Description" required className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
                       <input name="amount" type="number" step="0.01" placeholder="Amount" required className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
-                      <select name="type" className="w-full bg-slate-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300">
+                      <select name="type" className="w-full bg-stone-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-stone-300">
                         <option value="expense">Expense</option>
                         <option value="income">Income</option>
                       </select>
-                      <select name="category" className="w-full bg-slate-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-slate-300">
+                      <select name="category" className="w-full bg-stone-850 border border-white/10 rounded px-3 py-2 text-sm font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-stone-300">
                         {EVENT_ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                       <button type="submit" className="w-full py-2.5 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider">Commit Entry</button>
@@ -2894,27 +2894,27 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {(selectedEvent.memberUsernames || []).map(username => (
-                    <div key={username} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div key={username} className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center font-bold uppercase border border-indigo-150">
                           {username[0]}
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-800 text-sm">{username}</p>
+                          <p className="font-semibold text-stone-800 text-sm">{username}</p>
                           <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider">Authorized Access</span>
                         </div>
                       </div>
-                      <button className="text-slate-300 hover:text-rose-500 transition-colors"><i className="fas fa-user-minus text-xs"></i></button>
+                      <button className="text-stone-300 hover:text-rose-500 transition-colors"><i className="fas fa-user-minus text-xs"></i></button>
                     </div>
                   ))}
-                  <div className="bg-slate-50 border border-dashed border-slate-250 rounded-xl p-4 flex flex-col items-center justify-center text-center opacity-60">
-                     <i className="fas fa-user-plus text-slate-300 text-lg mb-1"></i>
-                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Awaiting Recruitment</p>
+                  <div className="bg-stone-50 border border-dashed border-stone-250 rounded-xl p-4 flex flex-col items-center justify-center text-center opacity-60">
+                     <i className="fas fa-user-plus text-stone-300 text-lg mb-1"></i>
+                     <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Awaiting Recruitment</p>
                   </div>
                 </div>
-                <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white shadow-sm h-fit">
+                <div className="bg-stone-900 p-6 rounded-xl border border-stone-800 text-white shadow-sm h-fit">
                    <h3 className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 mb-4">Project Access Control</h3>
-                   <p className="text-xs text-slate-400 mb-4 font-medium">Add collaborators by their vault identity to grant them shared intelligence access.</p>
+                   <p className="text-xs text-stone-400 mb-4 font-medium">Add collaborators by their vault identity to grant them shared intelligence access.</p>
                    <input 
                     type="text" 
                     value={inviteUsername}
@@ -2935,27 +2935,27 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             {activeTab === 'contacts' && (
                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-4">Linked Stakeholders</h3>
+                  <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-4">Linked Stakeholders</h3>
                     <div className="grid grid-cols-1 gap-4">
                       {contacts.filter(c => (selectedEvent.contactIds || []).includes(c.id)).map(contact => 
                         renderContactCard(contact, true)
                       )}
                       {contacts.filter(c => (selectedEvent.contactIds || []).includes(c.id)).length === 0 && (
-                        <p className="py-8 text-center text-slate-300 uppercase font-bold text-[9px] tracking-wider">No Stakeholders Linked</p>
+                        <p className="py-8 text-center text-stone-300 uppercase font-bold text-[9px] tracking-wider">No Stakeholders Linked</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Global Stakeholder Directory</h3>
+                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Global Stakeholder Directory</h3>
                       <input 
                         type="text" 
                         placeholder="Search directory..."
                         value={contactSearch}
                         onChange={(e) => setContactSearch(e.target.value)}
-                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-500 w-48"
+                        className="px-3 py-1.5 bg-stone-50 border border-stone-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-500 w-48"
                       />
                     </div>
                     <div className="space-y-4">
@@ -2963,13 +2963,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         renderContactCard(contact, false)
                       )}
                       {contacts.filter(c => !(selectedEvent.contactIds || []).includes(c.id) && c.name.toLowerCase().includes(contactSearch.toLowerCase())).length === 0 && (
-                        <p className="py-8 text-center text-slate-300 uppercase font-bold text-[9px] tracking-wider">No Other Stakeholders Found</p>
+                        <p className="py-8 text-center text-stone-300 uppercase font-bold text-[9px] tracking-wider">No Other Stakeholders Found</p>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white shadow-sm h-fit">
+                <div className="bg-stone-900 p-6 rounded-xl border border-stone-800 text-white shadow-sm h-fit">
                    <h3 className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 mb-4">Register Stakeholder</h3>
                    <div className="space-y-3">
                       <input 
@@ -3025,11 +3025,11 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2 space-y-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Planning Frameworks</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Active Planning Frameworks</h3>
             
             {allEvents.length === 0 ? (
-              <div className="p-12 text-center bg-white border border-slate-200 rounded-xl shadow-xs">
-                <p className="text-slate-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Frameworks</p>
+              <div className="p-12 text-center bg-white border border-stone-200 rounded-xl shadow-xs">
+                <p className="text-stone-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Frameworks</p>
                 <button onClick={() => setShowAddForm(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg shadow-xs transition-colors">
                   Initiate Framework
                 </button>
@@ -3037,13 +3037,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {allEvents.map(event => (
-                  <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-slate-50/50 transition-all relative overflow-hidden group">
+                  <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-stone-50/50 transition-all relative overflow-hidden group">
                     <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                       {(!event.isShared || event.role !== 'viewer') && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
                           title="Rename plan"
-                          className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                          className="w-8 h-8 flex items-center justify-center rounded text-stone-300 hover:text-stone-600 hover:bg-stone-100 transition-all"
                         >
                           <i className="fas fa-pen text-xs"></i>
                         </button>
@@ -3051,7 +3051,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       <button
                         onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
                         title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
-                        className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                        className="w-8 h-8 flex items-center justify-center rounded text-stone-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
                       >
                         <Share2 className="w-4 h-4" />
                       </button>
@@ -3059,7 +3059,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         <button
                           onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
                           title="Delete plan"
-                          className="w-8 h-8 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                          className="w-8 h-8 flex items-center justify-center rounded text-stone-300 hover:text-red-500 hover:bg-red-50 transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -3078,10 +3078,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
                             if (e.key === 'Escape') setRenamingCardId(null);
                           }}
-                          className="font-bold text-slate-800 text-lg truncate bg-slate-50 border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                          className="font-bold text-stone-800 text-lg truncate bg-stone-50 border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full"
                         />
                       ) : (
-                        <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
+                        <h3 className="font-bold text-stone-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
                       )}
                       {event.isShared && (
                         <span title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} className="shrink-0 w-5 h-5 flex items-center justify-center rounded bg-indigo-50 text-indigo-500">
@@ -3089,10 +3089,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         </span>
                       )}
                     </div>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
+                    <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
                     <div className="flex gap-2">
                       <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-indigo-50 border-indigo-100 text-indigo-600">{(event.files || []).length} Assets</span>
-                      <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-slate-50 border-slate-100 text-slate-600">{(event.tasks || []).length} Phases</span>
+                      <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-stone-50 border-stone-100 text-stone-600">{(event.tasks || []).length} Phases</span>
                     </div>
                   </div>
                 ))}
@@ -3101,25 +3101,25 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
           </div>
 
           {/* IDEA BIN COLUMN */}
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-xs h-fit space-y-4">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+          <div className="bg-stone-50 p-6 rounded-xl border border-stone-200 shadow-xs h-fit space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-stone-200">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center">
                   <i className="fas fa-lightbulb text-sm"></i>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider leading-none">Idea Bin</h3>
+                    <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider leading-none">Idea Bin</h3>
                     <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-extrabold leading-none">
                       {(ideas || []).length}
                     </span>
                   </div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 leading-none">Persistent Storage</p>
+                  <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-1 leading-none">Persistent Storage</p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowAddIdea(!showAddIdea)} 
-                className="w-7 h-7 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-200 rounded-lg flex items-center justify-center transition-all shadow-xs"
+                className="w-7 h-7 bg-white hover:bg-stone-100 text-stone-600 hover:text-indigo-600 border border-stone-200 rounded-lg flex items-center justify-center transition-all shadow-xs"
                 title="Add future idea"
               >
                 <Plus size={14} />
@@ -3134,12 +3134,12 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   value={ideaSearchQuery}
                   onChange={(e) => setIdeaSearchQuery(e.target.value)}
                   placeholder="Filter saved ideas..."
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-stone-800 placeholder:text-stone-400 outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
                 />
                 {ideaSearchQuery && (
                   <button
                     onClick={() => setIdeaSearchQuery('')}
-                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                    className="absolute right-2 top-2 text-stone-400 hover:text-stone-600 text-xs"
                   >
                     <i className="fas fa-times"></i>
                   </button>
@@ -3157,7 +3157,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                     value={newIdeaTitle}
                     onChange={(e) => setNewIdeaTitle(e.target.value)}
                     placeholder="e.g. Lavender Spa Launch"
-                    className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all"
+                    className="w-full bg-stone-50 border border-stone-200 rounded px-2.5 py-1.5 text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all"
                   />
                 </div>
                 <div>
@@ -3167,13 +3167,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                     onChange={(e) => setNewIdeaDesc(e.target.value)}
                     placeholder="Describe what needs to be worked on in the future..."
                     rows={3}
-                    className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all resize-none"
+                    className="w-full bg-stone-50 border border-stone-200 rounded px-2.5 py-1.5 text-xs font-medium text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all resize-none"
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     onClick={() => { setShowAddIdea(false); setNewIdeaTitle(''); setNewIdeaDesc(''); }}
-                    className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800"
+                    className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-500 hover:text-stone-800"
                   >
                     Cancel
                   </button>
@@ -3203,7 +3203,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           type="text"
                           value={editingIdeaTitle}
                           onChange={(e) => setEditingIdeaTitle(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                          className="w-full bg-stone-50 border border-stone-200 rounded px-2 py-1 text-xs font-bold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
                       <div>
@@ -3212,13 +3212,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           value={editingIdeaDesc}
                           onChange={(e) => setEditingIdeaDesc(e.target.value)}
                           rows={2}
-                          className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                          className="w-full bg-stone-50 border border-stone-200 rounded px-2 py-1 text-xs font-medium text-stone-700 outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
                         />
                       </div>
                       <div className="flex justify-end gap-1.5 pt-1">
                         <button
                           onClick={() => setEditingIdeaId(null)}
-                          className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600"
+                          className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-stone-400 hover:text-stone-600"
                         >
                           Cancel
                         </button>
@@ -3234,10 +3234,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 }
 
                 return (
-                  <div key={idea.id} className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3 relative group hover:border-indigo-200 transition-all">
+                  <div key={idea.id} className="p-4 bg-white border border-stone-200 rounded-xl shadow-xs space-y-3 relative group hover:border-indigo-200 transition-all">
                     <div>
                       <div className="flex justify-between items-start gap-2">
-                        <h4 className="font-bold text-xs text-slate-800 group-hover:text-indigo-600 transition-colors leading-tight">{idea.title}</h4>
+                        <h4 className="font-bold text-xs text-stone-800 group-hover:text-indigo-600 transition-colors leading-tight">{idea.title}</h4>
                         <div className="flex gap-1.5 shrink-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                           {/* Edit idea */}
                           <button
@@ -3246,7 +3246,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                               setEditingIdeaTitle(idea.title);
                               setEditingIdeaDesc(idea.description || '');
                             }}
-                            className="text-slate-400 hover:text-indigo-600 text-xs p-1"
+                            className="text-stone-400 hover:text-indigo-600 text-xs p-1"
                             title="Edit idea"
                           >
                             <i className="fas fa-edit"></i>
@@ -3256,7 +3256,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             onClick={() => {
                               if (confirm(`Are you sure you want to delete the idea "${idea.title}"?`)) handleDeleteIdea(idea.id);
                             }}
-                            className="text-slate-400 hover:text-rose-500 text-xs p-1"
+                            className="text-stone-400 hover:text-rose-500 text-xs p-1"
                             title="Delete idea"
                           >
                             <i className="fas fa-trash-alt"></i>
@@ -3264,17 +3264,17 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         </div>
                       </div>
                       {idea.description && (
-                        <p className="text-[11px] text-slate-500 mt-1 leading-normal whitespace-pre-line">{idea.description}</p>
+                        <p className="text-[11px] text-stone-500 mt-1 leading-normal whitespace-pre-line">{idea.description}</p>
                       )}
-                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-2 block">
+                      <p className="text-[8px] text-stone-400 font-bold uppercase tracking-wider mt-2 block">
                         Created: {new Date(idea.createdAt).toLocaleDateString()}
                       </p>
                     </div>
 
                     {/* Converting state menu */}
                     {isConverting ? (
-                      <div className="pt-2 border-t border-slate-100 space-y-1.5 animate-in slide-in-from-bottom-1 duration-150">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Select Planning Framework:</p>
+                      <div className="pt-2 border-t border-stone-100 space-y-1.5 animate-in slide-in-from-bottom-1 duration-150">
+                        <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Select Planning Framework:</p>
                         <div className="grid grid-cols-3 gap-1">
                           <button
                             onClick={() => handleConvertIdeaToPlan(idea, 'event')}
@@ -3297,7 +3297,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                         </div>
                         <button
                           onClick={() => setConvertingIdeaId(null)}
-                          className="w-full text-center text-[8px] text-slate-400 font-bold uppercase tracking-wider hover:text-slate-600 mt-1"
+                          className="w-full text-center text-[8px] text-stone-400 font-bold uppercase tracking-wider hover:text-stone-600 mt-1"
                         >
                           Cancel Conversion
                         </button>
@@ -3313,11 +3313,11 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   </div>
                 );
               }) : (
-                <div className="py-12 text-center bg-white border border-slate-200 border-dashed rounded-xl">
-                  <p className="text-slate-300 uppercase font-bold text-[8px] tracking-wider">
+                <div className="py-12 text-center bg-white border border-stone-200 border-dashed rounded-xl">
+                  <p className="text-stone-300 uppercase font-bold text-[8px] tracking-wider">
                     {ideaSearchQuery ? 'No Matching Ideas' : 'Idea Bin Empty'}
                   </p>
-                  <p className="text-[10px] text-slate-400 mt-1 max-w-[160px] mx-auto">
+                  <p className="text-[10px] text-stone-400 mt-1 max-w-[160px] mx-auto">
                     {ideaSearchQuery ? 'Try a different search term.' : 'Add concepts you want to work on in the future!'}
                   </p>
                 </div>
@@ -3328,25 +3328,25 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       )}
 
       {eventPendingDelete && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-xl border border-stone-200 shadow-sm overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
                   <AlertCircle className="w-5 h-5 text-red-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-950 tracking-tight">Delete Plan</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">This cannot be undone</p>
+                  <h3 className="text-lg font-bold text-stone-950 tracking-tight">Delete Plan</h3>
+                  <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">This cannot be undone</p>
                 </div>
               </div>
 
-              <p className="text-sm text-slate-600 mb-4">
-                This will permanently delete <span className="font-bold text-slate-800">"{eventPendingDelete.name}"</span>, including its ledger, tasks, documents, and activity log.
+              <p className="text-sm text-stone-600 mb-4">
+                This will permanently delete <span className="font-bold text-stone-800">"{eventPendingDelete.name}"</span>, including its ledger, tasks, documents, and activity log.
               </p>
 
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
-                Type <span className="text-slate-700">{eventPendingDelete.name}</span> to confirm
+              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">
+                Type <span className="text-stone-700">{eventPendingDelete.name}</span> to confirm
               </label>
               <input
                 autoFocus
@@ -3355,13 +3355,13 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') confirmDeleteEvent(); if (e.key === 'Escape') cancelDeleteEvent(); }}
                 placeholder={eventPendingDelete.name}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-red-500 font-semibold mb-6"
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-red-500 font-semibold mb-6"
               />
 
               <div className="flex gap-3">
                 <button
                   onClick={cancelDeleteEvent}
-                  className="flex-1 px-4 py-2.5 bg-slate-50 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wider border border-slate-200 hover:bg-slate-100 transition-all"
+                  className="flex-1 px-4 py-2.5 bg-stone-50 text-stone-600 rounded text-[10px] font-bold uppercase tracking-wider border border-stone-200 hover:bg-stone-100 transition-all"
                 >
                   Cancel
                 </button>
@@ -3390,46 +3390,46 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
       {/* Idea Bin Global Modal / Drawer */}
       {showIdeaBinModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl border border-stone-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+            <div className="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50/80">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20">
                   <i className="fas fa-lightbulb text-base"></i>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900 leading-tight">Idea Bin</h3>
+                    <h3 className="text-base font-bold text-stone-900 leading-tight">Idea Bin</h3>
                     <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-extrabold">
                       {(ideas || []).length} Saved
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">Persistent incubation chamber for future projects and business concepts</p>
+                  <p className="text-xs text-stone-500 mt-0.5">Persistent incubation chamber for future projects and business concepts</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowIdeaBinModal(false)}
-                className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg hover:bg-stone-200 text-stone-400 hover:text-stone-700 flex items-center justify-center transition-colors"
               >
                 <i className="fas fa-times"></i>
               </button>
             </div>
 
             {/* Modal Toolbar */}
-            <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between gap-3">
+            <div className="p-4 bg-white border-b border-stone-100 flex items-center justify-between gap-3">
               <div className="relative flex-1">
                 <input
                   type="text"
                   value={ideaSearchQuery}
                   onChange={(e) => setIdeaSearchQuery(e.target.value)}
                   placeholder="Search your ideas..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition-all"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-xs text-stone-800 outline-none focus:ring-1 focus:ring-amber-500 focus:bg-white transition-all"
                 />
                 {ideaSearchQuery && (
                   <button
                     onClick={() => setIdeaSearchQuery('')}
-                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs"
+                    className="absolute right-2.5 top-2.5 text-stone-400 hover:text-stone-600 text-xs"
                   >
                     <i className="fas fa-times"></i>
                   </button>
@@ -3451,19 +3451,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   value={newIdeaTitle}
                   onChange={(e) => setNewIdeaTitle(e.target.value)}
                   placeholder="Idea concept or project title..."
-                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs font-semibold text-stone-900 outline-none focus:ring-1 focus:ring-amber-500"
                 />
                 <textarea
                   value={newIdeaDesc}
                   onChange={(e) => setNewIdeaDesc(e.target.value)}
                   placeholder="Description, notes, or future milestones..."
                   rows={2}
-                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs text-stone-700 outline-none focus:ring-1 focus:ring-amber-500 resize-none"
                 />
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => { setShowAddIdea(false); setNewIdeaTitle(''); setNewIdeaDesc(''); }}
-                    className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                    className="px-3 py-1 text-xs font-semibold text-stone-600 hover:text-stone-900"
                   >
                     Cancel
                   </button>
@@ -3487,23 +3487,23 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
                   if (isEditing) {
                     return (
-                      <div key={idea.id} className="p-4 bg-slate-50 border border-amber-300 rounded-xl space-y-3">
+                      <div key={idea.id} className="p-4 bg-stone-50 border border-amber-300 rounded-xl space-y-3">
                         <input
                           type="text"
                           value={editingIdeaTitle}
                           onChange={(e) => setEditingIdeaTitle(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                          className="w-full bg-white border border-stone-200 rounded px-2.5 py-1.5 text-xs font-bold text-stone-900"
                         />
                         <textarea
                           value={editingIdeaDesc}
                           onChange={(e) => setEditingIdeaDesc(e.target.value)}
                           rows={2}
-                          className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-700"
+                          className="w-full bg-white border border-stone-200 rounded px-2.5 py-1.5 text-xs text-stone-700"
                         />
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => setEditingIdeaId(null)}
-                            className="px-3 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                            className="px-3 py-1 text-xs font-semibold text-stone-500 hover:text-stone-800"
                           >
                             Cancel
                           </button>
@@ -3521,17 +3521,17 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   return (
                     <div
                       key={idea.id}
-                      className="p-4 bg-white border border-slate-200 rounded-xl hover:border-amber-400 transition-all shadow-xs space-y-3"
+                      className="p-4 bg-white border border-stone-200 rounded-xl hover:border-amber-400 transition-all shadow-xs space-y-3"
                     >
                       <div className="flex justify-between items-start gap-3">
                         <div>
-                          <h4 className="font-bold text-sm text-slate-900">{idea.title}</h4>
+                          <h4 className="font-bold text-sm text-stone-900">{idea.title}</h4>
                           {idea.description && (
-                            <p className="text-xs text-slate-600 mt-1 whitespace-pre-line leading-relaxed">
+                            <p className="text-xs text-stone-600 mt-1 whitespace-pre-line leading-relaxed">
                               {idea.description}
                             </p>
                           )}
-                          <span className="text-[10px] text-slate-400 font-medium block mt-2">
+                          <span className="text-[10px] text-stone-400 font-medium block mt-2">
                             Saved on {new Date(idea.createdAt).toLocaleDateString()}
                           </span>
                         </div>
@@ -3542,7 +3542,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                               setEditingIdeaTitle(idea.title);
                               setEditingIdeaDesc(idea.description || '');
                             }}
-                            className="w-7 h-7 text-slate-400 hover:text-amber-600 rounded flex items-center justify-center hover:bg-slate-100"
+                            className="w-7 h-7 text-stone-400 hover:text-amber-600 rounded flex items-center justify-center hover:bg-stone-100"
                             title="Edit"
                           >
                             <i className="fas fa-edit text-xs"></i>
@@ -3551,7 +3551,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                             onClick={() => {
                               if (confirm(`Delete idea "${idea.title}"?`)) handleDeleteIdea(idea.id);
                             }}
-                            className="w-7 h-7 text-slate-400 hover:text-rose-600 rounded flex items-center justify-center hover:bg-rose-50"
+                            className="w-7 h-7 text-stone-400 hover:text-rose-600 rounded flex items-center justify-center hover:bg-rose-50"
                             title="Delete"
                           >
                             <i className="fas fa-trash-alt text-xs"></i>
@@ -3560,8 +3560,8 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                       </div>
 
                       {isConverting ? (
-                        <div className="pt-3 border-t border-slate-100 space-y-2">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <div className="pt-3 border-t border-stone-100 space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
                             Convert into active project:
                           </p>
                           <div className="grid grid-cols-3 gap-2">
@@ -3595,7 +3595,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                           </div>
                           <button
                             onClick={() => setConvertingIdeaId(null)}
-                            className="text-[10px] text-slate-400 font-bold uppercase hover:text-slate-600"
+                            className="text-[10px] text-stone-400 font-bold uppercase hover:text-stone-600"
                           >
                             Cancel
                           </button>
@@ -3612,10 +3612,10 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                   );
                 })
               ) : (
-                <div className="py-16 text-center text-slate-400">
-                  <i className="fas fa-lightbulb text-3xl mb-2 text-slate-300"></i>
+                <div className="py-16 text-center text-stone-400">
+                  <i className="fas fa-lightbulb text-3xl mb-2 text-stone-300"></i>
                   <p className="font-bold text-xs uppercase tracking-wider">No ideas found</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-stone-500 mt-1">
                     {ideaSearchQuery ? 'Try matching another search term.' : 'Click "Add Idea" to store notes and future concepts.'}
                   </p>
                 </div>

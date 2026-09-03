@@ -157,32 +157,32 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-20">
-      <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+      <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-6 bg-white p-5 rounded-xl border border-stone-200 shadow-sm relative overflow-hidden">
         <div className="relative z-10">
-          <h2 className="text-2xl font-light text-slate-800 tracking-tight leading-none">{monthName} <span className="font-semibold text-indigo-600">{year}</span></h2>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">Operational Intelligence Grid</p>
+          <h2 className="text-2xl font-light text-stone-800 tracking-tight leading-none">{monthName} <span className="font-semibold text-indigo-600">{year}</span></h2>
+          <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-1.5">Operational Intelligence Grid</p>
         </div>
-        <div className="flex items-center bg-slate-50 p-1 border border-slate-200 rounded-lg gap-1.5 relative z-10">
-          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded shadow-sm hover:text-indigo-600 hover:border-slate-300 transition-all"><i className="fas fa-chevron-left text-xs"></i></button>
-          <button onClick={goToToday} className="px-3 h-8 flex items-center justify-center bg-white border border-slate-200 text-slate-900 font-bold text-[10px] uppercase tracking-wider rounded shadow-sm hover:text-indigo-600 hover:border-slate-300 transition-all">Today</button>
-          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded shadow-sm hover:text-indigo-600 hover:border-slate-300 transition-all"><i className="fas fa-chevron-right text-xs"></i></button>
-          <div className="w-px h-6 bg-slate-200 mx-1"></div>
-          <button onClick={() => { setEditingItem(null); setShowEditor(true); }} className="px-3 h-8 flex items-center justify-center bg-slate-900 text-white font-bold text-[10px] uppercase tracking-wider rounded hover:bg-indigo-600 transition-all">
+        <div className="flex items-center bg-stone-50 p-1 border border-stone-200 rounded-lg gap-1.5 relative z-10">
+          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-600 rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all"><i className="fas fa-chevron-left text-xs"></i></button>
+          <button onClick={goToToday} className="px-3 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-900 font-bold text-[10px] uppercase tracking-wider rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all">Today</button>
+          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-600 rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all"><i className="fas fa-chevron-right text-xs"></i></button>
+          <div className="w-px h-6 bg-stone-200 mx-1"></div>
+          <button onClick={() => { setEditingItem(null); setShowEditor(true); }} className="px-3 h-8 flex items-center justify-center bg-stone-900 text-white font-bold text-[10px] uppercase tracking-wider rounded hover:bg-indigo-600 transition-all">
              <i className="fas fa-plus mr-1.5 text-[9px]"></i> Schedule
           </button>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-200 p-2">
+        <div className="lg:col-span-3 bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+          <div className="grid grid-cols-7 bg-stone-50 border-b border-stone-200 p-2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-              <div key={d} className="text-center py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">{d}</div>
+              <div key={d} className="text-center py-1.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider">{d}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-px bg-slate-100">
+          <div className="grid grid-cols-7 gap-px bg-stone-100">
             {calendarDays.map((day, idx) => {
-              if (day === null) return <div key={`empty-${idx}`} className="bg-slate-50/30 min-h-[120px]"></div>;
+              if (day === null) return <div key={`empty-${idx}`} className="bg-stone-50/30 min-h-[120px]"></div>;
               
               const { dayProjects, dayTasks, dayRecurringEx, dayRecurringIn, dayCalendarItems } = getDayDetails(day);
               const isToday = day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
@@ -192,10 +192,10 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                 <div 
                   key={day} 
                   onClick={() => setSelectedDay(new Date(year, month, day))}
-                  className={`bg-white min-h-[120px] p-2.5 transition-all cursor-pointer group relative hover:z-10 border-b border-r border-slate-100 ${isSelected ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/20' : 'hover:bg-slate-50/50'}`}
+                  className={`bg-white min-h-[120px] p-2.5 transition-all cursor-pointer group relative hover:z-10 border-b border-r border-stone-100 ${isSelected ? 'ring-1 ring-inset ring-indigo-500 bg-indigo-50/20' : 'hover:bg-stone-50/50'}`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold ${isToday ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}>
+                    <span className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold ${isToday ? 'bg-indigo-600 text-white shadow-sm' : 'text-stone-500'}`}>
                       {day}
                     </span>
                   </div>
@@ -203,7 +203,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                   <div className="space-y-1 max-h-[80px] overflow-y-auto no-scrollbar">
                     {dayCalendarItems.map(ci => (
                       <div key={ci.id} className={`px-2 py-0.5 text-[8px] font-bold uppercase rounded truncate border flex items-center gap-1 ${
-                        ci.type === 'meeting' ? 'bg-slate-900 text-white border-slate-800' : 
+                        ci.type === 'meeting' ? 'bg-stone-900 text-white border-stone-800' : 
                         ci.type === 'reminder' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
                         'bg-indigo-100 text-indigo-700 border-indigo-200'
                       } ${ci.completed ? 'opacity-40 grayscale line-through' : ''}`}>
@@ -229,17 +229,17 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
         </div>
 
         <aside className="space-y-6">
-          <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 text-white shadow-sm h-[600px] flex flex-col">
+          <div className="bg-stone-900 p-5 rounded-xl border border-stone-800 text-white shadow-sm h-[600px] flex flex-col">
             <h3 className="text-indigo-400 font-bold uppercase text-[9px] tracking-wider mb-4 flex justify-between items-center">
                <span>Day Operational Report</span>
                <i className="fas fa-shield-halved opacity-40"></i>
             </h3>
             {selectedDay ? (
               <div className="space-y-4 flex-1 overflow-y-auto no-scrollbar">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-800/80">
+                <div className="flex justify-between items-center pb-2 border-b border-stone-800/80">
                    <div>
                      <p className="text-white font-semibold text-lg tracking-tight leading-none mb-1">{selectedDay.toLocaleDateString('default', { day: 'numeric', month: 'long' })}</p>
-                     <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{selectedDay.toLocaleDateString('default', { weekday: 'long' })}</p>
+                     <p className="text-[9px] text-stone-500 font-bold uppercase tracking-wider">{selectedDay.toLocaleDateString('default', { weekday: 'long' })}</p>
                    </div>
                    <button onClick={() => { setEditingItem(null); setShowEditor(true); }} className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white text-xs hover:bg-indigo-500 transition-all shadow-sm">
                      <i className="fas fa-calendar-plus text-xs"></i>
@@ -261,20 +261,20 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                              <div className="flex justify-between items-start mb-1.5">
                                 <div className="flex items-center gap-1.5">
                                   <span className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-wider ${
-                                    ci.type === 'meeting' ? 'bg-white text-slate-900' : 'bg-indigo-500 text-white'
+                                    ci.type === 'meeting' ? 'bg-white text-stone-900' : 'bg-indigo-500 text-white'
                                   }`}>
                                     {ci.type}
                                   </span>
-                                  {ci.startTime && <span className="text-[9px] font-semibold text-slate-400">{ci.startTime}</span>}
+                                  {ci.startTime && <span className="text-[9px] font-semibold text-stone-400">{ci.startTime}</span>}
                                   {ci.recurring !== 'none' && <i className="fas fa-redo text-[8px] text-indigo-400"></i>}
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   {ci.type === 'reminder' && (
-                                    <button onClick={() => toggleComplete(ci.id)} className={`w-6 h-6 rounded flex items-center justify-center text-[9px] ${ci.completed ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-400 hover:bg-white/20'}`}>
+                                    <button onClick={() => toggleComplete(ci.id)} className={`w-6 h-6 rounded flex items-center justify-center text-[9px] ${ci.completed ? 'bg-emerald-500 text-white' : 'bg-white/10 text-stone-400 hover:bg-white/20'}`}>
                                       <i className="fas fa-check"></i>
                                     </button>
                                   )}
-                                  <button onClick={() => startEdit(ci)} className="w-6 h-6 bg-white/10 rounded flex items-center justify-center text-slate-400 text-[9px] hover:bg-white/20">
+                                  <button onClick={() => startEdit(ci)} className="w-6 h-6 bg-white/10 rounded flex items-center justify-center text-stone-400 text-[9px] hover:bg-white/20">
                                     <i className="fas fa-pencil-alt"></i>
                                   </button>
                                   <button onClick={() => handleDeleteItem(ci.id)} className="w-6 h-6 bg-rose-500/10 rounded flex items-center justify-center text-rose-500 text-[9px] hover:bg-rose-500/20">
@@ -282,8 +282,8 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                                   </button>
                                 </div>
                              </div>
-                             <p className={`text-xs font-semibold ${ci.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>{ci.title}</p>
-                             {ci.description && <p className="text-[10px] text-slate-500 font-medium mt-1">{ci.description}</p>}
+                             <p className={`text-xs font-semibold ${ci.completed ? 'line-through text-stone-500' : 'text-stone-200'}`}>{ci.title}</p>
+                             {ci.description && <p className="text-[10px] text-stone-500 font-medium mt-1">{ci.description}</p>}
                           </div>
                         ))}
                       </div>
@@ -295,7 +295,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                         {selectedDayData.dayProjects.map(e => (
                           <div key={e.id} className="p-3 bg-white/5 border border-white/10 rounded-lg">
                              <p className="text-xs font-semibold text-white">{e.name}</p>
-                             <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Status: {e.status}</p>
+                             <p className="text-[9px] text-stone-500 uppercase font-bold tracking-wider mt-0.5">Status: {e.status}</p>
                           </div>
                         ))}
                       </div>
@@ -307,15 +307,15 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                         {selectedDayData.dayTasks.map(t => (
                           <div key={t.task.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex justify-between items-center">
                              <div>
-                               <p className={`text-xs font-semibold ${t.task.completed ? 'text-slate-400 line-through' : 'text-white'}`}>{t.task.text}</p>
-                               <p className="text-[9px] text-slate-500 uppercase font-bold mt-0.5">Ref: {t.eventName}</p>
+                               <p className={`text-xs font-semibold ${t.task.completed ? 'text-stone-400 line-through' : 'text-white'}`}>{t.task.text}</p>
+                               <p className="text-[9px] text-stone-500 uppercase font-bold mt-0.5">Ref: {t.eventName}</p>
                              </div>
                              <button
                                type="button"
                                onClick={() => onToggleTaskCompletion && onToggleTaskCompletion(t.eventId, t.task.id)}
                                title={t.task.completed ? 'Mark incomplete' : 'Mark completed'}
                                className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] transition cursor-pointer ${
-                                 t.task.completed ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-400 border border-white/10 hover:border-emerald-400 hover:text-emerald-400'
+                                 t.task.completed ? 'bg-emerald-500 text-white' : 'bg-white/5 text-stone-400 border border-white/10 hover:border-emerald-400 hover:text-emerald-400'
                                }`}
                              >
                                <i className={`fas ${t.task.completed ? 'fa-check' : 'fa-clock'}`}></i>
@@ -332,7 +332,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                           <div key={re.id} className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg flex justify-between items-center">
                              <div>
                                <p className="text-xs font-semibold text-rose-400">{re.description}</p>
-                               <p className="text-[9px] text-slate-500 uppercase font-bold">Capital Outflow</p>
+                               <p className="text-[9px] text-stone-500 uppercase font-bold">Capital Outflow</p>
                              </div>
                              <span className="text-xs font-semibold text-rose-400">-${re.amount}</span>
                           </div>
@@ -341,7 +341,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                           <div key={ri.id} className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex justify-between items-center">
                              <div>
                                <p className="text-xs font-semibold text-emerald-400">{ri.description}</p>
-                               <p className="text-[9px] text-slate-500 uppercase font-bold">Capital Inflow</p>
+                               <p className="text-[9px] text-stone-500 uppercase font-bold">Capital Inflow</p>
                              </div>
                              <span className="text-xs font-semibold text-emerald-450">+${ri.amount}</span>
                           </div>
@@ -374,46 +374,46 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
 
       {/* Editor Modal */}
       {showEditor && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-xl border border-stone-200 shadow-sm overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6">
                <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h3 className="text-lg font-bold text-slate-950 tracking-tight">{editingItem ? 'Modify Directive' : 'Schedule Directive'}</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Log Matrix Entry</p>
+                    <h3 className="text-lg font-bold text-stone-950 tracking-tight">{editingItem ? 'Modify Directive' : 'Schedule Directive'}</h3>
+                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Log Matrix Entry</p>
                   </div>
-                  <button onClick={() => { setShowEditor(false); setEditingItem(null); }} className="w-8 h-8 bg-slate-50 rounded flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all border border-slate-100"><i className="fas fa-times text-xs"></i></button>
+                  <button onClick={() => { setShowEditor(false); setEditingItem(null); }} className="w-8 h-8 bg-stone-50 rounded flex items-center justify-center text-stone-400 hover:text-stone-900 transition-all border border-stone-100"><i className="fas fa-times text-xs"></i></button>
                </div>
 
                <form onSubmit={handleSaveItem} className="space-y-4">
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Entry Title</label>
-                    <input name="title" defaultValue={editingItem?.title} required placeholder="Operational Title..." className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold" />
+                    <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Entry Title</label>
+                    <input name="title" defaultValue={editingItem?.title} required placeholder="Operational Title..." className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Date</label>
-                      <input type="date" name="date" required defaultValue={editingItem?.date || selectedDay?.toISOString().split('T')[0]} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold" />
+                      <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Date</label>
+                      <input type="date" name="date" required defaultValue={editingItem?.date || selectedDay?.toISOString().split('T')[0]} className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold" />
                     </div>
                     <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Start Time</label>
-                      <input type="time" name="startTime" defaultValue={editingItem?.startTime} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold" />
+                      <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Start Time</label>
+                      <input type="time" name="startTime" defaultValue={editingItem?.startTime} className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Type</label>
-                      <select name="type" defaultValue={editingItem?.type || 'meeting'} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold appearance-none">
+                      <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Type</label>
+                      <select name="type" defaultValue={editingItem?.type || 'meeting'} className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold appearance-none">
                         <option value="meeting">Meeting</option>
                         <option value="reminder">Reminder</option>
                         <option value="event">Event</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Recurrence</label>
-                      <select name="recurring" defaultValue={editingItem?.recurring || 'none'} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold appearance-none">
+                      <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Recurrence</label>
+                      <select name="recurring" defaultValue={editingItem?.recurring || 'none'} className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 font-semibold appearance-none">
                         <option value="none">Once</option>
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
@@ -423,11 +423,11 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Description / Notes</label>
-                    <textarea name="description" defaultValue={editingItem?.description} placeholder="Operational details..." className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-sm text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-medium h-20" />
+                    <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Description / Notes</label>
+                    <textarea name="description" defaultValue={editingItem?.description} placeholder="Operational details..." className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded text-sm text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500 font-medium h-20" />
                   </div>
 
-                  <button type="submit" className="w-full py-2.5 bg-slate-900 text-white font-bold rounded shadow-sm hover:bg-indigo-600 transition-all uppercase tracking-wider text-[11px]">
+                  <button type="submit" className="w-full py-2.5 bg-stone-900 text-white font-bold rounded shadow-sm hover:bg-indigo-600 transition-all uppercase tracking-wider text-[11px]">
                      {editingItem ? 'Update Directive' : 'Commence Directive'}
                   </button>
                </form>

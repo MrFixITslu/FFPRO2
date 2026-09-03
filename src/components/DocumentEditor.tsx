@@ -162,10 +162,10 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
   };
 
   return (
-    <div className="fixed inset-0 z-[250] bg-slate-200 flex flex-col items-center justify-start animate-in fade-in duration-300 overflow-hidden">
+    <div className="fixed inset-0 z-[250] bg-stone-200 flex flex-col items-center justify-start animate-in fade-in duration-300 overflow-hidden">
       
       {/* RIBBON UI */}
-      <div className="w-full bg-white border-b border-slate-300 shadow-sm z-30 px-6 pt-2 pb-1 shrink-0 no-print">
+      <div className="w-full bg-white border-b border-stone-300 shadow-sm z-30 px-6 pt-2 pb-1 shrink-0 no-print">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 rounded-lg border border-indigo-100">
@@ -176,7 +176,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
               type="text" 
               value={title} 
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-transparent border-none outline-none font-bold text-slate-700 text-sm w-64 placeholder:text-slate-300"
+              className="bg-transparent border-none outline-none font-bold text-stone-700 text-sm w-64 placeholder:text-stone-300"
               placeholder="Untitled Document..."
             />
           </div>
@@ -184,91 +184,91 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
           <div className="flex items-center gap-2">
             <button 
               onClick={exportToPDF}
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition flex items-center gap-2 shadow-lg shadow-slate-200"
+              className="px-4 py-2 bg-stone-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-stone-800 transition flex items-center gap-2 shadow-lg shadow-slate-200"
             >
               <i className="fas fa-file-pdf"></i> Export PDF
             </button>
-            <div className="w-px h-6 bg-slate-200 mx-1"></div>
+            <div className="w-px h-6 bg-stone-200 mx-1"></div>
             <button 
               onClick={handleSave}
               disabled={isSaving}
-              className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md transition flex items-center gap-2 ${isSaving ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md transition flex items-center gap-2 ${isSaving ? 'bg-stone-100 text-stone-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
             >
               {isSaving ? <i className="fas fa-sync fa-spin"></i> : <i className="fas fa-floppy-disk"></i>}
               {isSaving ? 'Saving...' : 'Save Draft'}
             </button>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-rose-600 rounded-lg border border-slate-200 transition-colors">
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-400 hover:text-rose-600 rounded-lg border border-stone-200 transition-colors">
               <i className="fas fa-times"></i>
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-2 border-t border-slate-100">
-          <div className="flex flex-col gap-1 pr-4 border-r border-slate-200 shrink-0">
+        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-2 border-t border-stone-100">
+          <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-               <button onMouseDown={(e) => execCommand(e, 'undo')} className="w-8 h-8 hover:bg-slate-100 rounded text-slate-600" title="Undo"><i className="fas fa-undo text-xs"></i></button>
-               <button onMouseDown={(e) => execCommand(e, 'redo')} className="w-8 h-8 hover:bg-slate-100 rounded text-slate-600" title="Redo"><i className="fas fa-redo text-xs"></i></button>
+               <button onMouseDown={(e) => execCommand(e, 'undo')} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Undo"><i className="fas fa-undo text-xs"></i></button>
+               <button onMouseDown={(e) => execCommand(e, 'redo')} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Redo"><i className="fas fa-redo text-xs"></i></button>
              </div>
-             <span className="text-[8px] font-bold text-slate-400 uppercase text-center">History</span>
+             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">History</span>
           </div>
 
-          <div className="flex flex-col gap-1 pr-4 border-r border-slate-200 shrink-0">
+          <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
                 <button 
                   onMouseDown={(e) => execCommand(e, 'bold')} 
-                  className={`w-8 h-8 rounded transition-all ${activeStates.bold ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}
+                  className={`w-8 h-8 rounded transition-all ${activeStates.bold ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}
                 ><i className="fas fa-bold text-xs"></i></button>
                 <button 
                   onMouseDown={(e) => execCommand(e, 'italic')} 
-                  className={`w-8 h-8 rounded transition-all ${activeStates.italic ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}
+                  className={`w-8 h-8 rounded transition-all ${activeStates.italic ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}
                 ><i className="fas fa-italic text-xs"></i></button>
                 <button 
                   onMouseDown={(e) => execCommand(e, 'underline')} 
-                  className={`w-8 h-8 rounded transition-all ${activeStates.underline ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}
+                  className={`w-8 h-8 rounded transition-all ${activeStates.underline ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}
                 ><i className="fas fa-underline text-xs"></i></button>
-                <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                <button onMouseDown={() => changeFontSize(1)} className="w-8 h-8 hover:bg-slate-100 rounded text-slate-600" title="Large"><i className="fas fa-font text-xs"></i><i className="fas fa-plus text-[6px]"></i></button>
-                <button onMouseDown={() => changeFontSize(-1)} className="w-8 h-8 hover:bg-slate-100 rounded text-slate-600" title="Small"><i className="fas fa-font text-[8px]"></i><i className="fas fa-minus text-[6px]"></i></button>
+                <div className="w-px h-6 bg-stone-200 mx-1"></div>
+                <button onMouseDown={() => changeFontSize(1)} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Large"><i className="fas fa-font text-xs"></i><i className="fas fa-plus text-[6px]"></i></button>
+                <button onMouseDown={() => changeFontSize(-1)} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Small"><i className="fas fa-font text-[8px]"></i><i className="fas fa-minus text-[6px]"></i></button>
              </div>
-             <span className="text-[8px] font-bold text-slate-400 uppercase text-center">Format</span>
+             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Format</span>
           </div>
 
-          <div className="flex flex-col gap-1 pr-4 border-r border-slate-200 shrink-0">
+          <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h1')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.h1 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}>H1</button>
-                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h2')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.h2 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}>H2</button>
-                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'p')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.p ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}>P</button>
+                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h1')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.h1 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>H1</button>
+                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h2')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.h2 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>H2</button>
+                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'p')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.p ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>P</button>
              </div>
-             <span className="text-[8px] font-bold text-slate-400 uppercase text-center">Paragraph</span>
+             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Paragraph</span>
           </div>
 
-          <div className="flex flex-col gap-1 pr-4 border-r border-slate-200 shrink-0">
+          <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-                <button onMouseDown={(e) => execCommand(e, 'insertUnorderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listUl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}><i className="fas fa-list-ul text-xs"></i></button>
-                <button onMouseDown={(e) => execCommand(e, 'insertOrderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listOl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-slate-100 text-slate-600'}`}><i className="fas fa-list-ol text-xs"></i></button>
+                <button onMouseDown={(e) => execCommand(e, 'insertUnorderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listUl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}><i className="fas fa-list-ul text-xs"></i></button>
+                <button onMouseDown={(e) => execCommand(e, 'insertOrderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listOl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}><i className="fas fa-list-ol text-xs"></i></button>
              </div>
-             <span className="text-[8px] font-bold text-slate-400 uppercase text-center">Lists</span>
+             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Lists</span>
           </div>
 
-          <div className="flex flex-col gap-1 pr-4 border-r border-slate-200 shrink-0">
+          <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-                <button onMouseDown={(e) => { e.preventDefault(); fileInputRef.current?.click(); }} className="w-8 h-8 hover:bg-slate-100 rounded text-slate-600" title="Insert Image"><i className="fas fa-image text-xs"></i></button>
+                <button onMouseDown={(e) => { e.preventDefault(); fileInputRef.current?.click(); }} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Insert Image"><i className="fas fa-image text-xs"></i></button>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageInsert} />
-                <button onMouseDown={insertPageBreak} className="px-3 h-8 bg-slate-50 text-slate-500 rounded font-black text-[8px] uppercase tracking-widest hover:bg-slate-100 border border-slate-100" title="Page Break">
+                <button onMouseDown={insertPageBreak} className="px-3 h-8 bg-stone-50 text-stone-500 rounded font-black text-[8px] uppercase tracking-widest hover:bg-stone-100 border border-stone-100" title="Page Break">
                   <i className="fas fa-scissors mr-1.5"></i> Page Break
                 </button>
              </div>
-             <span className="text-[8px] font-bold text-slate-400 uppercase text-center">Insert</span>
+             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Insert</span>
           </div>
 
-          <button onMouseDown={(e) => execCommand(e, 'removeFormat')} className="ml-auto px-4 h-8 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-lg font-black text-[8px] uppercase tracking-widest flex items-center gap-2 border border-slate-100 transition-all shrink-0">
+          <button onMouseDown={(e) => execCommand(e, 'removeFormat')} className="ml-auto px-4 h-8 bg-stone-50 text-stone-400 hover:text-rose-500 rounded-lg font-black text-[8px] uppercase tracking-widest flex items-center gap-2 border border-stone-100 transition-all shrink-0">
             <i className="fas fa-eraser"></i> Clear Styles
           </button>
         </div>
       </div>
 
       {/* PAPER CANVAS */}
-      <div className="flex-1 w-full overflow-y-auto custom-scrollbar flex flex-col items-center py-10 px-4 bg-slate-200 print:bg-white print:p-0 print:block">
+      <div className="flex-1 w-full overflow-y-auto custom-scrollbar flex flex-col items-center py-10 px-4 bg-stone-200 print:bg-white print:p-0 print:block">
         <div className="w-full max-w-[850px] relative shadow-2xl print:shadow-none print:max-w-none">
           <div 
             ref={editorRef}
@@ -277,7 +277,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
             onKeyUp={updateStats}
             onMouseUp={updateStats}
             onPaste={handlePaste}
-            className="w-full min-h-[1100px] bg-white p-[90px] outline-none text-slate-800 prose prose-slate max-w-none prose-h1:text-4xl prose-h1:font-black prose-p:text-[17px] prose-p:leading-relaxed prose-li:text-[17px] prose-ul:list-disc prose-ol:list-decimal print:p-0 print:min-h-0"
+            className="w-full min-h-[1100px] bg-white p-[90px] outline-none text-stone-800 prose prose-slate max-w-none prose-h1:text-4xl prose-h1:font-black prose-p:text-[17px] prose-p:leading-relaxed prose-li:text-[17px] prose-ul:list-disc prose-ol:list-decimal print:p-0 print:min-h-0"
             style={{ fontFamily: "'Inter', sans-serif" }}
           />
         </div>

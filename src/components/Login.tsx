@@ -155,7 +155,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   // --- Reset-password screen: shown when the user arrived via the emailed link ---
   if (resetToken) {
     return (
-      <div className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
@@ -189,7 +189,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             ) : (
               <form onSubmit={handleResetSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">New Password</label>
+                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">New Password</label>
                   <input
                     type="password"
                     value={resetPassword}
@@ -202,7 +202,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Confirm New Password</label>
+                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Confirm New Password</label>
                   <input
                     type="password"
                     value={resetConfirmPassword}
@@ -229,7 +229,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 <button
                   type="button"
                   onClick={() => onResetHandled && onResetHandled()}
-                  className="w-full text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                  className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
                 >
                   Cancel
                 </button>
@@ -244,7 +244,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   // --- Forgot-password screen ---
   if (mode === 'forgot') {
     return (
-      <div className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
@@ -277,9 +277,9 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               </div>
             ) : (
               <form onSubmit={handleForgotSubmit} className="space-y-4">
-                <p className="text-slate-400 text-[11px] leading-relaxed">Enter your account email and we'll send you a link to reset your password.</p>
+                <p className="text-stone-400 text-[11px] leading-relaxed">Enter your account email and we'll send you a link to reset your password.</p>
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Email</label>
                   <input
                     type="email"
                     value={email}
@@ -305,7 +305,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(null); }}
-                  className="w-full text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                  className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
                 >
                   Back to Sign In
                 </button>
@@ -318,7 +318,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
@@ -355,15 +355,15 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             />
           </div>
 
-          <div className="flex items-center gap-3 text-slate-500 text-[8px] font-bold uppercase tracking-wider">
+          <div className="flex items-center gap-3 text-stone-500 text-[8px] font-bold uppercase tracking-wider">
             <div className="flex-1 h-px bg-white/10" /> or use email <div className="flex-1 h-px bg-white/10" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Email</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">
                   <i className="fas fa-envelope"></i>
                 </span>
                 <input
@@ -380,9 +380,9 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
 
             {mode === 'register' && (
               <div>
-                <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Username <span className="text-slate-500 normal-case">(optional)</span></label>
+                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Username <span className="text-stone-500 normal-case">(optional)</span></label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">
                     <i className="fas fa-user"></i>
                   </span>
                   <input
@@ -398,9 +398,9 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             )}
 
             <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Password</label>
+              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Password</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">
                   <i className="fas fa-lock"></i>
                 </span>
                 <input
@@ -419,7 +419,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   <button
                     type="button"
                     onClick={() => { setMode('forgot'); setError(null); }}
-                    className="text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                    className="text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
                   >
                     Forgot password?
                   </button>
@@ -451,16 +451,16 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
           <button
             type="button"
             onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
-            className="w-full text-center text-[9px] font-bold text-slate-500 uppercase tracking-wider hover:text-indigo-400 transition"
+            className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
           >
             {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
           </button>
         </div>
 
-        <p className="mt-6 text-center text-slate-600 text-[8px] font-bold uppercase tracking-wider">
+        <p className="mt-6 text-center text-stone-600 text-[8px] font-bold uppercase tracking-wider">
           Auth-Shield v2.0 • OAuth2 + bcrypt
         </p>
-        <p className="mt-2 text-center text-[9px] text-slate-600">
+        <p className="mt-2 text-center text-[9px] text-stone-600">
           <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 transition">Terms of Service</a>
           <span className="mx-1.5">·</span>
           <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 transition">Privacy Policy</a>
@@ -468,8 +468,8 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
       </div>
 
       {showConfigHelp && (
-        <div className="fixed inset-0 z-[250] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-white/10 rounded-lg max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[250] bg-stone-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-stone-900 border border-white/10 rounded-lg max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
               <div className="flex items-center gap-2">
@@ -478,7 +478,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white capitalize">{selectedProvider} Integration</h3>
-                  <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Self-Hosted Server Guide</p>
+                  <p className="text-[9px] font-semibold text-stone-400 uppercase tracking-wider">Self-Hosted Server Guide</p>
                 </div>
               </div>
               <button
@@ -486,7 +486,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   setShowConfigHelp(false);
                   setSelectedProvider(null);
                 }}
-                className="text-slate-400 hover:text-white transition p-1"
+                className="text-stone-400 hover:text-white transition p-1"
                 aria-label="Close"
               >
                 <i className="fas fa-times"></i>
@@ -494,14 +494,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-white/10 bg-slate-950/40">
+            <div className="flex border-b border-white/10 bg-stone-950/40">
               <button
                 type="button"
                 onClick={() => setConfigTab('env')}
                 className={`flex-1 py-2.5 text-center text-[9px] font-bold uppercase tracking-wider border-b-2 transition-all ${
                   configTab === 'env'
                     ? 'border-indigo-500 text-indigo-400 bg-white/5'
-                    : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
+                    : 'border-transparent text-stone-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 1. Environment Setup
@@ -512,7 +512,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 className={`flex-1 py-2.5 text-center text-[9px] font-bold uppercase tracking-wider border-b-2 transition-all ${
                   configTab === 'docker'
                     ? 'border-indigo-500 text-indigo-400 bg-white/5'
-                    : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
+                    : 'border-transparent text-stone-400 hover:text-white hover:bg-white/5'
                 }`}
               >
                 2. Docker &amp; Nginx Setup
@@ -520,14 +520,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {/* Content (Scrollable) */}
-            <div className="p-5 overflow-y-auto space-y-4 text-xs text-slate-300">
+            <div className="p-5 overflow-y-auto space-y-4 text-xs text-stone-300">
               {configTab === 'env' && (
                 <div className="space-y-3">
-                  <p className="text-slate-400 leading-relaxed text-[11px]">
+                  <p className="text-stone-400 leading-relaxed text-[11px]">
                     To enable <strong>Continue with {selectedProvider === 'google' ? 'Google' : selectedProvider === 'facebook' ? 'Facebook' : 'Apple'}</strong> on your live deployment, register your application on the developer portal and configure the following environment variables:
                   </p>
 
-                  <div className="bg-slate-950 p-3 rounded border border-white/5 font-mono text-[10px] text-indigo-300 space-y-2 select-all leading-normal">
+                  <div className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[10px] text-indigo-300 space-y-2 select-all leading-normal">
                     {selectedProvider === 'google' && (
                       <>
                         <div># Google Cloud Console OAuth Client</div>
@@ -567,7 +567,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
 
               {configTab === 'docker' && (
                 <div className="space-y-3">
-                  <div className="text-slate-400 leading-relaxed text-[11px] space-y-2">
+                  <div className="text-stone-400 leading-relaxed text-[11px] space-y-2">
                     <p>
                       Since <strong>Port 3000 is already used</strong> on your server, and your Nginx reverse proxy is running on the Docker network <strong>"proxy_network"</strong>, you can use container-to-container routing:
                     </p>
@@ -580,9 +580,9 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">docker-compose.yml</span>
+                      <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">docker-compose.yml</span>
                     </div>
-                    <pre className="bg-slate-950 p-3 rounded border border-white/5 font-mono text-[9px] text-slate-300 overflow-x-auto select-all leading-relaxed max-h-48">
+                    <pre className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
 {`version: '3.8'
 
 services:
@@ -615,9 +615,9 @@ networks:
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">nginx.conf Server Block</span>
+                      <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">nginx.conf Server Block</span>
                     </div>
-                    <pre className="bg-slate-950 p-3 rounded border border-white/5 font-mono text-[9px] text-slate-300 overflow-x-auto select-all leading-relaxed max-h-48">
+                    <pre className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
 {`server {
     listen 80;
     server_name ffpro.v79sl.duckdns.org;
@@ -651,7 +651,7 @@ server {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-white/10 bg-slate-950/50 flex justify-end">
+            <div className="p-4 border-t border-white/10 bg-stone-950/50 flex justify-end">
               <button
                 type="button"
                 onClick={() => {

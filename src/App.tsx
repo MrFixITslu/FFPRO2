@@ -101,14 +101,14 @@ function sanitizeEventLogs(eventsList: BudgetEvent[]): BudgetEvent[] {
 
 const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quotaExhausted: boolean }) => {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[120] bg-slate-900 text-white py-1.5 shadow-md border-b border-slate-800">
+    <div className="fixed top-0 left-0 right-0 z-[120] bg-stone-900 text-white py-1.5 shadow-md border-b border-stone-800">
       <div className="flex items-center">
-        <div className="px-2 sm:px-4 border-r border-slate-800 flex items-center gap-2 whitespace-nowrap bg-slate-900 z-10">
+        <div className="px-2 sm:px-4 border-r border-stone-800 flex items-center gap-2 whitespace-nowrap bg-stone-900 z-10">
           <span className="flex h-2 w-2 relative shrink-0">
             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${quotaExhausted ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`}></span>
             <span className={`relative inline-flex rounded-full h-2 w-2 ${quotaExhausted ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
           </span>
-          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 hidden sm:inline">
+          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-stone-400 hidden sm:inline">
             {quotaExhausted ? 'Cached Data' : 'Live Market Feed'}
           </span>
         </div>
@@ -117,7 +117,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
             {[...prices, ...prices].map((p, idx) => (
               <div key={idx} className="flex items-center gap-3">
                  <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] font-black text-white">{p.symbol.substring(0, 1)}</div>
-                 <span className="font-black text-[9px] text-slate-400 tracking-[0.2em] uppercase">{p.symbol}</span>
+                 <span className="font-black text-[9px] text-stone-400 tracking-[0.2em] uppercase">{p.symbol}</span>
                  <span className="font-black text-[10px] text-white tracking-tight">${p.price.toLocaleString()}</span>
                  <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded ${p.change24h >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                    <i className={`fas fa-caret-${p.change24h >= 0 ? 'up' : 'down'}`}></i>
@@ -918,7 +918,7 @@ const App: React.FC = () => {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-stone-900 flex items-center justify-center">
         <i className="fas fa-circle-notch fa-spin text-indigo-400 text-3xl"></i>
       </div>
     );
@@ -941,14 +941,14 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-stone-50 flex flex-col">
       {!isAuthenticated ? (
         <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} />
       ) : (
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
+          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-stone-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
             <div className="flex items-center gap-2 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
               <div className="flex items-center gap-2 sm:gap-6 min-w-0">
                 {/* Logo & Brand */}
@@ -960,10 +960,10 @@ const App: React.FC = () => {
                     className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-xs ring-1 ring-slate-900/10"
                   />
                   <div className="hidden sm:block">
-                    <h1 className="text-xs sm:text-sm font-black tracking-tight uppercase text-indigo-950 whitespace-nowrap leading-none">
-                      FFPRO <span className="font-semibold text-indigo-600 text-[11px]">V1</span>
+                    <h1 className="text-sm sm:text-base font-display font-semibold tracking-tight text-stone-900 whitespace-nowrap leading-none">
+                      FFPRO <span className="font-sans font-bold text-indigo-600 text-[10px] uppercase tracking-wider ml-0.5">V1</span>
                     </h1>
-                    <p className="text-[8px] font-bold text-slate-400 tracking-wider uppercase leading-none mt-0.5">Fire Finance Pro</p>
+                    <p className="text-[9px] font-medium text-stone-400 tracking-wider uppercase leading-none mt-1">Fire Finance Pro</p>
                   </div>
                 </div>
 
@@ -972,32 +972,32 @@ const App: React.FC = () => {
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
-                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
                     >
-                      <LayoutDashboard size={15} />
+                      <LayoutDashboard size={14} />
                       <span>Dashboard</span>
                     </button>
                   )}
                   <button 
                     onClick={() => setActiveTab('calendar')} 
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'calendar' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
                   >
-                    <CalendarIcon size={15} />
+                    <CalendarIcon size={14} />
                     <span>Calendar</span>
                   </button>
                   <button 
                     onClick={() => setActiveTab('events')} 
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'events' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'events' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
                   >
-                    <Zap size={15} />
+                    <Zap size={14} />
                     <span>Planner</span>
                   </button>
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('projections')} 
-                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'projections' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'projections' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
                     >
-                      <TrendingUp size={15} />
+                      <TrendingUp size={14} />
                       <span>Forecast</span>
                     </button>
                   )}
@@ -1027,7 +1027,7 @@ const App: React.FC = () => {
 
                 <button 
                   onClick={() => setShowSettings(true)} 
-                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all border border-slate-200 shadow-2xs"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
                   title="System Settings"
                 >
                   <SettingsIcon size={16} />
@@ -1044,14 +1044,14 @@ const App: React.FC = () => {
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                    <div>
-                     <h1 className="text-2xl font-light text-slate-800 tracking-tight">Command <span className="font-semibold text-slate-950">Center</span></h1>
-                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">Strategic Intelligence Hub</p>
+                     <h1 className="text-3xl font-display text-stone-900 tracking-tight">Command Center</h1>
+                     <p className="text-[11px] text-stone-500 font-semibold uppercase tracking-widest mt-2">Strategic Intelligence Hub</p>
                    </div>
                    <div className="w-full md:w-auto">
                       <button
                         type="button"
                         onClick={() => setShowForm(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm"
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-stone-900 text-white rounded-full text-xs font-bold hover:bg-stone-800 transition shadow-sm w-full md:w-auto"
                       >
                         <Plus size={14} />
                         Add Transaction
@@ -1188,7 +1188,7 @@ const App: React.FC = () => {
           </main>
 
           {showForm && (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
               <div className="w-full max-w-xl">
                 <TransactionForm 
                   initialData={editingTransaction || undefined}
@@ -1269,11 +1269,11 @@ const App: React.FC = () => {
           )}
 
           {isLoading && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md">
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-900/40 backdrop-blur-md">
               <div className="bg-white p-10 rounded-[3rem] text-center shadow-2xl">
                  <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-                 <h3 className="text-xl font-black text-slate-800 mb-2">Parsing Intelligence</h3>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Applying Financial Logic...</p>
+                 <h3 className="text-xl font-black text-stone-800 mb-2">Parsing Intelligence</h3>
+                 <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Applying Financial Logic...</p>
               </div>
             </div>
           )}

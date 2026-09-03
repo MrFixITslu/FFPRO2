@@ -65,34 +65,34 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-md">
       <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         
         {step === 'bank-select' && (
           <div className="p-8">
-            <h3 className="text-xl font-black text-slate-800 mb-2 text-center">API Gateway</h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-6">Select Institution to Link</p>
+            <h3 className="text-xl font-black text-stone-800 mb-2 text-center">API Gateway</h3>
+            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest text-center mb-6">Select Institution to Link</p>
             <div className="space-y-3 max-h-[400px] overflow-y-auto no-scrollbar">
               {platforms.map(bank => (
                 <button 
                   key={bank.name}
                   onClick={() => handleBankSelect(bank)}
-                  className="w-full p-4 flex items-center gap-4 bg-slate-50 hover:bg-white hover:ring-2 hover:ring-indigo-500 border border-slate-200 rounded-2xl transition group"
+                  className="w-full p-4 flex items-center gap-4 bg-stone-50 hover:bg-white hover:ring-2 hover:ring-indigo-500 border border-stone-200 rounded-2xl transition group"
                 >
                   <div className={`w-10 h-10 ${bank.color} rounded-xl flex items-center justify-center text-white text-sm shadow-lg`}>
                     <i className={`fas ${bank.icon}`}></i>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-black text-slate-800 text-sm truncate">{bank.name}</p>
+                    <p className="font-black text-stone-800 text-sm truncate">{bank.name}</p>
                     <div className="flex items-center gap-2">
                       <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-black uppercase">{bank.apiType}</span>
-                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{bank.type}</span>
+                      <span className="text-[8px] text-stone-400 font-bold uppercase tracking-widest">{bank.type}</span>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
-            <button onClick={onClose} className="w-full mt-6 py-2 text-slate-400 font-bold text-xs uppercase tracking-widest">Cancel</button>
+            <button onClick={onClose} className="w-full mt-6 py-2 text-stone-400 font-bold text-xs uppercase tracking-widest">Cancel</button>
           </div>
         )}
 
@@ -108,12 +108,12 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
                 </div>
               </div>
             </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">Establishing Connection</h3>
-            <p className="text-slate-500 text-sm mb-8">Linking to <b>{selectedBank.name}</b> via encrypted {selectedBank.apiType} protocol.</p>
+            <h3 className="text-xl font-black text-stone-800 mb-2">Establishing Connection</h3>
+            <p className="text-stone-500 text-sm mb-8">Linking to <b>{selectedBank.name}</b> via encrypted {selectedBank.apiType} protocol.</p>
             <button 
               onClick={startApiLink}
               disabled={loading}
-              className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3 transition active:scale-95"
+              className="w-full py-4 bg-stone-900 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3 transition active:scale-95"
             >
               {loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Begin API Handshake'}
             </button>
@@ -122,7 +122,7 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
 
         {step === 'credentials' && selectedBank && (
           <div className="p-8">
-            <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+            <h3 className="text-xl font-black text-stone-800 mb-6 flex items-center gap-2">
               <i className="fas fa-shield-alt text-indigo-600"></i>
               API Authorization
             </h3>
@@ -130,23 +130,23 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
               {selectedBank.type === 'investment' ? (
                 <>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">API Key</label>
-                    <input type="text" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder="x-api-key-..." />
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">API Key</label>
+                    <input type="text" required className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder="x-api-key-..." />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">API Secret</label>
-                    <input type="password" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder="••••••••••••" />
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">API Secret</label>
+                    <input type="password" required className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs" placeholder="••••••••••••" />
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Net-Banking ID</label>
-                    <input type="text" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="Customer 001" />
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Net-Banking ID</label>
+                    <input type="text" required className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="Customer 001" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Digital Password</label>
-                    <input type="password" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="••••••••" />
+                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Digital Password</label>
+                    <input type="password" required className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="••••••••" />
                   </div>
                 </>
               )}
@@ -159,11 +159,11 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
 
         {step === 'balance-init' && (
           <div className="p-8">
-            <h3 className="text-xl font-black text-slate-800 mb-2 text-center">Initial Sync</h3>
-            <p className="text-slate-500 text-xs text-center mb-8 uppercase tracking-widest font-bold">API Data Fetch Pending</p>
+            <h3 className="text-xl font-black text-stone-800 mb-2 text-center">Initial Sync</h3>
+            <p className="text-stone-500 text-xs text-center mb-8 uppercase tracking-widest font-bold">API Data Fetch Pending</p>
             <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Enter Current Ledger Balance</label>
+                <label className="block text-[10px] font-black text-stone-400 uppercase mb-1">Enter Current Ledger Balance</label>
                 <input 
                   type="number" 
                   autoFocus
@@ -187,10 +187,10 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
         {step === 'syncing' && (
           <div className="p-12 text-center">
             <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">
+            <h3 className="text-xl font-black text-stone-800 mb-2">
               {selectedBank?.type === 'investment' ? 'Extracting Portfolio' : 'Standardizing Feed'}
             </h3>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+            <p className="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
               {selectedBank?.type === 'investment' ? 'Polling Asset Balances...' : 'JSON Pipeline Processing...'}
             </p>
             {setTimeout(() => setStep('success'), 4000) && null}
@@ -202,13 +202,13 @@ const BankSyncModal: React.FC<Props> = ({ onSuccess, onClose }) => {
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 text-4xl mx-auto mb-6 border-4 border-emerald-100 animate-bounce">
               <i className="fas fa-check"></i>
             </div>
-            <h3 className="text-2xl font-black text-slate-800 mb-2">API Linked!</h3>
-            <p className="text-slate-500 text-sm mb-8">
+            <h3 className="text-2xl font-black text-stone-800 mb-2">API Linked!</h3>
+            <p className="text-stone-500 text-sm mb-8">
               {selectedBank?.type === 'investment' 
                 ? `Total amounts for ${selectedBank.name} have been retrieved. Approve them in the Verification Queue.`
                 : `Real-time webhooks are now active for ${selectedBank?.name}.`}
             </p>
-            <button onClick={handleFinish} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl transition active:scale-95">
+            <button onClick={handleFinish} className="w-full py-4 bg-stone-900 text-white font-black rounded-2xl shadow-xl transition active:scale-95">
               Go to Dashboard
             </button>
           </div>

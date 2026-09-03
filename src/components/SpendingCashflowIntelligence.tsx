@@ -289,8 +289,8 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {/* ------------------------------------------------------------- */}
       {/* Unified Section Header & Time Controls                        */}
       {/* ------------------------------------------------------------- */}
-      <section className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all">
-        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <section className="bg-white rounded-xl border border-stone-200/90 shadow-xs overflow-hidden transition-all">
+        <div className="p-5 sm:p-6 border-b border-stone-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
@@ -298,14 +298,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                  <h2 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
                     Spending, Cashflow & Insights
                   </h2>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
                     Unified Intel
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                <p className="text-xs text-stone-500 font-medium mt-0.5">
                   Real-time cashflow trajectory, category spend matrices, behavioural anomalies, and forward projections
                 </p>
               </div>
@@ -315,7 +315,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           {/* Unified Time Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Period Type Toggles */}
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200">
               {(['week', 'month', 'year', 'custom'] as TimePeriodType[]).map(t => (
                 <button
                   key={t}
@@ -325,8 +325,8 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   }}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                     periodType === t
-                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-indigo-700 shadow-xs border border-stone-200'
+                      : 'text-stone-600 hover:text-stone-900'
                   }`}
                 >
                   {t}
@@ -335,12 +335,12 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
             </div>
 
             {/* Comparison Mode Selector */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
-              <span className="text-[9px] font-bold uppercase text-slate-600 mr-1.5">Compare:</span>
+            <div className="flex items-center bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1">
+              <span className="text-[9px] font-bold uppercase text-stone-600 mr-1.5">Compare:</span>
               <select
                 value={comparisonType}
                 onChange={e => setComparisonType(e.target.value as ComparisonType)}
-                className="bg-transparent text-[10px] font-black text-slate-700 outline-hidden cursor-pointer"
+                className="bg-transparent text-[10px] font-black text-stone-700 outline-hidden cursor-pointer"
               >
                 <option value="previous_period">Prior Period</option>
                 <option value="previous_year">Prior Year</option>
@@ -350,10 +350,10 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
             {/* Navigation Buttons (Prev / Today / Next) */}
             {periodType !== 'custom' && (
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl border border-stone-200">
                 <button
                   onClick={() => setReferenceDateOffset(prev => prev - 1)}
-                  className="w-7 h-7 rounded-lg bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center text-xs shadow-xs border border-slate-200 transition"
+                  className="w-7 h-7 rounded-lg bg-white hover:bg-stone-50 text-stone-700 flex items-center justify-center text-xs shadow-xs border border-stone-200 transition"
                   title="Previous Period"
                 >
                   <ChevronLeft size={14} />
@@ -364,14 +364,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition ${
                     referenceDateOffset === 0 
                       ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
-                      : 'bg-white text-slate-700 hover:bg-slate-50 shadow-xs border border-slate-200'
+                      : 'bg-white text-stone-700 hover:bg-stone-50 shadow-xs border border-stone-200'
                   }`}
                 >
                   Current
                 </button>
                 <button
                   onClick={() => setReferenceDateOffset(prev => prev + 1)}
-                  className="w-7 h-7 rounded-lg bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center text-xs shadow-xs border border-slate-200 transition"
+                  className="w-7 h-7 rounded-lg bg-white hover:bg-stone-50 text-stone-700 flex items-center justify-center text-xs shadow-xs border border-stone-200 transition"
                   title="Next Period"
                 >
                   <ChevronRight size={14} />
@@ -382,15 +382,15 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
         </div>
 
         {/* Sub-Header: Active Window Banner & Perspective Navigation */}
-        <div className="px-5 sm:px-6 py-3 bg-slate-50/70 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div className="px-5 sm:px-6 py-3 bg-stone-50/70 border-b border-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+            <span className="font-bold text-stone-800 bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
               <Calendar size={13} className="inline mr-1.5 text-indigo-600" />
               {periodComparison.label}
             </span>
             {comparisonType !== 'none' && (
-              <span className="text-[11px] font-semibold text-slate-500">
-                vs <strong className="text-slate-700 font-bold">{periodComparison.comparisonLabel}</strong>
+              <span className="text-[11px] font-semibold text-stone-500">
+                vs <strong className="text-stone-700 font-bold">{periodComparison.comparisonLabel}</strong>
               </span>
             )}
             {periodComparison.currentEnd > new Date() && (
@@ -415,8 +415,8 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                 onClick={() => setViewMode(tab.id as SectionViewMode)}
                 className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all ${
                   viewMode === tab.id
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
+                    ? 'bg-stone-900 text-white shadow-xs'
+                    : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200 hover:bg-stone-50'
                 }`}
               >
                 {tab.label}
@@ -428,19 +428,19 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
         {/* ------------------------------------------------------------- */}
         {/* Top KPI Cards with Comparative Indicators                     */}
         {/* ------------------------------------------------------------- */}
-        <div className="p-5 sm:p-6 grid grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50/30">
+        <div className="p-5 sm:p-6 grid grid-cols-2 lg:grid-cols-4 gap-4 bg-stone-50/30">
           {/* Card 1: Total Spending */}
           <div 
             onClick={() => openDrilldown(`Outflows for ${periodComparison.label}`, currentTransactions.filter(t => t.type === 'expense').map(t => t.id))}
-            className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
+            className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Total Spending</span>
+              <span className="text-[9px] font-bold text-stone-600 uppercase tracking-wider">Total Spending</span>
               <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
                 <TrendingDown size={13} />
               </div>
             </div>
-            <h3 className="text-lg font-black text-slate-900">
+            <h3 className="text-lg font-black text-stone-900">
               ${summaryMetrics.totalSpending.toLocaleString()}
             </h3>
             {comparisonType !== 'none' && (
@@ -456,7 +456,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                     +${summaryMetrics.spendingDollarChange.toLocaleString()} (+{summaryMetrics.spendingPercentChange.toFixed(1)}%)
                   </span>
                 )}
-                <span className="text-slate-600 font-normal">vs prior</span>
+                <span className="text-stone-600 font-normal">vs prior</span>
               </div>
             )}
           </div>
@@ -464,15 +464,15 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           {/* Card 2: Total Income */}
           <div 
             onClick={() => openDrilldown(`Inflows for ${periodComparison.label}`, currentTransactions.filter(t => t.type === 'income').map(t => t.id))}
-            className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
+            className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Total Inflow</span>
+              <span className="text-[9px] font-bold text-stone-600 uppercase tracking-wider">Total Inflow</span>
               <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <TrendingUp size={13} />
               </div>
             </div>
-            <h3 className="text-lg font-black text-slate-900">
+            <h3 className="text-lg font-black text-stone-900">
               ${summaryMetrics.totalIncome.toLocaleString()}
             </h3>
             {comparisonType !== 'none' && (
@@ -488,7 +488,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                     -${Math.abs(summaryMetrics.incomeDollarChange).toLocaleString()} (-{Math.abs(summaryMetrics.incomePercentChange).toFixed(1)}%)
                   </span>
                 )}
-                <span className="text-slate-600 font-normal">vs prior</span>
+                <span className="text-stone-600 font-normal">vs prior</span>
               </div>
             )}
           </div>
@@ -496,10 +496,10 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           {/* Card 3: Net Cashflow */}
           <div 
             onClick={() => setViewMode('cashflow')}
-            className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
+            className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Net Cashflow</span>
+              <span className="text-[9px] font-bold text-stone-600 uppercase tracking-wider">Net Cashflow</span>
               <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
                 summaryMetrics.netCashflow >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
               }`}>
@@ -509,7 +509,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
             <h3 className={`text-lg font-black ${summaryMetrics.netCashflow >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
               {summaryMetrics.netCashflow >= 0 ? '+' : ''}${summaryMetrics.netCashflow.toLocaleString()}
             </h3>
-            <p className="mt-2 text-[10px] text-slate-600 font-medium truncate">
+            <p className="mt-2 text-[10px] text-stone-600 font-medium truncate">
               {summaryMetrics.cashflowHealth.ratioPercent.toFixed(1)}% margin of inflow
             </p>
           </div>
@@ -517,26 +517,26 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           {/* Card 4: Daily Safe Spend / Run Rate */}
           <div 
             onClick={() => setViewMode('spending')}
-            className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
+            className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Daily Avg Outlay</span>
+              <span className="text-[9px] font-bold text-stone-600 uppercase tracking-wider">Daily Avg Outlay</span>
               <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                 <Clock size={13} />
               </div>
             </div>
-            <h3 className="text-lg font-black text-slate-900">
+            <h3 className="text-lg font-black text-stone-900">
               ${summaryMetrics.averageDailySpending.toFixed(2)}
-              <span className="text-xs font-normal text-slate-600">/day</span>
+              <span className="text-xs font-normal text-stone-600">/day</span>
             </h3>
-            <p className="mt-2 text-[10px] text-slate-600 font-medium">
+            <p className="mt-2 text-[10px] text-stone-600 font-medium">
               {summaryMetrics.transactionCount} transactions ({summaryMetrics.daysElapsed} days logged)
             </p>
           </div>
         </div>
 
         {/* Cashflow Health Context Banner */}
-        <div className={`px-6 py-3 border-t border-slate-100 flex items-center justify-between gap-4 ${
+        <div className={`px-6 py-3 border-t border-stone-100 flex items-center justify-between gap-4 ${
           summaryMetrics.netCashflow >= 0 ? 'bg-emerald-50/40 text-emerald-950' : 'bg-rose-50/40 text-rose-950'
         }`}>
           <div className="flex items-center gap-2.5">
@@ -559,33 +559,33 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {/* Perspective A: Cashflow Trajectory & Trend Visualizer          */}
       {/* ------------------------------------------------------------- */}
       {(viewMode === 'all' || viewMode === 'cashflow') && (
-        <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+        <section className="bg-white p-6 rounded-xl border border-stone-200 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-slate-900 uppercase text-xs tracking-wider">
+                <h3 className="font-black text-stone-900 uppercase text-xs tracking-wider">
                   Cashflow Trajectory
                 </h3>
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
                   {trajectoryPoints.length} Data Points
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+              <p className="text-[11px] text-stone-600 font-medium mt-0.5">
                 Dynamic Inflow vs Outflow curves with interactive transaction drill-down
               </p>
             </div>
 
             {/* Trajectory Granularity Toggles */}
             <div className="flex items-center gap-2">
-              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200">
                 {(['daily', 'weekly', 'monthly'] as ('daily' | 'weekly' | 'monthly')[]).map(g => (
                   <button
                     key={g}
                     onClick={() => setTrajectoryGranularity(g)}
                     className={`px-3 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all ${
                       trajectoryGranularity === g
-                        ? 'bg-white text-indigo-600 shadow-xs border border-slate-100'
-                        : 'text-slate-600 hover:text-slate-800'
+                        ? 'bg-white text-indigo-600 shadow-xs border border-stone-100'
+                        : 'text-stone-600 hover:text-stone-800'
                     }`}
                   >
                     {g}
@@ -647,7 +647,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                     if (active && payload && payload.length) {
                       const data = payload[0].payload as CashflowPoint;
                       return (
-                        <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl border border-slate-800 text-xs space-y-1.5 min-w-[160px]">
+                        <div className="bg-stone-900 text-white p-3 rounded-xl shadow-xl border border-stone-800 text-xs space-y-1.5 min-w-[160px]">
                           <p className="font-bold text-indigo-300 uppercase tracking-wider text-[10px]">{data.label}</p>
                           <div className="flex justify-between items-center text-emerald-400 font-bold">
                             <span>Inflow:</span>
@@ -657,14 +657,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                             <span>Outflow:</span>
                             <span>-${data.outflow.toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between items-center pt-1 border-t border-slate-800 font-black">
+                          <div className="flex justify-between items-center pt-1 border-t border-stone-800 font-black">
                             <span>Net Cashflow:</span>
                             <span className={data.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                               {data.net >= 0 ? '+' : ''}${data.net.toLocaleString()}
                             </span>
                           </div>
                           {data.transactionIds.length > 0 && (
-                            <p className="text-[9px] text-slate-400 pt-1 text-center italic">
+                            <p className="text-[9px] text-stone-400 pt-1 text-center italic">
                               Click point to inspect {data.transactionIds.length} txs
                             </p>
                           )}
@@ -710,36 +710,36 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {(viewMode === 'all' || viewMode === 'spending') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Week-over-Week & Month-over-Month Intelligence Card */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
                   Period Intelligence
                 </span>
-                <span className="text-[10px] font-bold text-slate-600 uppercase">
+                <span className="text-[10px] font-bold text-stone-600 uppercase">
                   {periodComparison.comparisonLabel}
                 </span>
               </div>
-              <h4 className="text-sm font-black text-slate-900 leading-snug">
+              <h4 className="text-sm font-black text-stone-900 leading-snug">
                 {intelligence.headline}
               </h4>
-              <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed">
+              <p className="text-xs text-stone-600 font-medium mt-2 leading-relaxed">
                 {intelligence.summary}
               </p>
 
               {/* Driver Categories List */}
               {intelligence.topDrivers.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600">Top Variance Drivers:</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Top Variance Drivers:</p>
                   {intelligence.topDrivers.map((d, i) => (
                     <div 
                       key={i}
                       onClick={() => openCategoryDrilldown(d.category)}
-                      className="p-2 bg-slate-50 hover:bg-indigo-50/50 rounded-lg border border-slate-200/80 flex items-center justify-between text-xs cursor-pointer transition"
+                      className="p-2 bg-stone-50 hover:bg-indigo-50/50 rounded-lg border border-stone-200/80 flex items-center justify-between text-xs cursor-pointer transition"
                     >
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[d.category] || '#6366f1' }}></span>
-                        <span className="font-bold text-slate-800">{d.category}</span>
+                        <span className="font-bold text-stone-800">{d.category}</span>
                       </div>
                       <span className={`font-black ${d.dollarDiff > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                         {d.dollarDiff > 0 ? '+' : ''}${d.dollarDiff.toLocaleString()} ({d.percentDiff > 0 ? '+' : ''}{d.percentDiff.toFixed(0)}%)
@@ -752,7 +752,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
             <button
               onClick={() => openDrilldown(`Contributing Transactions (${periodComparison.label})`, intelligence.contributingTransactionIds)}
-              className="mt-6 w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+              className="mt-6 w-full py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
             >
               <span>View All Contributing Transactions</span>
               <ChevronRight size={14} />
@@ -760,17 +760,17 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           </div>
 
           {/* Category Composition Donut / Distribution */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col">
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-stone-200 shadow-xs flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-black text-slate-900 uppercase text-xs tracking-wider">
+                <h3 className="font-black text-stone-900 uppercase text-xs tracking-wider">
                   Category Spending Composition
                 </h3>
-                <p className="text-[11px] text-slate-600 font-medium">
+                <p className="text-[11px] text-stone-600 font-medium">
                   Relative distribution of all expenditures across active categories
                 </p>
               </div>
-              <span className="text-xs font-black text-slate-900">
+              <span className="text-xs font-black text-stone-900">
                 ${summaryMetrics.totalSpending.toLocaleString()} Total
               </span>
             </div>
@@ -807,7 +807,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-600 font-bold uppercase text-xs">
+                  <div className="h-full flex items-center justify-center text-stone-600 font-bold uppercase text-xs">
                     No Expenses in Selected Range
                   </div>
                 )}
@@ -819,22 +819,22 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   <div 
                     key={idx}
                     onClick={() => openCategoryDrilldown(cat.name)}
-                    className="group cursor-pointer p-1.5 rounded-lg hover:bg-slate-50 transition"
+                    className="group cursor-pointer p-1.5 rounded-lg hover:bg-stone-50 transition"
                   >
                     <div className="flex justify-between items-center text-xs mb-1">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CATEGORY_COLORS[cat.name] || '#6366f1' }}></span>
-                        <span className="font-bold text-slate-800">{cat.name}</span>
-                        <span className="text-[10px] text-slate-600 font-medium">({cat.transactionCount} txs)</span>
+                        <span className="font-bold text-stone-800">{cat.name}</span>
+                        <span className="text-[10px] text-stone-600 font-medium">({cat.transactionCount} txs)</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-black text-slate-900">${cat.amount.toLocaleString()}</span>
-                        <span className="text-[10px] font-bold text-slate-600 ml-1.5">
+                        <span className="font-black text-stone-900">${cat.amount.toLocaleString()}</span>
+                        <span className="text-[10px] font-bold text-stone-600 ml-1.5">
                           ({cat.percentOfTotalSpending.toFixed(1)}%)
                         </span>
                       </div>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
                       <div 
                         className="h-full rounded-full transition-all duration-700"
                         style={{ 
@@ -855,31 +855,31 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {/* Perspective C: Category Spend Matrix & Inline Budgets          */}
       {/* ------------------------------------------------------------- */}
       {(viewMode === 'all' || viewMode === 'matrix') && (
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <section className="bg-white rounded-xl border border-stone-200 shadow-xs overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-slate-900 uppercase text-xs tracking-wider">
+                <h3 className="font-black text-stone-900 uppercase text-xs tracking-wider">
                   Category Spend Matrix & Budget Control
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700">
                   {sortedCategories.length} Categories
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+              <p className="text-[11px] text-stone-600 font-medium mt-0.5">
                 Full ledger breakdown with variance analysis, budget tracking, and inline limit adjustments
               </p>
             </div>
 
             {/* Matrix Sorting Controls */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase text-slate-600 flex items-center gap-1">
+              <span className="text-[10px] font-bold uppercase text-stone-600 flex items-center gap-1">
                 <ListFilter size={12} /> Sort By:
               </span>
               <select
                 value={matrixSort}
                 onChange={e => setMatrixSort(e.target.value as MatrixSortKey)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-700 outline-hidden cursor-pointer"
+                className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs font-bold text-stone-700 outline-hidden cursor-pointer"
               >
                 <option value="amount">Highest Spending</option>
                 <option value="amount_asc">Lowest Spending</option>
@@ -895,7 +895,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-100 text-[9px] font-bold text-slate-600 uppercase tracking-wider">
+                <tr className="bg-stone-50/70 border-b border-stone-100 text-[9px] font-bold text-stone-600 uppercase tracking-wider">
                   <th className="py-3 px-4 min-w-[140px]">Category</th>
                   <th className="py-3 px-4 text-right">Current Spend</th>
                   <th className="py-3 px-4 text-right">Prior Spend</th>
@@ -908,7 +908,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   <th className="py-3 px-4 text-right w-16">Drilldown</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-stone-100 text-xs">
                 {sortedCategories.map((cat, idx) => {
                   const isEditing = editingCategory === cat.name;
                   const catColor = CATEGORY_COLORS[cat.name] || '#6366f1';
@@ -923,17 +923,17 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: catColor }}></span>
-                          <span className="font-bold text-slate-900">{cat.name}</span>
+                          <span className="font-bold text-stone-900">{cat.name}</span>
                         </div>
                       </td>
 
                       {/* Current Spend */}
-                      <td className="py-3 px-4 text-right font-black text-slate-900">
+                      <td className="py-3 px-4 text-right font-black text-stone-900">
                         ${cat.amount.toLocaleString()}
                       </td>
 
                       {/* Prior Spend */}
-                      <td className="py-3 px-4 text-right font-semibold text-slate-500">
+                      <td className="py-3 px-4 text-right font-semibold text-stone-500">
                         ${cat.previousAmount.toLocaleString()}
                       </td>
 
@@ -947,7 +947,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                             </span>
                           </span>
                         ) : (
-                          <span className="text-slate-600 font-normal">—</span>
+                          <span className="text-stone-600 font-normal">—</span>
                         )}
                       </td>
 
@@ -974,20 +974,20 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                                 </button>
                                 <button
                                   onClick={() => setEditingCategory(null)}
-                                  className="w-5 h-5 bg-slate-200 text-slate-600 rounded flex items-center justify-center text-[9px] hover:bg-slate-300"
+                                  className="w-5 h-5 bg-stone-200 text-stone-600 rounded flex items-center justify-center text-[9px] hover:bg-stone-300"
                                 >
                                   <X size={10} />
                                 </button>
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5">
-                                <span className="font-bold text-slate-700">
+                                <span className="font-bold text-stone-700">
                                   {cat.budget > 0 ? `$${cat.budget.toLocaleString()}` : 'Uncapped'}
                                 </span>
                                 {onUpdateCategoryBudget && (
                                   <button
                                     onClick={() => startEditCategoryBudget(cat.name, cat.budget)}
-                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 transition"
+                                    className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-indigo-600 transition"
                                     title="Edit budget limit"
                                   >
                                     <Edit2 size={11} />
@@ -997,14 +997,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                             )}
 
                             <span className={`font-bold ${
-                              cat.status === 'exceeded' ? 'text-rose-600' : cat.status === 'approaching' ? 'text-amber-600' : 'text-slate-400'
+                              cat.status === 'exceeded' ? 'text-rose-600' : cat.status === 'approaching' ? 'text-amber-600' : 'text-stone-400'
                             }`}>
                               {cat.budget > 0 ? `${cat.budgetUsagePercent.toFixed(0)}%` : ''}
                             </span>
                           </div>
 
                           {/* Progress Bar */}
-                          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
                             <div
                               className={`h-full transition-all duration-700 ${
                                 cat.status === 'exceeded' 
@@ -1020,22 +1020,22 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                       </td>
 
                       {/* Daily Avg */}
-                      <td className="py-3 px-4 text-right font-semibold text-slate-700">
+                      <td className="py-3 px-4 text-right font-semibold text-stone-700">
                         ${cat.dailyAverage.toFixed(2)}
                       </td>
 
                       {/* % of Total */}
-                      <td className="py-3 px-4 text-right font-bold text-slate-800">
+                      <td className="py-3 px-4 text-right font-bold text-stone-800">
                         {cat.percentOfTotalSpending.toFixed(1)}%
                       </td>
 
                       {/* Transaction Count */}
-                      <td className="py-3 px-4 text-center font-bold text-slate-700">
+                      <td className="py-3 px-4 text-center font-bold text-stone-700">
                         {cat.transactionCount}
                       </td>
 
                       {/* Average Amount per Tx */}
-                      <td className="py-3 px-4 text-right font-semibold text-slate-600">
+                      <td className="py-3 px-4 text-right font-semibold text-stone-600">
                         ${cat.averageTransactionAmount.toFixed(2)}
                       </td>
 
@@ -1043,7 +1043,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => openCategoryDrilldown(cat.name)}
-                          className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                          className="p-1 rounded text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
                           title="Drill into transactions"
                         >
                           <ChevronRight size={15} />
@@ -1064,17 +1064,17 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {(viewMode === 'all' || viewMode === 'insights') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Automated Financial Insights */}
-          <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col">
+          <section className="bg-white p-6 rounded-xl border border-stone-200 shadow-xs flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                   <Sparkles size={14} />
                 </div>
-                <h3 className="font-black text-slate-900 uppercase text-xs tracking-wider">
+                <h3 className="font-black text-stone-900 uppercase text-xs tracking-wider">
                   Automated Financial Insights
                 </h3>
               </div>
-              <span className="text-[10px] font-bold text-slate-600 uppercase">
+              <span className="text-[10px] font-bold text-stone-600 uppercase">
                 {insights.length} Signals
               </span>
             </div>
@@ -1096,7 +1096,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         ? 'bg-amber-50/50 border-amber-200 hover:border-amber-300'
                         : item.type === 'positive'
                         ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300'
-                        : 'bg-slate-50 border-slate-200 hover:border-indigo-300'
+                        : 'bg-stone-50 border-stone-200 hover:border-indigo-300'
                     }`}
                   >
                     <div className="flex justify-between items-start gap-2">
@@ -1109,12 +1109,12 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                           <Zap size={15} className="text-indigo-600" />
                         )}
                         <div>
-                          <h4 className="text-xs font-bold text-slate-900">{item.title}</h4>
-                          <p className="text-[11px] text-slate-600 mt-0.5">{item.description}</p>
+                          <h4 className="text-xs font-bold text-stone-900">{item.title}</h4>
+                          <p className="text-[11px] text-stone-600 mt-0.5">{item.description}</p>
                         </div>
                       </div>
                       {item.metricValue && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-white border border-slate-200 shadow-2xs whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-white border border-stone-200 shadow-2xs whitespace-nowrap">
                           {item.metricValue}
                         </span>
                       )}
@@ -1130,7 +1130,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   </div>
                 ))
               ) : (
-                <p className="py-12 text-center text-slate-600 font-bold uppercase text-xs">
+                <p className="py-12 text-center text-stone-600 font-bold uppercase text-xs">
                   All metrics operating within normal baseline bounds
                 </p>
               )}
@@ -1138,17 +1138,17 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           </section>
 
           {/* Spending Behaviour & Anomalies */}
-          <section className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col">
+          <section className="bg-white p-6 rounded-xl border border-stone-200 shadow-xs flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                   <ShieldAlert size={14} />
                 </div>
-                <h3 className="font-black text-slate-900 uppercase text-xs tracking-wider">
+                <h3 className="font-black text-stone-900 uppercase text-xs tracking-wider">
                   Spending Behaviour & Anomalies
                 </h3>
               </div>
-              <span className="text-[10px] font-bold text-slate-600 uppercase">
+              <span className="text-[10px] font-bold text-stone-600 uppercase">
                 {anomalies.length} Detected
               </span>
             </div>
@@ -1159,7 +1159,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   <div
                     key={anom.id}
                     onClick={() => openDrilldown(anom.title, anom.transactionIds)}
-                    className="p-3.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 transition-all cursor-pointer group"
+                    className="p-3.5 bg-stone-50 hover:bg-stone-100/80 rounded-xl border border-stone-200/80 transition-all cursor-pointer group"
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div>
@@ -1169,11 +1169,11 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                           }`}>
                             {anom.type.replace('_', ' ')}
                           </span>
-                          <h4 className="text-xs font-bold text-slate-900">{anom.title}</h4>
+                          <h4 className="text-xs font-bold text-stone-900">{anom.title}</h4>
                         </div>
-                        <p className="text-[11px] text-slate-600 mt-1">{anom.detail}</p>
+                        <p className="text-[11px] text-stone-600 mt-1">{anom.detail}</p>
                       </div>
-                      <span className="text-xs font-bold text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+                      <span className="text-xs font-bold text-indigo-600 group-hover:transtone-x-0.5 transition-transform">
                         <ChevronRight size={14} />
                       </span>
                     </div>
@@ -1182,8 +1182,8 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               ) : (
                 <div className="py-12 text-center space-y-1">
                   <CheckCircle size={22} className="text-emerald-500 mx-auto mb-2" />
-                  <p className="text-xs font-bold text-slate-800">No Anomalies Flagged</p>
-                  <p className="text-[11px] text-slate-600">No outlier charges or potential duplicate entries detected in this timeframe.</p>
+                  <p className="text-xs font-bold text-stone-800">No Anomalies Flagged</p>
+                  <p className="text-[11px] text-stone-600">No outlier charges or potential duplicate entries detected in this timeframe.</p>
                 </div>
               )}
             </div>
@@ -1195,7 +1195,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {/* Perspective E: Run-Rate Forecasting & Projections             */}
       {/* ------------------------------------------------------------- */}
       {(viewMode === 'all' || viewMode === 'forecast') && (
-        <section className="bg-slate-900 text-white p-6 rounded-2xl shadow-sm space-y-5">
+        <section className="bg-stone-900 text-white p-6 rounded-xl shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
@@ -1210,14 +1210,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                     Estimate
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-stone-400 mt-0.5">
                   Extrapolating active daily run rates across the remaining {forecast.daysRemaining} days in this period
                 </p>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Projected Net Cashflow</span>
+              <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Projected Net Cashflow</span>
               <h4 className={`text-base font-black ${forecast.projectedPeriodNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {forecast.projectedPeriodNet >= 0 ? '+' : ''}${forecast.projectedPeriodNet.toLocaleString()}
               </h4>
@@ -1226,25 +1226,25 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Projected Total Outflow</span>
+              <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Projected Total Outflow</span>
               <h4 className="text-base font-black text-white">${forecast.projectedPeriodSpending.toLocaleString()}</h4>
-              <p className="text-[10px] text-slate-400">Current: ${summaryMetrics.totalSpending.toLocaleString()} + ${(forecast.spendingRunRateDaily * forecast.daysRemaining).toLocaleString()} est.</p>
+              <p className="text-[10px] text-stone-400">Current: ${summaryMetrics.totalSpending.toLocaleString()} + ${(forecast.spendingRunRateDaily * forecast.daysRemaining).toLocaleString()} est.</p>
             </div>
 
             <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Projected Total Inflow</span>
+              <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Projected Total Inflow</span>
               <h4 className="text-base font-black text-emerald-400">${forecast.projectedPeriodIncome.toLocaleString()}</h4>
-              <p className="text-[10px] text-slate-400">Based on active inflow rate of ${forecast.incomeRunRateDaily.toFixed(0)}/day</p>
+              <p className="text-[10px] text-stone-400">Based on active inflow rate of ${forecast.incomeRunRateDaily.toFixed(0)}/day</p>
             </div>
 
             <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Budget Health Warning</span>
+              <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Budget Health Warning</span>
               <h4 className={`text-base font-black ${forecast.categoriesAtRiskOfOverBudget.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                 {forecast.categoriesAtRiskOfOverBudget.length === 0 
                   ? 'All Budgets on Track' 
                   : `${forecast.categoriesAtRiskOfOverBudget.length} Categories at Risk`}
               </h4>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-stone-400">
                 {forecast.categoriesAtRiskOfOverBudget.length > 0 
                   ? forecast.categoriesAtRiskOfOverBudget.map(c => c.name).join(', ') 
                   : 'Spending pace is sustainable'}
@@ -1258,19 +1258,19 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
       {/* Interactive Transaction Drill-Down Modal                       */}
       {/* ------------------------------------------------------------- */}
       {drilldownModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-xl shadow-2xl border border-stone-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-4 bg-slate-50/80">
+            <div className="p-5 border-b border-stone-100 flex items-center justify-between gap-4 bg-stone-50/80">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-black text-slate-900">{drilldownTitle}</h3>
+                  <h3 className="text-sm font-black text-stone-900">{drilldownTitle}</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
                     {drilldownTransactions.length} {drilldownTransactions.length === 1 ? 'transaction' : 'transactions'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600 mt-0.5">
-                  Total Value: <strong className="text-slate-900">${drilldownTransactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}</strong>
+                <p className="text-[11px] text-stone-600 mt-0.5">
+                  Total Value: <strong className="text-stone-900">${drilldownTransactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}</strong>
                 </p>
               </div>
 
@@ -1278,7 +1278,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                 <button
                   onClick={handleExportDrilldownCSV}
                   disabled={drilldownTransactions.length === 0}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-40"
+                  className="px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-40"
                   title="Export filtered CSV"
                 >
                   <Download size={13} />
@@ -1286,7 +1286,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                 </button>
                 <button
                   onClick={() => setDrilldownModalOpen(false)}
-                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition"
+                  className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center transition"
                 >
                   <X size={16} />
                 </button>
@@ -1294,19 +1294,19 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
             </div>
 
             {/* Modal Search & Filter Bar */}
-            <div className="p-3.5 bg-white border-b border-slate-100 flex items-center gap-3">
+            <div className="p-3.5 bg-white border-b border-stone-100 flex items-center gap-3">
               <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-3 top-1/2 -transtone-y-1/2 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Search by description, vendor, category..."
                   value={drilldownSearch}
                   onChange={e => setDrilldownSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium placeholder:text-slate-400 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition"
+                  className="w-full pl-9 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-medium placeholder:text-stone-400 focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition"
                 />
               </div>
 
-              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200">
                 {(['all', 'expense', 'income'] as const).map(type => (
                   <button
                     key={type}
@@ -1314,7 +1314,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                     className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase transition ${
                       drilldownTypeFilter === type
                         ? 'bg-white text-indigo-700 shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
                     {type}
@@ -1328,7 +1328,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               {drilldownTransactions.length > 0 ? (
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-100 text-[9px] font-bold text-slate-600 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-xs">
+                    <tr className="bg-stone-50/80 border-b border-stone-100 text-[9px] font-bold text-stone-600 uppercase tracking-wider sticky top-0 z-10 backdrop-blur-xs">
                       <th className="py-2.5 px-4">Date</th>
                       <th className="py-2.5 px-4">Description</th>
                       <th className="py-2.5 px-4">Category</th>
@@ -1339,15 +1339,15 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs">
+                  <tbody className="divide-y divide-stone-100 text-xs">
                     {drilldownTransactions.map(t => (
-                      <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-2.5 px-4 font-semibold text-slate-600 whitespace-nowrap">
+                      <tr key={t.id} className="hover:bg-stone-50/80 transition-colors">
+                        <td className="py-2.5 px-4 font-semibold text-stone-600 whitespace-nowrap">
                           {t.date}
                         </td>
                         <td className="py-2.5 px-4">
-                          <p className="font-bold text-slate-900">{t.description}</p>
-                          {t.vendor && <p className="text-[10px] text-slate-600">{t.vendor}</p>}
+                          <p className="font-bold text-stone-900">{t.description}</p>
+                          {t.vendor && <p className="text-[10px] text-stone-600">{t.vendor}</p>}
                         </td>
                         <td className="py-2.5 px-4 whitespace-nowrap">
                           <span 
@@ -1357,11 +1357,11 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                             {t.category}
                           </span>
                         </td>
-                        <td className="py-2.5 px-4 font-medium text-slate-600 whitespace-nowrap">
+                        <td className="py-2.5 px-4 font-medium text-stone-600 whitespace-nowrap">
                           {t.institution || 'Cash in Hand'}
                         </td>
                         <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${
-                          t.type === 'income' ? 'text-emerald-600' : 'text-slate-900'
+                          t.type === 'income' ? 'text-emerald-600' : 'text-stone-900'
                         }`}>
                           {t.type === 'income' ? '+' : ''}${t.amount.toLocaleString()}
                         </td>
@@ -1374,7 +1374,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                                     setDrilldownModalOpen(false);
                                     onEditTransaction(t);
                                   }}
-                                  className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition"
+                                  className="p-1 rounded text-stone-400 hover:text-indigo-600 hover:bg-stone-100 transition"
                                   title="Edit Transaction"
                                 >
                                   <Edit2 size={13} />
@@ -1383,7 +1383,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                               {onDeleteTransaction && (
                                 <button
                                   onClick={() => onDeleteTransaction(t.id)}
-                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                  className="p-1 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition"
                                   title="Delete Transaction"
                                 >
                                   <Trash2 size={13} />
@@ -1398,17 +1398,17 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                 </table>
               ) : (
                 <div className="py-16 text-center space-y-1">
-                  <p className="text-sm font-bold text-slate-700">No Transactions Found</p>
-                  <p className="text-xs text-slate-600">No records match the current filter or search criteria.</p>
+                  <p className="text-sm font-bold text-stone-700">No Transactions Found</p>
+                  <p className="text-xs text-stone-600">No records match the current filter or search criteria.</p>
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3.5 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <div className="p-3.5 border-t border-stone-100 bg-stone-50 flex justify-end">
               <button
                 onClick={() => setDrilldownModalOpen(false)}
-                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
+                className="px-4 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
               >
                 Close Drilldown
               </button>

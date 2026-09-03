@@ -267,7 +267,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
               return (
                 <div
                   key={notif.id}
-                  className={`p-4 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-indigo-500/20 hover:border-indigo-400/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm group ${
+                  className={`p-4 rounded-xl bg-stone-900/80 hover:bg-stone-900 border border-indigo-500/20 hover:border-indigo-400/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm group ${
                     isDismissing ? 'opacity-40 pointer-events-none' : ''
                   }`}
                 >
@@ -311,7 +311,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
                     <button
                       onClick={(e) => handleMarkAsRead(notif.id, e)}
                       disabled={isDismissing}
-                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-200 hover:text-white rounded-lg text-xs font-semibold border border-indigo-500/20 transition"
+                      className="px-2.5 py-1.5 bg-stone-800 hover:bg-stone-700 text-indigo-200 hover:text-white rounded-lg text-xs font-semibold border border-indigo-500/20 transition"
                       title="Mark as read in Gmail (removes notification)"
                     >
                       <CheckCircle size={13} className="inline mr-1 text-emerald-400" />

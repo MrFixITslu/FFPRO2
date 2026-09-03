@@ -139,11 +139,11 @@ export const TaskDetailModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
+    <div className="fixed inset-0 z-[200] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-stone-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${badgeConfig.colorClass}`}>
               {badgeConfig.label}
@@ -152,7 +152,7 @@ export const TaskDetailModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition"
           >
             <X size={18} />
           </button>
@@ -169,7 +169,7 @@ export const TaskDetailModal: React.FC<Props> = ({
           
           {/* Main Title Input */}
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
               Task Name *
             </label>
             <div className="flex items-center gap-3">
@@ -179,7 +179,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                 className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all shrink-0 cursor-pointer ${
                   completed
                     ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                    : 'border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
+                    : 'border-stone-300 text-stone-400 hover:border-emerald-500 hover:text-emerald-500 hover:bg-emerald-50/50'
                 }`}
                 title={completed ? 'Mark incomplete' : 'Mark completed'}
               >
@@ -190,8 +190,8 @@ export const TaskDetailModal: React.FC<Props> = ({
                 required
                 value={text}
                 onChange={e => setText(e.target.value)}
-                className={`flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-base font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white ${
-                  completed ? 'line-through text-slate-400' : ''
+                className={`flex-1 px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 text-base font-bold outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white ${
+                  completed ? 'line-through text-stone-400' : ''
                 }`}
                 placeholder="e.g. Configure Firewall Rules"
               />
@@ -201,13 +201,13 @@ export const TaskDetailModal: React.FC<Props> = ({
           {/* Priority, Status & Reminder Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                 Priority
               </label>
               <select
                 value={priority}
                 onChange={e => setPriority(e.target.value as TaskPriority)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="low">Low Priority</option>
                 <option value="medium">Medium Priority</option>
@@ -217,13 +217,13 @@ export const TaskDetailModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                 Status
               </label>
               <select
                 value={status}
                 onChange={e => handleStatusChange(e.target.value as TaskStatus)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="not_started">Not Started</option>
                 <option value="in_progress">In Progress</option>
@@ -232,13 +232,13 @@ export const TaskDetailModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
                 <Bell size={12} /> Reminder
               </label>
               <select
                 value={reminder}
                 onChange={e => setReminder(e.target.value as ReminderOption)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="none">No Reminder</option>
                 <option value="30m">30 Minutes Before</option>
@@ -253,7 +253,7 @@ export const TaskDetailModal: React.FC<Props> = ({
           {/* Recurrence / Repeat Settings */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                 Repeat Interval (Recurrence)
               </label>
               <select
@@ -265,7 +265,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                     setRepeatReminder('none');
                   }
                 }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="none">One-time (Do Not Repeat)</option>
                 <option value="daily">Daily</option>
@@ -277,7 +277,7 @@ export const TaskDetailModal: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
                 <Bell size={12} /> Repeat Reminder
               </label>
               <select
@@ -286,8 +286,8 @@ export const TaskDetailModal: React.FC<Props> = ({
                 onChange={e => setRepeatReminder(e.target.value as any)}
                 className={`w-full px-3 py-2 border rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 ${
                   repeatInterval === 'none'
-                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                    : 'bg-slate-50 text-slate-800 border-slate-200'
+                    ? 'bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed'
+                    : 'bg-stone-50 text-stone-800 border-stone-200'
                 }`}
               >
                 <option value="none">No Repeat Reminder</option>
@@ -301,45 +301,45 @@ export const TaskDetailModal: React.FC<Props> = ({
           </div>
 
           {/* Scheduling: Start Date/Time & Due Date/Time */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+          <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-3">
+            <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-2">
               <Calendar size={14} className="text-indigo-600" />
               Schedule & Timing
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Start Date & Time</label>
+                <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Start Date & Time</label>
                 <div className="flex gap-2">
                   <input
                     type="date"
                     value={startDate}
                     onChange={e => setStartDate(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="flex-1 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <input
                     type="time"
                     value={startTime}
                     onChange={e => setStartTime(e.target.value)}
-                    className="w-24 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-24 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Due Date & Time</label>
+                <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Due Date & Time</label>
                 <div className="flex gap-2">
                   <input
                     type="date"
                     value={dueDate}
                     onChange={e => setDueDate(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="flex-1 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <input
                     type="time"
                     value={dueTime}
                     onChange={e => setDueTime(e.target.value)}
-                    className="w-24 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-24 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-semibold text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -370,7 +370,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                     >
                       <div className="flex items-center gap-2 overflow-hidden">
                         <span className={`w-2 h-2 rounded-full ${depTask?.completed ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                        <span className="font-semibold text-slate-800 truncate">{depTask?.text || depId}</span>
+                        <span className="font-semibold text-stone-800 truncate">{depTask?.text || depId}</span>
                         {depTask?.completed ? (
                           <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Completed</span>
                         ) : (
@@ -380,7 +380,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveDependency(depId)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
+                        className="text-stone-400 hover:text-rose-600 p-1"
                       >
                         <X size={14} />
                       </button>
@@ -389,7 +389,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                 })}
               </div>
             ) : (
-              <p className="text-[11px] text-slate-500 italic">No prerequisite dependencies set. This task can start anytime.</p>
+              <p className="text-[11px] text-stone-500 italic">No prerequisite dependencies set. This task can start anytime.</p>
             )}
 
             {/* Select new dependency */}
@@ -399,7 +399,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                   handleAddDependency(e.target.value);
                   e.target.value = '';
                 }}
-                className="flex-1 px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                className="flex-1 px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs font-medium text-stone-800 outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="">+ Select prerequisite task...</option>
                 {candidatePrereqs
@@ -427,7 +427,7 @@ export const TaskDetailModal: React.FC<Props> = ({
                 {downstreamDependents.map(dep => (
                   <span
                     key={dep.id}
-                    className="px-2 py-1 bg-white border border-amber-200 rounded text-[10px] font-bold text-slate-700 flex items-center gap-1"
+                    className="px-2 py-1 bg-white border border-amber-200 rounded text-[10px] font-bold text-stone-700 flex items-center gap-1"
                   >
                     <ChevronRight size={10} className="text-amber-500" />
                     {dep.text}
@@ -440,7 +440,7 @@ export const TaskDetailModal: React.FC<Props> = ({
           {/* Description & Notes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                 Description
               </label>
               <textarea
@@ -448,12 +448,12 @@ export const TaskDetailModal: React.FC<Props> = ({
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Scope of work and instructions..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
                 Notes & Updates
               </label>
               <textarea
@@ -461,17 +461,17 @@ export const TaskDetailModal: React.FC<Props> = ({
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Additional comments or progress updates..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-800 outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           {/* Tags */}
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
+            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
               <Tag size={12} /> Tags
             </label>
-            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-stone-50 border border-stone-200 rounded-xl">
               {tags.map(tag => (
                 <span
                   key={tag}
@@ -505,15 +505,15 @@ export const TaskDetailModal: React.FC<Props> = ({
 
           {/* Activity Logs */}
           {task.activityHistory && task.activityHistory.length > 0 && (
-            <div className="border-t border-slate-100 pt-4">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="border-t border-stone-100 pt-4">
+              <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <History size={14} /> Activity Log
               </h4>
               <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                 {task.activityHistory.map(log => (
-                  <div key={log.id} className="text-[11px] text-slate-600 flex justify-between items-center py-1 border-b border-slate-100 gap-2 min-w-0">
-                    <span className="min-w-0 flex-1 break-words">{log.action.replace(/_/g, ' ')} <span className="text-slate-400">by {log.user}</span></span>
-                    <span className="text-[9px] text-slate-400 font-mono shrink-0 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                  <div key={log.id} className="text-[11px] text-stone-600 flex justify-between items-center py-1 border-b border-stone-100 gap-2 min-w-0">
+                    <span className="min-w-0 flex-1 break-words">{log.action.replace(/_/g, ' ')} <span className="text-stone-400">by {log.user}</span></span>
+                    <span className="text-[9px] text-stone-400 font-mono shrink-0 whitespace-nowrap">{new Date(log.timestamp).toLocaleTimeString()}</span>
                   </div>
                 ))}
               </div>
@@ -521,7 +521,7 @@ export const TaskDetailModal: React.FC<Props> = ({
           )}
 
           {/* Footer Buttons */}
-          <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+          <div className="border-t border-stone-100 pt-4 flex items-center justify-between">
             <button
               type="button"
               onClick={() => onDelete(task.id)}
@@ -534,7 +534,7 @@ export const TaskDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition"
               >
                 Cancel
               </button>

@@ -97,14 +97,14 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl border border-slate-200 shadow-sm max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4 bg-stone-900/60 backdrop-blur-sm">
+      <div className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-2xl border border-stone-200 shadow-sm max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-stone-100 shrink-0">
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-slate-950 tracking-tight truncate">Share "{projectName}"</h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Collaborate with others</p>
+            <h3 className="text-lg font-bold text-stone-950 tracking-tight truncate">Share "{projectName}"</h3>
+            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Collaborate with others</p>
           </div>
-          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all shrink-0">
+          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-all shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -112,22 +112,22 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {canManage && (
             <form onSubmit={handleInvite} className="space-y-2">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Invite by email</label>
+              <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Invite by email</label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
-                  <Mail className="w-4 h-4 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-stone-300 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="colleague@email.com"
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full pl-9 pr-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as ProjectRole)}
-                  className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-sm outline-none focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="editor">Can edit</option>
                   <option value="viewer">Can view</option>
@@ -155,22 +155,22 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
           )}
 
           <div>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Members ({members.length})</p>
+            <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-2">Members ({members.length})</p>
             {loading ? (
-              <p className="text-sm text-slate-400">Loading…</p>
+              <p className="text-sm text-stone-400">Loading…</p>
             ) : (
               <div className="space-y-2">
                 {members.map(m => (
-                  <div key={m.userId} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2.5">
+                  <div key={m.userId} className="flex items-center justify-between gap-2 bg-stone-50 rounded-lg px-3 py-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-[11px] font-bold text-indigo-600 uppercase shrink-0">
                         {(m.displayName || m.username || m.email)[0]}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate">
-                          {m.displayName || m.username || m.email} {m.userId === currentUserId && <span className="text-slate-400 font-normal">(you)</span>}
+                        <p className="text-sm font-semibold text-stone-800 truncate">
+                          {m.displayName || m.username || m.email} {m.userId === currentUserId && <span className="text-stone-400 font-normal">(you)</span>}
                         </p>
-                        <p className="text-[10px] text-slate-400 truncate">{m.email}</p>
+                        <p className="text-[10px] text-stone-400 truncate">{m.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -182,16 +182,16 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
                         <select
                           value={m.role}
                           onChange={(e) => handleRoleChange(m.userId, e.target.value as ProjectRole)}
-                          className="text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 rounded px-2 py-1 outline-none"
+                          className="text-[10px] font-bold uppercase tracking-wider bg-white border border-stone-200 rounded px-2 py-1 outline-none"
                         >
                           <option value="editor">Editor</option>
                           <option value="viewer">Viewer</option>
                         </select>
                       ) : (
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{m.role}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-stone-500">{m.role}</span>
                       )}
                       {(isOwner && m.role !== 'owner') || m.userId === currentUserId && m.role !== 'owner' ? (
-                        <button onClick={() => handleRemoveMember(m.userId)} title="Remove" className="w-7 h-7 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <button onClick={() => handleRemoveMember(m.userId)} title="Remove" className="w-7 h-7 flex items-center justify-center rounded text-stone-300 hover:text-red-500 hover:bg-red-50 transition-all">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       ) : null}
@@ -204,16 +204,16 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
 
           {invites.length > 0 && (
             <div>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Pending invites ({invites.length})</p>
+              <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-2">Pending invites ({invites.length})</p>
               <div className="space-y-2">
                 {invites.map(inv => (
                   <div key={inv.id} className="flex items-center justify-between gap-2 bg-amber-50/50 border border-amber-100 rounded-lg px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-700 truncate">{inv.email}</p>
+                      <p className="text-sm font-semibold text-stone-700 truncate">{inv.email}</p>
                       <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Awaiting response · {inv.role}</p>
                     </div>
                     {canManage && (
-                      <button onClick={() => handleRevokeInvite(inv.id)} title="Revoke invite" className="w-7 h-7 shrink-0 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                      <button onClick={() => handleRevokeInvite(inv.id)} title="Revoke invite" className="w-7 h-7 shrink-0 flex items-center justify-center rounded text-stone-300 hover:text-red-500 hover:bg-red-50 transition-all">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}

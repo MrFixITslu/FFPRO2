@@ -107,23 +107,23 @@ const ProjectChat: React.FC<Props> = ({ projectId, currentUserId }) => {
   const formatTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
   return (
-    <div className="flex flex-col h-[60vh] sm:h-[65vh] bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div className="flex flex-col h-[60vh] sm:h-[65vh] bg-white rounded-xl border border-stone-200 overflow-hidden">
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-[11px] font-bold text-slate-400 uppercase tracking-wider">Loading chat…</div>
+          <div className="flex items-center justify-center h-full text-[11px] font-bold text-stone-400 uppercase tracking-wider">Loading chat…</div>
         ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center px-6">
-            <p className="text-sm text-slate-400">No messages yet. Say hello to your collaborators.</p>
+            <p className="text-sm text-stone-400">No messages yet. Say hello to your collaborators.</p>
           </div>
         ) : (
           messages.map(m => {
             const isMe = m.senderId === currentUserId;
             return (
               <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 ${isMe ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm'}`}>
+                <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 ${isMe ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-stone-100 text-stone-800 rounded-bl-sm'}`}>
                   {!isMe && <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-indigo-500">{m.senderName}</p>}
                   <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>
-                  <p className={`text-[9px] mt-1 ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>{formatTime(m.createdAt)}</p>
+                  <p className={`text-[9px] mt-1 ${isMe ? 'text-indigo-200' : 'text-stone-400'}`}>{formatTime(m.createdAt)}</p>
                 </div>
               </div>
             );
@@ -133,7 +133,7 @@ const ProjectChat: React.FC<Props> = ({ projectId, currentUserId }) => {
 
       {error && <p className="text-[11px] text-red-500 px-3 sm:px-4 pb-1">{error}</p>}
 
-      <div className="border-t border-slate-200 p-2 sm:p-3 flex items-end gap-2 bg-slate-50">
+      <div className="border-t border-stone-200 p-2 sm:p-3 flex items-end gap-2 bg-stone-50">
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -145,7 +145,7 @@ const ProjectChat: React.FC<Props> = ({ projectId, currentUserId }) => {
           }}
           placeholder="Message the team…"
           rows={1}
-          className="flex-1 resize-none px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 max-h-28"
+          className="flex-1 resize-none px-3 py-2.5 text-sm bg-white border border-stone-200 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 max-h-28"
         />
         <button
           onClick={handleSend}

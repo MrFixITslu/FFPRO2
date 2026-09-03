@@ -174,15 +174,15 @@ const Projections: React.FC<Props> = ({
     <div className="space-y-6 animate-in fade-in duration-700 pb-12">
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Main Projection Chart */}
-        <section className="flex-1 bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <section className="flex-1 bg-white p-6 rounded-xl border border-stone-200 shadow-sm relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider">Wealth Projection Matrix</h3>
-                <p className="text-[9px] text-slate-400 font-bold uppercase mt-1.5 tracking-wider">Future Net Worth Simulation</p>
+                <h3 className="font-bold text-stone-800 uppercase text-xs tracking-wider">Wealth Projection Matrix</h3>
+                <p className="text-[9px] text-stone-400 font-bold uppercase mt-1.5 tracking-wider">Future Net Worth Simulation</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Target End Value</p>
+                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Target End Value</p>
                 <h4 className="text-2xl font-bold text-indigo-600 tracking-tight">${finalValue.toLocaleString()}</h4>
               </div>
             </div>
@@ -217,13 +217,13 @@ const Projections: React.FC<Props> = ({
 
         {/* Simulator Controls */}
         <aside className="w-full lg:w-[380px] space-y-6">
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white shadow-sm">
+          <div className="bg-stone-900 p-6 rounded-xl border border-stone-800 text-white shadow-sm">
             <h3 className="text-indigo-400 font-bold uppercase text-xs tracking-wider mb-6">Scenario Simulator</h3>
             
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Time Horizon</label>
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Time Horizon</label>
                   <span className="text-xs font-bold text-indigo-400">{yearsToProject} Years</span>
                 </div>
                 <input 
@@ -236,7 +236,7 @@ const Projections: React.FC<Props> = ({
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Monthly Contribution</label>
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Monthly Contribution</label>
                   <span className="text-xs font-bold text-emerald-400">${monthlyContribution}</span>
                 </div>
                 <input 
@@ -245,12 +245,12 @@ const Projections: React.FC<Props> = ({
                   onChange={(e) => handleContributionChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-emerald-500" 
                 />
-                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1.5">Available Surplus: ${netMonthlyCashflow.toFixed(0)}</p>
+                <p className="text-[8px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: ${netMonthlyCashflow.toFixed(0)}</p>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Expected ROI (Annual)</label>
+                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Expected ROI (Annual)</label>
                   <span className="text-xs font-bold text-amber-400">{expectedReturn}%</span>
                 </div>
                 <input 
@@ -263,40 +263,40 @@ const Projections: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
              <div className="flex items-center gap-2 mb-4">
                 <div className="w-6 h-6 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded flex items-center justify-center shadow-sm">
                   <i className="fas fa-brain text-[10px]"></i>
                 </div>
-                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">AI Strategic Feedback</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-stone-400">AI Strategic Feedback</h4>
              </div>
              {isAnalyzing ? (
                 <div className="space-y-1.5">
-                  <div className="h-3 w-full bg-slate-100 animate-pulse rounded"></div>
-                  <div className="h-3 w-4/5 bg-slate-100 animate-pulse rounded"></div>
+                  <div className="h-3 w-full bg-stone-100 animate-pulse rounded"></div>
+                  <div className="h-3 w-4/5 bg-stone-100 animate-pulse rounded"></div>
                 </div>
              ) : (
-                <p className="text-xs font-medium text-slate-600 leading-relaxed">"{aiAnalysis}"</p>
+                <p className="text-xs font-medium text-stone-600 leading-relaxed">"{aiAnalysis}"</p>
              )}
           </div>
         </aside>
       </div>
 
-      <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-8">Wealth Milestones Forecast</h3>
+      <section className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+        <h3 className="font-bold text-stone-800 uppercase text-xs tracking-wider mb-8">Wealth Milestones Forecast</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {milestones.map((m, idx) => {
             const isReached = m.target <= finalValue;
             const progress = Math.min(100, (finalValue / m.target) * 100);
             return (
-              <div key={idx} className={`p-4 rounded-lg border transition-all ${isReached ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' : 'bg-slate-50/50 border-slate-200 opacity-75'}`}>
-                <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 border ${isReached ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
+              <div key={idx} className={`p-4 rounded-lg border transition-all ${isReached ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' : 'bg-stone-50/50 border-stone-200 opacity-75'}`}>
+                <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 border ${isReached ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' : 'bg-stone-100 border-stone-200 text-stone-400'}`}>
                   <i className={`fas ${isReached ? 'fa-check-circle' : 'fa-lock'} text-xs`}></i>
                 </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">{m.label}</p>
-                <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-slate-800'}`}>${(m.target/1000)}k</p>
+                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">{m.label}</p>
+                <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-stone-800'}`}>${(m.target/1000)}k</p>
                 
-                <div className="mt-3 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                <div className="mt-3 h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
                   <div className={`h-full ${isReached ? 'bg-emerald-500' : 'bg-indigo-600'} transition-all duration-1000`} style={{ width: `${progress}%` }}></div>
                 </div>
               </div>

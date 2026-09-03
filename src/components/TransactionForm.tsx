@@ -107,26 +107,26 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
   const isEditing = !!initialData?.id;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 animate-in fade-in duration-300">
+    <form onSubmit={handleSubmit} className="space-y-4 p-6 bg-white rounded-[2rem] shadow-sm border border-stone-100 animate-in fade-in duration-300">
       <div className="flex gap-2 mb-2">
         <button
           type="button"
           onClick={() => setType('expense')}
-          className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all ${type === 'expense' ? 'bg-rose-500 text-white shadow-lg shadow-rose-200 scale-[1.02]' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+          className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all ${type === 'expense' ? 'bg-rose-500 text-white shadow-lg shadow-rose-200 scale-[1.02]' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}
         >
           <i className="fas fa-arrow-down mr-1"></i> Expense
         </button>
         <button
           type="button"
           onClick={() => setType('income')}
-          className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all ${type === 'income' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 scale-[1.02]' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+          className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all ${type === 'income' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 scale-[1.02]' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}
         >
           <i className="fas fa-arrow-up mr-1"></i> Income
         </button>
         <button
           type="button"
           onClick={() => setType('transfer')}
-          className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all ${type === 'transfer' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-[1.02]' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+          className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all ${type === 'transfer' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-[1.02]' : 'bg-stone-50 text-stone-400 hover:bg-stone-100'}`}
         >
           <i className="fas fa-exchange-alt mr-1"></i> Transfer
         </button>
@@ -134,34 +134,34 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Amount ($)</label>
+          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Amount ($)</label>
           <input
             type="number"
             step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className={`w-full p-4 bg-slate-50 border ${errors.amount ? 'border-rose-300 ring-2 ring-rose-50' : 'border-slate-100'} rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-800 text-lg transition-all`}
+            className={`w-full p-4 bg-stone-50 border ${errors.amount ? 'border-rose-300 ring-2 ring-rose-50' : 'border-stone-100'} rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-stone-800 text-lg transition-all`}
             placeholder="0.00"
             required
           />
           {errors.amount && <p className="text-[9px] font-bold text-rose-500 mt-1 ml-1 animate-pulse">{errors.amount}</p>}
         </div>
         <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">
             {type === 'transfer' ? 'From Account' : 'Payment Source'}
           </label>
           <div className="relative">
             <select
               value={institution}
               onChange={(e) => setInstitution(e.target.value)}
-              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-700 text-sm appearance-none cursor-pointer"
+              className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-stone-700 text-sm appearance-none cursor-pointer"
             >
               <option value="Cash in Hand">Cash in Hand</option>
               {bankConnections.map(conn => (
                 <option key={conn.institution} value={conn.institution}>{conn.institution}</option>
               ))}
             </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
               <i className="fas fa-wallet text-[10px]"></i>
             </div>
           </div>
@@ -170,19 +170,19 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
 
       {type === 'transfer' && (
         <div className="animate-in slide-in-from-top-2 duration-300">
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">To Account</label>
+          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">To Account</label>
           <div className="relative">
             <select
               value={destinationInstitution}
               onChange={(e) => setDestinationInstitution(e.target.value)}
-              className={`w-full p-4 bg-slate-50 border ${errors.destination ? 'border-rose-300' : 'border-slate-100'} rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-700 text-sm appearance-none cursor-pointer`}
+              className={`w-full p-4 bg-stone-50 border ${errors.destination ? 'border-rose-300' : 'border-stone-100'} rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-stone-700 text-sm appearance-none cursor-pointer`}
             >
               <option value="Cash in Hand">Cash in Hand</option>
               {bankConnections.map(conn => (
                 <option key={conn.institution} value={conn.institution}>{conn.institution}</option>
               ))}
             </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
               <i className="fas fa-long-arrow-alt-right text-[10px]"></i>
             </div>
             {errors.destination && <p className="text-[9px] font-bold text-rose-500 mt-1 ml-1 animate-pulse">{errors.destination}</p>}
@@ -192,33 +192,33 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Date</label>
+          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Date</label>
           <div className="relative">
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-800 text-sm"
+              className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-stone-800 text-sm"
               required
             />
             <div className="flex gap-2 mt-2 ml-1">
-              <button type="button" onClick={() => setQuickDate(0)} className="text-[8px] font-black uppercase tracking-widest bg-slate-100 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-600 transition">Today</button>
-              <button type="button" onClick={() => setQuickDate(-1)} className="text-[8px] font-black uppercase tracking-widest bg-slate-100 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-600 transition">Yesterday</button>
+              <button type="button" onClick={() => setQuickDate(0)} className="text-[8px] font-black uppercase tracking-widest bg-stone-100 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-600 transition">Today</button>
+              <button type="button" onClick={() => setQuickDate(-1)} className="text-[8px] font-black uppercase tracking-widest bg-stone-100 px-2 py-1 rounded hover:bg-indigo-100 hover:text-indigo-600 transition">Yesterday</button>
             </div>
           </div>
         </div>
         <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Category</label>
+          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Category</label>
           <div className="relative">
             <select
               disabled={type === 'transfer'}
               value={type === 'transfer' ? 'Transfer' : category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-700 text-sm appearance-none cursor-pointer disabled:opacity-50"
+              className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-stone-700 text-sm appearance-none cursor-pointer disabled:opacity-50"
             >
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
               <i className="fas fa-tag text-[10px]"></i>
             </div>
           </div>
@@ -226,12 +226,12 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
       </div>
 
       <div>
-        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Description</label>
+        <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Description</label>
         <input
           type="text"
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
-          className={`w-full p-4 bg-slate-50 border ${errors.description ? 'border-rose-300 ring-2 ring-rose-50' : 'border-slate-100'} rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-800 text-sm transition-all`}
+          className={`w-full p-4 bg-stone-50 border ${errors.description ? 'border-rose-300 ring-2 ring-rose-50' : 'border-stone-100'} rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-stone-800 text-sm transition-all`}
           placeholder={type === 'transfer' ? "e.g. Moving to Savings" : "What was this for?"}
           required
         />
@@ -248,9 +248,9 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
                   <span className="w-6 h-6 bg-white border border-indigo-100 rounded-lg flex items-center justify-center text-[9px] font-black text-indigo-600">
                     {item.quantity || 1}x
                   </span>
-                  <span className="font-bold text-slate-700">{item.name}</span>
+                  <span className="font-bold text-stone-700">{item.name}</span>
                 </div>
-                <span className="font-black text-slate-900">${item.price.toFixed(2)}</span>
+                <span className="font-black text-stone-900">${item.price.toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -262,7 +262,7 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-slate-200 transition active:scale-95"
+            className="flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-stone-200 transition active:scale-95"
           >
             Cancel
           </button>
