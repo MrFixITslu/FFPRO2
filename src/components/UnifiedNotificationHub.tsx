@@ -26,22 +26,8 @@ import {
   CheckSquare,
   AlertCircle
 } from 'lucide-react';
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask, BankConnection } from '../types';
-import { EmailDetailModal } from './EmailDetailModal';
-=======
 import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
->>>>>>> Stashed changes
-=======
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
->>>>>>> Stashed changes
-=======
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
->>>>>>> Stashed changes
 import { authService } from '../services/authService';
-import { realtimeService } from '../services/realtimeService';
 
 // Stub out Firebase functions that were removed - this component is not currently used
 // It can be properly refactored to use the server-token Gmail approach later
@@ -118,87 +104,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState<NotificationCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem('dashboard_dismissed_email_ids');
-      if (raw) return new Set(JSON.parse(raw));
-    } catch (e) {}
-    return new Set();
-  });
-
-  // Pull server-persisted dismissed email IDs on mount so fresh devices/phones immediately reflect deletions
-  useEffect(() => {
-    let isMounted = true;
-    fetch('/api/gmail/dismissed', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (isMounted && data && Array.isArray(data.dismissedIds) && data.dismissedIds.length > 0) {
-          setDismissedIds(prev => {
-            const next = new Set(prev);
-            data.dismissedIds.forEach((id: string) => {
-              next.add(id);
-              next.add(`gmail-${id}`);
-            });
-            try {
-              localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-            } catch (e) {}
-            return next;
-          });
-        }
-      })
-      .catch(() => {});
-    return () => { isMounted = false; };
-  }, []);
-
-  // Listen to realtime 'email_dismissed' events broadcast from server across all devices
-  useEffect(() => {
-    const unsub = realtimeService.on('email_dismissed', (payload: any) => {
-      const messageId = payload?.messageId;
-      if (messageId) {
-        setDismissedIds(prev => {
-          const next = new Set(prev);
-          next.add(messageId);
-          next.add(`gmail-${messageId}`);
-          try {
-            localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-          } catch (e) {}
-          return next;
-        });
-        setGmailNotifications(prev => prev.filter(g => g.id !== messageId && `gmail-${g.id}` !== messageId));
-      }
-    });
-    return () => { unsub(); };
-  }, []);
-
-  // Sync with cloud/external dismissed email IDs
-  useEffect(() => {
-    if (Array.isArray(externalDismissedIds) && externalDismissedIds.length > 0) {
-      setDismissedIds(prev => {
-        const next = new Set(prev);
-        let changed = false;
-        externalDismissedIds.forEach(id => {
-          if (!next.has(id)) {
-            next.add(id);
-            changed = true;
-          }
-        });
-        return changed ? next : prev;
-      });
-    }
-  }, [externalDismissedIds]);
-  const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
-=======
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
->>>>>>> Stashed changes
-=======
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
->>>>>>> Stashed changes
-=======
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
->>>>>>> Stashed changes
 
   // Gmail-specific state (disabled - use GmailPlanningNotifications component instead)
   const isGmailAuthorized = false;
@@ -265,61 +171,16 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     }
   }, [fetchGmail]);
 
-  // Handle Google Sign-in & Gmail connection
-  const handleGooglePopupConnect = () => {
-    window.location.href = '/api/auth/google';
+  // Handle Google Sign-in - stub, use login instead
+  const handleGooglePopupConnect = async () => {
+    setGmailError('Gmail access is granted when you log in with Google. Please log out and log back in with Google.');
   };
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-  // Dismiss Gmail permanently from dashboard across all devices (persisted in DB + broadcast)
-  const handleDismissGmail = (messageId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const cleanId = messageId.replace(/^gmail-/, '');
-    setDismissedIds(prev => {
-      const next = new Set(prev);
-      next.add(`gmail-${cleanId}`);
-      next.add(cleanId);
-      try {
-        localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-      } catch (err) {}
-      return next;
-    });
-    
-    if (onDismissEmail) {
-      onDismissEmail(cleanId);
-    }
-=======
   // Mark Gmail as read
   const handleDismissGmail = async (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setDismissedIds(prev => new Set(prev).add(`gmail-${messageId}`));
     
->>>>>>> Stashed changes
-    // Optimistic removal
-    setGmailNotifications(prev => prev.filter(g => g.id !== cleanId && `gmail-${g.id}` !== messageId));
-
-    // Send permanent dismiss to server database & real-time broadcast to all devices
-    fetch('/api/gmail/dismiss', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ messageId: cleanId }),
-    }).catch(err => console.warn('Permanent dismiss error:', err));
-=======
-  // Mark Gmail as read
-  const handleDismissGmail = async (messageId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setDismissedIds(prev => new Set(prev).add(`gmail-${messageId}`));
-    
-=======
-  // Mark Gmail as read
-  const handleDismissGmail = async (messageId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setDismissedIds(prev => new Set(prev).add(`gmail-${messageId}`));
-    
->>>>>>> Stashed changes
     // Optimistic removal
     setGmailNotifications(prev => prev.filter(g => g.id !== messageId));
 
@@ -336,13 +197,6 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       },
       body: JSON.stringify({ messageId }),
     }).catch(() => {});
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
   };
 
   // 3. Build unified notifications list
@@ -905,7 +759,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               <div>
                 <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Gmail Planning Alerts</h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Secure connection to automatically pull unread planning headers and match them with tasks.
+                  Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull unread planning headers and match them with tasks.
                 </p>
                 {gmailError && (
                   <p className="text-[10px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
@@ -920,7 +774,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-2 whitespace-nowrap disabled:opacity-50 cursor-pointer"
             >
               {gmailLoading ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
-              <span>Connect Google Gmail</span>
+              <span>Connect via Google Popup</span>
             </button>
           </div>
         )}

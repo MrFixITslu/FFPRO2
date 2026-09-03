@@ -98,37 +98,3 @@ export async function getValidGoogleAccessToken(userId) {
     return null;
   }
 }
-
-/**
- * Permanently removes stored Google access and refresh tokens for a user.
- */
-export async function clearGoogleTokens(userId) {
-  await pool.query(
-    `UPDATE users 
-     SET google_gmail_ciphertext = NULL, 
-         google_gmail_iv = NULL, 
-         google_gmail_auth_tag = NULL, 
-         google_gmail_token_expiry = NULL 
-     WHERE id = $1`,
-    [userId]
-  );
-}
-
-/**
- * Revokes the token with Google's OAuth2 revocation endpoint and clears it from DB.
- */
-export async function revokeGoogleTokens(userId) {
-  const stored = await loadStoredTokens(userId);
-  const tokenToRevoke = stored?.refreshToken || stored?.accessToken;
-  if (tokenToRevoke) {
-    try {
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-    } catch (err) {
-      console.warn('[google-tokens] Revocation call to Google failed (continuing local purge):', err?.message);
-    }
-  }
-  await clearGoogleTokens(userId);
-}

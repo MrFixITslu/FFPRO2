@@ -4,11 +4,9 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
 import { decryptForUser } from '../crypto.js';
-import { getValidGoogleAccessToken, revokeGoogleTokens } from '../googleTokens.js';
-import { realtimeHub } from '../realtime.js';
+import { getValidGoogleAccessToken } from '../googleTokens.js';
 
 const router = Router();
-// Primary test/demo account; reviewers and any authenticated user who connects Gmail can test their own inbox
 const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
 
 const gmailRateLimiter = rateLimit({
@@ -23,65 +21,17 @@ router.use(gmailRateLimiter);
 
 /**
  * Server-Side Authorization Middleware
- * Verifies that the authenticated user has an active session and access to Gmail features.
- * Permits the designated account as well as any authenticated user who grants Google OAuth consent.
+ * Verifies that the authenticated user strictly matches the authorized email (case-insensitive).
+ * For any other user, returns 403 Forbidden with zero Gmail data/endpoints exposed.
  */
 function requireAuthorizedAccount(req, res, next) {
-  if (req.user && req.user.id) {
+  const userEmail = (req.user?.email || '').trim().toLowerCase();
+  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
     return next();
   }
   return res.status(403).json({
-    error: 'Authentication required to access Gmail features.',
+    error: 'Access restricted to authorized account.',
   });
-}
-
-/**
- * Helper to get all permanently dismissed email IDs for a user across database and encrypted state
- */
-async function getDismissedEmailIds(userId) {
-  const dismissedSet = new Set();
-  try {
-    const { rows } = await pool.query(
-      'SELECT message_id FROM dismissed_emails WHERE user_id = $1',
-      [userId]
-    );
-    if (Array.isArray(rows)) {
-      rows.forEach(r => {
-        if (r.message_id) {
-          dismissedSet.add(r.message_id);
-          dismissedSet.add(`gmail-${r.message_id}`);
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('[gmail-sync] Could not query dismissed_emails:', err?.message);
-  }
-
-  try {
-    const { rows: dataRows } = await pool.query(
-      'SELECT ciphertext, iv, auth_tag FROM user_data WHERE user_id = $1',
-      [userId]
-    );
-    if (dataRows && dataRows[0]) {
-      const decrypted = decryptForUser(userId, {
-        ciphertext: dataRows[0].ciphertext,
-        iv: dataRows[0].iv,
-        authTag: dataRows[0].auth_tag,
-      });
-      if (Array.isArray(decrypted?.dismissedEmailIds)) {
-        decrypted.dismissedEmailIds.forEach(id => {
-          if (id) {
-            dismissedSet.add(id);
-            dismissedSet.add(`gmail-${id}`);
-          }
-        });
-      }
-    }
-  } catch (err) {
-    // ignore
-  }
-
-  return dismissedSet;
 }
 
 /**
@@ -239,11 +189,10 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify token identity belongs to vision79slu@gmail.com or the current user's Google account
-    const userEmail = (req.user?.email || '').trim().toLowerCase();
-    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase() && (!userEmail || tokenEmail !== userEmail)) {
+    // Verify token identity strictly belongs to vision79slu@gmail.com
+    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
       return res.status(403).json({
-        error: `Google token must belong to ${AUTHORIZED_EMAIL} or your logged-in Google account.`,
+        error: `Google token must belong to ${AUTHORIZED_EMAIL}.`,
         code: 'ACCOUNT_MISMATCH',
       });
     }
@@ -286,29 +235,13 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
       });
     }
 
-    // 3. Resolve user's dismissed email headers to guarantee permanent deletion from dashboard across all devices
-    const dismissedSet = await getDismissedEmailIds(req.user.id);
-
-    // Filter out permanently dismissed messages before making metadata calls
-    const activeStubs = messageStubs.filter(
-      stub => !dismissedSet.has(stub.id) && !dismissedSet.has(`gmail-${stub.id}`)
-    );
-
-    if (activeStubs.length === 0) {
-      return res.json({
-        notifications: [],
-        totalUnread: 0,
-        syncTime: new Date().toISOString(),
-      });
-    }
-
-    // 4. Resolve existing tasks to link with emails
+    // 3. Resolve existing tasks to link with emails
     const allTasks = await resolvePlanningTasks(req.user.id);
 
-    // 5. Fetch metadata/headers ONLY for each active message (format=metadata)
+    // 4. Fetch metadata/headers ONLY for each message (format=metadata)
     const notifications = [];
     // Limit parallel fetches to max 10 to protect rate limits
-    const topStubs = activeStubs.slice(0, 10);
+    const topStubs = messageStubs.slice(0, 10);
 
     for (const stub of topStubs) {
       try {
@@ -323,12 +256,6 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
         if (!msgRes.ok) continue;
 
         const msgData = await msgRes.json();
-
-        // Double check against dismissed set
-        if (dismissedSet.has(msgData.id) || dismissedSet.has(`gmail-${msgData.id}`)) {
-          continue;
-        }
-
         const headers = msgData.payload?.headers || [];
         const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
@@ -375,13 +302,9 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
       }
     }
 
-    const filteredNotifications = notifications.filter(
-      n => !dismissedSet.has(n.id) && !dismissedSet.has(`gmail-${n.id}`)
-    );
-
     return res.json({
-      notifications: filteredNotifications,
-      totalUnread: filteredNotifications.length,
+      notifications,
+      totalUnread: notifications.length,
       syncTime: new Date().toISOString(),
     });
   } catch (err) {
@@ -390,70 +313,6 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
       error: 'Planning notifications are temporarily unavailable.',
       code: 'SERVER_ERROR',
     });
-  }
-});
-
-/**
- * POST /api/gmail/dismiss
- * Permanently deletes an email header from the dashboard across all user devices (phone, desktop, etc.).
- * Persists to server DB and broadcasts in real-time to all user's active sockets.
- */
-router.post('/dismiss', requireAuthorizedAccount, async (req, res) => {
-  const { messageId } = req.body || {};
-  if (!messageId || typeof messageId !== 'string') {
-    return res.status(400).json({ error: 'Valid messageId is required.' });
-  }
-
-  const cleanId = messageId.replace(/^gmail-/, '');
-
-  try {
-    // 1. Permanently record in PostgreSQL / persistent db
-    await pool.query(
-      `INSERT INTO dismissed_emails (user_id, message_id)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id, message_id) DO NOTHING`,
-      [req.user.id, cleanId]
-    );
-
-    // 2. Broadcast immediately to all connected devices/phones
-    realtimeHub.broadcastEmailDismissed(req.user.id, {
-      messageId: cleanId,
-      dismissedAt: new Date().toISOString(),
-    });
-
-    // 3. Attempt in background to mark read in Gmail if token is available
-    getValidGoogleAccessToken(req.user.id).then(accessToken => {
-      if (accessToken) {
-        const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(cleanId)}/modify`;
-        fetch(modifyUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
-        }).catch(() => {});
-      }
-    }).catch(() => {});
-
-    res.json({ ok: true, messageId: cleanId });
-  } catch (err) {
-    console.error('[gmail-sync] Error dismissing email:', err);
-    res.status(500).json({ error: 'Failed to record email dismissal.' });
-  }
-});
-
-/**
- * GET /api/gmail/dismissed
- * Returns all permanently dismissed email IDs for this user.
- */
-router.get('/dismissed', requireAuthorizedAccount, async (req, res) => {
-  try {
-    const dismissedSet = await getDismissedEmailIds(req.user.id);
-    res.json({ dismissedIds: Array.from(dismissedSet) });
-  } catch (err) {
-    console.error('[gmail-sync] Error fetching dismissed emails:', err);
-    res.status(500).json({ error: 'Failed to fetch dismissed emails.' });
   }
 });
 
@@ -492,21 +351,6 @@ router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
   } catch (err) {
     console.error('[gmail-sync] Error marking message read:', err);
     res.status(500).json({ error: 'Failed to update email status.' });
-  }
-});
-
-/**
- * POST /api/gmail/disconnect
- * User-initiated Google account disconnection and token revocation.
- * Revokes OAuth grant against Google's revocation server and purges encrypted tokens.
- */
-router.post('/disconnect', requireAuthorizedAccount, async (req, res) => {
-  try {
-    await revokeGoogleTokens(req.user.id);
-    res.json({ ok: true, message: 'Gmail disconnected and stored tokens revoked.' });
-  } catch (err) {
-    console.error('[gmail-sync] Error disconnecting Gmail:', err);
-    res.status(500).json({ error: 'Failed to disconnect Gmail.' });
   }
 });
 

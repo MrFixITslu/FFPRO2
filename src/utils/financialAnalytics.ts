@@ -259,8 +259,7 @@ export function computePeriodComparison(
 export function calculateFinancialIntelligence(
   transactions: Transaction[],
   categoryBudgets: Record<string, number>,
-  periodComparison: PeriodComparison,
-  trajectoryGranularity?: 'daily' | 'weekly' | 'monthly'
+  periodComparison: PeriodComparison
 ) {
   const { currentStart, currentEnd, previousStart, previousEnd } = periodComparison;
   const currentStartTime = currentStart.getTime();
@@ -477,12 +476,7 @@ export function calculateFinancialIntelligence(
   };
 
   // --- Cashflow Trajectory Chart Points ---
-  const trajectoryPoints: CashflowPoint[] = computeTrajectoryPoints(
-    currentTxs,
-    currentStart,
-    currentEnd,
-    trajectoryGranularity
-  );
+  const trajectoryPoints: CashflowPoint[] = computeTrajectoryPoints(currentTxs, currentStart, currentEnd);
 
   // --- Automated Insights & Behavioral Detection ---
   const insights: FinancialInsightItem[] = generateFinancialInsights(
@@ -525,15 +519,12 @@ export function calculateFinancialIntelligence(
 function computeTrajectoryPoints(
   transactions: Transaction[],
   startDate: Date,
-  endDate: Date,
-  granularity?: 'daily' | 'weekly' | 'monthly'
+  endDate: Date
 ): CashflowPoint[] {
   const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const pointsMap = new Map<string, { label: string; inflow: number; outflow: number; txIds: string[] }>();
 
-  const actualGranularity = granularity || (durationDays <= 35 ? 'daily' : durationDays <= 180 ? 'weekly' : 'monthly');
-
-  if (actualGranularity === 'daily') {
+  if (durationDays <= 35) {
     // Daily points
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const key = formatDateISO(d);
