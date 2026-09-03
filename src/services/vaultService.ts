@@ -17,7 +17,6 @@ export interface AppState {
   ideas?: any[];
   forecastSettings?: ForecastSettings;
   financialLogs?: any[];
-  dismissedEmailIds?: string[];
   cashOpeningBalance: number;
   lastUpdated: string;
 }

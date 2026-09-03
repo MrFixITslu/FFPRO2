@@ -26,10 +26,8 @@ import {
   CheckSquare,
   AlertCircle
 } from 'lucide-react';
-import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask, BankConnection } from '../types';
-import { EmailDetailModal } from './EmailDetailModal';
+import { BudgetEvent, CalendarItem, Transaction, GmailPlanningNotification, ProjectTask } from '../types';
 import { authService } from '../services/authService';
-import { realtimeService } from '../services/realtimeService';
 
 // Stub out Firebase functions that were removed - this component is not currently used
 // It can be properly refactored to use the server-token Gmail approach later
@@ -81,15 +79,11 @@ interface Props {
   unconfirmedIncomes?: any[];
   categoryBudgets?: Record<string, number>;
   transactions?: Transaction[];
-  bankConnections?: BankConnection[];
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
   onPayRecurring?: (item: any, amount: number) => void;
   onReceiveRecurringIncome?: (item: any, amount: number, dest: string) => void;
   onOpenTransactionForm?: () => void;
-  onSelectEmailModal?: (email: GmailPlanningNotification) => void;
-  onDismissEmail?: (emailId: string) => void;
-  externalDismissedIds?: string[];
 }
 
 const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
@@ -102,87 +96,15 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   unconfirmedIncomes = [],
   categoryBudgets = {},
   transactions = [],
-  bankConnections = [],
   onNavigateToTask,
   onNavigateToPlanner,
   onPayRecurring,
   onReceiveRecurringIncome,
   onOpenTransactionForm,
-  onSelectEmailModal,
-  onDismissEmail,
-  externalDismissedIds = [],
 }) => {
   const [activeFilter, setActiveFilter] = useState<NotificationCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem('dashboard_dismissed_email_ids');
-      if (raw) return new Set(JSON.parse(raw));
-    } catch (e) {}
-    return new Set();
-  });
-
-  // Pull server-persisted dismissed email IDs on mount so fresh devices/phones immediately reflect deletions
-  useEffect(() => {
-    let isMounted = true;
-    fetch('/api/gmail/dismissed', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (isMounted && data && Array.isArray(data.dismissedIds) && data.dismissedIds.length > 0) {
-          setDismissedIds(prev => {
-            const next = new Set(prev);
-            data.dismissedIds.forEach((id: string) => {
-              next.add(id);
-              next.add(`gmail-${id}`);
-            });
-            try {
-              localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-            } catch (e) {}
-            return next;
-          });
-        }
-      })
-      .catch(() => {});
-    return () => { isMounted = false; };
-  }, []);
-
-  // Listen to realtime 'email_dismissed' events broadcast from server across all devices
-  useEffect(() => {
-    const unsub = realtimeService.on('email_dismissed', (payload: any) => {
-      const messageId = payload?.messageId;
-      if (messageId) {
-        setDismissedIds(prev => {
-          const next = new Set(prev);
-          next.add(messageId);
-          next.add(`gmail-${messageId}`);
-          try {
-            localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-          } catch (e) {}
-          return next;
-        });
-        setGmailNotifications(prev => prev.filter(g => g.id !== messageId && `gmail-${g.id}` !== messageId));
-      }
-    });
-    return () => { unsub(); };
-  }, []);
-
-  // Sync with cloud/external dismissed email IDs
-  useEffect(() => {
-    if (Array.isArray(externalDismissedIds) && externalDismissedIds.length > 0) {
-      setDismissedIds(prev => {
-        const next = new Set(prev);
-        let changed = false;
-        externalDismissedIds.forEach(id => {
-          if (!next.has(id)) {
-            next.add(id);
-            changed = true;
-          }
-        });
-        return changed ? next : prev;
-      });
-    }
-  }, [externalDismissedIds]);
-  const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   // Gmail-specific state (disabled - use GmailPlanningNotifications component instead)
   const isGmailAuthorized = false;
@@ -195,7 +117,6 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   // Quick action state for bill/income
   const [activePaymentModal, setActivePaymentModal] = useState<{ item: any; isIncome: boolean } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>('');
-  const [selectedDestination, setSelectedDestination] = useState<string>('Cash in Hand');
 
   // 1. Compile all user tasks (including subtasks) for matching & notifications
   const allUserTasks = useMemo(() => {
@@ -239,7 +160,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     return;
   }, []);
 
-  // Initial Gmail sync check and 15-minute Google interval sync
+  // Initial Gmail sync check
   useEffect(() => {
     const token = getFirebaseAccessToken();
     if (token) {
@@ -248,48 +169,34 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     } else {
       fetchGmail(true);
     }
-
-    const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
-    const intervalId = setInterval(() => {
-      const currentToken = getFirebaseAccessToken();
-      fetchGmail(true, currentToken || undefined);
-    }, FIFTEEN_MINUTES_MS);
-
-    return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
-  // Handle Google Sign-in & Gmail connection
-  const handleGooglePopupConnect = () => {
-    window.location.href = '/api/auth/google';
+  // Handle Google Sign-in - stub, use login instead
+  const handleGooglePopupConnect = async () => {
+    setGmailError('Gmail access is granted when you log in with Google. Please log out and log back in with Google.');
   };
 
-  // Dismiss Gmail permanently from dashboard across all devices (persisted in DB + broadcast)
-  const handleDismissGmail = (messageId: string, e?: React.MouseEvent) => {
+  // Mark Gmail as read
+  const handleDismissGmail = async (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const cleanId = messageId.replace(/^gmail-/, '');
-    setDismissedIds(prev => {
-      const next = new Set(prev);
-      next.add(`gmail-${cleanId}`);
-      next.add(cleanId);
-      try {
-        localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-      } catch (err) {}
-      return next;
-    });
+    setDismissedIds(prev => new Set(prev).add(`gmail-${messageId}`));
     
-    if (onDismissEmail) {
-      onDismissEmail(cleanId);
-    }
     // Optimistic removal
-    setGmailNotifications(prev => prev.filter(g => g.id !== cleanId && `gmail-${g.id}` !== messageId));
+    setGmailNotifications(prev => prev.filter(g => g.id !== messageId));
 
-    // Send permanent dismiss to server database & real-time broadcast to all devices
-    fetch('/api/gmail/dismiss', {
+    const token = getFirebaseAccessToken();
+    if (token) {
+      markDirectGmailAsRead(messageId, token).catch(() => {});
+    }
+    fetch('/api/gmail/mark-read', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ messageId: cleanId }),
-    }).catch(err => console.warn('Permanent dismiss error:', err));
+      headers: { 
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ messageId }),
+    }).catch(() => {});
   };
 
   // 3. Build unified notifications list
@@ -507,32 +414,32 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     });
 
-    // --- D. Upcoming Commitments & Financial Reminders (Unpaid Bills & Incomes) ---
+    // --- D. Financial Reminders (Unpaid Bills & Incomes) ---
     unpaidBills.forEach(bill => {
       const dueDate = new Date(bill.nextDueDate);
       dueDate.setHours(0, 0, 0, 0);
       const diffTime = dueDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const formattedDate = dueDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
-      const progress = (bill.paidAmount || 0) / (bill.amount || 1) * 100;
-      const hasPaidSomething = progress > 0;
 
-      items.push({
-        id: `bill-${bill.id}`,
-        category: 'financial',
-        type: 'bill_due',
-        title: bill.description,
-        subtitle: `Recurring Expense • ${bill.category}`,
-        snippet: `Total Bill: $${(bill.amount || bill.remainingAmount).toLocaleString()} • Remaining: $${bill.remainingAmount.toFixed(2)}${hasPaidSomething ? ' (Partial Paid)' : ''} • Due ${formattedDate}`,
-        amount: bill.remainingAmount,
-        dueDate: bill.nextDueDate,
-        daysDiff: diffDays,
-        isIncome: false,
-        statusText: diffDays < 0 ? `Overdue by ${Math.abs(diffDays)}d` : diffDays === 0 ? 'Bill Due Today' : `Due in ${diffDays}d (${formattedDate})`,
-        statusColor: diffDays <= 0 ? 'rose' : diffDays <= 3 ? 'amber' : 'indigo',
-        sourceData: bill,
-        actionType: 'bill',
-      });
+      if (diffDays <= 7) {
+        items.push({
+          id: `bill-${bill.id}`,
+          category: 'financial',
+          type: 'bill_due',
+          title: bill.description,
+          subtitle: `Recurring Expense • ${bill.category}`,
+          snippet: `Amount: $${bill.remainingAmount.toLocaleString()} • Due ${formattedDate}`,
+          amount: bill.remainingAmount,
+          dueDate: bill.nextDueDate,
+          daysDiff: diffDays,
+          isIncome: false,
+          statusText: diffDays < 0 ? `Overdue by ${Math.abs(diffDays)}d` : diffDays === 0 ? 'Bill Due Today' : `Due in ${diffDays}d (${formattedDate})`,
+          statusColor: diffDays <= 0 ? 'rose' : 'amber',
+          sourceData: bill,
+          actionType: 'bill',
+        });
+      }
     });
 
     unconfirmedIncomes.forEach(inc => {
@@ -541,25 +448,25 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       const diffTime = confDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const formattedDate = confDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
-      const progress = (inc.receivedAmount || 0) / (inc.amount || 1) * 100;
-      const hasReceivedSomething = progress > 0;
 
-      items.push({
-        id: `income-${inc.id}`,
-        category: 'financial',
-        type: 'income_unconfirmed',
-        title: inc.description,
-        subtitle: `Expected Inflow • ${inc.category}`,
-        snippet: `Total Expected: +$${(inc.amount || inc.remainingAmount).toLocaleString()} • Remaining: +$${inc.remainingAmount.toFixed(2)}${hasReceivedSomething ? ' (Partial Received)' : ''} • Scheduled ${formattedDate}`,
-        amount: inc.remainingAmount,
-        dueDate: inc.nextConfirmationDate,
-        daysDiff: diffDays,
-        isIncome: true,
-        statusText: diffDays <= 0 ? 'Confirmation Ready' : `Expected in ${diffDays}d (${formattedDate})`,
-        statusColor: 'emerald',
-        sourceData: inc,
-        actionType: 'income',
-      });
+      if (diffDays <= 7) {
+        items.push({
+          id: `income-${inc.id}`,
+          category: 'financial',
+          type: 'income_unconfirmed',
+          title: inc.description,
+          subtitle: `Expected Inflow • ${inc.category}`,
+          snippet: `Amount: +$${inc.remainingAmount.toLocaleString()} • Scheduled ${formattedDate}`,
+          amount: inc.remainingAmount,
+          dueDate: inc.nextConfirmationDate,
+          daysDiff: diffDays,
+          isIncome: true,
+          statusText: diffDays <= 0 ? 'Confirmation Ready' : `Expected in ${diffDays}d`,
+          statusColor: 'emerald',
+          sourceData: inc,
+          actionType: 'income',
+        });
+      }
     });
 
     // --- E. Budget Alerts (>90% threshold) ---
@@ -664,21 +571,18 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       }
     } else if (item.actionType === 'bill') {
       setActivePaymentModal({ item: item.sourceData, isIncome: false });
-      const rem = item.sourceData.remainingAmount ?? item.sourceData.amount ?? 0;
-      setPaymentAmount(typeof rem === 'number' ? rem.toFixed(2) : String(rem));
+      setPaymentAmount(String(item.sourceData.remainingAmount || ''));
     } else if (item.actionType === 'income') {
-      const isSalary = item.sourceData.description?.toLowerCase().includes('salary');
-      const defaultDest = isSalary ? (bankConnections[0]?.institution || 'Cash in Hand') : 'Cash in Hand';
-      setSelectedDestination(defaultDest);
       setActivePaymentModal({ item: item.sourceData, isIncome: true });
-      const rem = item.sourceData.remainingAmount ?? item.sourceData.amount ?? 0;
-      setPaymentAmount(typeof rem === 'number' ? rem.toFixed(2) : String(rem));
+      setPaymentAmount(String(item.sourceData.remainingAmount || ''));
     } else if (item.actionType === 'gmail') {
       const g = item.sourceData as GmailPlanningNotification;
-      if (onSelectEmailModal) {
-        onSelectEmailModal(g);
-      } else {
-        setSelectedEmailModal(g);
+      if (g?.taskReference?.taskId && onNavigateToTask) {
+        handleDismissGmail(g.id);
+        onNavigateToTask(g.taskReference.taskId, g.taskReference.projectId);
+      } else if (onNavigateToPlanner) {
+        handleDismissGmail(g.id);
+        onNavigateToPlanner();
       }
     } else if (item.actionType === 'planner') {
       if (onNavigateToPlanner) onNavigateToPlanner();
@@ -692,9 +596,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
   const confirmModalPayment = () => {
     if (!activePaymentModal) return;
-    const amt = parseFloat(paymentAmount) || activePaymentModal.item.remainingAmount || activePaymentModal.item.amount || 0;
+    const amt = parseFloat(paymentAmount) || activePaymentModal.item.remainingAmount;
     if (activePaymentModal.isIncome && onReceiveRecurringIncome) {
-      onReceiveRecurringIncome(activePaymentModal.item, amt, selectedDestination || 'Cash in Hand');
+      onReceiveRecurringIncome(activePaymentModal.item, amt, 'Cash in Hand');
     } else if (!activePaymentModal.isIncome && onPayRecurring) {
       onPayRecurring(activePaymentModal.item, amt);
     }
@@ -821,7 +725,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           }`}
         >
           <DollarSign size={13} />
-          <span>Upcoming Commitments &amp; Financials</span>
+          <span>Financial Reminders</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${activeFilter === 'financial' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
             {counts.financial}
           </span>
@@ -855,7 +759,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               <div>
                 <h4 className="text-xs font-bold text-slate-900">Connect Google for Live Gmail Planning Alerts</h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Secure connection to automatically pull unread planning headers and match them with tasks.
+                  Secure popup connection for <strong>{AUTHORIZED_GMAIL}</strong> to automatically pull unread planning headers and match them with tasks.
                 </p>
                 {gmailError && (
                   <p className="text-[10px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
@@ -870,7 +774,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-2 whitespace-nowrap disabled:opacity-50 cursor-pointer"
             >
               {gmailLoading ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
-              <span>Connect Google Gmail</span>
+              <span>Connect via Google Popup</span>
             </button>
           </div>
         )}
@@ -982,7 +886,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                               : item.actionType === 'income' 
                                 ? 'Receive' 
                                 : item.actionType === 'gmail'
-                                  ? 'View Email'
+                                  ? (item.sourceData?.taskReference ? 'View Task' : 'Open Planner')
                                   : 'View'}
                       </span>
                       <ChevronRight size={12} />
@@ -997,101 +901,46 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
       {/* Quick Payment / Income Confirmation Modal */}
       {activePaymentModal && (
-        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activePaymentModal.isIncome ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
-                  {activePaymentModal.isIncome ? <TrendingUp size={16} /> : <Receipt size={16} />}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {activePaymentModal.isIncome ? 'Record Received Inflow' : 'Clear Recurring Commitment'}
-                  </h3>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
-                    {activePaymentModal.isIncome ? 'Incoming Inflow Record' : 'Payment Outflow Record'}
-                  </p>
-                </div>
-              </div>
+        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-900">
+                {activePaymentModal.isIncome ? 'Confirm Received Income' : 'Clear Recurring Commitment'}
+              </h3>
               <button
                 onClick={() => setActivePaymentModal(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 mb-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs font-bold text-slate-800">{activePaymentModal.item.description}</p>
-                  <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{activePaymentModal.item.category}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-black text-indigo-600">
-                    ${(activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount ?? 0).toFixed ? (activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount ?? 0).toFixed(2) : (activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount)}
-                  </p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remaining Due</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-xs text-slate-600 mb-3">
+              {activePaymentModal.item.description} ({activePaymentModal.item.category})
+            </p>
 
-            {activePaymentModal.isIncome && (
-              <div className="mb-4">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Select Destination Account
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedDestination('Cash in Hand')}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedDestination === 'Cash in Hand' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                  >
-                    Cash In Hand
-                  </button>
-                  {bankConnections.map(conn => (
-                    <button 
-                      type="button"
-                      key={conn.institution}
-                      onClick={() => setSelectedDestination(conn.institution)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedDestination === conn.institution ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                    >
-                      {conn.institution}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mb-5">
+            <div className="mb-4">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Amount to Record ($)
+                Amount ($)
               </label>
               <input
                 type="number"
-                step="0.01"
                 value={paymentAmount}
                 onChange={e => setPaymentAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 shadow-xs"
+                className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900"
               />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Enter partial or full amount to record against this commitment.
-              </p>
             </div>
 
             <div className="flex gap-2">
               <button
-                type="button"
                 onClick={() => setActivePaymentModal(null)}
-                className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+                className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
               >
                 Cancel
               </button>
               <button
-                type="button"
                 onClick={confirmModalPayment}
-                className={`flex-1 py-2.5 text-xs font-bold text-white rounded-xl shadow-xs transition ${
+                className={`flex-1 py-2 text-xs font-bold text-white rounded-lg transition ${
                   activePaymentModal.isIncome ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'
                 }`}
               >
@@ -1101,13 +950,6 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
           </div>
         </div>
       )}
-
-      {/* Email Detail Modal Popup */}
-      <EmailDetailModal
-        email={selectedEmailModal}
-        onClose={() => setSelectedEmailModal(null)}
-        onDeleteFromDashboard={handleDismissGmail}
-      />
     </section>
   );
 };

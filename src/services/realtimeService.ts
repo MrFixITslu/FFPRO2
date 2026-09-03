@@ -2,7 +2,6 @@ type RealtimeEventName =
   | 'connected'
   | 'project_updated'
   | 'user_data_updated'
-  | 'email_dismissed'
   | 'chat_message'
   | 'project_membership_updated'
   | 'status_change';
@@ -70,15 +69,6 @@ class RealtimeService {
           this.emit('user_data_updated', data);
         } catch (err) {
           console.error('[realtime] parse user_data_updated error:', err);
-        }
-      });
-
-      this.eventSource.addEventListener('email_dismissed', (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data);
-          this.emit('email_dismissed', data);
-        } catch (err) {
-          console.error('[realtime] parse email_dismissed error:', err);
         }
       });
 

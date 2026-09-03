@@ -71,15 +71,13 @@ export async function findOrCreateOAuthUser({ provider, providerId, email, displ
 // (with that button effectively disabled) if a provider hasn't been set up yet.
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   passport.use(
-    'google',
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL,
-        passReqToCallback: true,
       },
-      async (req, accessToken, refreshToken, profile, done) => {
+      async (accessToken, refreshToken, profile, done) => {
         try {
           const user = await findOrCreateOAuthUser({
             provider: 'google',
@@ -88,10 +86,14 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             displayName: profile.displayName,
             avatarUrl: profile.photos?.[0]?.value,
           });
-          // Captures Google OAuth tokens so Gmail sync and notifications work immediately
-          if (accessToken || refreshToken) {
-            await saveGoogleTokens(user.id, { accessToken, refreshToken });
-          }
+          // Captures the Gmail-scoped grant (see the extra scope + accessType
+          // requested in routes/auth.js) so features like Gmail Planning
+          // Notifications can use this server-held token instead of asking
+          // for a second, separate consent on the dashboard. Google access
+          // tokens are always ~1hr, so getValidGoogleAccessToken's default
+          // expiry estimate is used rather than a params field this library
+          // doesn't reliably expose.
+          await saveGoogleTokens(user.id, { accessToken, refreshToken });
           done(null, user);
         } catch (err) {
           done(err);

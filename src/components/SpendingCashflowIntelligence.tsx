@@ -155,8 +155,8 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
   // Compute Full Financial Intelligence Engine
   const analytics = useMemo(() => {
-    return calculateFinancialIntelligence(transactions, categoryBudgets, periodComparison, trajectoryGranularity);
-  }, [transactions, categoryBudgets, periodComparison, trajectoryGranularity]);
+    return calculateFinancialIntelligence(transactions, categoryBudgets, periodComparison);
+  }, [transactions, categoryBudgets, periodComparison]);
 
   const {
     summaryMetrics,

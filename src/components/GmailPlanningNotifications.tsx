@@ -12,7 +12,6 @@ import {
   Clock,
 } from 'lucide-react';
 import { GmailPlanningNotification } from '../types';
-import { realtimeService } from '../services/realtimeService';
 
 interface Props {
   userEmail?: string;
@@ -82,31 +81,23 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
     }
   }, [isAuthorized]);
 
-  // Mark as read in Gmail and permanently remove from dashboard across all devices
+  // Mark as read in Gmail and remove from dashboard
   const handleMarkAsRead = async (messageId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
 
-    const cleanId = messageId.replace(/^gmail-/, '');
-    setDismissingId(cleanId);
-    // Optimistically remove from list immediately
-    setNotifications(prev => prev.filter(n => n.id !== cleanId && `gmail-${n.id}` !== messageId));
-
+    setDismissingId(messageId);
     try {
-      // 1. Permanently dismiss across all devices and broadcast via real-time SSE
-      fetch('/api/gmail/dismiss', {
+      const res = await fetch('/api/gmail/mark-read', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: cleanId }),
-      }).catch(err => console.warn('Permanent dismiss notice error:', err));
-
-      // 2. Mark read in Gmail
-      await fetch('/api/gmail/mark-read', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: cleanId }),
+        body: JSON.stringify({ messageId }),
       });
+
+      if (res.ok) {
+        // Optimistically remove from list
+        setNotifications(prev => prev.filter(n => n.id !== messageId));
+      }
     } catch (err) {
       console.warn('Failed to mark email read:', err);
     } finally {
@@ -127,20 +118,6 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
       onNavigateToPlanner();
     }
   };
-
-  // Realtime synchronization for dismissed emails across devices
-  useEffect(() => {
-    const unsub = realtimeService.on('email_dismissed', (payload: any) => {
-      const messageId = payload?.messageId;
-      if (messageId) {
-        setNotifications(prev => prev.filter(n => n.id !== messageId && `gmail-${n.id}` !== messageId));
-      }
-    });
-
-    return () => {
-      unsub();
-    };
-  }, []);
 
   // Initial load + periodic sync (every 60 seconds). No popup, no client-side
   // token to manage — the server already holds a Gmail-scoped grant captured
