@@ -47,11 +47,7 @@ import {
   LogOut,
   ShieldCheck,
   Info,
-  Users,
-  X,
-  FolderKanban,
-  Receipt,
-  Plane
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -93,53 +89,6 @@ const getEmailCategoryBadge = (subject: string, snippet: string) => {
     return { label: 'Project Milestone', color: 'bg-indigo-50 text-indigo-700 border-indigo-200/80' };
   }
   return { label: 'General', color: 'bg-stone-100 text-stone-700 border-stone-200/80' };
-};
-
-const getEntryTypeInfo = (g: GmailPlanningNotification) => {
-  const isLinkedToProject = Boolean(g.taskReference?.projectName || g.taskReference?.taskId);
-  const text = `${g.subject || ''} ${g.snippet || ''}`.toLowerCase();
-
-  if (isLinkedToProject || text.includes('project') || text.includes('task') || text.includes('milestone') || text.includes('roadmap') || text.includes('deadline') || text.includes('sprint')) {
-    return {
-      type: 'project' as const,
-      label: 'Project',
-      projectName: g.taskReference?.projectName,
-      icon: FolderKanban,
-      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200/90',
-      avatarBg: 'bg-indigo-600 text-white',
-    };
-  }
-
-  if (text.includes('invoice') || text.includes('receipt') || text.includes('bill') || text.includes('payment') || text.includes('statement') || text.includes('$')) {
-    return {
-      type: 'financial' as const,
-      label: 'Invoice / Bill',
-      projectName: undefined,
-      icon: Receipt,
-      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200/90',
-      avatarBg: 'bg-emerald-600 text-white',
-    };
-  }
-
-  if (text.includes('flight') || text.includes('hotel') || text.includes('trip') || text.includes('reservation') || text.includes('ticket') || text.includes('booking')) {
-    return {
-      type: 'travel' as const,
-      label: 'Travel',
-      projectName: undefined,
-      icon: Plane,
-      badgeColor: 'bg-cyan-50 text-cyan-700 border-cyan-200/90',
-      avatarBg: 'bg-cyan-600 text-white',
-    };
-  }
-
-  return {
-    type: 'email' as const,
-    label: 'Email',
-    projectName: undefined,
-    icon: Mail,
-    badgeColor: 'bg-stone-100 text-stone-700 border-stone-200/90',
-    avatarBg: 'bg-stone-800 text-white',
-  };
 };
 
 interface Props {
@@ -186,13 +135,24 @@ const Dashboard: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState("");
 
   // Executive vs Detailed View Mode
+  // Scoped per-user (by email) so this preference doesn't leak between
+  // different accounts signed in on the same shared browser/device.
+  const viewModeKey = userEmail ? `dashboard_view_mode_${userEmail}` : 'dashboard_view_mode';
   const [viewMode, setViewMode] = useState<'executive' | 'detailed'>(() => {
-    return (localStorage.getItem('dashboard_view_mode') as 'executive' | 'detailed') || 'executive';
+    return (localStorage.getItem(viewModeKey) as 'executive' | 'detailed') || 'executive';
   });
+
+  // Re-read the preference if the logged-in user changes (e.g. logout/login
+  // as a different account without a full page reload).
+  useEffect(() => {
+    const stored = (localStorage.getItem(viewModeKey) as 'executive' | 'detailed') || 'executive';
+    setViewMode(stored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewModeKey]);
 
   const handleSetViewMode = (mode: 'executive' | 'detailed') => {
     setViewMode(mode);
-    localStorage.setItem('dashboard_view_mode', mode);
+    localStorage.setItem(viewModeKey, mode);
   };
 
   // Gmail Sync & Notifications Engine
@@ -204,7 +164,6 @@ const Dashboard: React.FC<Props> = ({
     fetchGmail,
     handleConnectGmail,
     handleDisconnectGmail,
-    handleReadEmail,
     handleDismissEmail,
   } = useGmailNotifications(userEmail, events, dismissedEmailIds, onDismissEmail);
 
@@ -376,15 +335,11 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
-  // High-Level Executive Summary Metrics (Active non-closed projects only)
-  const activeProjects = useMemo(() => {
-    return events.filter(e => e.status !== 'closed');
-  }, [events]);
-
-  const totalProjects = activeProjects.length;
+  // High-Level Executive Summary Metrics
+  const totalProjects = events.length;
   const allTasks = useMemo(() => {
-    return activeProjects.flatMap(e => e.tasks || []);
-  }, [activeProjects]);
+    return events.flatMap(e => e.tasks || []);
+  }, [events]);
   const completedTasksCount = allTasks.filter(t => t.completed).length;
   const pendingTasksCount = allTasks.length - completedTasksCount;
   const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
@@ -750,26 +705,24 @@ const Dashboard: React.FC<Props> = ({
                   )}
                 </div>
 
-                {activeProjects.length > 0 ? (
+                {events.length > 0 ? (
                   <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                    {activeProjects.map((ev, idx) => {
+                    {events.map((ev) => {
                       const tasks = ev.tasks || [];
                       const done = tasks.filter(t => t.completed).length;
                       const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
-                      const totalSpent = (ev.ledger || ev.items || [])
-                        .filter((i: any) => i.type === 'expense' || !i.type)
-                        .reduce((acc: number, l: any) => acc + (Number(l.amount) || 0), 0);
+                      const totalSpent = ev.ledger?.reduce((acc, l) => acc + l.amount, 0) || 0;
                       const projectName = ev.name || (ev as any).title || 'Untitled Project';
                       const targetBudget = ev.projectedBudget || (ev as any).budget || 0;
 
                       return (
                         <div 
-                          key={ev.id || `project-${idx}`} 
+                          key={ev.id} 
                           onClick={() => onNavigateToTask && onNavigateToTask(ev.id, ev.id)}
                           className="p-4 bg-stone-50 rounded-xl border border-stone-200/80 hover:border-amber-300 hover:bg-amber-50/20 transition cursor-pointer group"
                         >
                           <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
                               <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
                                 ev.eventType === 'trip' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
                                 ev.eventType === 'startup' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -777,14 +730,9 @@ const Dashboard: React.FC<Props> = ({
                               }`}>
                                 {ev.eventType === 'trip' ? '✈️ Trip' : ev.eventType === 'startup' ? '🚀 Startup' : '📋 General'}
                               </span>
-                              {ev.isShared && (
-                                <span className="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                                  <Users size={10} /> Shared
-                                </span>
-                              )}
-                              <h4 className="text-xs font-bold text-stone-800 group-hover:text-amber-700 transition truncate max-w-[200px]">{projectName}</h4>
+                              <h4 className="text-xs font-bold text-stone-800 group-hover:text-amber-700 transition">{projectName}</h4>
                             </div>
-                            <span className="text-[10px] font-extrabold text-stone-600 shrink-0">{pct}% Done</span>
+                            <span className="text-[10px] font-extrabold text-stone-600">{pct}% Done</span>
                           </div>
 
                           <div className="w-full bg-stone-200 h-1.5 rounded-full overflow-hidden mb-2">
@@ -810,7 +758,7 @@ const Dashboard: React.FC<Props> = ({
               </div>
 
               <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-600">
-                <span>Active Projects: {activeProjects.length}</span>
+                <span>Active Projects: {events.length}</span>
                 <span>Pending Tasks: {pendingTasksCount}</span>
               </div>
             </section>
@@ -1068,37 +1016,23 @@ const Dashboard: React.FC<Props> = ({
                     {activeUnreadEmails.map((g) => {
                       const monogram = getSenderMonogram(g.from);
                       const senderClean = getSenderCleanName(g.from);
-                      const entryType = getEntryTypeInfo(g);
-                      const TypeIcon = entryType.icon;
+                      const category = getEmailCategoryBadge(g.subject || '', g.snippet || '');
 
                       return (
                         <div
                           key={g.id}
-                          onClick={() => {
-                            setSelectedEmailModal(g);
-                            handleReadEmail(g.id);
-                          }}
+                          onClick={() => setSelectedEmailModal(g)}
                           className="p-4 bg-stone-50/70 hover:bg-white rounded-xl border border-stone-200/85 hover:border-stone-300 shadow-2xs hover:shadow-sm transition cursor-pointer group flex items-start justify-between gap-3"
                         >
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className={`w-9 h-9 rounded-xl ${entryType.avatarBg} font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:scale-105 transition relative`}>
+                            <div className="w-9 h-9 rounded-xl bg-stone-800 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:bg-stone-950 transition">
                               {monogram}
-                              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white text-stone-800 flex items-center justify-center shadow-xs border border-stone-200">
-                                <TypeIcon size={9} />
-                              </span>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${entryType.badgeColor}`}>
-                                  <TypeIcon size={10} />
-                                  <span>{entryType.label}</span>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${category.color}`}>
+                                  {category.label}
                                 </span>
-                                {entryType.projectName && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 bg-indigo-50/80 rounded-md border border-indigo-100/90 truncate max-w-[130px]">
-                                    <FolderKanban size={9} className="shrink-0" />
-                                    <span className="truncate">{entryType.projectName}</span>
-                                  </span>
-                                )}
                                 <span className="text-[10px] font-medium text-stone-400 shrink-0">
                                   {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
@@ -1122,17 +1056,6 @@ const Dashboard: React.FC<Props> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleReadEmail(g.id);
-                              }}
-                              className="p-1.5 text-stone-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                              title="Mark as read & remove from briefing"
-                            >
-                              <Check size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
                                 handleDismissEmail(g.id);
                               }}
                               className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
@@ -1140,7 +1063,7 @@ const Dashboard: React.FC<Props> = ({
                             >
                               <Trash2 size={14} />
                             </button>
-                            <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 group-hover:translate-x-0.5 transition" />
+                            <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 group-hover:transtone-x-0.5 transition" />
                           </div>
                         </div>
                       );
@@ -1177,7 +1100,7 @@ const Dashboard: React.FC<Props> = ({
           {/* Unified Notification & Planning Intelligence Hub */}
           <UnifiedNotificationHub
             userEmail={userEmail}
-            events={activeProjects}
+            events={events}
             calendarItems={calendarItems}
             unpaidBills={unpaidBills}
             unconfirmedIncomes={unconfirmedIncomes}
@@ -1640,7 +1563,6 @@ const Dashboard: React.FC<Props> = ({
         email={selectedEmailModal}
         onClose={() => setSelectedEmailModal(null)}
         onDeleteFromDashboard={handleDismissEmail}
-        onMarkAsRead={handleReadEmail}
       />
 
       {/* Google Gmail Incremental Authorization Prominent Disclosure Modal */}

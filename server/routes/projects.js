@@ -258,6 +258,15 @@ router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner', 
 
 router.delete('/:id/invites/:inviteId', loadMembership, requireRole('owner', 'editor'), async (req, res) => {
   try {
+    // Verify the invite actually belongs to THIS project before revoking —
+    // otherwise any editor on any project could revoke an invite ID
+    // belonging to a completely different project just by guessing/knowing
+    // its id, since revokeInvite() itself doesn't check project ownership.
+    const pendingInvites = await projectsDb.listPendingInvitesForProject(req.params.id);
+    const belongsToProject = pendingInvites.some(inv => inv.id === req.params.inviteId);
+    if (!belongsToProject) {
+      return res.status(404).json({ error: 'Invite not found for this project.' });
+    }
     await projectsDb.revokeInvite(req.params.inviteId);
     res.json({ ok: true });
   } catch (err) {
