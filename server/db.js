@@ -165,6 +165,7 @@ if (hasPostgres) {
         ADD COLUMN IF NOT EXISTS google_gmail_token_expiry TIMESTAMP WITH TIME ZONE;
     `);
   }).then(() => {
+<<<<<<< Updated upstream
     return realPool.query(`
       CREATE TABLE IF NOT EXISTS dismissed_emails (
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -175,6 +176,64 @@ if (hasPostgres) {
     `);
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_dismissed_emails_user ON dismissed_emails(user_id);`);
+=======
+    // --- Funding Finder ---------------------------------------------------
+    // Verified funding/grant opportunities. Written ONLY by the research
+    // pipeline (server/services/fundingResearch.js) after AI-extracted data
+    // has passed strict schema validation — never from raw model output.
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS funding_opportunities (
+        id SERIAL PRIMARY KEY,
+        source_url TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        title TEXT NOT NULL,
+        funder_name TEXT,
+        description TEXT,
+        amount_min NUMERIC,
+        amount_max NUMERIC,
+        currency TEXT,
+        deadline DATE,
+        eligibility_summary TEXT,
+        category TEXT,
+        tags JSONB DEFAULT '[]'::jsonb,
+        status TEXT NOT NULL DEFAULT 'active',
+        first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        last_verified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        last_changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(content_hash)
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_funding_opportunities_status ON funding_opportunities(status);`);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_funding_opportunities_deadline ON funding_opportunities(deadline);`);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_funding_opportunities_category ON funding_opportunities(category);`);
+  }).then(() => {
+    // Research job queue — one row per candidate URL discovered by the
+    // search/fetch layer, tracked through analysis so failures retry later
+    // instead of taking down the main app, and so restarts don't lose work.
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS funding_research_jobs (
+        id SERIAL PRIMARY KEY,
+        source_url TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        last_error TEXT,
+        content_hash TEXT,
+        raw_excerpt TEXT,
+        next_attempt_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(source_url)
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_funding_jobs_status_next ON funding_research_jobs(status, next_attempt_at);`);
+>>>>>>> Stashed changes
   }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {

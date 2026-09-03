@@ -15,6 +15,8 @@ import invitesRoutes from './server/routes/invites.js';
 import realtimeRoutes from './server/routes/realtime.js';
 import gmailRoutes from './server/routes/gmail.js';
 import legalRoutes from './server/routes/legal.js';
+import fundingRoutes from './server/routes/funding.js';
+import { startFundingResearchScheduler } from './server/jobs/fundingScheduler.js';
 import { createServer as createViteServer } from 'vite';
 
 import connectPgSimple from 'connect-pg-simple';
@@ -169,6 +171,7 @@ app.use('/api/projects', projectsRoutes);
 app.use('/api/invites', invitesRoutes);
 app.use('/api/realtime', realtimeRoutes);
 app.use('/api/gmail', gmailRoutes);
+app.use('/api/funding', fundingRoutes);
 
 // Public legal pages — plain server-rendered HTML (not part of the SPA
 // bundle) so they're reachable, indexable, and stable even if the frontend
@@ -196,6 +199,10 @@ async function bootstrap() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[server] Fire Finance Pro running on port ${PORT}`);
   });
+
+  // Funding Finder's nightly research job — reads/writes only through
+  // server/services/fundingResearch.js, and never blocks server startup.
+  startFundingResearchScheduler();
 }
 
 bootstrap().catch(err => {

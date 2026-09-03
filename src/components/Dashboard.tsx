@@ -1,11 +1,15 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend, BarChart, Bar, Cell } from 'recharts';
-import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem, GmailPlanningNotification } from '../types';
+import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, MarketPrice, BankConnection, InvestmentGoal, SavingGoal, EventLog, BudgetEvent, CalendarItem } from '../types';
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
+<<<<<<< Updated upstream
 import { UnifiedNotificationHub } from './UnifiedNotificationHub';
 import { EmailDetailModal } from './EmailDetailModal';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
+=======
+import { GmailPlanningNotifications } from './GmailPlanningNotifications';
+>>>>>>> Stashed changes
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -40,6 +44,7 @@ import {
   Layers,
   ExternalLink,
   Sliders,
+<<<<<<< Updated upstream
   ArrowLeftRight,
   Mail,
   Inbox,
@@ -48,6 +53,9 @@ import {
   ShieldCheck,
   Info,
   X
+=======
+  ArrowLeftRight
+>>>>>>> Stashed changes
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -122,17 +130,15 @@ interface Props {
   onNavigateToPlannerLogs?: () => void;
   onNavigateToTask?: (taskId: string, projectId?: string | null) => void;
   onNavigateToPlanner?: () => void;
-  onNavigateToCalendar?: () => void;
-  dismissedEmailIds?: string[];
-  onDismissEmail?: (emailId: string) => void;
 }
 
 type Timeframe = 'daily' | 'monthly' | 'yearly';
 
 const Dashboard: React.FC<Props> = ({ 
-  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onNavigateToCalendar, onEdit, onDelete, dismissedEmailIds = [], onDismissEmail
+  transactions, investments, marketPrices, bankConnections, recurringExpenses, recurringIncomes, categoryBudgets, cashOpeningBalance, savingGoals, investmentGoals, financialLogs = [], currentUser = 'nsv', userEmail, events = [], calendarItems = [], onPayRecurring, onReceiveRecurringIncome, onUpdateCategoryBudget, onOpenTransactionForm, onDeleteFinancialLog, onNavigateToPlannerLogs, onNavigateToTask, onNavigateToPlanner, onEdit, onDelete
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
+<<<<<<< Updated upstream
 
   // Executive vs Detailed View Mode
   const [viewMode, setViewMode] = useState<'executive' | 'detailed'>(() => {
@@ -159,6 +165,11 @@ const Dashboard: React.FC<Props> = ({
   const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
   const [showGmailConsentModal, setShowGmailConsentModal] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+=======
+  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
+  const [partialAmount, setPartialAmount] = useState<string>("");
+  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+>>>>>>> Stashed changes
 
   // Log Viewer State
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(false);
@@ -324,53 +335,32 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
-  // High-Level Executive Summary Metrics
-  const totalProjects = events.length;
-  const allTasks = useMemo(() => {
-    return events.flatMap(e => e.tasks || []);
-  }, [events]);
-  const completedTasksCount = allTasks.filter(t => t.completed).length;
-  const pendingTasksCount = allTasks.length - completedTasksCount;
-  const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
+  const handleQuickPaymentAction = (item: any, isIncome: boolean) => {
+    const amt = parseFloat(partialAmount) || item.remainingAmount;
+    if (isIncome) {
+      const destination = selectedDestination || 'Cash in Hand';
+      onReceiveRecurringIncome(item, amt, destination);
+    } else {
+      onPayRecurring(item, amt);
+    }
+    setActivePaymentId(null);
+    setPartialAmount("");
+    setSelectedDestination(null);
+  };
 
-  const totalSavingsGoalTarget = savingGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
-  const totalSavingsGoalCurrent = savingGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
-  const savingsProgressPct = totalSavingsGoalTarget > 0 ? Math.min(100, Math.round((totalSavingsGoalCurrent / totalSavingsGoalTarget) * 100)) : 0;
-
-  const totalInvestmentGoalTarget = investmentGoals.reduce((acc, g) => acc + (g.targetAmount || 0), 0);
-  const totalInvestmentGoalCurrent = investmentGoals.reduce((acc, g) => acc + (g.currentAmount || 0), 0);
-  const investmentProgressPct = totalInvestmentGoalTarget > 0 ? Math.min(100, Math.round((totalInvestmentGoalCurrent / totalInvestmentGoalTarget) * 100)) : 0;
-
-  const upcomingCalendarItems = useMemo(() => {
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return [...calendarItems]
-      .filter(item => item.date >= todayStr)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 3);
-  }, [calendarItems]);
-
-  const upcomingFinancialCommitments = useMemo(() => {
-    const bills = unpaidBills.map(b => ({
-      id: b.id,
-      title: b.description,
-      amount: b.remainingAmount,
-      date: b.nextDueDate,
-      isIncome: false,
-      category: b.category,
-    }));
-    const incomes = unconfirmedIncomes.map(i => ({
-      id: i.id,
-      title: i.description,
-      amount: i.remainingAmount,
-      date: i.nextConfirmationDate,
-      isIncome: true,
-      category: i.category,
-    }));
-    return [...bills, ...incomes]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 3);
-  }, [unpaidBills, unconfirmedIncomes]);
+  const startRecordCommitment = (item: any, isIncome: boolean) => {
+    setActivePaymentId(item.id);
+    setPartialAmount(item.remainingAmount.toFixed(2));
+    
+    if (isIncome) {
+      const isSalary = item.description.toLowerCase().includes('salary');
+      if (isSalary) {
+        setSelectedDestination(bankConnections[0]?.institution || 'Cash in Hand');
+      } else {
+        setSelectedDestination('Cash in Hand');
+      }
+    }
+  };
 
   const filteredFinancialLogs = useMemo(() => {
     return financialLogs.filter(log => {
@@ -492,6 +482,7 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
+<<<<<<< Updated upstream
       {/* Executive vs Detailed View Mode Selector */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/85 shadow-xs">
         <div className="flex items-center gap-3">
@@ -1105,6 +1096,14 @@ const Dashboard: React.FC<Props> = ({
             onDismissEmail={onDismissEmail || handleDismissEmail}
             externalDismissedIds={dismissedEmailIds}
           />
+=======
+      {/* Gmail Planning Notifications */}
+      <GmailPlanningNotifications
+        userEmail={userEmail}
+        onNavigateToTask={onNavigateToTask}
+        onNavigateToPlanner={onNavigateToPlanner}
+      />
+>>>>>>> Stashed changes
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
@@ -1186,7 +1185,100 @@ const Dashboard: React.FC<Props> = ({
         onOpenTransactionForm={onOpenTransactionForm}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-6">Upcoming Commitments</h3>
+          <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
+            {unpaidBills.concat(unconfirmedIncomes as any).length > 0 ? unpaidBills.concat(unconfirmedIncomes as any).slice(0, 10).map((bill: any) => {
+              const isIncome = 'nextConfirmationDate' in bill;
+              const isActive = activePaymentId === bill.id;
+              const progress = (bill.paidAmount || bill.receivedAmount || 0) / bill.amount * 100;
+              const hasPaidSomething = progress > 0;
+              const isSalary = isIncome && bill.description.toLowerCase().includes('salary');
+
+              return (
+                <div key={bill.id} className="p-4 bg-slate-50/50 border border-slate-200 rounded-lg transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded flex items-center justify-center shadow-sm border ${isIncome ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'}`}>
+                        <i className={`fas ${isIncome ? 'fa-hand-holding-dollar' : 'fa-file-invoice'} text-xs`}></i>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-xs text-slate-800">{bill.description}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                            {isIncome ? 'Expect' : 'Bill'}: ${bill.amount}
+                          </p>
+                          {hasPaidSomething && (
+                            <span className="px-1 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[8px] font-bold uppercase rounded">Partial</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-xs font-bold text-indigo-600">${bill.remainingAmount.toFixed(2)}</p>
+                       <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">Due: {new Date(isIncome ? bill.nextConfirmationDate : bill.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                    </div>
+                  </div>
+
+                  {isActive && isIncome && (
+                    <div className="mt-3 p-3 bg-white rounded border border-indigo-100 space-y-2 animate-in fade-in slide-in-from-top-2">
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Destination</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {!isSalary && (
+                          <button 
+                            onClick={() => setSelectedDestination('Cash in Hand')}
+                            className={`px-2.5 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${selectedDestination === 'Cash in Hand' ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                          >
+                            Cash In Hand
+                          </button>
+                        )}
+                        {bankConnections.map(conn => (
+                          <button 
+                            key={conn.institution}
+                            onClick={() => setSelectedDestination(conn.institution)}
+                            className={`px-2.5 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all border ${selectedDestination === conn.institution ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                          >
+                            {conn.institution}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200/55">
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                      Sched: {new Date(isIncome ? bill.nextConfirmationDate : bill.nextDueDate).toLocaleDateString()}
+                    </p>
+                    {isActive ? (
+                      <div className="flex gap-1.5 items-center animate-in slide-in-from-right-2">
+                        <input 
+                          type="number" 
+                          autoFocus
+                          placeholder={bill.remainingAmount.toFixed(2)}
+                          value={partialAmount}
+                          onChange={(e) => setPartialAmount(e.target.value)}
+                          className="w-20 px-2.5 py-1.5 bg-white border border-indigo-300 rounded text-[10px] font-semibold outline-none shadow-sm focus:border-indigo-500"
+                        />
+                        <button 
+                          onClick={() => handleQuickPaymentAction(bill, isIncome)} 
+                          disabled={isIncome && !selectedDestination}
+                          className={`w-7 h-7 bg-indigo-600 text-white rounded flex items-center justify-center text-[9px] disabled:opacity-30 disabled:grayscale hover:bg-indigo-700 transition-colors shadow-sm`}
+                        >
+                          <i className="fas fa-check"></i>
+                        </button>
+                        <button onClick={() => { setActivePaymentId(null); setPartialAmount(""); setSelectedDestination(null); }} aria-label="Cancel payment" className="w-7 h-7 bg-slate-100 text-slate-400 rounded flex items-center justify-center text-[9px] hover:bg-slate-200 border border-slate-200 transition-colors"><i className="fas fa-times"></i></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => startRecordCommitment(bill, isIncome)} className="px-3 py-1 bg-slate-900 text-white text-[9px] font-bold uppercase tracking-wider rounded hover:bg-indigo-600 transition-all shadow-sm">Record</button>
+                    )}
+                  </div>
+                </div>
+              );
+            }) : <p className="py-10 text-center text-slate-300 font-bold uppercase text-[9px] tracking-wider">All clear</p>}
+          </div>
+        </section>
+
         <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <h3 className="font-bold text-slate-800 uppercase text-xs tracking-wider mb-6">Financial Objectives</h3>
           <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-1">
@@ -1544,6 +1636,7 @@ const Dashboard: React.FC<Props> = ({
         </div>
         )}
       </section>
+<<<<<<< Updated upstream
         </div>
       )}
 
@@ -1671,6 +1764,8 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </div>
       )}
+=======
+>>>>>>> Stashed changes
     </div>
   );
 };

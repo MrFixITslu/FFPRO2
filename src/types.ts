@@ -401,8 +401,7 @@ export const STORAGE_KEYS = {
   DATA_OWNER: 'ff_data_owner_id',
   IDEAS: 'ff_ideas',
   FORECAST_SETTINGS: 'ff_forecast_settings',
-  FINANCIAL_LOGS: 'ff_financial_logs',
-  DISMISSED_EMAIL_IDS: 'dashboard_dismissed_email_ids'
+  FINANCIAL_LOGS: 'ff_financial_logs'
 };
 
 export interface GmailPlanningNotification {
