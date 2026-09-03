@@ -141,9 +141,11 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
     return items;
   }, [calendarItems, year, month, daysInMonth]);
 
+  const activeEvents = useMemo(() => events.filter(e => e.status !== 'closed'), [events]);
+
   const allTasks = useMemo(() => {
     const tasks: { task: ProjectTask; eventName: string; eventId: string }[] = [];
-    events.forEach(event => {
+    activeEvents.forEach(event => {
       (event.tasks || []).forEach(task => {
         if (task.dueDate) {
           tasks.push({ task, eventName: event.name, eventId: event.id });
@@ -151,12 +153,12 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
       });
     });
     return tasks;
-  }, [events]);
+  }, [activeEvents]);
 
   const getDayDetails = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     
-    const dayProjects = events.filter(e => e.date === dateStr);
+    const dayProjects = activeEvents.filter(e => e.date === dateStr);
     const dayTransactions = transactions.filter(t => t.date === dateStr);
     const dayTasks = allTasks.filter(t => t.task.dueDate === dateStr);
     const dayCalendarItems = expandedCalendarItems.filter(ci => ci.date === dateStr);

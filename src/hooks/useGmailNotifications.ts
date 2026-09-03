@@ -71,10 +71,11 @@ export function useGmailNotifications(
     }
   }, [externalDismissedIds]);
 
-  // Compile tasks for email matching
+  // Compile tasks for email matching (active projects only)
   const allUserTasks = useMemo(() => {
     const list: { taskId: string; taskTitle: string; projectName: string; projectId: string | null; task: ProjectTask }[] = [];
     events.forEach(ev => {
+      if (ev.status === 'closed') return;
       if (Array.isArray(ev.tasks)) {
         ev.tasks.forEach(t => {
           if (t && t.id && t.text) {

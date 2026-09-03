@@ -182,10 +182,11 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [selectedDestination, setSelectedDestination] = useState<string>('Cash in Hand');
 
-  // 1. Compile all user tasks (including subtasks) for matching & notifications
+  // 1. Compile all user tasks (including subtasks) for matching & notifications (active projects only)
   const allUserTasks = useMemo(() => {
     const list: { taskId: string; taskTitle: string; projectName: string; projectId: string | null; task: ProjectTask }[] = [];
     events.forEach(ev => {
+      if (ev.status === 'closed') return;
       if (Array.isArray(ev.tasks)) {
         ev.tasks.forEach(t => {
           if (t && t.id && t.text) {
@@ -488,7 +489,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
     // --- C. Project & Event Milestones ---
     events.forEach(ev => {
-      if (ev.status === 'completed') return;
+      if (ev.status === 'completed' || ev.status === 'closed') return;
       if (ev.date) {
         const evDate = new Date(ev.date + 'T00:00:00');
         evDate.setHours(0, 0, 0, 0);
