@@ -1,6 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BudgetEvent, Transaction, RecurringExpense, RecurringIncome, ProjectTask, CalendarItem } from '../types';
+import { googleCalendarService, GoogleCalendarStatus } from '../services/googleCalendarService';
 
 interface Props {
   events: BudgetEvent[];
@@ -20,6 +21,12 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState<CalendarItem | null>(null);
 
+  // Google Calendar Integration State
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [gcalStatus, setGcalStatus] = useState<GoogleCalendarStatus | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+
   const month = viewDate.getMonth();
   const year = viewDate.getFullYear();
 
@@ -35,6 +42,58 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
   };
 
   const monthName = viewDate.toLocaleString('default', { month: 'long' });
+
+  // Check Google Calendar connection status on mount
+  useEffect(() => {
+    let isMounted = true;
+    googleCalendarService.getStatus().then(status => {
+      if (isMounted) {
+        setGcalStatus(status);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Sync Google Calendar Events into App Calendar (Strictly read-only from Google into App)
+  const handleSyncGoogleCalendar = useCallback(async (isAuto = false) => {
+    setIsSyncing(true);
+    if (!isAuto) setSyncFeedback(null);
+
+    try {
+      // Fetch 30 days back to 180 days ahead
+      const res = await googleCalendarService.fetchEvents();
+      if (res && Array.isArray(res.events)) {
+        const incomingGcalEvents = res.events;
+        const incomingIds = new Set(incomingGcalEvents.map(e => e.googleEventId || e.id));
+
+        // Preserve all manual app calendar items, and replace previous Google events with latest data
+        const manualAppItems = calendarItems.filter(item => !item.isGoogleCalendar && !incomingIds.has(item.googleEventId || ''));
+        
+        // Merge into the app schedule
+        const mergedCalendarItems = [...manualAppItems, ...incomingGcalEvents];
+        onUpdateItems(mergedCalendarItems);
+
+        const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastSyncTime(nowTime);
+        setSyncFeedback({
+          message: `Synced ${incomingGcalEvents.length} event${incomingGcalEvents.length === 1 ? '' : 's'} from Google Calendar.`,
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      console.warn('[Calendar] Google sync error:', err?.message);
+      if (!isAuto) {
+        setSyncFeedback({
+          message: err?.message || 'Failed to sync Google Calendar. Sign in with Google to enable calendar read access.',
+          type: 'error',
+        });
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [calendarItems, onUpdateItems]);
 
   // Virtual Recurring Logic: Expand items into specific month occurrences
   const expandedCalendarItems = useMemo(() => {
@@ -72,11 +131,11 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
   }, [calendarItems, year, month, daysInMonth]);
 
   const allTasks = useMemo(() => {
-    const tasks: { task: ProjectTask; eventName: string }[] = [];
+    const tasks: { task: ProjectTask; eventName: string; eventId: string }[] = [];
     events.forEach(event => {
       (event.tasks || []).forEach(task => {
         if (task.dueDate) {
-          tasks.push({ task, eventName: event.name });
+          tasks.push({ task, eventName: event.name, eventId: event.id });
         }
       });
     });
@@ -124,7 +183,12 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
       recurring: formData.get('recurring') as any,
       startTime: formData.get('startTime') as string,
       description: formData.get('description') as string,
-      completed: editingItem?.completed || false
+      completed: editingItem?.completed || false,
+      isGoogleCalendar: editingItem?.isGoogleCalendar || false,
+      googleEventId: editingItem?.googleEventId,
+      htmlLink: editingItem?.htmlLink,
+      location: editingItem?.location,
+      hangoutLink: editingItem?.hangoutLink,
     };
 
     if (editingItem) {
@@ -157,21 +221,68 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-20">
-      <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-6 bg-white p-5 rounded-xl border border-stone-200 shadow-sm relative overflow-hidden">
+      <header className="flex flex-col md:flex-row items-center justify-between gap-6 mb-4 bg-white p-5 rounded-xl border border-stone-200 shadow-sm relative overflow-hidden">
         <div className="relative z-10">
-          <h2 className="text-2xl font-light text-stone-800 tracking-tight leading-none">{monthName} <span className="font-semibold text-indigo-600">{year}</span></h2>
-          <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-1.5">Operational Intelligence Grid</p>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-light text-stone-800 tracking-tight leading-none">{monthName} <span className="font-semibold text-indigo-600">{year}</span></h2>
+            {lastSyncTime && (
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <i className="fas fa-check-circle text-[8px]"></i> Google Synced {lastSyncTime}
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-1.5 flex items-center gap-2">
+            <span>Operational Intelligence Grid</span>
+            <span className="text-stone-300">•</span>
+            <span className="text-stone-500 font-semibold lowercase">read-only Google sync</span>
+          </p>
         </div>
-        <div className="flex items-center bg-stone-50 p-1 border border-stone-200 rounded-lg gap-1.5 relative z-10">
-          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-600 rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all"><i className="fas fa-chevron-left text-xs"></i></button>
+        <div className="flex flex-wrap items-center bg-stone-50 p-1 border border-stone-200 rounded-lg gap-1.5 relative z-10">
+          <button 
+            type="button" 
+            onClick={() => handleSyncGoogleCalendar(false)} 
+            disabled={isSyncing}
+            title="Sync Google Calendar events into App Calendar (Read-Only)"
+            className="px-3 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-700 font-bold text-[10px] uppercase tracking-wider rounded shadow-sm hover:text-indigo-600 hover:border-indigo-300 transition-all disabled:opacity-50 gap-1.5"
+          >
+            <i className={`fab fa-google text-red-500 ${isSyncing ? 'fa-spin' : ''}`}></i>
+            <span>{isSyncing ? 'Syncing...' : 'Sync Google Calendar'}</span>
+          </button>
+          <div className="w-px h-6 bg-stone-200 mx-0.5"></div>
+          <button onClick={prevMonth} aria-label="Previous month" className="w-8 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-600 rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all"><i className="fas fa-chevron-left text-xs"></i></button>
           <button onClick={goToToday} className="px-3 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-900 font-bold text-[10px] uppercase tracking-wider rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all">Today</button>
-          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-600 rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all"><i className="fas fa-chevron-right text-xs"></i></button>
-          <div className="w-px h-6 bg-stone-200 mx-1"></div>
+          <button onClick={nextMonth} aria-label="Next month" className="w-8 h-8 flex items-center justify-center bg-white border border-stone-200 text-stone-600 rounded shadow-sm hover:text-indigo-600 hover:border-stone-300 transition-all"><i className="fas fa-chevron-right text-xs"></i></button>
+          <div className="w-px h-6 bg-stone-200 mx-0.5"></div>
           <button onClick={() => { setEditingItem(null); setShowEditor(true); }} className="px-3 h-8 flex items-center justify-center bg-stone-900 text-white font-bold text-[10px] uppercase tracking-wider rounded hover:bg-indigo-600 transition-all">
              <i className="fas fa-plus mr-1.5 text-[9px]"></i> Schedule
           </button>
         </div>
       </header>
+
+      {/* Sync Status Banner */}
+      {syncFeedback && (
+        <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-semibold animate-in fade-in slide-in-from-top-2 duration-300 ${
+          syncFeedback.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+          syncFeedback.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' :
+          'bg-indigo-50 border-indigo-200 text-indigo-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            <i className={`fas ${
+              syncFeedback.type === 'success' ? 'fa-check-circle text-emerald-600' :
+              syncFeedback.type === 'error' ? 'fa-exclamation-triangle text-rose-600' :
+              'fa-info-circle text-indigo-600'
+            }`}></i>
+            <span>{syncFeedback.message}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setSyncFeedback(null)} 
+            className="text-stone-400 hover:text-stone-700 p-1"
+          >
+            <i className="fas fa-times text-xs"></i>
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -203,13 +314,15 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                   <div className="space-y-1 max-h-[80px] overflow-y-auto no-scrollbar">
                     {dayCalendarItems.map(ci => (
                       <div key={ci.id} className={`px-2 py-0.5 text-[8px] font-bold uppercase rounded truncate border flex items-center gap-1 ${
+                        ci.isGoogleCalendar ? 'bg-blue-50 text-blue-700 border-blue-200' :
                         ci.type === 'meeting' ? 'bg-stone-900 text-white border-stone-800' : 
                         ci.type === 'reminder' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
                         'bg-indigo-100 text-indigo-700 border-indigo-200'
                       } ${ci.completed ? 'opacity-40 grayscale line-through' : ''}`}>
+                         {ci.isGoogleCalendar && <i className="fab fa-google text-[7px] text-blue-500 shrink-0"></i>}
                          {ci.recurring !== 'none' && <i className="fas fa-redo text-[6px]"></i>}
-                         {ci.startTime && <span className="opacity-60">{ci.startTime}</span>}
-                         {ci.title}
+                         {ci.startTime && <span className="opacity-75">{ci.startTime}</span>}
+                         <span className="truncate">{ci.title}</span>
                       </div>
                     ))}
                     {dayProjects.map(e => (
@@ -241,7 +354,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                      <p className="text-white font-semibold text-lg tracking-tight leading-none mb-1">{selectedDay.toLocaleDateString('default', { day: 'numeric', month: 'long' })}</p>
                      <p className="text-[9px] text-stone-500 font-bold uppercase tracking-wider">{selectedDay.toLocaleDateString('default', { weekday: 'long' })}</p>
                    </div>
-                   <button onClick={() => { setEditingItem(null); setShowEditor(true); }} className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white text-xs hover:bg-indigo-500 transition-all shadow-sm">
+                   <button onClick={() => { setEditingItem(null); setShowEditor(true); }} className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white text-xs hover:bg-indigo-500 transition-all shadow-sm" title="Add calendar directive">
                      <i className="fas fa-calendar-plus text-xs"></i>
                    </button>
                 </div>
@@ -254,12 +367,18 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                         <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-wider">Schedule & Directives</p>
                         {selectedDayData.dayCalendarItems.map(ci => (
                           <div key={ci.id} className={`p-3 rounded-lg border transition-all relative group ${
+                            ci.isGoogleCalendar ? 'bg-blue-950/40 border-blue-800/50' :
                             ci.type === 'meeting' ? 'bg-white/5 border-white/10' : 
                             ci.type === 'reminder' ? 'bg-amber-500/10 border-amber-500/20' : 
                             'bg-indigo-500/10 border-indigo-500/20'
                           } ${ci.completed ? 'opacity-40 grayscale' : ''}`}>
                              <div className="flex justify-between items-start mb-1.5">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {ci.isGoogleCalendar && (
+                                    <span className="px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-wider bg-blue-500 text-white flex items-center gap-1">
+                                      <i className="fab fa-google text-[6px]"></i> Google Calendar
+                                    </span>
+                                  )}
                                   <span className={`px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-wider ${
                                     ci.type === 'meeting' ? 'bg-white text-stone-900' : 'bg-indigo-500 text-white'
                                   }`}>
@@ -270,20 +389,33 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   {ci.type === 'reminder' && (
-                                    <button onClick={() => toggleComplete(ci.id)} className={`w-6 h-6 rounded flex items-center justify-center text-[9px] ${ci.completed ? 'bg-emerald-500 text-white' : 'bg-white/10 text-stone-400 hover:bg-white/20'}`}>
+                                    <button onClick={() => toggleComplete(ci.id)} title="Toggle completion" className={`w-6 h-6 rounded flex items-center justify-center text-[9px] ${ci.completed ? 'bg-emerald-500 text-white' : 'bg-white/10 text-stone-400 hover:bg-white/20'}`}>
                                       <i className="fas fa-check"></i>
                                     </button>
                                   )}
-                                  <button onClick={() => startEdit(ci)} className="w-6 h-6 bg-white/10 rounded flex items-center justify-center text-stone-400 text-[9px] hover:bg-white/20">
-                                    <i className="fas fa-pencil-alt"></i>
-                                  </button>
-                                  <button onClick={() => handleDeleteItem(ci.id)} className="w-6 h-6 bg-rose-500/10 rounded flex items-center justify-center text-rose-500 text-[9px] hover:bg-rose-500/20">
+                                  {!ci.isGoogleCalendar && (
+                                    <button onClick={() => startEdit(ci)} title="Edit item" className="w-6 h-6 bg-white/10 rounded flex items-center justify-center text-stone-400 text-[9px] hover:bg-white/20">
+                                      <i className="fas fa-pencil-alt"></i>
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleDeleteItem(ci.id)} title="Remove from app calendar" className="w-6 h-6 bg-rose-500/10 rounded flex items-center justify-center text-rose-500 text-[9px] hover:bg-rose-500/20">
                                     <i className="fas fa-trash-alt"></i>
                                   </button>
                                 </div>
                              </div>
                              <p className={`text-xs font-semibold ${ci.completed ? 'line-through text-stone-500' : 'text-stone-200'}`}>{ci.title}</p>
-                             {ci.description && <p className="text-[10px] text-stone-500 font-medium mt-1">{ci.description}</p>}
+                             {ci.description && <p className="text-[10px] text-stone-400 font-medium mt-1 line-clamp-3">{ci.description}</p>}
+                             {ci.location && <p className="text-[9px] text-stone-400 mt-1 flex items-center gap-1"><i className="fas fa-map-marker-alt text-[8px] text-rose-400"></i> {ci.location}</p>}
+                             {ci.hangoutLink && (
+                               <a 
+                                 href={ci.hangoutLink} 
+                                 target="_blank" 
+                                 rel="noopener noreferrer" 
+                                 className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-blue-600/30 border border-blue-500/40 rounded text-[9px] font-bold text-blue-300 hover:text-white hover:bg-blue-600/50 transition"
+                               >
+                                 <i className="fas fa-video text-[8px]"></i> Join Video Meeting
+                               </a>
+                             )}
                           </div>
                         ))}
                       </div>
@@ -343,7 +475,7 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
                                <p className="text-xs font-semibold text-emerald-400">{ri.description}</p>
                                <p className="text-[9px] text-stone-500 uppercase font-bold">Capital Inflow</p>
                              </div>
-                             <span className="text-xs font-semibold text-emerald-450">+${ri.amount}</span>
+                             <span className="text-xs font-semibold text-emerald-400">+${ri.amount}</span>
                           </div>
                         ))}
                       </div>
@@ -440,3 +572,4 @@ const Calendar: React.FC<Props> = ({ events, calendarItems, transactions, recurr
 };
 
 export default Calendar;
+

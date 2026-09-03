@@ -522,6 +522,42 @@ const Settings: React.FC<Props> = ({
 
           {activeTab === 'api' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              {/* Google Workspace Integration: Calendar & Gmail */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-indigo-600 shadow-sm">
+                      <i className="fab fa-google text-red-500"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-800">Google Workspace Gateways</h3>
+                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Google Calendar & Gmail Read-Only Sync</p>
+                    </div>
+                  </div>
+                  <a
+                    href="/api/auth/google"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <i className="fab fa-google text-red-500 text-[10px]"></i>
+                    <span>Connect / Refresh</span>
+                  </a>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-stone-200 text-xs text-stone-600 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-stone-800 flex items-center gap-1.5">
+                      <i className="fas fa-calendar-check text-blue-500"></i> Google Calendar (One-Way Sync)
+                    </span>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[9px] font-bold uppercase">
+                      Read-Only (Google → App)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    Incoming Google Calendar directives and events are merged into your operational schedule. App data is never pushed or modified in your external Google Calendar.
+                  </p>
+                </div>
+              </section>
+
               <section className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>

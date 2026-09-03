@@ -339,13 +339,20 @@ router.post('/logout', (req, res) => {
 });
 
 // --- Google ----------------------------------------------------------------
-// Requests Gmail read-only access alongside basic profile/email up front, and
+// Requests Gmail and Google Calendar read-only access alongside basic profile/email up front, and
 // accessType: 'offline' + prompt: 'consent' so Google issues a refresh token
 // we can use server-side (see server/googleTokens.js) — this is what lets a
-// single "Continue with Google" also power Gmail Planning Notifications on
-// the dashboard, with no separate connect step.
+// single "Continue with Google" also power Gmail Planning Notifications and
+// Google Calendar sync on the dashboard/calendar, with no separate connect step.
 router.get('/google', (req, res, next) => ensureOAuthProvider(req, res, next, 'google'), passport.authenticate('google', {
-  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.modify'],
+  scope: [
+    'profile', 
+    'email', 
+    'https://www.googleapis.com/auth/gmail.readonly', 
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar.readonly'
+  ],
   accessType: 'offline',
   prompt: 'consent',
 }));

@@ -339,6 +339,13 @@ export interface CalendarItem {
   description?: string;
   recurring: 'none' | 'daily' | 'weekly' | 'monthly';
   completed?: boolean;
+  // --- Google Calendar Read-Only Metadata ---
+  isGoogleCalendar?: boolean;
+  googleEventId?: string;
+  htmlLink?: string;
+  location?: string;
+  hangoutLink?: string;
+  attendeesCount?: number;
 }
 
 export interface EventItem {
