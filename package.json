@@ -23,7 +23,11 @@
     "express-session": "^1.19.0",
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     "framer-motion": "^12.43.0",
+=======
+    "framer-motion": "^13.2.0",
+>>>>>>> Stashed changes
 =======
     "framer-motion": "^13.2.0",
 >>>>>>> Stashed changes

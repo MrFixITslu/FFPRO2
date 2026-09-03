@@ -167,6 +167,7 @@ if (hasPostgres) {
   }).then(() => {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     return realPool.query(`
       CREATE TABLE IF NOT EXISTS dismissed_emails (
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -178,6 +179,8 @@ if (hasPostgres) {
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_dismissed_emails_user ON dismissed_emails(user_id);`);
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
     // --- Funding Finder ---------------------------------------------------
@@ -237,6 +240,9 @@ if (hasPostgres) {
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_funding_jobs_status_next ON funding_research_jobs(status, next_attempt_at);`);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

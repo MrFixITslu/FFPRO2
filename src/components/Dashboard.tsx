@@ -5,9 +5,13 @@ import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, Mark
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import { UnifiedNotificationHub } from './UnifiedNotificationHub';
 import { EmailDetailModal } from './EmailDetailModal';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
+=======
+import { GmailPlanningNotifications } from './GmailPlanningNotifications';
+>>>>>>> Stashed changes
 =======
 import { GmailPlanningNotifications } from './GmailPlanningNotifications';
 >>>>>>> Stashed changes
@@ -50,6 +54,7 @@ import {
   Sliders,
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   ArrowLeftRight,
   Mail,
   Inbox,
@@ -58,6 +63,9 @@ import {
   ShieldCheck,
   Info,
   X
+=======
+  ArrowLeftRight
+>>>>>>> Stashed changes
 =======
   ArrowLeftRight
 >>>>>>> Stashed changes
@@ -148,6 +156,7 @@ const Dashboard: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState("");
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
   // Executive vs Detailed View Mode
   const [viewMode, setViewMode] = useState<'executive' | 'detailed'>(() => {
@@ -174,6 +183,11 @@ const Dashboard: React.FC<Props> = ({
   const [selectedEmailModal, setSelectedEmailModal] = useState<GmailPlanningNotification | null>(null);
   const [showGmailConsentModal, setShowGmailConsentModal] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+=======
+  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
+  const [partialAmount, setPartialAmount] = useState<string>("");
+  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+>>>>>>> Stashed changes
 =======
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
   const [partialAmount, setPartialAmount] = useState<string>("");
@@ -496,6 +510,7 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-slate-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
       {/* Executive vs Detailed View Mode Selector */}
@@ -1114,6 +1129,8 @@ const Dashboard: React.FC<Props> = ({
 =======
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
       {/* Gmail Planning Notifications */}
       <GmailPlanningNotifications
         userEmail={userEmail}
@@ -1121,6 +1138,9 @@ const Dashboard: React.FC<Props> = ({
         onNavigateToPlanner={onNavigateToPlanner}
       />
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -1658,6 +1678,7 @@ const Dashboard: React.FC<Props> = ({
       </section>
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         </div>
       )}
 
@@ -1785,6 +1806,8 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </div>
       )}
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======

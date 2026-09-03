@@ -228,6 +228,7 @@ const App: React.FC = () => {
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   const [dismissedEmailIds, setDismissedEmailIds] = useState<string[]>(() => safeParse(STORAGE_KEYS.DISMISSED_EMAIL_IDS, []));
   const pushToCloudRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
 
@@ -256,6 +257,8 @@ const App: React.FC = () => {
       pushToCloudRef.current?.(true);
     }, 50);
   }, []);
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======
