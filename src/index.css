@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: "Fraunces", serif;
+  --font-sans: "Public Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Outfit", sans-serif;
 }
 
 body { 
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif; 
+    font-family: 'Public Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif; 
     overscroll-behavior-y: contain;
     -webkit-tap-highlight-color: transparent;
     letter-spacing: -0.01em;
@@ -15,16 +15,16 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-family: 'Fraunces', serif;
+    font-family: 'Outfit', sans-serif;
 }
 
 .font-tabular {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'IBM Plex Mono', monospace;
     font-variant-numeric: tabular-nums;
 }
 
 .font-display {
-    font-family: 'Fraunces', serif;
+    font-family: 'Outfit', sans-serif;
 }
 
 .executive-card {
