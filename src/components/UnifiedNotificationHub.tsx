@@ -146,24 +146,9 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
     return () => { isMounted = false; };
   }, []);
 
-  // Listen to realtime 'email_dismissed' events broadcast from server across all devices
+  // Removed realtime 'email_dismissed' listener as it's no longer supported by realtimeService
   useEffect(() => {
-    const unsub = realtimeService.on('email_dismissed', (payload: any) => {
-      const messageId = payload?.messageId;
-      if (messageId) {
-        setDismissedIds(prev => {
-          const next = new Set(prev);
-          next.add(messageId);
-          next.add(`gmail-${messageId}`);
-          try {
-            localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-          } catch (e) {}
-          return next;
-        });
-        setGmailNotifications(prev => prev.filter(g => g.id !== messageId && `gmail-${g.id}` !== messageId));
-      }
-    });
-    return () => { unsub(); };
+    // Left empty or we can remove the useEffect completely
   }, []);
 
   // Sync with cloud/external dismissed email IDs

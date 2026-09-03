@@ -49,27 +49,9 @@ export function useGmailNotifications(
     return () => { isMounted = false; };
   }, []);
 
-  // Listen to realtime 'email_dismissed' events broadcast from server across all devices (phone, laptop, etc.)
+  // Removed realtime 'email_dismissed' listener broadcast from server across all devices (phone, laptop, etc.)
   useEffect(() => {
-    const unsub = realtimeService.on('email_dismissed', (payload: any) => {
-      const messageId = payload?.messageId;
-      if (messageId) {
-        setDismissedEmailIds(prev => {
-          const next = new Set(prev);
-          next.add(messageId);
-          next.add(`gmail-${messageId}`);
-          try {
-            localStorage.setItem('dashboard_dismissed_email_ids', JSON.stringify(Array.from(next)));
-          } catch (e) {}
-          return next;
-        });
-        setGmailNotifications(prev => prev.filter(g => g.id !== messageId && `gmail-${g.id}` !== messageId));
-      }
-    });
-
-    return () => {
-      unsub();
-    };
+    // Empty or completely removed
   }, []);
 
   // Sync external dismissed IDs from parent state (cloud sync)

@@ -52,7 +52,7 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = 3000;
 
 // Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS
 app.set('trust proxy', true);
