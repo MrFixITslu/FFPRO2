@@ -25,10 +25,6 @@ router.get('/opportunities', async (req, res) => {
 
     const conditions = [];
     const params = [];
-    if (status && status !== 'all') {
-      params.push(status);
-      conditions.push(`status = $${params.length}`);
-    }
     if (category) {
       params.push(category);
       conditions.push(`category = $${params.length}`);
@@ -42,7 +38,22 @@ router.get('/opportunities', async (req, res) => {
 
     // Deadline status is computed here (deterministic), not stored or
     // inferred by the model — it changes with the calendar, not the data.
-    const withStatus = rows.map(r => ({ ...r, deadline_status: computeDeadlineStatus(r.deadline) }));
+    let withStatus = rows.map(r => ({ ...r, deadline_status: computeDeadlineStatus(r.deadline) }));
+
+    // Filter by active status or specific deadline status:
+    // 'active' means non-expired (open, closing soon, rolling) and not administratively archived/inactive.
+    if (status === 'active') {
+      withStatus = withStatus.filter(r => r.deadline_status !== 'expired' && r.status !== 'archived' && r.status !== 'inactive');
+    } else if (status === 'expired') {
+      withStatus = withStatus.filter(r => r.deadline_status === 'expired');
+    } else if (status === 'open') {
+      withStatus = withStatus.filter(r => r.deadline_status === 'open');
+    } else if (status === 'closing_soon') {
+      withStatus = withStatus.filter(r => r.deadline_status === 'closing_soon');
+    } else if (status === 'no_deadline') {
+      withStatus = withStatus.filter(r => r.deadline_status === 'no_deadline');
+    }
+
     const sorted = sortOpportunities(withStatus, sortBy);
     const paged = sorted.slice(offset, offset + size);
 

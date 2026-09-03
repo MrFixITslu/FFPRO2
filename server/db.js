@@ -260,6 +260,106 @@ function readDB() {
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
+    parsed.funding_opportunities ||= [];
+    parsed.funding_research_jobs ||= [];
+
+    if (parsed.funding_opportunities.length === 0) {
+      parsed.funding_opportunities = [
+        {
+          id: 1,
+          source_url: 'https://www.arts.gov/grants/grants-for-arts-projects',
+          content_hash: 'seed-nea-2026',
+          title: 'NEA Grants for Arts Projects & Cultural Innovation',
+          funder_name: 'National Endowment for the Arts',
+          description: 'Supports artist-led initiatives, public art showcases, and educational partnerships elevating diverse cultural heritage and regional creative development.',
+          amount_min: 10000,
+          amount_max: 100000,
+          currency: 'USD',
+          deadline: '2026-10-15',
+          eligibility_summary: '501(c)(3) non-profit arts organizations, local arts agencies, and tribal organizations.',
+          category: 'Arts & Culture',
+          tags: ['arts', 'community', 'education'],
+          status: 'active',
+          first_seen_at: '2026-08-20T10:00:00.000Z',
+          last_verified_at: '2026-09-01T08:00:00.000Z'
+        },
+        {
+          id: 2,
+          source_url: 'https://knightfoundation.org/programs/technology/',
+          content_hash: 'seed-knight-2026',
+          title: 'Civic Innovation & Digital Equity Accelerator Fund',
+          funder_name: 'Knight Foundation & TechBridge',
+          description: 'Catalytic grants for open-source digital tools, local civic data infrastructure, and grassroots technology access initiatives.',
+          amount_min: 25000,
+          amount_max: 75000,
+          currency: 'USD',
+          deadline: '2026-09-07',
+          eligibility_summary: 'Civic technologists, registered startups, community non-profits, and educational institutions.',
+          category: 'Technology',
+          tags: ['technology', 'civic', 'equity'],
+          status: 'active',
+          first_seen_at: '2026-08-25T14:30:00.000Z',
+          last_verified_at: '2026-09-02T12:00:00.000Z'
+        },
+        {
+          id: 3,
+          source_url: 'https://sloan.org/programs/digital-technology',
+          content_hash: 'seed-sloan-2026',
+          title: 'Open Source Public Goods Fellowship & Infrastructure Grant',
+          funder_name: 'Alfred P. Sloan Foundation',
+          description: 'Unrestricted developer stipends and cloud infrastructure funding for core maintainers of critical scientific and open-source ecosystems.',
+          amount_min: 15000,
+          amount_max: 50000,
+          currency: 'USD',
+          deadline: null,
+          eligibility_summary: 'Individual open source maintainers, university labs, and non-profit development consortiums.',
+          category: 'Open Source',
+          tags: ['open-source', 'fellowship', 'developer'],
+          status: 'active',
+          first_seen_at: '2026-08-10T09:00:00.000Z',
+          last_verified_at: '2026-09-01T15:00:00.000Z'
+        },
+        {
+          id: 4,
+          source_url: 'https://example.gov/grants/small-business-2025',
+          content_hash: 'seed-sba-2026',
+          title: 'Regional Small Business Commercialization & Growth Grant',
+          funder_name: 'State Economic Development Agency',
+          description: 'Direct capital support for innovative regional businesses scaling operations and creating local clean-tech manufacturing jobs.',
+          amount_min: 20000,
+          amount_max: 80000,
+          currency: 'USD',
+          deadline: '2026-06-30',
+          eligibility_summary: 'Small businesses with under 50 employees registered in the operating state for at least 12 months.',
+          category: 'Small Business',
+          tags: ['business', 'economic-development'],
+          status: 'active',
+          first_seen_at: '2026-05-15T08:00:00.000Z',
+          last_verified_at: '2026-07-01T10:00:00.000Z'
+        },
+        {
+          id: 5,
+          source_url: 'https://www.energy.gov/clean-energy-challenge',
+          content_hash: 'seed-cleanenergy-2026',
+          title: 'Clean Energy Community Microgrid Demonstration Challenge',
+          funder_name: 'Department of Energy & Climate Action Trust',
+          description: 'Deployment grants for distributed renewable energy microgrids, storage pilots, and local resilience hubs.',
+          amount_min: 50000,
+          amount_max: 250000,
+          currency: 'USD',
+          deadline: '2026-08-15',
+          eligibility_summary: 'Municipal utilities, non-profit energy co-ops, research institutions, and tribal councils.',
+          category: 'Clean Energy',
+          tags: ['energy', 'climate', 'infrastructure'],
+          status: 'active',
+          first_seen_at: '2026-07-01T11:00:00.000Z',
+          last_verified_at: '2026-08-20T09:00:00.000Z'
+        }
+      ];
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2));
+      } catch (err) {}
+    }
     return parsed;
   } catch (e) {
     return {
@@ -272,7 +372,9 @@ function readDB() {
       project_members: [],
       project_invites: [],
       project_messages: [],
-      password_reset_tokens: []
+      password_reset_tokens: [],
+      funding_opportunities: [],
+      funding_research_jobs: []
     };
   }
 }
@@ -543,6 +645,105 @@ export const pool = {
         user.google_gmail_token_expiry = expiry;
         writeDB(db);
       }
+      return { rows: [] };
+    }
+
+    // 20. SELECT * FROM funding_opportunities WHERE id = $1
+    if (cleanSql.startsWith('SELECT * FROM funding_opportunities WHERE id =')) {
+      const id = parseInt(params[0], 10);
+      const row = (db.funding_opportunities || []).find(o => o.id === id);
+      return { rows: row ? [row] : [] };
+    }
+
+    // 21. SELECT id FROM funding_opportunities WHERE content_hash = $1
+    if (cleanSql.includes('SELECT id FROM funding_opportunities WHERE content_hash =')) {
+      const hash = params[0];
+      const row = (db.funding_opportunities || []).find(o => o.content_hash === hash);
+      return { rows: row ? [{ id: row.id }] : [] };
+    }
+
+    // 22. SELECT * FROM funding_opportunities
+    if (cleanSql.startsWith('SELECT * FROM funding_opportunities')) {
+      let list = [...(db.funding_opportunities || [])];
+      if (cleanSql.includes('WHERE category =')) {
+        const cat = params[0];
+        list = list.filter(o => o.category === cat);
+      }
+      list.sort((a, b) => new Date(b.first_seen_at || 0) - new Date(a.first_seen_at || 0));
+      return { rows: list };
+    }
+
+    // 23. UPDATE funding_opportunities SET last_verified_at = NOW() WHERE id = $1
+    if (cleanSql.startsWith('UPDATE funding_opportunities SET last_verified_at = NOW() WHERE id =')) {
+      const id = parseInt(params[0], 10);
+      const item = (db.funding_opportunities || []).find(o => o.id === id);
+      if (item) {
+        item.last_verified_at = new Date().toISOString();
+        writeDB(db);
+      }
+      return { rows: [] };
+    }
+
+    // 24. INSERT INTO funding_opportunities
+    if (cleanSql.startsWith('INSERT INTO funding_opportunities')) {
+      db.funding_opportunities ||= [];
+      const nextId = db.funding_opportunities.reduce((max, o) => Math.max(max, o.id || 0), 0) + 1;
+      const newOp = {
+        id: nextId,
+        source_url: params[0],
+        content_hash: params[1],
+        title: params[2],
+        funder_name: params[3],
+        description: params[4],
+        amount_min: params[5],
+        amount_max: params[6],
+        currency: params[7],
+        deadline: params[8],
+        eligibility_summary: params[9],
+        category: params[10],
+        tags: typeof params[11] === 'string' ? JSON.parse(params[11]) : (params[11] || []),
+        status: 'active',
+        first_seen_at: new Date().toISOString(),
+        last_verified_at: new Date().toISOString()
+      };
+      db.funding_opportunities.push(newOp);
+      writeDB(db);
+      return { rows: [{ id: newOp.id }] };
+    }
+
+    // 25. SELECT status, COUNT(*)::int AS count FROM funding_research_jobs GROUP BY status
+    if (cleanSql.includes('FROM funding_research_jobs GROUP BY status')) {
+      const counts = {};
+      (db.funding_research_jobs || []).forEach(j => {
+        counts[j.status] = (counts[j.status] || 0) + 1;
+      });
+      return { rows: Object.entries(counts).map(([status, count]) => ({ status, count })) };
+    }
+
+    // 26. SELECT * FROM funding_research_jobs
+    if (cleanSql.startsWith('SELECT * FROM funding_research_jobs')) {
+      return { rows: db.funding_research_jobs || [] };
+    }
+
+    // 27. INSERT INTO funding_research_jobs
+    if (cleanSql.startsWith('INSERT INTO funding_research_jobs')) {
+      db.funding_research_jobs ||= [];
+      const newJob = {
+        id: db.funding_research_jobs.length + 1,
+        source_url: params[0],
+        status: params[1] || 'queued',
+        attempts: 0,
+        max_attempts: 3,
+        created_at: new Date().toISOString(),
+        next_attempt_at: new Date().toISOString()
+      };
+      db.funding_research_jobs.push(newJob);
+      writeDB(db);
+      return { rows: [{ id: newJob.id }] };
+    }
+
+    // 28. UPDATE funding_research_jobs
+    if (cleanSql.startsWith('UPDATE funding_research_jobs')) {
       return { rows: [] };
     }
 

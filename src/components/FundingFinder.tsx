@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Landmark, RefreshCw, ExternalLink, AlertCircle, Filter, Sparkles } from 'lucide-react';
 
 interface FundingOpportunity {
@@ -37,7 +37,7 @@ export const FundingFinder: React.FC = () => {
   const [opportunities, setOpportunities] = useState<FundingOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'all' | 'closing_soon' | 'expired'>('active');
   const [sortBy, setSortBy] = useState<'deadline' | 'amount_desc' | 'newest'>('deadline');
   const [triggering, setTriggering] = useState(false);
   const [queueStats, setQueueStats] = useState<Record<string, number> | null>(null);
@@ -77,6 +77,18 @@ export const FundingFinder: React.FC = () => {
     fetchOpportunities();
     fetchQueueStats();
   }, [fetchOpportunities, fetchQueueStats]);
+
+  // Client-side defensive filtering ensures Active Only never renders expired grants
+  const displayedOpportunities = useMemo(() => {
+    if (statusFilter === 'all') return opportunities;
+    if (statusFilter === 'active') {
+      return opportunities.filter(op => op.deadline_status !== 'expired');
+    }
+    if (statusFilter === 'expired') {
+      return opportunities.filter(op => op.deadline_status === 'expired');
+    }
+    return opportunities.filter(op => op.deadline_status === statusFilter);
+  }, [opportunities, statusFilter]);
 
   const handleManualTrigger = async () => {
     setTriggering(true);
@@ -130,11 +142,13 @@ export const FundingFinder: React.FC = () => {
         <Filter size={14} className="text-slate-400" />
         <select
           value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as 'active' | 'all')}
+          onChange={e => setStatusFilter(e.target.value as 'active' | 'all' | 'closing_soon' | 'expired')}
           className="text-xs font-semibold border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white"
         >
           <option value="active">Active only</option>
           <option value="all">All statuses</option>
+          <option value="closing_soon">Closing soon</option>
+          <option value="expired">Expired</option>
         </select>
         <select
           value={sortBy}
@@ -145,6 +159,9 @@ export const FundingFinder: React.FC = () => {
           <option value="amount_desc">Sort: Amount (highest)</option>
           <option value="newest">Sort: Newest first</option>
         </select>
+        <span className="text-[11px] font-medium text-slate-400 ml-1 hidden sm:inline">
+          {displayedOpportunities.length} {displayedOpportunities.length === 1 ? 'opportunity' : 'opportunities'}
+        </span>
         <button
           onClick={fetchOpportunities}
           className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 text-slate-500 hover:text-slate-800 text-xs font-semibold"
@@ -161,18 +178,26 @@ export const FundingFinder: React.FC = () => {
         </div>
       )}
 
-      {!error && !loading && opportunities.length === 0 && (
+      {!error && !loading && displayedOpportunities.length === 0 && (
         <div className="py-16 text-center bg-white rounded-xl border border-slate-200">
           <Landmark size={28} className="mx-auto text-slate-300 mb-3" />
-          <p className="text-sm font-bold text-slate-600">No funding opportunities yet</p>
+          <p className="text-sm font-bold text-slate-600">
+            {statusFilter === 'active'
+              ? 'No active funding opportunities found'
+              : statusFilter === 'expired'
+              ? 'No expired funding opportunities found'
+              : 'No funding opportunities yet'}
+          </p>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            The research job runs nightly. Click "Run Research Now" to check immediately, or wait for the next scheduled run.
+            {statusFilter === 'active'
+              ? 'Try selecting "All statuses" or run the research cycle to discover new grants.'
+              : 'The research job runs nightly. Click "Run Research Now" to check immediately, or wait for the next scheduled run.'}
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {opportunities.map(op => {
+        {displayedOpportunities.map(op => {
           const badge = DEADLINE_BADGE[op.deadline_status] || DEADLINE_BADGE.no_deadline;
           const amount = formatAmount(op.amount_min, op.amount_max, op.currency);
           return (
