@@ -2,8 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { GmailPlanningNotification, BudgetEvent, ProjectTask } from '../types';
 import { realtimeService } from '../services/realtimeService';
 
-const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
-
 export function useGmailNotifications(
   userEmail?: string,
   events: BudgetEvent[] = [],

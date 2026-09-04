@@ -1,8 +1,26 @@
 import { Router } from 'express';
 import { GoogleGenAI, Type } from '@google/genai';
 import { requireAuth } from '../middleware/requireAuth.js';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+// Rate limiting for public market data feed to prevent ticker flooding
+const marketDataLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Bounded rate limiter on authenticated AI calls to protect Gemini quota & infrastructure
+const aiGenerationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30, // 30 AI requests per minute per user/IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many AI requests. Please slow down.' }
+});
 
 // Ensure API_KEY defaults to GEMINI_API_KEY
 if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
@@ -247,11 +265,12 @@ const handleMarketData = async (req, res) => {
   res.json({ prices, quotaExhausted: !isLive });
 };
 
-// Public endpoints (no authentication required so ticker is live for anyone)
-router.get('/market-data', handleMarketData);
-router.post('/market-data', handleMarketData);
+// Public endpoints (no authentication required so ticker is live for anyone, but rate-limited)
+router.get('/market-data', marketDataLimiter, handleMarketData);
+router.post('/market-data', marketDataLimiter, handleMarketData);
 
 router.use(requireAuth);
+router.use(aiGenerationLimiter);
 
 // 1. Parse receipt or financial text input
 router.post('/parse', async (req, res) => {

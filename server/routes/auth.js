@@ -97,15 +97,15 @@ function signSessionId(sid, secret) {
 // --- Session status -------------------------------------------------------
 router.get('/me', (req, res) => {
   const user = sanitizeUser(req.user);
-  const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-  const token = req.user && req.sessionID ? signSessionId(req.sessionID, sessionSecret) : null;
+  const sessionSecret = process.env.SESSION_SECRET || '';
+  const token = req.user && req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
   res.json({ user, token });
 });
 
 router.get('/session-state', (req, res) => {
   const user = sanitizeUser(req.user);
-  const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-  const token = req.user && req.sessionID ? signSessionId(req.sessionID, sessionSecret) : null;
+  const sessionSecret = process.env.SESSION_SECRET || '';
+  const token = req.user && req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
   res.json({ authenticated: !!req.user, user, token });
 });
 
@@ -151,25 +151,33 @@ router.post('/register', async (req, res) => {
       [email, sanitizedUsername, passwordHash, displayName]
     );
 
-    req.login(inserted.rows[0], async (err) => {
-      if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
-
-      // Honor any project invites that were sent to this email before the account existed.
-      try {
-        const pendingInvites = await projectsDb.getPendingInvitesForEmail(email);
-        for (const invite of pendingInvites) {
-          await projectsDb.addMember(invite.projectId, inserted.rows[0].id, invite.role);
-          await projectsDb.markInviteAccepted(invite.id);
-        }
-      } catch (inviteErr) {
-        console.error('Failed to auto-accept pending invites on register:', inviteErr);
+    // Regenerate session to protect against session fixation attacks
+    req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regeneration error on register:', regenErr);
+        return res.status(500).json({ error: 'Failed to initialize session.' });
       }
 
-      const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-      const token = signSessionId(req.sessionID, sessionSecret);
-      res.status(201).json({ 
-        user: sanitizeUser(inserted.rows[0]),
-        token
+      req.login(inserted.rows[0], async (err) => {
+        if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
+
+        // Honor any project invites that were sent to this email before the account existed.
+        try {
+          const pendingInvites = await projectsDb.getPendingInvitesForEmail(email);
+          for (const invite of pendingInvites) {
+            await projectsDb.addMember(invite.projectId, inserted.rows[0].id, invite.role);
+            await projectsDb.markInviteAccepted(invite.id);
+          }
+        } catch (inviteErr) {
+          console.error('Failed to auto-accept pending invites on register:', inviteErr);
+        }
+
+        const sessionSecret = process.env.SESSION_SECRET || '';
+        const token = sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
+        res.status(201).json({ 
+          user: sanitizeUser(inserted.rows[0]),
+          token
+        });
       });
     });
   } catch (err) {
@@ -205,13 +213,22 @@ router.post('/login', async (req, res) => {
     }
 
     await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
-    req.login(user, (err) => {
-      if (err) return res.status(500).json({ error: 'Failed to start a session.' });
-      const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-      const token = signSessionId(req.sessionID, sessionSecret);
-      res.json({ 
-        user: sanitizeUser(user),
-        token
+
+    // Regenerate session to protect against session fixation attacks
+    req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regeneration error on login:', regenErr);
+        return res.status(500).json({ error: 'Failed to initialize session.' });
+      }
+
+      req.login(user, (err) => {
+        if (err) return res.status(500).json({ error: 'Failed to start a session.' });
+        const sessionSecret = process.env.SESSION_SECRET || '';
+        const token = sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
+        res.json({ 
+          user: sanitizeUser(user),
+          token
+        });
       });
     });
   } catch (err) {

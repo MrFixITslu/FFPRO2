@@ -124,14 +124,13 @@ class RealtimeHub extends EventEmitter {
         type: 'project_update'
       };
 
-      // Broadcast to all connected clients that are members or watching this project
+      // Broadcast strictly to connected clients that are verified members of this project
       this.clients.forEach((clientSet, userId) => {
-        const isMember = memberUserIds.has(userId);
-        clientSet.forEach((client) => {
-          if (isMember || client.projectIds.has(projectId)) {
+        if (memberUserIds.has(userId)) {
+          clientSet.forEach((client) => {
             this.sendToClient(client, 'project_updated', message);
-          }
-        });
+          });
+        }
       });
     } catch (err) {
       console.error('[realtime] broadcastProjectUpdate error:', err);

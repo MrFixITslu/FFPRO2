@@ -92,8 +92,6 @@ interface Props {
   externalDismissedIds?: string[];
 }
 
-const AUTHORIZED_GMAIL = 'vision79slu@gmail.com';
-
 export const UnifiedNotificationHub: React.FC<Props> = ({
   userEmail,
   events = [],

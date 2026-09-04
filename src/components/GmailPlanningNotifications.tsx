@@ -19,7 +19,7 @@ interface Props {
   onNavigateToPlanner?: () => void;
 }
 
-const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
+const AUTHORIZED_EMAIL = import.meta.env.VITE_AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
 
 export const GmailPlanningNotifications: React.FC<Props> = ({
   userEmail,

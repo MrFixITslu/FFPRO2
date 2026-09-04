@@ -19,6 +19,8 @@ import legalRoutes from './server/routes/legal.js';
 import fundingRoutes from './server/routes/funding.js';
 import { startFundingResearchScheduler } from './server/jobs/fundingScheduler.js';
 import { createServer as createViteServer } from 'vite';
+import rateLimit from 'express-rate-limit';
+import { sameOriginOnly } from './server/middleware/sameOriginOnly.js';
 
 import connectPgSimple from 'connect-pg-simple';
 import { realPool, hasPostgres } from './server/db.js';
@@ -53,16 +55,35 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3010', 10);
+// AI Studio container routes traffic to port 3000 via internal reverse proxy.
+// In custom Docker deployment, container listens on PORT (configured as 80 in docker-compose.yml).
+const PORT = (process.env.DEFAULT_APP_PORT || process.env.CONTROL_PLANE_PORT || process.env.PORT === '8080')
+  ? 3000
+  : parseInt(process.env.PORT || '80', 10);
 
-// Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS
-app.set('trust proxy', true);
+// Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS.
+// Set to 1 hop rather than boolean `true` so express-rate-limit reliably bounds IP rate-limiting.
+const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS || 1);
+app.set('trust proxy', TRUST_PROXY_HOPS);
 
-// Helmet security configuration to allow embedding in the AI Studio iframe
+// Helmet security configuration with tailored Content Security Policy
 app.use(helmet({
-  contentSecurityPolicy: false,
-  frameguard: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https://*.googleusercontent.com", "https://*.fbcdn.net", "https://*.apple.com", "https://images.unsplash.com"],
+      connectSrc: ["'self'", "wss:", "ws:", "https://api.kraken.com", "https://query1.finance.yahoo.com", "https://www.googleapis.com", "https://oauth2.googleapis.com"],
+      frameAncestors: ["'self'", "https://*.google.com", "https://*.run.app", "https://ai.studio"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+  frameguard: false, // Governed by frameAncestors above to allow embedding in preview
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
 }));
 
 // Logger middleware
@@ -193,9 +214,30 @@ app.use((req, res, next) => {
 app.use(passport.initialize() as any);
 app.use(passport.session() as any);
 
+// Rate limiting on credential authentication endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again later.' }
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// CSRF Defense: Enforce same-origin verification on state-mutating auth & data operations
+app.use(['/api/auth/login', '/api/auth/register', '/api/auth/logout'], sameOriginOnly);
+app.use('/api/data', sameOriginOnly);
+
 // Mount Backend API Routes
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    environment: process.env.NODE_ENV || 'development',
+    database: hasPostgres ? 'postgresql' : 'local_json_ephemeral',
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.use('/api/auth', authRoutes);

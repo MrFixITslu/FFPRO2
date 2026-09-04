@@ -5,8 +5,10 @@ import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
 import { decryptForUser } from '../crypto.js';
 import { getValidGoogleAccessToken } from '../googleTokens.js';
+import { getProcessedMessageIds, markMessageProcessed, getAllProcessedMessages } from '../gmailProcessedStore.js';
 
 const router = Router();
+const AUTHORIZED_EMAIL = process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
 
 const gmailRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -18,7 +20,20 @@ const gmailRateLimiter = rateLimit({
 router.use(requireAuth);
 router.use(gmailRateLimiter);
 
-
+/**
+ * Server-Side Authorization Middleware
+ * Verifies that the authenticated user strictly matches the authorized email (case-insensitive).
+ * For any other user, returns 403 Forbidden with zero Gmail data/endpoints exposed.
+ */
+function requireAuthorizedAccount(req, res, next) {
+  const userEmail = (req.user?.email || '').trim().toLowerCase();
+  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+    return next();
+  }
+  return res.status(403).json({
+    error: 'Access restricted to authorized account.',
+  });
+}
 
 /**
  * Helper to match task/planning references from subject, sender, and snippet
@@ -148,7 +163,7 @@ function findMatchingTask(subject = '', snippet = '', allTasks = []) {
  * Retrieves unread planning email headers for VISION79SLU@GMAIL.COM using the client-side Google OAuth access token.
  * Validates the token with Google TokenInfo and queries the Gmail API for messages matching 'is:unread' and planning keywords.
  */
-router.get('/notifications', async (req, res) => {
+router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
   // The access token comes from the server-held grant captured at Google
   // login (server/googleTokens.js), refreshed transparently as needed —
   // there's no client-side token supplied; all Gmail access goes through
@@ -175,11 +190,10 @@ router.get('/notifications', async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify the Google token belongs to the logged-in user's account.
-    // This prevents one user's stored token from being used for another account.
-    if (tokenEmail && req.user?.email && tokenEmail !== req.user.email.toLowerCase()) {
+    // Verify token identity strictly belongs to vision79slu@gmail.com
+    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
       return res.status(403).json({
-        error: 'Google account does not match your login email.',
+        error: `Google token must belong to ${AUTHORIZED_EMAIL}.`,
         code: 'ACCOUNT_MISMATCH',
       });
     }
@@ -222,13 +236,25 @@ router.get('/notifications', async (req, res) => {
       });
     }
 
-    // 3. Resolve existing tasks to link with emails
+    // 3. Check previously read/deleted messages so we NEVER pull them from Google again
+    const processedSet = await getProcessedMessageIds(req.user.id);
+    const unpulledStubs = messageStubs.filter(stub => !processedSet.has(stub.id));
+
+    if (unpulledStubs.length === 0) {
+      return res.json({
+        notifications: [],
+        totalUnread: 0,
+        syncTime: new Date().toISOString(),
+      });
+    }
+
+    // 4. Resolve existing tasks to link with emails
     const allTasks = await resolvePlanningTasks(req.user.id);
 
-    // 4. Fetch metadata/headers ONLY for each message (format=metadata)
+    // 5. Fetch metadata/headers ONLY for each unpulled message (format=metadata)
     const notifications = [];
     // Limit parallel fetches to max 10 to protect rate limits
-    const topStubs = messageStubs.slice(0, 10);
+    const topStubs = unpulledStubs.slice(0, 10);
 
     for (const stub of topStubs) {
       try {
@@ -253,8 +279,8 @@ router.get('/notifications', async (req, res) => {
         const snippet = msgData.snippet || '';
         const isUnread = Array.isArray(msgData.labelIds) && msgData.labelIds.includes('UNREAD');
 
-        // If email is no longer unread, skip it
-        if (!isUnread) continue;
+        // If email is no longer unread or was processed in the meantime, skip it
+        if (!isUnread || processedSet.has(msgData.id)) continue;
 
         // Clean sender display name
         let cleanFrom = from;
@@ -304,140 +330,138 @@ router.get('/notifications', async (req, res) => {
 });
 
 /**
- * POST /api/gmail/mark-read
- * Marks a Gmail message as read (removes UNREAD label) when dismissed or viewed.
+ * GET /api/gmail/processed
+ * Retrieves all message IDs marked as read or deleted for the authenticated user.
  */
-router.post('/mark-read', async (req, res) => {
-  const { messageId } = req.body || {};
-  const accessToken = await getValidGoogleAccessToken(req.user.id);
-
-  if (!accessToken || !messageId) {
-    return res.status(400).json({ error: 'Message ID is required and you must be logged in with Google.' });
-  }
-
+router.get('/processed', requireAuthorizedAccount, async (req, res) => {
   try {
-    const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/modify`;
-    const modifyRes = await fetch(modifyUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        removeLabelIds: ['UNREAD'],
-      }),
-    });
-
-    if (!modifyRes.ok) {
-      const errText = await modifyRes.text();
-      console.warn('[gmail-sync] Failed to mark message read in Gmail:', modifyRes.status, errText);
-      return res.status(502).json({ error: 'Failed to update read status in Gmail.' });
-    }
-
-    res.json({ ok: true, messageId });
+    const list = await getAllProcessedMessages(req.user.id);
+    const processedIds = list.map(item => item.messageId);
+    res.json({ processed: list, processedIds, dismissedIds: processedIds });
   } catch (err) {
-    console.error('[gmail-sync] Error marking message read:', err);
-    res.status(500).json({ error: 'Failed to update email status.' });
+    console.error('[gmail-sync] Error fetching processed list:', err);
+    res.status(500).json({ error: 'Failed to retrieve processed messages.' });
   }
 });
 
-
 /**
  * GET /api/gmail/dismissed
- * Returns the list of permanently dismissed Gmail message IDs for this user.
- * Used on mount to sync dismissals across devices (phone, laptop, etc.).
+ * Backwards-compatible endpoint returning dismissed/processed message IDs.
  */
-router.get('/dismissed', async (req, res) => {
+router.get('/dismissed', requireAuthorizedAccount, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT gmail_dismissed_ids FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    const raw = rows[0]?.gmail_dismissed_ids;
-    const ids = Array.isArray(raw) ? raw : [];
-    res.json({ dismissedIds: ids });
+    const list = await getAllProcessedMessages(req.user.id);
+    const dismissedIds = list.map(item => item.messageId);
+    res.json({ dismissedIds });
   } catch (err) {
-    console.error('[gmail] Error fetching dismissed IDs:', err);
-    res.status(500).json({ error: 'Could not load dismissed messages.' });
+    console.error('[gmail-sync] Error fetching dismissed list:', err);
+    res.status(500).json({ error: 'Failed to retrieve dismissed messages.' });
   }
+});
+
+/**
+ * POST /api/gmail/read
+ * Marks a notification as read permanently so it is never pulled from Google again,
+ * and removes UNREAD label in Gmail.
+ */
+router.post('/read', requireAuthorizedAccount, async (req, res) => {
+  const { messageId } = req.body || {};
+  if (!messageId) {
+    return res.status(400).json({ error: 'Message ID is required.' });
+  }
+
+  // Record read status in persistent store
+  await markMessageProcessed(req.user.id, messageId, 'read');
+
+  // Attempt removing UNREAD label on Gmail server
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
+  if (accessToken) {
+    try {
+      const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/modify`;
+      await fetch(modifyUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
+      });
+    } catch (e) {
+      console.warn('[gmail-sync] Could not mark read in Gmail:', e?.message);
+    }
+  }
+
+  res.json({ ok: true, messageId, status: 'read' });
 });
 
 /**
  * POST /api/gmail/dismiss
- * Permanently marks a Gmail message as dismissed for this user across all devices.
- * Body: { messageId: string }
+ * Marks a notification as deleted/dismissed permanently so it is never pulled from Google again.
  */
-router.post('/dismiss', async (req, res) => {
+router.post('/dismiss', requireAuthorizedAccount, async (req, res) => {
   const { messageId } = req.body || {};
-  if (!messageId || typeof messageId !== 'string') {
-    return res.status(400).json({ error: 'messageId is required.' });
+  if (!messageId) {
+    return res.status(400).json({ error: 'Message ID is required.' });
   }
-  // Strip the optional 'gmail-' prefix the frontend sometimes adds
-  const cleanId = messageId.replace(/^gmail-/, '');
-  try {
-    // Append the ID to the JSONB array, avoiding duplicates
-    await pool.query(
-      `UPDATE users
-       SET gmail_dismissed_ids = COALESCE(gmail_dismissed_ids, '[]'::jsonb) || to_jsonb($1::text)
-       WHERE id = $2
-         AND NOT (COALESCE(gmail_dismissed_ids, '[]'::jsonb) @> to_jsonb($1::text))`,
-      [cleanId, req.user.id]
-    );
-    res.json({ ok: true, messageId: cleanId });
-  } catch (err) {
-    console.error('[gmail] Error persisting dismiss:', err);
-    res.status(500).json({ error: 'Could not save dismissal.' });
+
+  // Record deleted status in persistent store
+  await markMessageProcessed(req.user.id, messageId, 'deleted');
+
+  // Also remove UNREAD label on Gmail server
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
+  if (accessToken) {
+    try {
+      const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/modify`;
+      await fetch(modifyUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
+      });
+    } catch (e) {
+      console.warn('[gmail-sync] Could not mark dismissed in Gmail:', e?.message);
+    }
   }
+
+  res.json({ ok: true, messageId, status: 'deleted' });
 });
 
 /**
- * POST /api/gmail/disconnect
- * Revokes this user's Google OAuth tokens and clears them from the database.
- * The user must re-authorize with Google to use Gmail features again.
+ * POST /api/gmail/mark-read
+ * Marks a Gmail message as read (removes UNREAD label) and records in persistent store.
  */
-router.post('/disconnect', async (req, res) => {
-  try {
-    // 1. Load the stored tokens so we can revoke the refresh token with Google
-    const { rows } = await pool.query(
-      'SELECT google_gmail_ciphertext, google_gmail_iv, google_gmail_auth_tag FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    const row = rows[0];
-    if (row?.google_gmail_ciphertext) {
-      try {
-        const { decryptForUser } = await import('../crypto.js');
-        const { refreshToken } = decryptForUser(req.user.id, {
-          ciphertext: row.google_gmail_ciphertext,
-          iv: row.google_gmail_iv,
-          authTag: row.google_gmail_auth_tag,
-        });
-        if (refreshToken) {
-          // Best-effort revocation — ignore errors (token may already be revoked)
-          fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`, {
-            method: 'POST',
-          }).catch(() => {});
-        }
-      } catch (decryptErr) {
-        console.warn('[gmail] Could not decrypt token for revocation:', decryptErr?.message);
-      }
-    }
+router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
+  const { messageId } = req.body || {};
+  const accessToken = await getValidGoogleAccessToken(req.user.id);
 
-    // 2. Clear stored Google tokens from the database
-    await pool.query(
-      `UPDATE users
-       SET google_gmail_ciphertext = NULL,
-           google_gmail_iv = NULL,
-           google_gmail_auth_tag = NULL,
-           google_gmail_token_expiry = NULL
-       WHERE id = $1`,
-      [req.user.id]
-    );
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[gmail] Error disconnecting Gmail:', err);
-    res.status(500).json({ error: 'Could not disconnect Gmail.' });
+  if (!messageId) {
+    return res.status(400).json({ error: 'Message ID is required.' });
   }
+
+  // Record in persistent store
+  await markMessageProcessed(req.user.id, messageId, 'read');
+
+  if (accessToken) {
+    try {
+      const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/modify`;
+      await fetch(modifyUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          removeLabelIds: ['UNREAD'],
+        }),
+      });
+    } catch (err) {
+      console.warn('[gmail-sync] Failed to mark message read in Gmail:', err?.message);
+    }
+  }
+
+  res.json({ ok: true, messageId, status: 'read' });
 });
 
 export default router;

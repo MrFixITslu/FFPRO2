@@ -10,6 +10,11 @@
 // our own frontend on the same host. We fall back to validating that the Origin
 // or Referer header matches the current Host to allow preview environments to function.
 export function sameOriginOnly(req, res, next) {
+  // Safe HTTP methods do not mutate server state
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
   const site = req.get('sec-fetch-site');
   // Missing header = older browser or a non-browser client (curl, mobile
   // webview); we don't block those since SameSite cookies already protect us.

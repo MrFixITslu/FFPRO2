@@ -5,7 +5,7 @@ const router = Router();
 const EFFECTIVE_DATE = 'September 1, 2026';
 const COMPANY_NAME = 'Vision79 Digital';
 const APP_NAME = 'Fire Finance Pro (FFPRO2)';
-const CONTACT_EMAIL = 'vision79slu@gmail.com';
+const CONTACT_EMAIL = process.env.SUPPORT_EMAIL || process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
 
 const pageShell = (title, bodyHtml) => `<!DOCTYPE html>
 <html lang="en">

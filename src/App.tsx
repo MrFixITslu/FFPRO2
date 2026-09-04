@@ -1052,9 +1052,9 @@ const App: React.FC = () => {
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('funding')} 
-                      className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === 'funding' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'funding' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
                     >
-                      <Landmark size={15} />
+                      <Landmark size={14} />
                       <span>Funding</span>
                     </button>
                   )}

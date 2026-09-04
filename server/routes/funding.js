@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { pool } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getQueueStats } from '../services/fundingResearch.js';
@@ -6,6 +7,14 @@ import { runFullResearchCycle } from '../jobs/fundingScheduler.js';
 import { sortOpportunities, computeDeadlineStatus } from '../services/fundingDeterministic.js';
 
 const router = Router();
+
+const triggerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3, // maximum 3 manual triggers per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Research cycle was triggered recently. Please wait before triggering again.' }
+});
 
 // All funding endpoints require a logged-in FFPRO user — this is
 // organizational business data, not public.
@@ -89,8 +98,8 @@ router.get('/research/status', async (_req, res) => {
 });
 
 // Manual trigger — useful for testing/ops without waiting for the nightly
-// schedule. Runs in the background; the request returns immediately.
-router.post('/research/trigger', async (_req, res) => {
+// schedule. Runs in the background; rate-limited to avoid quota exhaustion.
+router.post('/research/trigger', triggerLimiter, async (_req, res) => {
   runFullResearchCycle().catch(err => console.error('[funding] Manual trigger error:', err?.message));
   res.json({ started: true });
 });

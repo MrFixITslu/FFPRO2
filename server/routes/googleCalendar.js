@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { getValidGoogleAccessToken } from '../googleTokens.js';
 
 const router = Router();
-const AUTHORIZED_EMAIL = 'vision79slu@gmail.com';
+const AUTHORIZED_EMAIL = process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
 
 const calendarRateLimiter = rateLimit({
   windowMs: 60 * 1000,
