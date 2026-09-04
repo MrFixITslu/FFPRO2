@@ -33,8 +33,8 @@ RUN if [ -f package-lock.json ]; then npm ci --omit=dev || npm install --omit=de
 COPY --from=builder /app/dist ./dist
 RUN mkdir -p /app/data
 
-# Expose container port 80 (mapped to host port 3010 in docker-compose.yml)
-EXPOSE 80
+# Expose port 3010 (Node listens on $PORT = 3010 in docker-compose.yml)
+EXPOSE 3010
 
 # Start the bundled server
 CMD ["node", "dist/server.cjs"]
