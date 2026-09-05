@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Wallet, CheckCircle2, Clock, Activity, Users, ArrowUpRight, ArrowDownRight, FileText, Tag, Shield, RefreshCw, FolderCheck, RotateCcw, Award, Archive, XCircle } from 'lucide-react';
 import { BudgetEvent, ProjectMember } from '../types';
+import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 
 interface Props {
   event: BudgetEvent;
@@ -8,6 +9,7 @@ interface Props {
   onViewLogs?: () => void;
   onCloseProject?: () => void;
   onReopenProject?: () => void;
+  onNavigateToFunding?: () => void;
   canEdit?: boolean;
 }
 
@@ -25,7 +27,7 @@ function countTasks(tasks: BudgetEvent['tasks']): { total: number; done: number 
   return { total, done };
 }
 
-const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs, onCloseProject, onReopenProject, canEdit = true }) => {
+const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs, onCloseProject, onReopenProject, onNavigateToFunding, canEdit = true }) => {
   const isClosed = event.status === 'closed';
 
   const stats = useMemo(() => {
@@ -208,6 +210,9 @@ const ProjectDashboard: React.FC<Props> = ({ event, members, onViewLogs, onClose
           )}
         </div>
       </div>
+
+      {/* AI Grant & Funding Matches (Active & Non-Expired Grants Only) */}
+      <ProjectGrantMatcher event={event} onNavigateToFunding={onNavigateToFunding} />
 
       <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-4 sm:p-5">
         <div className="flex items-center justify-between gap-2 mb-3">

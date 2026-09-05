@@ -258,6 +258,119 @@ if (!fs.existsSync(DB_FILE)) {
   }, null, 2));
 }
 
+function getDefaultFundingOpportunities() {
+  return [
+    {
+      id: 'fo-oecs-youth-2026',
+      source_url: 'https://www.oecs.int/en/our-work/knowledge/library/youth-enterprise-innovation-fund',
+      content_hash: 'hash-oecs-youth-2026',
+      title: 'OECS Youth Innovation & Creative Enterprise Grant',
+      funder_name: 'OECS Commission & Compete Caribbean',
+      description: 'Direct capital financing for youth recreation, creative enterprises, laser tag and modern entertainment venues, experiential tourism, and digital leisure tech.',
+      amount_min: 10000,
+      amount_max: 50000,
+      currency: 'USD',
+      deadline: '2026-11-30',
+      eligibility_summary: 'Registered youth enterprises, indoor recreation centers, entertainment venues, and tech-enabled community projects in OECS member states.',
+      category: 'Youth & Creative Enterprise',
+      tags: ['Youth', 'Recreation', 'Entertainment', 'Laser Tag', 'Technology', 'Small Business'],
+      status: 'active',
+      first_seen_at: '2026-08-01T00:00:00Z',
+      last_verified_at: '2026-09-05T00:00:00Z'
+    },
+    {
+      id: 'fo-cdb-ciif-2026',
+      source_url: 'https://www.caribank.org/our-work/programmes/cultural-and-creative-industries-innovation-fund',
+      content_hash: 'hash-cdb-ciif-2026',
+      title: 'Caribbean Cultural & Recreation Innovation Fund',
+      funder_name: 'Caribbean Development Bank (CDB)',
+      description: 'Grant awards supporting high-engagement entertainment centers, family amusement hubs, laser tag arenas, indoor sports simulations, and community tourism.',
+      amount_min: 25000,
+      amount_max: 100000,
+      currency: 'USD',
+      deadline: '2026-12-15',
+      eligibility_summary: 'Caribbean SMEs and community entertainment organizers expanding interactive sports, immersive leisure, and youth engagement facilities.',
+      category: 'Tourism & Recreation Tech',
+      tags: ['Recreation', 'Family Entertainment', 'Indoor Sports', 'Laser Tag', 'Community', 'Tourism'],
+      status: 'active',
+      first_seen_at: '2026-08-10T00:00:00Z',
+      last_verified_at: '2026-09-05T00:00:00Z'
+    },
+    {
+      id: 'fo-sldb-ent-2026',
+      source_url: 'https://www.sldb.st/enterprise-development-grants',
+      content_hash: 'hash-sldb-ent-2026',
+      title: 'Saint Lucia Small Enterprise & Entertainment Development Grant',
+      funder_name: 'Saint Lucia Development Bank (SLDB)',
+      description: 'Matching grant funding for local entertainment ventures, youth recreation facilities, laser tag setups, and experiential leisure infrastructure.',
+      amount_min: 15000,
+      amount_max: 75000,
+      currency: 'XCD',
+      deadline: '2026-10-31',
+      eligibility_summary: 'Saint Lucian business owners, events planners, and commercial entertainment facilities operating in Saint Lucia.',
+      category: 'Small Business Development',
+      tags: ['Local Business', 'Entertainment', 'Recreation', 'Laser Tag', 'Events', 'Saint Lucia'],
+      status: 'active',
+      first_seen_at: '2026-08-15T00:00:00Z',
+      last_verified_at: '2026-09-05T00:00:00Z'
+    },
+    {
+      id: 'fo-undp-youth-2027',
+      source_url: 'https://www.undp.org/barbados/programmes/youth-empowerment-community-spaces',
+      content_hash: 'hash-undp-youth-2027',
+      title: 'UNDP Community Safe Spaces & Youth Recreation Fund',
+      funder_name: 'United Nations Development Programme (UNDP)',
+      description: 'Grant capital for youth recreation spaces, team-building leisure venues, after-school activity hubs, and social engagement facilities across the Eastern Caribbean.',
+      amount_min: 20000,
+      amount_max: 60000,
+      currency: 'USD',
+      deadline: '2027-01-30',
+      eligibility_summary: 'Community-centered youth organizations, entertainment hubs, and recreational sports facilities promoting positive youth engagement.',
+      category: 'Youth & Social Impact',
+      tags: ['Youth', 'Recreation', 'Community', 'Safe Spaces', 'Social Impact'],
+      status: 'active',
+      first_seen_at: '2026-08-20T00:00:00Z',
+      last_verified_at: '2026-09-05T00:00:00Z'
+    },
+    {
+      id: 'fo-gggi-green-2026',
+      source_url: 'https://gggi.org/eastern-caribbean-green-grants',
+      content_hash: 'hash-gggi-green-2026',
+      title: 'Eastern Caribbean Green Business & Eco-Innovation Grant',
+      funder_name: 'Global Green Growth Institute (GGGI)',
+      description: 'Support for renewable energy, solar transitions, energy-efficient equipment, and sustainable upgrades for commercial recreational venues.',
+      amount_min: 5000,
+      amount_max: 35000,
+      currency: 'USD',
+      deadline: '2026-12-31',
+      eligibility_summary: 'Commercial businesses and recreational hubs installing clean solar energy or energy-saving gear.',
+      category: 'Sustainability & Energy',
+      tags: ['Green Tech', 'Renewables', 'Energy Efficiency', 'Commercial Facilities'],
+      status: 'active',
+      first_seen_at: '2026-08-25T00:00:00Z',
+      last_verified_at: '2026-09-05T00:00:00Z'
+    },
+    {
+      id: 'fo-expired-sample-2024',
+      source_url: 'https://example.org/expired-2024-grant',
+      content_hash: 'hash-expired-sample-2024',
+      title: '2024 Caribbean Pilot Tourism Grant (Expired)',
+      funder_name: 'Past Tourism Consortium',
+      description: 'Historical pilot grant program that closed in early 2024. Excluded from active AI processing.',
+      amount_min: 5000,
+      amount_max: 15000,
+      currency: 'USD',
+      deadline: '2024-03-01',
+      eligibility_summary: 'Closed pilot program.',
+      category: 'Tourism & Events',
+      tags: ['Expired', 'Pilot'],
+      status: 'expired',
+      first_seen_at: '2024-01-01T00:00:00Z',
+      last_verified_at: '2024-03-01T00:00:00Z'
+    }
+  ];
+}
+
 function readDB() {
   try {
     const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -267,6 +380,10 @@ function readDB() {
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
+    if (!parsed.funding_opportunities || parsed.funding_opportunities.length === 0) {
+      parsed.funding_opportunities = getDefaultFundingOpportunities();
+    }
+    parsed.funding_research_jobs ||= [];
     return parsed;
   } catch (e) {
     return {
@@ -279,7 +396,9 @@ function readDB() {
       project_members: [],
       project_invites: [],
       project_messages: [],
-      password_reset_tokens: []
+      password_reset_tokens: [],
+      funding_opportunities: getDefaultFundingOpportunities(),
+      funding_research_jobs: []
     };
   }
 }
@@ -583,6 +702,99 @@ export const pool = {
         user.google_gmail_iv = null;
         user.google_gmail_auth_tag = null;
         user.google_gmail_token_expiry = null;
+        writeDB(db);
+      }
+      return { rows: [] };
+    }
+
+    // 23. SELECT * FROM funding_opportunities (with optional WHERE)
+    if (cleanSql.includes('FROM funding_opportunities')) {
+      if (cleanSql.includes('WHERE id = $1')) {
+        const id = params[0];
+        const match = (db.funding_opportunities || []).find(f => f.id === id);
+        return { rows: match ? [match] : [] };
+      }
+      if (cleanSql.includes('WHERE content_hash = $1')) {
+        const hash = params[0];
+        const match = (db.funding_opportunities || []).find(f => f.content_hash === hash);
+        return { rows: match ? [match] : [] };
+      }
+      let list = [...(db.funding_opportunities || [])];
+      if (cleanSql.includes('category = $1') && params[0]) {
+        list = list.filter(f => f.category === params[0]);
+      }
+      return { rows: list };
+    }
+
+    // 24. INSERT INTO funding_opportunities
+    if (cleanSql.startsWith('INSERT INTO funding_opportunities')) {
+      const id = crypto.randomUUID();
+      const newOpp = {
+        id,
+        source_url: params[0],
+        content_hash: params[1],
+        title: params[2],
+        funder_name: params[3],
+        description: params[4],
+        amount_min: params[5],
+        amount_max: params[6],
+        currency: params[7],
+        deadline: params[8],
+        eligibility_summary: params[9],
+        category: params[10],
+        tags: typeof params[11] === 'string' ? JSON.parse(params[11]) : (params[11] || []),
+        status: 'active',
+        first_seen_at: new Date().toISOString(),
+        last_verified_at: new Date().toISOString()
+      };
+      if (!db.funding_opportunities) db.funding_opportunities = [];
+      const existingIdx = db.funding_opportunities.findIndex(f => f.content_hash === params[1]);
+      if (existingIdx >= 0) {
+        db.funding_opportunities[existingIdx].last_verified_at = new Date().toISOString();
+        writeDB(db);
+        return { rows: [{ id: db.funding_opportunities[existingIdx].id }] };
+      } else {
+        db.funding_opportunities.unshift(newOpp);
+        writeDB(db);
+        return { rows: [{ id }] };
+      }
+    }
+
+    // 25. UPDATE funding_opportunities
+    if (cleanSql.startsWith('UPDATE funding_opportunities')) {
+      const id = params[0];
+      const match = (db.funding_opportunities || []).find(f => f.id === id);
+      if (match) {
+        match.last_verified_at = new Date().toISOString();
+        writeDB(db);
+      }
+      return { rows: [] };
+    }
+
+    // 26. SELECT count(*) ... FROM funding_research_jobs
+    if (cleanSql.includes('FROM funding_research_jobs')) {
+      const jobs = db.funding_research_jobs || [];
+      if (cleanSql.includes('count(*)')) {
+        const queued = jobs.filter(j => j.status === 'queued').length;
+        const inProgress = jobs.filter(j => j.status === 'in_progress').length;
+        const failed = jobs.filter(j => j.status === 'failed').length;
+        return { rows: [{ queued, in_progress: inProgress, failed }] };
+      }
+      return { rows: jobs };
+    }
+
+    // 27. INSERT INTO funding_research_jobs
+    if (cleanSql.startsWith('INSERT INTO funding_research_jobs')) {
+      const url = params[0];
+      if (!db.funding_research_jobs) db.funding_research_jobs = [];
+      if (!db.funding_research_jobs.some(j => j.source_url === url)) {
+        db.funding_research_jobs.push({
+          id: crypto.randomUUID(),
+          source_url: url,
+          status: params[1] || 'queued',
+          next_attempt_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        });
         writeDB(db);
       }
       return { rows: [] };

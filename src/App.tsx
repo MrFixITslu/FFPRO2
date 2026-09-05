@@ -283,7 +283,52 @@ const App: React.FC = () => {
   const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>(() => safeParse(STORAGE_KEYS.CATEGORY_LIMITS, {}));
   const [bankConnections, setBankConnections] = useState<BankConnection[]>(() => safeParse(STORAGE_KEYS.BANK_CONNECTIONS, []));
   const [investments, setInvestments] = useState<InvestmentAccount[]>(() => safeParse(STORAGE_KEYS.INVESTMENTS, []));
-  const [events, setEvents] = useState<BudgetEvent[]>(() => sanitizeEventLogs(safeParse(STORAGE_KEYS.EVENTS, [])));
+  const DEFAULT_SAMPLE_EVENTS: BudgetEvent[] = [
+    {
+      id: 'evt-laser-tag-2026',
+      name: 'Laser Tag Project',
+      date: '2026-11-20',
+      projectedBudget: 45000,
+      status: 'active',
+      eventType: 'startup',
+      lastUpdated: new Date().toISOString(),
+      files: [],
+      contactIds: [],
+      memberUsernames: [],
+      ious: [],
+      notes: [
+        {
+          id: 'note-1',
+          text: 'Interactive youth and family recreation entertainment venue featuring laser tag arena, digital scoring systems, and community event space.',
+          timestamp: new Date().toISOString(),
+          authorId: 'system',
+          version: 1
+        }
+      ],
+      items: [
+        { id: 'item-1', description: 'Laser Tag Gear & Phaser Packs', amount: 18000, type: 'expense', category: 'Equipment', date: '2026-09-01' },
+        { id: 'item-2', description: 'Arena Obstacles & Lighting Systems', amount: 12000, type: 'expense', category: 'Infrastructure', date: '2026-09-15' },
+        { id: 'item-3', description: 'Software & Scoring Hub Hardware', amount: 5000, type: 'expense', category: 'Technology', date: '2026-10-01' },
+        { id: 'item-4', description: 'Pre-sale Tournament Registrations', amount: 7500, type: 'income', category: 'Sales', date: '2026-10-15' }
+      ],
+      tasks: [
+        { id: 't1', text: 'Apply for OECS Youth Innovation & Creative Enterprise Grant', completed: false, subTasks: [] },
+        { id: 't2', text: 'Finalize arena safety compliance & layout', completed: false, subTasks: [] },
+        { id: 't3', text: 'Order laser tag phaser packs & calibration system', completed: false, subTasks: [] }
+      ],
+      logs: [
+        { id: 'l1', action: 'Project Initiated', username: 'Vision79', type: 'system', timestamp: new Date().toISOString(), details: 'Created Laser Tag Project for youth recreation and grant matching.' }
+      ]
+    }
+  ];
+
+  const [events, setEvents] = useState<BudgetEvent[]>(() => {
+    const parsed = safeParse(STORAGE_KEYS.EVENTS, null);
+    if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+      return sanitizeEventLogs(parsed);
+    }
+    return DEFAULT_SAMPLE_EVENTS;
+  });
   // Read-only mirror of server-shared projects (Planning Hub plans shared with
   // collaborators). EventPlanner keeps its own copy for editing/sync — this
   // one exists purely so the Dashboard and Calendar summaries reflect ALL of

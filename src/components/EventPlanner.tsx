@@ -16,12 +16,13 @@ import {
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
-  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw
+  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark
 } from 'lucide-react';
+import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-type ProjectTab = 'dashboard' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
+type ProjectTab = 'dashboard' | 'grants' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
 
 const getInitialChecklist = (planType: 'event' | 'trip' | 'startup'): ProjectTask[] => {
   if (planType === 'trip') {
@@ -1519,6 +1520,7 @@ const EventPlanner: React.FC<Props> = ({
              <div className="flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto no-scrollbar relative z-10 backdrop-blur-md">
                {[
                  'dashboard',
+                 'grants',
                  ...(selectedEvent.eventType === 'trip' 
                    ? ['trip_planner', 'tasks', 'vault', 'contacts', 'log']
                    : selectedEvent.eventType === 'startup'
@@ -1526,13 +1528,14 @@ const EventPlanner: React.FC<Props> = ({
                    : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']),
                  ...(selectedEvent.isShared ? ['chat'] : []),
                ].map(tab => {
-                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
+                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'grants' ? 'Grants & Funding' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
                  return (
                    <button 
                      key={tab} 
                      onClick={() => setActiveTab(tab as ProjectTab)} 
                      className={`px-3 sm:px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab ? 'bg-white text-stone-900 shadow-sm font-extrabold' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
                    >
+                     {tab === 'grants' && <Landmark size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
                      {tab === 'log' && <Activity size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
                      <span>{label}</span>
                      {tab === 'log' && (selectedEvent.logs || []).length > 0 && (
@@ -2986,8 +2989,18 @@ const EventPlanner: React.FC<Props> = ({
                 onViewLogs={() => setActiveTab('log')}
                 onCloseProject={() => handleOpenCloseModal(selectedEvent)}
                 onReopenProject={() => handleReopenProject(selectedEvent)}
+                onNavigateToFunding={() => setActiveTab('grants')}
                 canEdit={canEdit}
               />
+            )}
+
+            {activeTab === 'grants' && (
+              <div className="space-y-6">
+                <ProjectGrantMatcher 
+                  event={selectedEvent} 
+                  onNavigateToFunding={() => setActiveTab('grants')}
+                />
+              </div>
             )}
 
             {activeTab === 'chat' && selectedEvent.isShared && selectedEvent.sharedProjectId && (
