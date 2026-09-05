@@ -54,7 +54,10 @@ import {
   User,
   Radio,
   Wifi,
-  WifiOff
+  WifiOff,
+  Menu,
+  X,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -139,6 +142,7 @@ const App: React.FC = () => {
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections' | 'funding'>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(null);
   const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -1051,16 +1055,16 @@ const App: React.FC = () => {
                     referrerPolicy="no-referrer"
                     className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-xs ring-1 ring-slate-900/10"
                   />
-                  <div className="hidden sm:block">
+                  <div>
                     <h1 className="text-sm sm:text-base font-display font-semibold tracking-tight text-stone-900 whitespace-nowrap leading-none">
                       FFPRO <span className="font-sans font-bold text-indigo-600 text-[10px] uppercase tracking-wider ml-0.5">V1</span>
                     </h1>
-                    <p className="text-[9px] font-medium text-stone-400 tracking-wider uppercase leading-none mt-1">Fire Finance Pro</p>
+                    <p className="text-[9px] font-medium text-stone-400 tracking-wider uppercase leading-none mt-1 hidden xs:block">Fire Finance Pro</p>
                   </div>
                 </div>
 
-                {/* Main Menu Tabs */}
-                <nav className="flex items-center gap-1 sm:gap-2 shrink-0">
+                {/* Main Menu Tabs (Desktop / Tablet) */}
+                <nav className="hidden md:flex items-center gap-1 sm:gap-2 shrink-0">
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
@@ -1105,7 +1109,20 @@ const App: React.FC = () => {
                 </nav>
               </div>
 
-              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* Right Side Header Controls */}
+              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                {/* Mobile Quick Add Button */}
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowForm(true)}
+                    className="flex md:hidden items-center justify-center w-8 h-8 rounded-lg bg-stone-900 text-white shadow-2xs hover:bg-stone-800 transition active:scale-95"
+                    title="Add Transaction"
+                    aria-label="Add Transaction"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+
                 {/* PWA Install Button */}
                 {deferredPrompt && (
                   <button 
@@ -1119,19 +1136,34 @@ const App: React.FC = () => {
 
                 <button 
                   onClick={() => setShowSettings(true)} 
-                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
+                  className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
                   title="System Settings"
                 >
                   <SettingsIcon size={16} />
                 </button>
-                <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60">
+
+                <button
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60 hover:bg-indigo-200 transition-colors"
+                  title="Account Menu"
+                >
                   {currentUsername.charAt(0)}
-                </div>
+                </button>
+
+                {/* Mobile Hamburger Drawer Toggle */}
+                <button
+                  onClick={() => setMobileMenuOpen(prev => !prev)}
+                  className="flex md:hidden w-8 h-8 items-center justify-center rounded-lg bg-stone-100 text-stone-700 hover:text-stone-900 hover:bg-stone-200 transition border border-stone-200/80 active:scale-95"
+                  title="Toggle Navigation Menu"
+                  aria-label="Toggle Navigation Menu"
+                >
+                  {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
+                </button>
               </div>
             </div>
           </header>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full pt-32 px-3 sm:px-6 pb-12">
+          <main className="flex-1 max-w-7xl mx-auto w-full pt-28 sm:pt-32 px-3 sm:px-6 pb-24 md:pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -1278,6 +1310,331 @@ const App: React.FC = () => {
               <FundingFinder />
             )}
           </main>
+
+          {/* Mobile Bottom Navigation Bar */}
+          <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-stone-200 z-[100] md:hidden shadow-lg flex items-center justify-around px-1 pb-safe print:hidden">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('dashboard')}
+                className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+                  activeTab === 'dashboard'
+                    ? 'text-stone-900 font-bold'
+                    : 'text-stone-400 hover:text-stone-700 font-medium'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                  activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                }`}>
+                  <LayoutDashboard size={16} />
+                </div>
+                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Dashboard</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('calendar')}
+              className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+                activeTab === 'calendar'
+                  ? 'text-stone-900 font-bold'
+                  : 'text-stone-400 hover:text-stone-700 font-medium'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+              }`}>
+                <CalendarIcon size={16} />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Calendar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('events')}
+              className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+                activeTab === 'events'
+                  ? 'text-stone-900 font-bold'
+                  : 'text-stone-400 hover:text-stone-700 font-medium'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                activeTab === 'events' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+              }`}>
+                <Zap size={16} />
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Planner</span>
+            </button>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('projections')}
+                className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+                  activeTab === 'projections'
+                    ? 'text-stone-900 font-bold'
+                    : 'text-stone-400 hover:text-stone-700 font-medium'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                  activeTab === 'projections' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                }`}>
+                  <TrendingUp size={16} />
+                </div>
+                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Forecast</span>
+              </button>
+            )}
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('funding')}
+                className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
+                  activeTab === 'funding'
+                    ? 'text-stone-900 font-bold'
+                    : 'text-stone-400 hover:text-stone-700 font-medium'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                  activeTab === 'funding' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                }`}>
+                  <Landmark size={16} />
+                </div>
+                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Funding</span>
+              </button>
+            )}
+          </nav>
+
+          {/* Mobile Slide-Over Drawer Navigation */}
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <div className="fixed inset-0 z-[150] md:hidden">
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="absolute inset-0 bg-stone-900/50 backdrop-blur-xs"
+                />
+
+                {/* Drawer Panel */}
+                <motion.div
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 260 }}
+                  className="absolute top-0 right-0 bottom-0 w-[85vw] max-w-sm bg-white shadow-2xl flex flex-col z-10 overflow-y-auto"
+                >
+                  {/* Drawer Header */}
+                  <div className="p-5 border-b border-stone-100 flex items-center justify-between bg-stone-50/70">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm uppercase shadow-xs">
+                        {currentUsername.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-stone-900 text-sm">{currentUsername}</h3>
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-stone-200/80 text-stone-700">
+                            {isAdmin ? 'Admin' : 'Member'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 truncate max-w-[170px]">{authUser?.email || 'Authenticated User'}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white text-stone-500 hover:text-stone-900 border border-stone-200 shadow-2xs"
+                      aria-label="Close menu"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Sync Status Banner */}
+                  <div className="px-5 py-3 bg-stone-100/60 border-b border-stone-100 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${cloudSyncing ? 'bg-indigo-500 animate-pulse' : cloudError ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                      <span className="text-stone-600 font-medium">
+                        {cloudSyncing ? 'Syncing cloud data...' : cloudError ? 'Sync offline' : 'Cloud synchronized'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { pushToCloud(true); }}
+                      disabled={cloudSyncing}
+                      className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-800 disabled:opacity-50"
+                    >
+                      Sync Now
+                    </button>
+                  </div>
+
+                  {/* Navigation List */}
+                  <div className="p-4 space-y-1.5 flex-1">
+                    <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-400">Navigation Menu</div>
+                    
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
+                          activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <LayoutDashboard size={18} className={activeTab === 'dashboard' ? 'text-indigo-400' : 'text-stone-500'} />
+                          <div>
+                            <div className="text-xs font-bold">Command Center</div>
+                            <div className={`text-[10px] ${activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-400'}`}>Strategic Intelligence Hub</div>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className={activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-300'} />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTab('calendar'); setMobileMenuOpen(false); }}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
+                        activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <CalendarIcon size={18} className={activeTab === 'calendar' ? 'text-indigo-400' : 'text-stone-500'} />
+                        <div>
+                          <div className="text-xs font-bold">Financial Calendar</div>
+                          <div className={`text-[10px] ${activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-400'}`}>Dates, Commitments & Schedules</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className={activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-300'} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTab('events'); setMobileMenuOpen(false); }}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
+                        activeTab === 'events' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Zap size={18} className={activeTab === 'events' ? 'text-indigo-400' : 'text-stone-500'} />
+                        <div>
+                          <div className="text-xs font-bold">Event & Project Planner</div>
+                          <div className={`text-[10px] ${activeTab === 'events' ? 'text-stone-400' : 'text-stone-400'}`}>Projects, Tasks, IOUs & Budgets</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className={activeTab === 'events' ? 'text-stone-400' : 'text-stone-300'} />
+                    </button>
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('projections'); setMobileMenuOpen(false); }}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
+                          activeTab === 'projections' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <TrendingUp size={18} className={activeTab === 'projections' ? 'text-indigo-400' : 'text-stone-500'} />
+                          <div>
+                            <div className="text-xs font-bold">Wealth Forecast</div>
+                            <div className={`text-[10px] ${activeTab === 'projections' ? 'text-stone-400' : 'text-stone-400'}`}>Projections & Strategic AI Advisory</div>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className={activeTab === 'projections' ? 'text-stone-400' : 'text-stone-300'} />
+                      </button>
+                    )}
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('funding'); setMobileMenuOpen(false); }}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
+                          activeTab === 'funding' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Landmark size={18} className={activeTab === 'funding' ? 'text-indigo-400' : 'text-stone-500'} />
+                          <div>
+                            <div className="text-xs font-bold">Funding & Grants Finder</div>
+                            <div className={`text-[10px] ${activeTab === 'funding' ? 'text-stone-400' : 'text-stone-400'}`}>Automated Discovery & Ollama Triage</div>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className={activeTab === 'funding' ? 'text-stone-400' : 'text-stone-300'} />
+                      </button>
+                    )}
+
+                    <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Quick Actions</div>
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => { setShowForm(true); setMobileMenuOpen(false); }}
+                        className="w-full flex items-center justify-between p-3 rounded-xl text-left bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80 transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Plus size={18} className="text-emerald-700" />
+                          <div>
+                            <div className="text-xs font-bold">Add Transaction</div>
+                            <div className="text-[10px] text-emerald-600">Record expense, inflow or transfer</div>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className="text-emerald-500" />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowSettings(true); setMobileMenuOpen(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-xl text-left hover:bg-stone-100 text-stone-700 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <SettingsIcon size={18} className="text-stone-500" />
+                        <div>
+                          <div className="text-xs font-bold">System Settings</div>
+                          <div className="text-[10px] text-stone-400">Gateways, Vault, Backups & Sync</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-stone-300" />
+                    </button>
+
+                    {deferredPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => { handleInstall(); setMobileMenuOpen(false); }}
+                        className="w-full flex items-center justify-between p-3 rounded-xl text-left hover:bg-indigo-50 text-indigo-700 transition-all border border-indigo-100"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Download size={18} className="text-indigo-600" />
+                          <div>
+                            <div className="text-xs font-bold">Install Mobile App</div>
+                            <div className="text-[10px] text-indigo-500">Save to home screen (PWA)</div>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className="text-indigo-400" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Drawer Footer */}
+                  <div className="p-4 border-t border-stone-100 bg-stone-50/50 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200/60 transition-all"
+                    >
+                      <LogOut size={15} />
+                      <span>Sign Out</span>
+                    </button>
+                    <div className="text-center text-[10px] text-stone-400 font-medium pt-1">
+                      Fire Finance Pro v1.0.0
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
 
           {showForm && (
             <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
