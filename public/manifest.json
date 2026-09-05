@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Fire Finance Pro",
+  "short_name": "FFPro",
+  "description": "A strategic personal finance hub with secure cloud data sync, wealth forecasts, budget assistance, calendar tracking, and project planning.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#4f46e5",
+  "background_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "business"]
+}

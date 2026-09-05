@@ -10,7 +10,14 @@ import EventPlanner from './components/EventPlanner';
 import InviteAcceptScreen from './components/InviteAcceptScreen';
 import Projections from './components/Projections';
 import Calendar from './components/Calendar';
+import { NotificationsModal } from './components/NotificationsModal';
+import { CommandPalette } from './components/CommandPalette';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { useToast } from './components/Toast';
 import { syncBankData } from './bankApiService';
+import { useNotificationBadge } from './hooks/useNotificationBadge';
+import { useGmailNotifications } from './hooks/useGmailNotifications';
+import { badgeService } from './services/badgeService';
 import { 
   Transaction, 
   RecurringExpense, 
@@ -57,7 +64,12 @@ import {
   WifiOff,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  Bell,
+  Search,
+  Eye,
+  EyeOff,
+  Keyboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -385,6 +397,42 @@ const App: React.FC = () => {
     return Array.from(map.values());
   }, [events, sharedProjectsMirror]);
 
+  const { showToast } = useToast();
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState<boolean>(() => {
+    return localStorage.getItem('ffpro_privacy_mode') === 'true';
+  });
+
+  const togglePrivacyMode = useCallback(() => {
+    setPrivacyMode((prev) => {
+      const next = !prev;
+      localStorage.setItem('ffpro_privacy_mode', String(next));
+      showToast({
+        type: next ? 'warning' : 'info',
+        title: next ? 'Privacy Mode Enabled' : 'Privacy Mode Disabled',
+        message: next ? 'Sensitive currency amounts are now masked.' : 'Financial numbers are visible.',
+        duration: 2500,
+      });
+      return next;
+    });
+  }, [showToast]);
+
+  const { activeUnreadEmails, dismissedEmailIds: gmailDismissedIds, handleDismissEmail: dismissGmailEmail } = useGmailNotifications(
+    authUser?.email,
+    allEventsForSummary
+  );
+
+  const { unreadCount, badgeLabel, breakdown } = useNotificationBadge(
+    allEventsForSummary,
+    calendarItems,
+    recurringExpenses,
+    recurringIncomes,
+    activeUnreadEmails,
+    Array.from(gmailDismissedIds || [])
+  );
+
   // PWA Install Prompt
   useEffect(() => {
     const handler = (e: any) => {
@@ -678,6 +726,93 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, cloudLoaded]);
 
+  // Instant Manual Sync Trigger with User Feedback
+  const handleManualSync = useCallback(async () => {
+    if (cloudSyncing) return;
+    try {
+      showToast({
+        type: 'info',
+        title: 'Synchronizing Cloud',
+        message: 'Updating ledger, projects and financial records...',
+        duration: 2000,
+      });
+      await pushToCloud();
+      showToast({
+        type: 'success',
+        title: 'Cloud Synchronized',
+        message: 'All ledger data and collaborative suites are up to date.',
+        duration: 2500,
+      });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Sync Offline',
+        message: err?.message || 'Data saved locally. Will sync when reconnected.',
+        duration: 3500,
+      });
+    }
+  }, [cloudSyncing, pushToCloud, showToast]);
+
+  // Global Keyboard Shortcuts Engine
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      // Cmd+K or Ctrl+K opens Command Palette globally
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+        return;
+      }
+
+      // Number Navigation: Cmd+1 to Cmd+5
+      if ((e.metaKey || e.ctrlKey) && ['1', '2', '3', '4', '5'].includes(e.key)) {
+        e.preventDefault();
+        const tabMap: Record<string, string> = {
+          '1': 'dashboard',
+          '2': 'calendar',
+          '3': 'events',
+          '4': 'projections',
+          '5': 'funding',
+        };
+        if (tabMap[e.key]) {
+          setActiveTab(tabMap[e.key]);
+        }
+        return;
+      }
+
+      // Single-key shortcuts only if NOT typing in an input
+      if (isInput) return;
+
+      if (e.key === '/') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        togglePrivacyMode();
+      } else if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        setEditingTransaction(null);
+        setShowForm(true);
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleManualSync();
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcutsModal(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePrivacyMode, handleManualSync]);
+
   // Restore Vault Handle on Mount
   useEffect(() => {
     const restoreVault = async () => {
@@ -805,6 +940,7 @@ const App: React.FC = () => {
     // this, a second account signing in on the same browser would briefly
     // see (and could even overwrite) the previous account's data.
     clearLocalData();
+    badgeService.clearBadge();
     setCloudLoaded(false);
     setCloudVersion(0);
     setCloudError(null);
@@ -1037,23 +1173,27 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
+    <div className={`min-h-screen bg-stone-50 flex flex-col ${privacyMode ? 'privacy-mode-enabled' : ''}`}>
       {!isAuthenticated ? (
         <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} initialBanner={authBanner} />
       ) : (
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white border-b border-stone-200 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
-            <div className="flex items-center gap-2 sm:gap-6 w-full max-w-7xl mx-auto justify-between">
-              <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+          <header className="fixed top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-7xl mx-auto justify-between">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 {/* Logo & Brand */}
-                <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 cursor-pointer" onClick={() => isAdmin && setActiveTab('dashboard')}>
+                <div 
+                  className="flex items-center gap-2 sm:gap-2.5 shrink-0 cursor-pointer group" 
+                  onClick={() => isAdmin && setActiveTab('dashboard')}
+                  title="Fire Finance Pro"
+                >
                   <img
                     src={APP_LOGO}
                     alt="Fire Finance Pro Logo"
                     referrerPolicy="no-referrer"
-                    className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-xs ring-1 ring-slate-900/10"
+                    className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-xs ring-1 ring-slate-900/10 group-hover:scale-105 transition-transform"
                   />
                   <div>
                     <h1 className="text-sm sm:text-base font-display font-semibold tracking-tight text-stone-900 whitespace-nowrap leading-none">
@@ -1064,45 +1204,70 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Main Menu Tabs (Desktop / Tablet) */}
-                <nav className="hidden md:flex items-center gap-1 sm:gap-2 shrink-0">
+                <nav className="hidden md:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60">
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
-                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                        activeTab === 'dashboard' 
+                          ? 'bg-stone-900 text-white shadow-xs' 
+                          : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                      }`}
+                      title="Dashboard (⌘1)"
                     >
-                      <LayoutDashboard size={14} />
+                      <LayoutDashboard size={13} />
                       <span>Dashboard</span>
                     </button>
                   )}
                   <button 
                     onClick={() => setActiveTab('calendar')} 
-                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                      activeTab === 'calendar' 
+                        ? 'bg-stone-900 text-white shadow-xs' 
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                    }`}
+                    title="Calendar (⌘2)"
                   >
-                    <CalendarIcon size={14} />
+                    <CalendarIcon size={13} />
                     <span>Calendar</span>
                   </button>
                   <button 
                     onClick={() => setActiveTab('events')} 
-                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'events' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                      activeTab === 'events' 
+                        ? 'bg-stone-900 text-white shadow-xs' 
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                    }`}
+                    title="Planner (⌘3)"
                   >
-                    <Zap size={14} />
+                    <Zap size={13} />
                     <span>Planner</span>
                   </button>
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('projections')} 
-                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'projections' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                        activeTab === 'projections' 
+                          ? 'bg-stone-900 text-white shadow-xs' 
+                          : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                      }`}
+                      title="Forecast (⌘4)"
                     >
-                      <TrendingUp size={14} />
+                      <TrendingUp size={13} />
                       <span>Forecast</span>
                     </button>
                   )}
                   {isAdmin && (
                     <button 
                       onClick={() => setActiveTab('funding')} 
-                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'funding' ? 'bg-stone-900 text-white shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100'}`}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                        activeTab === 'funding' 
+                          ? 'bg-stone-900 text-white shadow-xs' 
+                          : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                      }`}
+                      title="Funding (⌘5)"
                     >
-                      <Landmark size={14} />
+                      <Landmark size={13} />
                       <span>Funding</span>
                     </button>
                   )}
@@ -1110,13 +1275,62 @@ const App: React.FC = () => {
               </div>
 
               {/* Right Side Header Controls */}
-              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                {/* Desktop Quick Command Palette Bar Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setShowCommandPalette(true)}
+                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
+                  title="Quick Command & Search (⌘K)"
+                >
+                  <Search size={14} className="text-stone-400 group-hover:text-stone-700" />
+                  <span className="text-stone-600 group-hover:text-stone-900 font-medium">Quick Find...</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold text-stone-500 bg-white border border-stone-200 rounded shadow-2xs font-mono">⌘K</kbd>
+                </button>
+
+                {/* Cloud Sync Status Pill */}
+                <button
+                  type="button"
+                  onClick={handleManualSync}
+                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    cloudSyncing
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : cloudError
+                      ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                      : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                  title={cloudSyncing ? 'Syncing with cloud...' : 'Cloud Synced • Click to sync immediately (S)'}
+                >
+                  <RefreshCw size={12} className={cloudSyncing ? 'animate-spin text-indigo-600' : 'text-stone-400'} />
+                  <span className="text-[10px] uppercase tracking-wider font-bold">
+                    {cloudSyncing ? 'Syncing' : cloudError ? 'Offline' : 'Synced'}
+                  </span>
+                </button>
+
+                {/* Privacy Mode Toggle */}
+                <button
+                  type="button"
+                  onClick={togglePrivacyMode}
+                  className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg transition-all border shadow-2xs ${
+                    privacyMode 
+                      ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                      : 'bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 border-stone-200'
+                  }`}
+                  title={privacyMode ? 'Privacy Mode Active (Masked) - Click to unmask (P)' : 'Toggle Financial Privacy Mode (P)'}
+                  aria-label="Toggle Financial Privacy Mode"
+                >
+                  {privacyMode ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+
                 {/* Mobile Quick Add Button */}
                 {isAdmin && (
                   <button
-                    onClick={() => setShowForm(true)}
+                    onClick={() => {
+                      setEditingTransaction(null);
+                      setShowForm(true);
+                    }}
                     className="flex md:hidden items-center justify-center w-8 h-8 rounded-lg bg-stone-900 text-white shadow-2xs hover:bg-stone-800 transition active:scale-95"
-                    title="Add Transaction"
+                    title="Add Transaction (N)"
                     aria-label="Add Transaction"
                   >
                     <Plus size={16} />
@@ -1127,13 +1341,41 @@ const App: React.FC = () => {
                 {deferredPrompt && (
                   <button 
                     onClick={handleInstall}
-                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
+                    className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
                   >
                     <Download size={12} />
                     <span>Install</span>
                   </button>
                 )}
 
+                {/* Notification Center Bell Button */}
+                <button 
+                  type="button"
+                  onClick={() => setShowNotificationsModal(true)} 
+                  className="relative w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
+                  title="Notification Center"
+                  aria-label="Notification Center"
+                >
+                  <Bell size={16} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-2xs animate-pulse">
+                      {badgeLabel}
+                    </span>
+                  )}
+                </button>
+
+                {/* Keyboard Shortcuts Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowShortcutsModal(true)}
+                  className="hidden md:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
+                  title="Keyboard Shortcuts (?)"
+                  aria-label="Keyboard Shortcuts"
+                >
+                  <Keyboard size={15} />
+                </button>
+
+                {/* Settings Button */}
                 <button 
                   onClick={() => setShowSettings(true)} 
                   className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
@@ -1142,10 +1384,11 @@ const App: React.FC = () => {
                   <SettingsIcon size={16} />
                 </button>
 
+                {/* User Account Button */}
                 <button
                   onClick={() => setMobileMenuOpen(true)}
                   className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60 hover:bg-indigo-200 transition-colors"
-                  title="Account Menu"
+                  title={`Account: ${currentUsername}`}
                 >
                   {currentUsername.charAt(0)}
                 </button>
@@ -1349,6 +1592,19 @@ const App: React.FC = () => {
               <span className="text-[10px] mt-0.5 tracking-tight leading-none">Calendar</span>
             </button>
 
+            {/* Mobile Center Quick-Action Button */}
+            <button
+              type="button"
+              onClick={() => setShowCommandPalette(true)}
+              className="flex flex-col items-center justify-center -mt-5 py-0 px-2 group"
+              title="Quick Commands & Actions"
+            >
+              <div className="w-12 h-12 rounded-full bg-stone-900 text-white flex items-center justify-center shadow-lg border-[3px] border-white group-hover:scale-105 group-active:scale-95 transition-transform">
+                <Plus size={22} className="text-white" />
+              </div>
+              <span className="text-[9px] font-bold text-stone-600 mt-0.5 tracking-tight">Actions</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setActiveTab('events')}
@@ -1382,25 +1638,6 @@ const App: React.FC = () => {
                   <TrendingUp size={16} />
                 </div>
                 <span className="text-[10px] mt-0.5 tracking-tight leading-none">Forecast</span>
-              </button>
-            )}
-
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('funding')}
-                className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
-                  activeTab === 'funding'
-                    ? 'text-stone-900 font-bold'
-                    : 'text-stone-400 hover:text-stone-700 font-medium'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  activeTab === 'funding' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
-                }`}>
-                  <Landmark size={16} />
-                </div>
-                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Funding</span>
               </button>
             )}
           </nav>
@@ -1567,6 +1804,87 @@ const App: React.FC = () => {
 
                     <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Quick Actions</div>
 
+                    {/* Quick Command & Search */}
+                    <button
+                      type="button"
+                      onClick={() => { setShowCommandPalette(true); setMobileMenuOpen(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-xl text-left bg-stone-100/80 hover:bg-stone-200/80 text-stone-800 transition-all border border-stone-200/60"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Search size={18} className="text-stone-600" />
+                        <div>
+                          <div className="text-xs font-bold">Quick Command & Search</div>
+                          <div className="text-[10px] text-stone-400">Jump anywhere, search items or run actions</div>
+                        </div>
+                      </div>
+                      <kbd className="px-1.5 py-0.5 text-[9px] font-bold text-stone-500 bg-white border border-stone-200 rounded font-mono">⌘K</kbd>
+                    </button>
+
+                    {/* Financial Privacy Mode Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => { togglePrivacyMode(); setMobileMenuOpen(false); }}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all border ${
+                        privacyMode 
+                          ? 'bg-amber-50 text-amber-900 border-amber-200' 
+                          : 'hover:bg-stone-100 text-stone-700 border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {privacyMode ? <EyeOff size={18} className="text-amber-600" /> : <Eye size={18} className="text-stone-500" />}
+                        <div>
+                          <div className="text-xs font-bold">Privacy Mode: {privacyMode ? 'Active' : 'Off'}</div>
+                          <div className="text-[10px] text-stone-400">{privacyMode ? 'Financial numbers are masked' : 'Mask balances and monetary values'}</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-stone-300" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowNotificationsModal(true); setMobileMenuOpen(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-xl text-left bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-950 border border-indigo-100 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Bell size={18} className="text-indigo-600" />
+                          {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                              {badgeLabel}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold flex items-center gap-1.5">
+                            <span>Notification Center</span>
+                            {unreadCount > 0 && (
+                              <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9px] font-bold rounded-full">
+                                {unreadCount} unread
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-stone-500">Tasks, Calendar, Gmail & Financial Alerts</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-stone-300" />
+                    </button>
+
+                    {/* Keyboard Shortcuts Sheet */}
+                    <button
+                      type="button"
+                      onClick={() => { setShowShortcutsModal(true); setMobileMenuOpen(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-xl text-left hover:bg-stone-100 text-stone-700 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Keyboard size={18} className="text-stone-500" />
+                        <div>
+                          <div className="text-xs font-bold">Keyboard Shortcuts</div>
+                          <div className="text-[10px] text-stone-400">View hotkey shortcuts list</div>
+                        </div>
+                      </div>
+                      <kbd className="px-1.5 py-0.5 text-[9px] font-bold text-stone-500 bg-white border border-stone-200 rounded font-mono">?</kbd>
+                    </button>
+
                     {isAdmin && (
                       <button
                         type="button"
@@ -1716,6 +2034,76 @@ const App: React.FC = () => {
               onClose={() => setShowBankSync(false)}
             />
           )}
+
+          <NotificationsModal
+            isOpen={showNotificationsModal}
+            onClose={() => setShowNotificationsModal(false)}
+            userEmail={authUser?.email}
+            events={allEventsForSummary}
+            calendarItems={calendarItems}
+            recurringExpenses={recurringExpenses}
+            recurringIncomes={recurringIncomes}
+            categoryBudgets={categoryBudgets}
+            transactions={transactions}
+            bankConnections={bankConnections}
+            unreadCount={unreadCount}
+            badgeLabel={badgeLabel}
+            onNavigateToTask={(taskId, projectId) => {
+              setActiveTab('events');
+              if (projectId) setNavSelectedEventId(projectId);
+              setNavSelectedTaskId(taskId);
+            }}
+            onNavigateToPlanner={() => setActiveTab('events')}
+            onNavigateToCalendar={() => setActiveTab('calendar')}
+            onPayRecurring={(item, amount) => {
+              const newT: Transaction = {
+                id: generateId(),
+                description: `Paid Bill: ${item.name || item.description || 'Recurring Expense'}`,
+                amount: amount || item.amount || 0,
+                category: item.category || 'Bills & Utilities',
+                date: new Date().toISOString().split('T')[0],
+                type: 'expense',
+                institution: 'Cash in Hand',
+                notes: 'Paid via Notification Center'
+              };
+              setTransactions(prev => [newT, ...prev]);
+            }}
+            onOpenTransactionForm={() => setShowForm(true)}
+            onDismissEmail={dismissGmailEmail}
+            externalDismissedIds={Array.from(gmailDismissedIds || [])}
+          />
+
+          <CommandPalette
+            isOpen={showCommandPalette}
+            onClose={() => setShowCommandPalette(false)}
+            activeTab={activeTab}
+            onSelectTab={(tab) => setActiveTab(tab as any)}
+            onOpenNewTransaction={() => {
+              setEditingTransaction(null);
+              setShowForm(true);
+            }}
+            onOpenNotifications={() => setShowNotificationsModal(true)}
+            onOpenSettings={() => setShowSettings(true)}
+            onOpenShortcuts={() => setShowShortcutsModal(true)}
+            onForceSync={handleManualSync}
+            privacyMode={privacyMode}
+            onTogglePrivacyMode={togglePrivacyMode}
+            transactions={transactions}
+            events={allEventsForSummary}
+            onSelectTransaction={(t) => {
+              setEditingTransaction(t);
+              setShowForm(true);
+            }}
+            onSelectEvent={(eventId) => {
+              setNavSelectedEventId(eventId);
+              setActiveTab('events');
+            }}
+          />
+
+          <KeyboardShortcutsModal
+            isOpen={showShortcutsModal}
+            onClose={() => setShowShortcutsModal(false)}
+          />
 
           {isLoading && (
             <div className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-900/40 backdrop-blur-md">

@@ -4,6 +4,7 @@ type RealtimeEventName =
   | 'user_data_updated'
   | 'chat_message'
   | 'project_membership_updated'
+  | 'notifications_updated'
   | 'status_change';
 
 type EventHandler = (payload: any) => void;
@@ -87,6 +88,15 @@ class RealtimeService {
           this.emit('project_membership_updated', data);
         } catch (err) {
           console.error('[realtime] parse project_membership_updated error:', err);
+        }
+      });
+
+      this.eventSource.addEventListener('notifications_updated', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          this.emit('notifications_updated', data);
+        } catch (err) {
+          console.error('[realtime] parse notifications_updated error:', err);
         }
       });
 

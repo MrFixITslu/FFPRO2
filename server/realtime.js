@@ -189,6 +189,24 @@ class RealtimeHub extends EventEmitter {
       console.error('[realtime] broadcastProjectMembership error:', err);
     }
   }
+
+  /**
+   * Broadcast notification count updates and new alerts to all active tabs/devices of a user
+   */
+  broadcastNotificationUpdate(userId, payload) {
+    const clientSet = this.clients.get(userId);
+    if (!clientSet || clientSet.size === 0) return;
+    const message = {
+      userId,
+      unreadCount: payload.unreadCount ?? 0,
+      breakdown: payload.breakdown || {},
+      action: payload.action || 'update',
+      timestamp: new Date().toISOString()
+    };
+    clientSet.forEach((client) => {
+      this.sendToClient(client, 'notifications_updated', message);
+    });
+  }
 }
 
 export const realtimeHub = new RealtimeHub();
