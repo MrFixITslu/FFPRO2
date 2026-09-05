@@ -112,6 +112,79 @@ const Settings: React.FC<Props> = ({
   const [editRecData, setEditRecData] = useState<RecurringExpense | null>(null);
   const [editIncData, setEditIncData] = useState<RecurringIncome | null>(null);
 
+  // Ollama Local AI Configuration States
+  const [ollamaStatus, setOllamaStatus] = useState<{
+    online: boolean;
+    baseURL: string;
+    model: string;
+    models: string[];
+    version?: string;
+    error?: string;
+  } | null>(null);
+  const [ollamaBaseURL, setOllamaBaseURL] = useState('http://localhost:11434');
+  const [ollamaModel, setOllamaModel] = useState('llama3.2');
+  const [isCheckingOllama, setIsCheckingOllama] = useState(false);
+  const [isSavingOllama, setIsSavingOllama] = useState(false);
+  const [ollamaFeedback, setOllamaFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const fetchOllamaStatus = async () => {
+    setIsCheckingOllama(true);
+    try {
+      const res = await fetch('/api/ai/ollama/status');
+      if (res.ok) {
+        const data = await res.json();
+        setOllamaStatus(data);
+        if (data.baseURL) setOllamaBaseURL(data.baseURL);
+        if (data.model) setOllamaModel(data.model);
+      }
+    } catch {
+      setOllamaStatus({
+        online: false,
+        baseURL: ollamaBaseURL,
+        model: ollamaModel,
+        models: [],
+        error: 'Failed to reach Ollama gateway'
+      });
+    } finally {
+      setIsCheckingOllama(false);
+    }
+  };
+
+  const handleSaveOllama = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingOllama(true);
+    setOllamaFeedback(null);
+    try {
+      const res = await fetch('/api/ai/ollama/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseURL: ollamaBaseURL, model: ollamaModel })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOllamaStatus(data.health);
+        setOllamaFeedback({
+          type: data.health.online ? 'success' : 'error',
+          message: data.health.online
+            ? `Connected to Ollama (${data.health.model || ollamaModel}) successfully!`
+            : `Saved! Note: Ollama at ${ollamaBaseURL} is currently unreachable. Ensure \`ollama serve\` is running.`
+        });
+      } else {
+        setOllamaFeedback({ type: 'error', message: 'Failed to save Ollama configuration.' });
+      }
+    } catch {
+      setOllamaFeedback({ type: 'error', message: 'Error saving Ollama configuration.' });
+    } finally {
+      setIsSavingOllama(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'api') {
+      fetchOllamaStatus();
+    }
+  }, [activeTab]);
+
   const liquidAssetBuffer = useMemo(() => {
     const totalOnlyBanks: number = (bankConnections || [])
       .filter(c => c.institutionType === 'bank')
@@ -522,6 +595,124 @@ const Settings: React.FC<Props> = ({
 
           {activeTab === 'api' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              {/* Ollama Local AI Engine Integration */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-stone-800 shadow-sm font-bold text-sm">
+                      🦙
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-stone-800">Ollama Local AI Engine</h3>
+                        {ollamaStatus?.online ? (
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Online {ollamaStatus.version ? `v${ollamaStatus.version}` : ''}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-stone-200 text-stone-600 rounded text-[9px] font-bold uppercase tracking-wider">
+                            Offline / Standby
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">
+                        Private on-premise LLM for Strategic Feedback & Insights
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => fetchOllamaStatus()}
+                    disabled={isCheckingOllama}
+                    title="Test Ollama connection"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={isCheckingOllama ? 'animate-spin text-indigo-600' : ''} />
+                    <span>{isCheckingOllama ? 'Testing…' : 'Test Gateway'}</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveOllama} className="p-4 bg-white rounded-lg border border-stone-200 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Ollama Base URL / Host
+                      </label>
+                      <input
+                        type="text"
+                        value={ollamaBaseURL}
+                        onChange={(e) => setOllamaBaseURL(e.target.value)}
+                        placeholder="http://localhost:11434"
+                        className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-[9px] text-stone-400 mt-1">Docker default: <code className="text-stone-600">http://host.docker.internal:11434</code> or <code className="text-stone-600">http://localhost:11434</code></p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Active Model Name
+                      </label>
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={ollamaModel}
+                          onChange={(e) => setOllamaModel(e.target.value)}
+                          placeholder="llama3.2, mistral, deepseek-r1:8b"
+                          className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        {ollamaStatus?.models && ollamaStatus.models.length > 0 && (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            <span className="text-[8px] font-bold text-stone-400 uppercase">Available:</span>
+                            {ollamaStatus.models.slice(0, 4).map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setOllamaModel(m)}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                                  ollamaModel === m
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
+                                    : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {ollamaFeedback && (
+                    <div className={`p-2.5 rounded text-xs flex items-center gap-2 ${
+                      ollamaFeedback.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {ollamaFeedback.type === 'success' ? (
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <Info size={14} className="text-amber-600 shrink-0" />
+                      )}
+                      <span>{ollamaFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-stone-100">
+                    <p className="text-[10px] text-stone-500">
+                      When active, AI Strategic Feedback & insights are processed locally via Ollama with automatic fallback to cloud.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={isSavingOllama}
+                      className="px-4 py-2 bg-stone-900 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-stone-800 shadow transition-all disabled:opacity-50"
+                    >
+                      {isSavingOllama ? 'Saving…' : 'Save AI Configuration'}
+                    </button>
+                  </div>
+                </form>
+              </section>
+
               {/* Google Workspace Integration: Calendar & Gmail */}
               <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-3">
                 <div className="flex items-center justify-between">

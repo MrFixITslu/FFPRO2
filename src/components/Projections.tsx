@@ -31,6 +31,8 @@ const Projections: React.FC<Props> = ({
 
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiProvider, setAiProvider] = useState<string | null>(null);
+  const [aiModel, setAiModel] = useState<string | null>(null);
 
   // Keep local state in sync if remote database updates
   useEffect(() => {
@@ -137,36 +139,38 @@ const Projections: React.FC<Props> = ({
 
   const reachedMilestones = milestones.filter(m => m.target <= finalValue);
 
-  useEffect(() => {
-    const runAI = async () => {
-      setIsAnalyzing(true);
-      try {
-        // FIX: Call backend endpoint instead of direct Gemini API
-        const response = await fetch('/api/ai/projection-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            currentNetWorth,
-            monthlyIncome,
-            monthlyExpenses: monthlyFixedExpenses + monthlyBudgetedExpenses,
-            monthlyContribution,
-            projectedValue: finalValue
-          })
-        });
+  const runAI = async () => {
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch('/api/ai/projection-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          currentNetWorth,
+          monthlyIncome,
+          monthlyExpenses: monthlyFixedExpenses + monthlyBudgetedExpenses,
+          monthlyContribution,
+          projectedValue: finalValue
+        })
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          setAiAnalysis(data.analysis || "Your current path is sustainable. Continue optimizing fixed costs.");
-        } else {
-          setAiAnalysis("Strategic advisor offline. Market parameters within normal range.");
-        }
-      } catch (e) {
-        setAiAnalysis("Strategic advisor offline. Market parameters within normal range.");
-      } finally {
-        setIsAnalyzing(false);
+      if (response.ok) {
+        const data = await response.json();
+        setAiAnalysis(data.analysis || "Your current path is sustainable. Continue optimizing fixed costs.");
+        setAiProvider(data.provider || null);
+        setAiModel(data.model || null);
+      } else {
+        setAiAnalysis("Strategic advisor standby. Market parameters within normal range.");
       }
-    };
+    } catch (e) {
+      setAiAnalysis("Strategic advisor standby. Market parameters within normal range.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  useEffect(() => {
     runAI();
   }, [finalValue]);
 
@@ -264,11 +268,37 @@ const Projections: React.FC<Props> = ({
           </div>
 
           <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
-             <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded flex items-center justify-center shadow-sm">
-                  <i className="fas fa-brain text-[10px]"></i>
+             <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded flex items-center justify-center shadow-sm">
+                    <i className="fas fa-brain text-[10px]"></i>
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-stone-500">AI Strategic Feedback</h4>
+                  </div>
                 </div>
-                <h4 className="text-[10px] font-bold uppercase tracking-wider text-stone-400">AI Strategic Feedback</h4>
+
+                <div className="flex items-center gap-1.5">
+                  {aiProvider === 'ollama' && (
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Ollama {aiModel ? `(${aiModel.split(':')[0]})` : ''}
+                    </span>
+                  )}
+                  {aiProvider === 'gemini' && (
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[8px] font-bold uppercase tracking-wider">
+                      Gemini AI
+                    </span>
+                  )}
+                  <button
+                    onClick={runAI}
+                    disabled={isAnalyzing}
+                    title="Regenerate strategic feedback"
+                    className="w-6 h-6 rounded bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center text-[10px] transition-all disabled:opacity-50"
+                  >
+                    <i className={`fas fa-rotate-right ${isAnalyzing ? 'fa-spin text-indigo-600' : ''}`}></i>
+                  </button>
+                </div>
              </div>
              {isAnalyzing ? (
                 <div className="space-y-1.5">

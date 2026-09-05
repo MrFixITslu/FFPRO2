@@ -107,24 +107,6 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
     window.location.href = '/api/auth/google';
   };
 
-  const handleDemoSignIn = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      try {
-        const user = await authService.login('admin@example.com', 'AdminPass123!');
-        onAuthenticated(user);
-      } catch (loginErr) {
-        const user = await authService.register('admin@example.com', 'Admin User', 'AdminPass123!');
-        onAuthenticated(user);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Could not launch demo account.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -464,24 +446,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </button>
           </form>
 
-          <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
-            <button
-              type="button"
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
-              className="text-[9px] font-bold text-stone-400 uppercase tracking-wider hover:text-indigo-400 transition"
-            >
-              {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDemoSignIn}
-              disabled={loading}
-              className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider transition flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded border border-indigo-500/20"
-            >
-              <i className="fas fa-bolt text-[8px]"></i> Demo Access
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
+            className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+          >
+            {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
+          </button>
         </div>
 
         <p className="mt-6 text-center text-stone-600 text-[8px] font-bold uppercase tracking-wider">

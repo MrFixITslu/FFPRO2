@@ -2,6 +2,14 @@ import { Router } from 'express';
 import { GoogleGenAI, Type } from '@google/genai';
 import { requireAuth } from '../middleware/requireAuth.js';
 import rateLimit from 'express-rate-limit';
+import {
+  checkOllamaHealth,
+  getOllamaConfig,
+  updateOllamaConfig,
+  generateOllama,
+  generateStrategicFeedback,
+  generateFinancialInsight
+} from '../services/ollamaService.js';
 
 const router = Router();
 
@@ -346,6 +354,22 @@ router.post('/parse', async (req, res) => {
 
 // 2. Market data is now a public endpoint defined above
 
+// Ollama Status & Config Endpoints
+router.get('/ollama/status', async (req, res) => {
+  const health = await checkOllamaHealth(3000);
+  res.json(health);
+});
+
+router.post('/ollama/config', async (req, res) => {
+  const { baseURL, model } = req.body || {};
+  const updated = updateOllamaConfig({ baseURL, model });
+  const health = await checkOllamaHealth(3000);
+  res.json({
+    config: updated,
+    health
+  });
+});
+
 // 3. AI Chat Endpoint
 router.post('/chat', async (req, res) => {
   const { message, context } = req.body || {};
@@ -353,100 +377,199 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: 'Message is required.' });
   }
 
-  if (!process.env.API_KEY) {
-    return res.json({ message: "AI Assistant is currently on standby. Please check your credentials." });
-  }
+  const systemPrompt = `You are an elite, professional personal finance advisor called 'SmartBudget Pro Advisor'. 
+You help the user optimize their financial decisions, track spending, manage portfolios, and calculate budgets.
+Here is the user's current financial context:
+- Liquid Funds available: $${context?.availableFunds || 0}
+- Total Portfolio Investments: $${context?.totalInvestments || 0}
+- Portfolios active: ${context?.providers?.join(', ') || 'None'}
+- Holding symbols: ${context?.holdings?.join(', ') || 'None'}
+- Current Market Feed: ${JSON.stringify(context?.marketPrices || [])}
+- Recent activities: ${JSON.stringify(context?.recentTransactions || [])}
 
+Be professional, practical, encouraging, and provide clear, bulleted recommendations.`;
+
+  // 1. Attempt Ollama first
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemPrompt = `You are an elite, professional personal finance advisor called 'SmartBudget Pro Advisor'. 
-    You help the user optimize their financial decisions, track spending, manage portfolios, and calculate budgets.
-    Here is the user's current financial context:
-    - Liquid Funds available: $${context?.availableFunds || 0}
-    - Total Portfolio Investments: $${context?.totalInvestments || 0}
-    - Portfolios active: ${context?.providers?.join(', ') || 'None'}
-    - Holding symbols: ${context?.holdings?.join(', ') || 'None'}
-    - Current Market Feed: ${JSON.stringify(context?.marketPrices || [])}
-    - Recent activities: ${JSON.stringify(context?.recentTransactions || [])}
-
-    Be professional, practical, encouraging, and provide clear, bulleted recommendations.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: message,
-      config: {
-        systemInstruction: systemPrompt
-      }
+    const ollamaRes = await generateOllama({
+      prompt: message,
+      system: systemPrompt,
+      temperature: 0.3,
+      timeoutMs: 12000
     });
-
-    res.json({ message: response.text || "I processed your request, let me know how else I can help." });
-  } catch (error) {
-    console.error('AI Chat Error:', error);
-    res.status(500).json({ error: 'Failed to complete AI chat request.' });
+    if (ollamaRes.text) {
+      return res.json({
+        message: ollamaRes.text,
+        provider: 'ollama',
+        model: ollamaRes.model
+      });
+    }
+  } catch (ollamaErr) {
+    // Continue to Gemini fallback
   }
+
+  // 2. Gemini fallback
+  if (process.env.API_KEY) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: message,
+        config: {
+          systemInstruction: systemPrompt
+        }
+      });
+      return res.json({
+        message: response.text || "I processed your request, let me know how else I can help.",
+        provider: 'gemini'
+      });
+    } catch (geminiErr) {
+      console.error('Gemini fallback failed:', geminiErr);
+    }
+  }
+
+  res.json({
+    message: "Portfolio and financial tracking active. For AI advisory responses, ensure Ollama is running locally (e.g. `ollama run llama3.2`) or configure Gemini API credentials.",
+    provider: 'standby'
+  });
 });
 
-// 4. AI Insights Generation
+// 4. AI Insights Generation (Powered by Ollama)
 router.post('/insights', async (req, res) => {
   const { totalIncome, totalExpenses, netWorth, cycleRollover, dailySafeSpend, netMargin } = req.body || {};
 
-  if (!process.env.API_KEY) {
-    return res.json({ insight: "Advisor standby. Safe Spend rate stable." });
-  }
-
+  // 1. Attempt Ollama first for AI Insights
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Review this high-level snapshot of the user's current financial period:
-    - Monthly Total Income: $${totalIncome || 0}
-    - Monthly Total Expenses: $${totalExpenses || 0}
-    - Calculated Net Worth: $${netWorth || 0}
-    - rollover pool: $${cycleRollover || 0}
-    - Daily Safe-to-Spend limit: $${dailySafeSpend || 0}
-    - Current savings margin rate: ${netMargin || 0}%
-
-    Write exactly ONE sentence of punchy, highly actionable, strategic financial insight or recommendation. Avoid generic fluff. Be direct and analytical.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt
+    const ollamaRes = await generateFinancialInsight({
+      totalIncome,
+      totalExpenses,
+      netWorth,
+      cycleRollover,
+      dailySafeSpend,
+      netMargin
     });
-
-    res.json({ insight: response.text?.trim() || "Safe spend limits verified." });
-  } catch (error) {
-    console.error('AI Insights Error:', error);
-    res.json({ insight: "Financial metrics aligned with projection parameters." });
+    if (ollamaRes.text) {
+      return res.json({
+        insight: ollamaRes.text,
+        provider: 'ollama',
+        model: ollamaRes.model
+      });
+    }
+  } catch (ollamaErr) {
+    // Silently continue to Gemini fallback
   }
+
+  // 2. Attempt Gemini fallback
+  if (process.env.API_KEY) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Review this high-level snapshot of the user's current financial period:
+      - Monthly Total Income: $${totalIncome || 0}
+      - Monthly Total Expenses: $${totalExpenses || 0}
+      - Calculated Net Worth: $${netWorth || 0}
+      - rollover pool: $${cycleRollover || 0}
+      - Daily Safe-to-Spend limit: $${dailySafeSpend || 0}
+      - Current savings margin rate: ${netMargin || 0}%
+
+      Write exactly ONE sentence of punchy, highly actionable, strategic financial insight or recommendation. Avoid generic fluff. Be direct and analytical.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+
+      return res.json({
+        insight: response.text?.trim() || "Safe spend limits verified.",
+        provider: 'gemini'
+      });
+    } catch (geminiErr) {
+      console.error('Gemini Insights fallback failed:', geminiErr);
+    }
+  }
+
+  // 3. Rule-based heuristic insight
+  const marginNum = Number(netMargin) || 0;
+  let fallbackInsight = "Financial metrics aligned with projection parameters. Safe Spend velocity is stable.";
+  if (marginNum >= 40) {
+    fallbackInsight = `Exceptional ${marginNum}% savings rate; route excess surplus directly into broad-market index allocations.`;
+  } else if (marginNum >= 20) {
+    fallbackInsight = `Strong ${marginNum}% cash retention; consider auto-sweeping cycle rollover into growth milestones.`;
+  } else if (marginNum > 0) {
+    fallbackInsight = `Positive margin of ${marginNum}%; optimize secondary category budgets to accelerate emergency liquidity.`;
+  } else {
+    fallbackInsight = `Expenses currently match or exceed income; review discretionary line items to restore positive cashflow margin.`;
+  }
+
+  res.json({
+    insight: fallbackInsight,
+    provider: 'heuristic'
+  });
 });
 
-// 5. AI Projection Analysis
+// 5. AI Strategic Feedback & Projection Analysis (Powered by Ollama)
 router.post('/projection-analysis', async (req, res) => {
   const { currentNetWorth, monthlyIncome, monthlyExpenses, monthlyContribution, projectedValue } = req.body || {};
 
-  if (!process.env.API_KEY) {
-    return res.json({ analysis: "Wealth trajectory aligned with strategic objectives." });
-  }
-
+  // 1. Attempt Ollama first for Strategic Feedback
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Analyze this wealth forecast projection:
-    - Current Net Worth: $${currentNetWorth || 0}
-    - Monthly Income: $${monthlyIncome || 0}
-    - Monthly Expenses: $${monthlyExpenses || 0}
-    - Monthly savings/investment contribution: $${monthlyContribution || 0}
-    - Projected wealth at the end of the projection period: $${projectedValue || 0}
-
-    Write exactly 2 sentences of professional analysis. Sentence 1: Analyze their current path and trajectory relative to fixed costs. Sentence 2: Provide a specific recommendation to accelerate reaching milestones (e.g. BTC allocation, tax-advantaged vanguard index funds, or trimming discretionary categories).`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt
+    const ollamaRes = await generateStrategicFeedback({
+      currentNetWorth,
+      monthlyIncome,
+      monthlyExpenses,
+      monthlyContribution,
+      projectedValue
     });
-
-    res.json({ analysis: response.text?.trim() || "Wealth trajectory is highly sustainable. Continue maximizing tax-advantaged accounts." });
-  } catch (error) {
-    console.error('AI Projection Analysis Error:', error);
-    res.json({ analysis: "Projections verified. Trajectory exceeds baseline index targets." });
+    if (ollamaRes.text) {
+      return res.json({
+        analysis: ollamaRes.text,
+        provider: 'ollama',
+        model: ollamaRes.model
+      });
+    }
+  } catch (ollamaErr) {
+    // Continue to Gemini fallback
   }
+
+  // 2. Attempt Gemini fallback
+  if (process.env.API_KEY) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Analyze this wealth forecast projection:
+      - Current Net Worth: $${currentNetWorth || 0}
+      - Monthly Income: $${monthlyIncome || 0}
+      - Monthly Expenses: $${monthlyExpenses || 0}
+      - Monthly savings/investment contribution: $${monthlyContribution || 0}
+      - Projected wealth at the end of the projection period: $${projectedValue || 0}
+
+      Write exactly 2 sentences of professional analysis. Sentence 1: Analyze their current path and trajectory relative to fixed costs. Sentence 2: Provide a specific recommendation to accelerate reaching milestones (e.g. BTC allocation, tax-advantaged vanguard index funds, or trimming discretionary categories).`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+
+      return res.json({
+        analysis: response.text?.trim() || "Wealth trajectory is highly sustainable. Continue maximizing tax-advantaged accounts.",
+        provider: 'gemini'
+      });
+    } catch (geminiErr) {
+      console.error('Gemini Projection Analysis fallback failed:', geminiErr);
+    }
+  }
+
+  // 3. Quantitative analytical heuristic feedback
+  const income = Number(monthlyIncome) || 0;
+  const expenses = Number(monthlyExpenses) || 0;
+  const contrib = Number(monthlyContribution) || 0;
+  const savingsPct = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
+
+  const s1 = `With a ${savingsPct}% cash margin and $${contrib.toLocaleString()}/mo capital deployment, your trajectory builds substantial compounding momentum.`;
+  const s2 = `To accelerate milestone completion, maintain systematic DCA into low-cost index funds and rebalance surplus returns semi-annually.`;
+
+  res.json({
+    analysis: `${s1} ${s2}`,
+    provider: 'analytical'
+  });
 });
 
 // 6. Bank Sync Simulation Endpoint
