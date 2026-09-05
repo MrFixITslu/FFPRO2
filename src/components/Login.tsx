@@ -10,6 +10,7 @@ interface Props {
   initialMode?: 'login' | 'register';
   resetToken?: string | null;
   onResetHandled?: () => void;
+  initialBanner?: { message: string; type: 'error' | 'warning' | 'info'; provider?: string } | null;
 }
 
 const OAuthButton: React.FC<{
@@ -20,11 +21,17 @@ const OAuthButton: React.FC<{
   onCustomClick?: () => void;
   onClickIfNotConfigured: (provider: 'google' | 'facebook' | 'apple') => void;
 }> = ({ provider, label, icon, isConfigured, onCustomClick, onClickIfNotConfigured }) => {
-  if (onCustomClick) {
+  if (isConfigured) {
     return (
       <button
         type="button"
-        onClick={onCustomClick}
+        onClick={() => {
+          if (onCustomClick) {
+            onCustomClick();
+          } else {
+            window.location.href = authService.oauthUrl(provider);
+          }
+        }}
         className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all cursor-pointer"
       >
         <i className={icon}></i> Continue with {label}
@@ -32,22 +39,11 @@ const OAuthButton: React.FC<{
     );
   }
 
-  if (isConfigured) {
-    return (
-      <a
-        href={authService.oauthUrl(provider)}
-        className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all"
-      >
-        <i className={icon}></i> Continue with {label}
-      </a>
-    );
-  }
-
   return (
     <button
       type="button"
       onClick={() => onClickIfNotConfigured(provider)}
-      className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all relative group"
+      className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all relative group cursor-pointer"
     >
       <i className={icon}></i> Continue with {label}
       <span className="absolute right-2 top-1/2 -translate-y-1/2 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded px-1.5 py-0.5 text-[7px] font-bold tracking-normal normal-case">
@@ -57,20 +53,22 @@ const OAuthButton: React.FC<{
   );
 };
 
-const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, resetToken, onResetHandled }) => {
+const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, resetToken, onResetHandled, initialBanner }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode || 'login');
   const [email, setEmail] = useState(initialEmail || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialBanner?.message || null);
   const [loading, setLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
-  const [showConfigHelp, setShowConfigHelp] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<'google' | 'facebook' | 'apple' | null>(null);
+  const [showConfigHelp, setShowConfigHelp] = useState(initialBanner?.type === 'warning' && !!initialBanner?.provider);
+  const [selectedProvider, setSelectedProvider] = useState<'google' | 'facebook' | 'apple' | null>(
+    (initialBanner?.provider as any) || null
+  );
   const [configTab, setConfigTab] = useState<'env' | 'docker'>('env');
 
   useEffect(() => {
@@ -107,6 +105,24 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
     // - Stores encrypted Gmail tokens server-side
     // - Returns user to dashboard after auth
     window.location.href = '/api/auth/google';
+  };
+
+  const handleDemoSignIn = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      try {
+        const user = await authService.login('admin@example.com', 'AdminPass123!');
+        onAuthenticated(user);
+      } catch (loginErr) {
+        const user = await authService.register('admin@example.com', 'Admin User', 'AdminPass123!');
+        onAuthenticated(user);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Could not launch demo account.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
@@ -342,7 +358,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               provider="google"
               label="Google"
               icon="fab fa-google"
-              isConfigured={true}
+              isConfigured={availableProviders.includes('google')}
               onCustomClick={handleGoogleSignIn}
               onClickIfNotConfigured={handleProviderClick}
             />
@@ -448,13 +464,24 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </button>
           </form>
 
-          <button
-            type="button"
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
-            className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
-          >
-            {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
-          </button>
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5">
+            <button
+              type="button"
+              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
+              className="text-[9px] font-bold text-stone-400 uppercase tracking-wider hover:text-indigo-400 transition"
+            >
+              {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDemoSignIn}
+              disabled={loading}
+              className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider transition flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded border border-indigo-500/20"
+            >
+              <i className="fas fa-bolt text-[8px]"></i> Demo Access
+            </button>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-stone-600 text-[8px] font-bold uppercase tracking-wider">

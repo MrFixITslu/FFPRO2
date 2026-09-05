@@ -115,6 +115,12 @@ router.get('/providers', (_req, res) => {
 
 function ensureOAuthProvider(req, res, next, provider) {
   if (!AVAILABLE_OAUTH_PROVIDERS.includes(provider)) {
+    const baseUrl = getFrontendUrl(req);
+    // If browser navigation, redirect cleanly back to frontend with informative state
+    const acceptsHtml = req.accepts && (req.accepts('html') || req.headers.accept?.includes('text/html'));
+    if (acceptsHtml && !req.headers.accept?.includes('application/json')) {
+      return res.redirect(`${baseUrl}/?auth=not_configured&provider=${encodeURIComponent(provider)}`);
+    }
     return res.status(503).json({ error: `${provider} authentication is not configured.` });
   }
   return next();
@@ -378,9 +384,23 @@ router.get(
   (req, res, next) => ensureOAuthProvider(req, res, next, 'google'),
   (req, res, next) => {
     const baseUrl = getFrontendUrl(req);
-    passport.authenticate('google', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
-  },
-  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
+    passport.authenticate('google', (err, user, info) => {
+      if (err || !user) {
+        const errMsg = err?.message || info?.message || 'Google authentication was not completed.';
+        console.warn('[auth] Google OAuth error:', errMsg);
+        return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(errMsg)}`);
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          console.error('[auth] Google session login error:', loginErr);
+          return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+        }
+        const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+        const token = req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : '';
+        return res.redirect(`${baseUrl}/?auth=success${token ? `&session_token=${encodeURIComponent(token)}` : ''}`);
+      });
+    })(req, res, next);
+  }
 );
 
 // --- Facebook ----------------------------------------------------------------
@@ -390,9 +410,23 @@ router.get(
   (req, res, next) => ensureOAuthProvider(req, res, next, 'facebook'),
   (req, res, next) => {
     const baseUrl = getFrontendUrl(req);
-    passport.authenticate('facebook', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
-  },
-  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
+    passport.authenticate('facebook', (err, user, info) => {
+      if (err || !user) {
+        const errMsg = err?.message || info?.message || 'Facebook authentication was not completed.';
+        console.warn('[auth] Facebook OAuth error:', errMsg);
+        return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(errMsg)}`);
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          console.error('[auth] Facebook session login error:', loginErr);
+          return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+        }
+        const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+        const token = req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : '';
+        return res.redirect(`${baseUrl}/?auth=success${token ? `&session_token=${encodeURIComponent(token)}` : ''}`);
+      });
+    })(req, res, next);
+  }
 );
 
 // --- Apple ----------------------------------------------------------------
@@ -403,9 +437,23 @@ router.post(
   (req, res, next) => ensureOAuthProvider(req, res, next, 'apple'),
   (req, res, next) => {
     const baseUrl = getFrontendUrl(req);
-    passport.authenticate('apple', { failureRedirect: `${baseUrl}/?auth=failed` })(req, res, next);
-  },
-  (req, res) => res.redirect(`${getFrontendUrl(req)}/?auth=success`)
+    passport.authenticate('apple', (err, user, info) => {
+      if (err || !user) {
+        const errMsg = err?.message || info?.message || 'Apple authentication was not completed.';
+        console.warn('[auth] Apple OAuth error:', errMsg);
+        return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(errMsg)}`);
+      }
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          console.error('[auth] Apple session login error:', loginErr);
+          return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+        }
+        const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
+        const token = req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : '';
+        return res.redirect(`${baseUrl}/?auth=success${token ? `&session_token=${encodeURIComponent(token)}` : ''}`);
+      });
+    })(req, res, next);
+  }
 );
 
 export default router;

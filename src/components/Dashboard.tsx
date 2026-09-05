@@ -335,11 +335,15 @@ const Dashboard: React.FC<Props> = ({
     return Math.max(0, liquidFunds / daysUntilNextCycle);
   }, [liquidFunds, daysUntilNextCycle]);
 
-  // High-Level Executive Summary Metrics
-  const totalProjects = events.length;
-  const allTasks = useMemo(() => {
-    return events.flatMap(e => e.tasks || []);
+  // High-Level Executive Summary Metrics (Active non-closed projects only)
+  const activeProjects = useMemo(() => {
+    return events.filter(e => e.status !== 'closed');
   }, [events]);
+
+  const totalProjects = activeProjects.length;
+  const allTasks = useMemo(() => {
+    return activeProjects.flatMap(e => e.tasks || []);
+  }, [activeProjects]);
   const completedTasksCount = allTasks.filter(t => t.completed).length;
   const pendingTasksCount = allTasks.length - completedTasksCount;
   const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
@@ -705,9 +709,9 @@ const Dashboard: React.FC<Props> = ({
                   )}
                 </div>
 
-                {events.length > 0 ? (
+                {activeProjects.length > 0 ? (
                   <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                    {events.map((ev) => {
+                    {activeProjects.map((ev) => {
                       const tasks = ev.tasks || [];
                       const done = tasks.filter(t => t.completed).length;
                       const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
@@ -758,7 +762,7 @@ const Dashboard: React.FC<Props> = ({
               </div>
 
               <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-600">
-                <span>Active Projects: {events.length}</span>
+                <span>Active Projects: {activeProjects.length}</span>
                 <span>Pending Tasks: {pendingTasksCount}</span>
               </div>
             </section>

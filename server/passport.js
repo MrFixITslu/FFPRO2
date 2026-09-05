@@ -37,7 +37,7 @@ export async function findOrCreateOAuthUser({ provider, providerId, email, displ
 
   let user = null;
   if (email) {
-    const byEmail = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+    const byEmail = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.toLowerCase()]);
     user = byEmail.rows[0] || null;
   }
 
@@ -75,7 +75,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: process.env.GOOGLE_CALLBACK_URL,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback',
       },
       async (accessToken, refreshToken, profile, done) => {
         try {

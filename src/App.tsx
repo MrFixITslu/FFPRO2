@@ -172,8 +172,52 @@ const App: React.FC = () => {
     setInviteToken(null);
   };
 
-  // Restore session (cookie-based) from the backend on load, including right after
-  // an OAuth provider redirects back here.
+  // Restore session (cookie-based or via signed session_token param) on load
+  const [authBanner, setAuthBanner] = useState<{ message: string; type: 'error' | 'warning' | 'info'; provider?: string } | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const authStatus = params.get('auth');
+      const authError = params.get('error');
+      const provider = params.get('provider') || undefined;
+      const sessionToken = params.get('session_token');
+
+      if (sessionToken) {
+        localStorage.setItem('ffpro_session_token', sessionToken);
+      }
+
+      if (authStatus === 'failed') {
+        return {
+          type: 'error',
+          message: authError || `${provider ? provider.toUpperCase() : 'OAuth'} authentication could not be completed.`,
+          provider,
+        };
+      } else if (authStatus === 'not_configured') {
+        return {
+          type: 'warning',
+          message: `${provider ? provider.toUpperCase() : 'OAuth'} sign-in is not yet configured with API credentials.`,
+          provider,
+        };
+      }
+    } catch (e) {}
+    return null;
+  });
+
+  // Clean sensitive OAuth / session query parameters from address bar on mount
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('auth') || params.has('session_token') || params.has('error') || params.has('provider')) {
+        params.delete('auth');
+        params.delete('session_token');
+        params.delete('error');
+        params.delete('provider');
+        const newQuery = params.toString();
+        const newUrl = window.location.pathname + (newQuery ? `?${newQuery}` : '');
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    } catch (e) {}
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     authService.me()
@@ -991,7 +1035,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       {!isAuthenticated ? (
-        <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} />
+        <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} initialBanner={authBanner} />
       ) : (
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
