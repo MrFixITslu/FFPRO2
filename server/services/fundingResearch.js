@@ -2,7 +2,7 @@ import { pool } from '../db.js';
 import { tavilySearch, fetchPageHtml } from './tavilySearch.js';
 import { extractPlainText, hashContent, isContentWorthAnalyzing } from './contentSanitizer.js';
 import { ollamaGenerateJSON, checkOllamaHealth } from './ollamaClient.js';
-import { normalizeCurrency, isValidUrl, parseDeadlineToISO } from './fundingDeterministic.js';
+import { normalizeCurrency, isValidUrl, parseDeadlineToISO, computeDeadlineStatus, isActiveNonExpired } from './fundingDeterministic.js';
 
 // Default discovery queries. Deliberately conservative and specific rather
 // than generic — the goal is real, checkable funding opportunities rather
