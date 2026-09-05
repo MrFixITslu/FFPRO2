@@ -56,10 +56,10 @@ if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
 
 const app = express();
 // AI Studio container routes traffic to port 3000 via internal reverse proxy.
-// In custom Docker deployment or production host, container listens on PORT (defaults to 3000).
+// In custom Docker deployment or production host, container listens on PORT (defaults to 3010).
 const PORT = (process.env.DEFAULT_APP_PORT || process.env.CONTROL_PLANE_PORT || process.env.PORT === '8080')
   ? 3000
-  : parseInt(process.env.PORT || '3000', 10);
+  : parseInt(process.env.PORT || '3010', 10);
 
 // Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS.
 // Set to 1 hop rather than boolean `true` so express-rate-limit reliably bounds IP rate-limiting.
