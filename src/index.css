@@ -42,14 +42,54 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 8px 24px -4px rgba(28, 25, 23, 0.04), 0 2px 8px -2px rgba(28, 25, 23, 0.02);
 }
 
-.privacy-mask {
-    filter: blur(6px);
-    user-select: none;
-    transition: filter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+/* ==========================================================================
+   Financial Privacy Mode (Mask Sensitive Amounts & Figures)
+   ========================================================================== */
+
+/* Standalone privacy-mask class or when privacy mode is active on root/body */
+.privacy-mask,
+.privacy-mode-enabled .privacy-mask,
+.privacy-mode-enabled .font-tabular,
+.privacy-mode-enabled .tabular-nums,
+.privacy-mode-enabled .privacy-sensitive,
+.privacy-mode-enabled [data-privacy="true"],
+.privacy-mode-enabled [data-sensitive="true"],
+.privacy-mode-enabled .privacy-amount,
+.privacy-mode-enabled .financial-val,
+.privacy-mode-enabled .currency-val {
+    filter: blur(6px) !important;
+    user-select: none !important;
+    transition: filter 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.privacy-mask:hover {
-    filter: blur(3px);
+/* Hover unmask: smooth hover peak */
+.privacy-mask:hover,
+.privacy-mode-enabled .privacy-mask:hover,
+.privacy-mode-enabled .font-tabular:hover,
+.privacy-mode-enabled .tabular-nums:hover,
+.privacy-mode-enabled .privacy-sensitive:hover,
+.privacy-mode-enabled [data-privacy="true"]:hover,
+.privacy-mode-enabled [data-sensitive="true"]:hover,
+.privacy-mode-enabled .privacy-amount:hover,
+.privacy-mode-enabled .financial-val:hover,
+.privacy-mode-enabled .currency-val:hover {
+    filter: blur(0px) !important;
+}
+
+/* Mask chart tooltips & labels in Privacy Mode */
+.privacy-mode-enabled .recharts-tooltip-wrapper,
+.privacy-mode-enabled .recharts-default-tooltip,
+.privacy-mode-enabled .recharts-cartesian-axis-tick text,
+.privacy-mode-enabled .recharts-pie-label-text {
+    filter: blur(5px) !important;
+    transition: filter 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.privacy-mode-enabled .recharts-tooltip-wrapper:hover,
+.privacy-mode-enabled .recharts-default-tooltip:hover,
+.privacy-mode-enabled .recharts-cartesian-axis-tick text:hover,
+.privacy-mode-enabled .recharts-pie-label-text:hover {
+    filter: blur(0px) !important;
 }
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

@@ -255,7 +255,7 @@ export const CommandPalette: React.FC<Props> = ({
           id: `tx-${t.id}`,
           category: 'Transactions',
           title: t.description || 'Transaction',
-          subtitle: `${t.type === 'expense' ? '-' : '+'}$${t.amount.toLocaleString()} • ${t.category} • ${t.date || 'No date'}`,
+          subtitle: `${t.type === 'expense' ? '-' : '+'}${privacyMode ? '••••••' : '$' + t.amount.toLocaleString()} • ${t.category} • ${t.date || 'No date'}`,
           icon: <Receipt size={16} className={t.type === 'expense' ? 'text-rose-500' : 'text-emerald-500'} />,
           action: () => {
             onClose();

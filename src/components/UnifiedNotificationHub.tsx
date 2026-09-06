@@ -962,7 +962,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
                     {/* Snippet */}
                     {item.snippet && (
-                      <p className="text-[11px] text-stone-600 mt-1.5 line-clamp-2 leading-relaxed bg-stone-50 p-2 rounded-lg border border-stone-100 font-mono text-[10px]">
+                      <p className={`text-[11px] text-stone-600 mt-1.5 line-clamp-2 leading-relaxed bg-stone-50 p-2 rounded-lg border border-stone-100 font-mono text-[10px] ${item.category === 'financial' ? 'font-tabular privacy-sensitive' : ''}`}>
                         {item.snippet}
                       </p>
                     )}
@@ -971,7 +971,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                   {/* Bottom Action bar */}
                   <div className="mt-3 pt-2 border-t border-stone-100 flex items-center justify-between">
                     {item.amount !== undefined ? (
-                      <span className="text-xs font-bold text-stone-900">
+                      <span className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">
                         {item.isIncome ? '+' : ''}${item.amount.toLocaleString()}
                       </span>
                     ) : (
@@ -1037,7 +1037,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                   <p className="text-[10px] font-semibold text-stone-500 mt-0.5">{activePaymentModal.item.category}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-black text-indigo-600">
+                  <p className="text-xs font-black text-indigo-600 font-tabular privacy-sensitive">
                     ${(activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount ?? 0).toFixed ? (activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount ?? 0).toFixed(2) : (activePaymentModal.item.remainingAmount ?? activePaymentModal.item.amount)}
                   </p>
                   <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Remaining Due</p>
