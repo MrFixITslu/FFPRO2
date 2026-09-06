@@ -130,17 +130,22 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
         </div>
         <div className="overflow-hidden relative flex-1">
           <div className="animate-marquee whitespace-nowrap flex items-center gap-12">
-            {[...prices, ...prices].map((p, idx) => (
-              <div key={idx} className="flex items-center gap-3">
-                 <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] font-black text-white">{p.symbol.substring(0, 1)}</div>
-                 <span className="font-black text-[9px] text-stone-400 tracking-[0.2em] uppercase">{p.symbol}</span>
-                 <span className="font-black text-[10px] text-white tracking-tight">${p.price.toLocaleString()}</span>
-                 <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded ${p.change24h >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                   <i className={`fas fa-caret-${p.change24h >= 0 ? 'up' : 'down'}`}></i>
-                   {Math.abs(p.change24h).toFixed(2)}%
-                 </div>
-              </div>
-            ))}
+            {[...prices, ...prices].map((p, idx) => {
+              const changeVal = Number(p.change24h || 0);
+              const priceVal = Number(p.price || 0);
+              const symbolText = String(p.symbol || 'USD');
+              return (
+                <div key={idx} className="flex items-center gap-3">
+                   <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] font-black text-white">{symbolText.substring(0, 1)}</div>
+                   <span className="font-black text-[9px] text-stone-400 tracking-[0.2em] uppercase">{symbolText}</span>
+                   <span className="font-black text-[10px] text-white tracking-tight">${priceVal.toLocaleString()}</span>
+                   <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded ${changeVal >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                     <i className={`fas fa-caret-${changeVal >= 0 ? 'up' : 'down'}`}></i>
+                     {Math.abs(changeVal).toFixed(2)}%
+                   </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

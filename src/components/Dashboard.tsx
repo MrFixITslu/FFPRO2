@@ -830,7 +830,7 @@ const Dashboard: React.FC<Props> = ({
                           <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
                             fc.isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}>
-                            {fc.isIncome ? `+$${fc.amount.toFixed(2)}` : `-$${fc.amount.toFixed(2)}`}
+                            {fc.isIncome ? `+$${Number(fc.amount || 0).toFixed(2)}` : `-$${Number(fc.amount || 0).toFixed(2)}`}
                           </span>
                         </div>
                       ))}
@@ -1146,7 +1146,7 @@ const Dashboard: React.FC<Props> = ({
         </div>
         <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
            <p className="text-emerald-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Safe Spend</p>
-           <h3 className="text-sm font-bold text-emerald-700">${dailySafeSpend.toFixed(0)}<span className="text-[8px] text-emerald-600/60 uppercase">/Day</span></h3>
+           <h3 className="text-sm font-bold text-emerald-700">${Number(dailySafeSpend || 0).toFixed(0)}<span className="text-[8px] text-emerald-600/60 uppercase">/Day</span></h3>
         </div>
         <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
            <p className="text-indigo-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Days left</p>
@@ -1261,15 +1261,20 @@ const Dashboard: React.FC<Props> = ({
         <section className="bg-stone-900 p-6 rounded-xl text-white shadow-sm overflow-hidden flex flex-col">
           <h3 className="font-bold uppercase text-xs tracking-wider text-indigo-400 mb-6">Market Pulse</h3>
           <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {marketPrices.slice(0, 4).map(p => (
-              <div key={p.symbol} className="p-3.5 bg-white/5 border border-white/10 rounded-lg flex flex-col justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{p.symbol}</span>
-                <h4 className="text-sm font-semibold mt-1.5">${p.price.toLocaleString()}</h4>
-                <div className={`text-[9px] font-bold mt-1 ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {p.change24h > 0 ? '+' : ''}{p.change24h.toFixed(1)}%
+            {marketPrices.slice(0, 4).map(p => {
+              const changeVal = Number(p.change24h || 0);
+              const priceVal = Number(p.price || 0);
+              const symbolText = String(p.symbol || 'USD');
+              return (
+                <div key={symbolText} className="p-3.5 bg-white/5 border border-white/10 rounded-lg flex flex-col justify-between">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{symbolText}</span>
+                  <h4 className="text-sm font-semibold mt-1.5">${priceVal.toLocaleString()}</h4>
+                  <div className={`text-[9px] font-bold mt-1 ${changeVal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {changeVal > 0 ? '+' : ''}{changeVal.toFixed(1)}%
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>

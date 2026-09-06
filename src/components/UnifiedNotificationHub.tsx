@@ -521,6 +521,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       const diffTime = dueDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const formattedDate = dueDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+      const remaining = Number(bill.remainingAmount ?? bill.amount ?? 0);
       const progress = (bill.paidAmount || 0) / (bill.amount || 1) * 100;
       const hasPaidSomething = progress > 0;
 
@@ -530,8 +531,8 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
         type: 'bill_due',
         title: bill.description,
         subtitle: `Recurring Expense • ${bill.category}`,
-        snippet: `Total Bill: $${(bill.amount || bill.remainingAmount).toLocaleString()} • Remaining: $${bill.remainingAmount.toFixed(2)}${hasPaidSomething ? ' (Partial Paid)' : ''} • Due ${formattedDate}`,
-        amount: bill.remainingAmount,
+        snippet: `Total Bill: $${Number(bill.amount || remaining).toLocaleString()} • Remaining: $${remaining.toFixed(2)}${hasPaidSomething ? ' (Partial Paid)' : ''} • Due ${formattedDate}`,
+        amount: remaining,
         dueDate: bill.nextDueDate,
         daysDiff: diffDays,
         isIncome: false,
@@ -548,6 +549,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
       const diffTime = confDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const formattedDate = confDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+      const remaining = Number(inc.remainingAmount ?? inc.amount ?? 0);
       const progress = (inc.receivedAmount || 0) / (inc.amount || 1) * 100;
       const hasReceivedSomething = progress > 0;
 
@@ -557,8 +559,8 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
         type: 'income_unconfirmed',
         title: inc.description,
         subtitle: `Expected Inflow • ${inc.category}`,
-        snippet: `Total Expected: +$${(inc.amount || inc.remainingAmount).toLocaleString()} • Remaining: +$${inc.remainingAmount.toFixed(2)}${hasReceivedSomething ? ' (Partial Received)' : ''} • Scheduled ${formattedDate}`,
-        amount: inc.remainingAmount,
+        snippet: `Total Expected: +$${Number(inc.amount || remaining).toLocaleString()} • Remaining: +$${remaining.toFixed(2)}${hasReceivedSomething ? ' (Partial Received)' : ''} • Scheduled ${formattedDate}`,
+        amount: remaining,
         dueDate: inc.nextConfirmationDate,
         daysDiff: diffDays,
         isIncome: true,
