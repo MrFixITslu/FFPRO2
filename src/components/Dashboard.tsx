@@ -580,11 +580,11 @@ const Dashboard: React.FC<Props> = ({
                     <Wallet size={15} />
                   </div>
                 </div>
-                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">${netWorth.toLocaleString()}</h3>
+                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight privacy-sensitive">${netWorth.toLocaleString()}</h3>
               </div>
               <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
                 <span className="text-stone-500 font-medium">Liquid Cash:</span>
-                <span className="font-tabular font-semibold text-stone-900 bg-stone-100 px-2 py-0.5 rounded-md">${liquidFunds.toLocaleString()}</span>
+                <span className="font-tabular font-semibold text-stone-900 bg-stone-100 px-2 py-0.5 rounded-md privacy-sensitive">${liquidFunds.toLocaleString()}</span>
               </div>
             </div>
 
@@ -597,14 +597,14 @@ const Dashboard: React.FC<Props> = ({
                     {netMargin >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                   </div>
                 </div>
-                <h3 className={`font-tabular text-2xl font-bold tracking-tight ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                <h3 className={`font-tabular text-2xl font-bold tracking-tight privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                   {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
                 </h3>
               </div>
               <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-tabular">
-                <span className="text-emerald-700 font-semibold">+${totalActualIncome.toLocaleString()}</span>
+                <span className="text-emerald-700 font-semibold privacy-sensitive">+${totalActualIncome.toLocaleString()}</span>
                 <span className="text-stone-300">/</span>
-                <span className="text-rose-700 font-semibold">-${totalActualExpenses.toLocaleString()}</span>
+                <span className="text-rose-700 font-semibold privacy-sensitive">-${totalActualExpenses.toLocaleString()}</span>
               </div>
             </div>
 
@@ -748,7 +748,7 @@ const Dashboard: React.FC<Props> = ({
 
                           <div className="flex items-center justify-between text-[10px] font-semibold text-stone-500">
                             <span>{done}/{tasks.length} Tasks Completed</span>
-                            <span>Spent: ${totalSpent.toLocaleString()} / Target: ${targetBudget.toLocaleString()}</span>
+                            <span>Spent: <span className="font-tabular privacy-sensitive">${totalSpent.toLocaleString()}</span> / Target: <span className="font-tabular privacy-sensitive">${targetBudget.toLocaleString()}</span></span>
                           </div>
                         </div>
                       );
@@ -827,7 +827,7 @@ const Dashboard: React.FC<Props> = ({
                               <p className="text-[10px] text-stone-400 font-medium">{fc.category} • Due {new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short', day: 'numeric' })}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border font-tabular privacy-sensitive ${
                             fc.isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}>
                             {fc.isIncome ? `+$${fc.amount.toFixed(2)}` : `-$${fc.amount.toFixed(2)}`}
@@ -867,7 +867,7 @@ const Dashboard: React.FC<Props> = ({
                 <div className="p-4 bg-stone-50 rounded-xl border border-stone-200/80">
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-xs font-bold text-stone-800">Saving Goals ({savingGoals.length})</span>
-                    <span className="text-xs font-extrabold text-indigo-600">${totalSavingsGoalCurrent.toLocaleString()} / ${totalSavingsGoalTarget.toLocaleString()} ({savingsProgressPct}%)</span>
+                    <span className="text-xs font-extrabold text-indigo-600 font-tabular privacy-sensitive">${totalSavingsGoalCurrent.toLocaleString()} / ${totalSavingsGoalTarget.toLocaleString()} ({savingsProgressPct}%)</span>
                   </div>
                   <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
                     <div className="bg-indigo-600 h-full transition-all duration-300 rounded-full" style={{ width: `${savingsProgressPct}%` }} />
@@ -877,7 +877,7 @@ const Dashboard: React.FC<Props> = ({
                 <div className="p-4 bg-stone-50 rounded-xl border border-stone-200/80">
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-xs font-bold text-stone-800">Investment Goals ({investmentGoals.length})</span>
-                    <span className="text-xs font-extrabold text-emerald-600">${totalInvestmentGoalCurrent.toLocaleString()} / ${totalInvestmentGoalTarget.toLocaleString()} ({investmentProgressPct}%)</span>
+                    <span className="text-xs font-extrabold text-emerald-600 font-tabular privacy-sensitive">${totalInvestmentGoalCurrent.toLocaleString()} / ${totalInvestmentGoalTarget.toLocaleString()} ({investmentProgressPct}%)</span>
                   </div>
                   <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
                     <div className="bg-emerald-600 h-full transition-all duration-300 rounded-full" style={{ width: `${investmentProgressPct}%` }} />
@@ -1104,29 +1104,29 @@ const Dashboard: React.FC<Props> = ({
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
-           <h3 className="text-xs font-bold text-stone-600 text-center">${cycleRollover.toLocaleString()}</h3>
+           <h3 className="text-xs font-bold text-stone-600 text-center font-tabular privacy-sensitive">${cycleRollover.toLocaleString()}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Inflow</p>
-           <h3 className="text-xs font-bold text-emerald-600 text-center">+${totalActualIncome.toLocaleString()}</h3>
+           <h3 className="text-xs font-bold text-emerald-600 text-center font-tabular privacy-sensitive">+${totalActualIncome.toLocaleString()}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Outflow</p>
-           <h3 className="text-xs font-bold text-rose-600 text-center">-${totalActualExpenses.toLocaleString()}</h3>
+           <h3 className="text-xs font-bold text-rose-600 text-center font-tabular privacy-sensitive">-${totalActualExpenses.toLocaleString()}</h3>
         </div>
         <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-center ${netMargin >= 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'}`}>
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Net Margin</p>
-           <h3 className={`text-xs font-bold text-center ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+           <h3 className={`text-xs font-bold text-center font-tabular privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
              {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
            </h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Cash On Hand</p>
-           <h3 className="text-xs font-bold text-indigo-600 text-center">${liquidFunds.toLocaleString()}</h3>
+           <h3 className="text-xs font-bold text-indigo-600 text-center font-tabular privacy-sensitive">${liquidFunds.toLocaleString()}</h3>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
            <p className="text-emerald-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Safe Spend</p>
-           <h3 className="text-sm font-bold text-emerald-700">${dailySafeSpend.toFixed(0)}<span className="text-[8px] text-emerald-600/60 uppercase">/Day</span></h3>
+           <h3 className="text-sm font-bold text-emerald-700 font-tabular privacy-sensitive">${dailySafeSpend.toFixed(0)}<span className="text-[8px] text-emerald-600/60 uppercase">/Day</span></h3>
         </div>
         <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
            <p className="text-indigo-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Days left</p>
@@ -1134,35 +1134,35 @@ const Dashboard: React.FC<Props> = ({
         </div>
         <div className="bg-stone-900 p-4 rounded-xl border border-stone-800 shadow-sm text-white flex flex-col justify-center text-center">
            <p className="text-white/50 text-[8px] font-bold uppercase tracking-wider mb-1">Net Worth</p>
-           <h3 className="text-xs font-semibold text-white">${netWorth.toLocaleString()}</h3>
+           <h3 className="text-xs font-semibold text-white font-tabular privacy-sensitive">${netWorth.toLocaleString()}</h3>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Traditional Bank</p>
-           <h3 className="text-sm font-semibold text-stone-800">${bankTotal.toLocaleString()}</h3>
+           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${bankTotal.toLocaleString()}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (bankTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Credit Union</p>
-           <h3 className="text-sm font-semibold text-stone-800">${cuTotal.toLocaleString()}</h3>
+           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${cuTotal.toLocaleString()}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cuTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Crypto (Digital)</p>
-           <h3 className="text-sm font-semibold text-stone-800">${cryptoTotal.toLocaleString()}</h3>
+           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${cryptoTotal.toLocaleString()}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cryptoTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Other Investments</p>
-           <h3 className="text-sm font-semibold text-stone-800">${vanguardTotal.toLocaleString()}</h3>
+           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${vanguardTotal.toLocaleString()}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (vanguardTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
@@ -1195,7 +1195,7 @@ const Dashboard: React.FC<Props> = ({
                         <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-wider">{goal.institution}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-stone-900">${goal.currentAmount.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
+                        <p className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">${goal.currentAmount.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
                         <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Savings Target</p>
                       </div>
                     </div>
@@ -1218,7 +1218,7 @@ const Dashboard: React.FC<Props> = ({
                           <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">{goal.provider} Portfolio</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-bold text-stone-900">${currentVal.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
+                          <p className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">${currentVal.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
                           <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Asset Target</p>
                         </div>
                       </div>
@@ -1244,8 +1244,8 @@ const Dashboard: React.FC<Props> = ({
             {marketPrices.slice(0, 4).map(p => (
               <div key={p.symbol} className="p-3.5 bg-white/5 border border-white/10 rounded-lg flex flex-col justify-between">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{p.symbol}</span>
-                <h4 className="text-sm font-semibold mt-1.5">${p.price.toLocaleString()}</h4>
-                <div className={`text-[9px] font-bold mt-1 ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <h4 className="text-sm font-semibold mt-1.5 font-tabular privacy-sensitive">${p.price.toLocaleString()}</h4>
+                <div className={`text-[9px] font-bold mt-1 font-tabular privacy-sensitive ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {p.change24h > 0 ? '+' : ''}{p.change24h.toFixed(1)}%
                 </div>
               </div>
@@ -1436,7 +1436,7 @@ const Dashboard: React.FC<Props> = ({
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-stone-900 leading-snug">{log.action}</span>
+                            <span className="font-bold text-stone-900 leading-snug font-tabular privacy-sensitive">{log.action}</span>
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider inline-flex items-center gap-1 ${badge.badgeClass}`}>
                               <span className={`w-1 h-1 rounded-full ${badge.dotColor}`}></span>
                               {badge.label}
@@ -1444,7 +1444,7 @@ const Dashboard: React.FC<Props> = ({
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <p className="text-stone-500 text-[11px] truncate max-w-xs font-medium">
+                          <p className="text-stone-500 text-[11px] truncate max-w-xs font-medium font-tabular privacy-sensitive">
                             {log.details || '—'}
                           </p>
                         </td>
@@ -1495,12 +1495,12 @@ const Dashboard: React.FC<Props> = ({
                               </div>
                               <div>
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Action Statement</p>
-                                <p className="text-stone-800 font-medium mt-0.5">{log.action}</p>
+                                <p className="text-stone-800 font-medium mt-0.5 font-tabular privacy-sensitive">{log.action}</p>
                               </div>
                               {log.details && (
                                 <div>
                                   <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Extended Ledger Details</p>
-                                  <p className="text-stone-700 font-mono text-[11px] mt-0.5 bg-stone-50 p-2 rounded border border-stone-150 whitespace-pre-wrap">{log.details}</p>
+                                  <p className="text-stone-700 font-mono text-[11px] mt-0.5 bg-stone-50 p-2 rounded border border-stone-150 whitespace-pre-wrap font-tabular privacy-sensitive">{log.details}</p>
                                 </div>
                               )}
                             </div>

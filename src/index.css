@@ -80,7 +80,9 @@ h1, h2, h3, h4, h5, h6 {
 .privacy-mode-enabled .recharts-tooltip-wrapper,
 .privacy-mode-enabled .recharts-default-tooltip,
 .privacy-mode-enabled .recharts-cartesian-axis-tick text,
-.privacy-mode-enabled .recharts-pie-label-text {
+.privacy-mode-enabled .recharts-cartesian-axis-tick-value,
+.privacy-mode-enabled .recharts-pie-label-text,
+.privacy-mode-enabled .recharts-text {
     filter: blur(5px) !important;
     transition: filter 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
@@ -88,7 +90,9 @@ h1, h2, h3, h4, h5, h6 {
 .privacy-mode-enabled .recharts-tooltip-wrapper:hover,
 .privacy-mode-enabled .recharts-default-tooltip:hover,
 .privacy-mode-enabled .recharts-cartesian-axis-tick text:hover,
-.privacy-mode-enabled .recharts-pie-label-text:hover {
+.privacy-mode-enabled .recharts-cartesian-axis-tick-value:hover,
+.privacy-mode-enabled .recharts-pie-label-text:hover,
+.privacy-mode-enabled .recharts-text:hover {
     filter: blur(0px) !important;
 }
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }

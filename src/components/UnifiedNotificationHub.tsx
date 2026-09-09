@@ -918,7 +918,7 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
                     {item.snippet && (
                       <p
                         className={`text-[11px] text-stone-600 mt-1.5 line-clamp-2 leading-relaxed bg-stone-50 p-2 rounded-lg border border-stone-100 font-mono text-[10px] ${
-                          item.category === 'financial' ? 'font-tabular privacy-sensitive' : ''
+                          item.category === 'financial' || item.amount !== undefined || item.snippet.includes('$') ? 'font-tabular privacy-sensitive' : ''
                         }`}
                       >
                         {item.snippet}

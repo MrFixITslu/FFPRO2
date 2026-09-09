@@ -458,12 +458,12 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
             {comparisonType !== 'none' && (
               <div className="mt-2 flex items-center gap-1 text-[10px] font-bold">
                 {summaryMetrics.spendingDollarChange <= 0 ? (
-                  <span className="text-emerald-600 flex items-center">
+                  <span className="text-emerald-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowDownRight size={13} className="mr-0.5" />
                     -${Math.abs(summaryMetrics.spendingDollarChange).toLocaleString()} ({Math.abs(summaryMetrics.spendingPercentChange).toFixed(1)}%)
                   </span>
                 ) : (
-                  <span className="text-rose-600 flex items-center">
+                  <span className="text-rose-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowUpRight size={13} className="mr-0.5" />
                     +${summaryMetrics.spendingDollarChange.toLocaleString()} (+{summaryMetrics.spendingPercentChange.toFixed(1)}%)
                   </span>
@@ -490,12 +490,12 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
             {comparisonType !== 'none' && (
               <div className="mt-2 flex items-center gap-1 text-[10px] font-bold">
                 {summaryMetrics.incomeDollarChange >= 0 ? (
-                  <span className="text-emerald-600 flex items-center">
+                  <span className="text-emerald-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowUpRight size={13} className="mr-0.5" />
                     +${summaryMetrics.incomeDollarChange.toLocaleString()} (+{summaryMetrics.incomePercentChange.toFixed(1)}%)
                   </span>
                 ) : (
-                  <span className="text-rose-600 flex items-center">
+                  <span className="text-rose-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowDownRight size={13} className="mr-0.5" />
                     -${Math.abs(summaryMetrics.incomeDollarChange).toLocaleString()} (-{Math.abs(summaryMetrics.incomePercentChange).toFixed(1)}%)
                   </span>
@@ -664,15 +664,15 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                           <p className="font-bold text-indigo-300 uppercase tracking-wider text-[10px]">{data.label}</p>
                           <div className="flex justify-between items-center text-emerald-400 font-bold">
                             <span>Inflow:</span>
-                            <span>+${data.inflow.toLocaleString()}</span>
+                            <span className="font-tabular privacy-sensitive">+${data.inflow.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between items-center text-rose-400 font-bold">
                             <span>Outflow:</span>
-                            <span>-${data.outflow.toLocaleString()}</span>
+                            <span className="font-tabular privacy-sensitive">-${data.outflow.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between items-center pt-1 border-t border-stone-800 font-black">
                             <span>Net Cashflow:</span>
-                            <span className={data.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                            <span className={`font-tabular privacy-sensitive ${data.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {data.net >= 0 ? '+' : ''}${data.net.toLocaleString()}
                             </span>
                           </div>
@@ -754,7 +754,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[d.category] || '#6366f1' }}></span>
                         <span className="font-bold text-stone-800">{d.category}</span>
                       </div>
-                      <span className={`font-black ${d.dollarDiff > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      <span className={`font-black font-tabular privacy-sensitive ${d.dollarDiff > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                         {d.dollarDiff > 0 ? '+' : ''}${d.dollarDiff.toLocaleString()} ({d.percentDiff > 0 ? '+' : ''}{d.percentDiff.toFixed(0)}%)
                       </span>
                     </div>
@@ -783,7 +783,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   Relative distribution of all expenditures across active categories
                 </p>
               </div>
-              <span className="text-xs font-black text-stone-900">
+              <span className="text-xs font-black text-stone-900 font-tabular privacy-sensitive">
                 ${summaryMetrics.totalSpending.toLocaleString()} Total
               </span>
             </div>
