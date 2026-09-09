@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea } from '../types';
-import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc, saveFileBlob, getFileBlob } from '../services/fileStorageService';
+import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc } from '../services/fileStorageService';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
 import ProjectDashboard from './ProjectDashboard';
 import ProjectChat from './ProjectChat';
 import ShareProjectModal from './ShareProjectModal';
+import { CloseProjectModal } from './CloseProjectModal';
+import ProjectCardCoverModal from './ProjectCardCoverModal';
 import { PlannerChecklist } from './Planner/PlannerChecklist';
 import LogsManager from './LogsManager';
 import { projectsService, ProjectSyncConflictError } from '../services/projectsService';
@@ -15,12 +17,13 @@ import {
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
-  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity
+  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark
 } from 'lucide-react';
+import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-type ProjectTab = 'dashboard' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
+type ProjectTab = 'dashboard' | 'grants' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
 
 const getInitialChecklist = (planType: 'event' | 'trip' | 'startup'): ProjectTask[] => {
   if (planType === 'trip') {
@@ -74,19 +77,45 @@ interface Props {
   onUpdateIdeas: (ideas: Idea[]) => void;
   initialSelectedEventId?: string | null;
   initialSelectedTaskId?: string | null;
+  sharedEvents?: BudgetEvent[];
+  onUpdateSharedEvents?: React.Dispatch<React.SetStateAction<BudgetEvent[]>>;
+  onRefreshSharedProjects?: () => Promise<void>;
 }
 
-const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, currentUser, currentUserId, isAdmin, onAddEvent, onDeleteEvent, onUpdateEvent, onUpdateContacts, onMountVault, ideas, onUpdateIdeas, initialSelectedEventId, initialSelectedTaskId }) => {
+const EventPlanner: React.FC<Props> = ({ 
+  events, 
+  contacts, 
+  directoryHandle, 
+  currentUser, 
+  currentUserId, 
+  isAdmin, 
+  onAddEvent, 
+  onDeleteEvent, 
+  onUpdateEvent, 
+  onUpdateContacts, 
+  onMountVault, 
+  ideas, 
+  onUpdateIdeas, 
+  initialSelectedEventId, 
+  initialSelectedTaskId,
+  sharedEvents: propSharedEvents,
+  onUpdateSharedEvents: propSetSharedEvents,
+  onRefreshSharedProjects
+}) => {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
   const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [eventPendingDelete, setEventPendingDelete] = useState<BudgetEvent | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [projectPendingClose, setProjectPendingClose] = useState<BudgetEvent | null>(null);
+  const [projectStatusFilter, setProjectStatusFilter] = useState<'active' | 'closed' | 'all'>('active');
 
   // --- Collaboration: shared projects live server-side; local plans stay in the encrypted blob ---
-  const [sharedEvents, setSharedEvents] = useState<BudgetEvent[]>([]);
-  const [sharedLoading, setSharedLoading] = useState(true);
+  const [internalSharedEvents, setInternalSharedEvents] = useState<BudgetEvent[]>([]);
+  const sharedEvents = propSharedEvents ?? internalSharedEvents;
+  const setSharedEvents = propSetSharedEvents ?? setInternalSharedEvents;
+  const [sharedLoading, setSharedLoading] = useState(propSharedEvents && propSharedEvents.length > 0 ? false : true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -109,9 +138,22 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const serverVersions = useRef<Record<string, number>>({});
 
   const allEvents = useMemo(() => [...(events || []), ...sharedEvents], [events, sharedEvents]);
+  const activeEvents = useMemo(() => allEvents.filter(e => e.status !== 'closed'), [allEvents]);
+  const closedEvents = useMemo(() => allEvents.filter(e => e.status === 'closed'), [allEvents]);
+  const activeEventsCount = activeEvents.length;
+  const closedEventsCount = closedEvents.length;
+
+  const filteredEvents = useMemo(() => {
+    if (projectStatusFilter === 'active') return activeEvents;
+    if (projectStatusFilter === 'closed') return closedEvents;
+    return allEvents;
+  }, [allEvents, activeEvents, closedEvents, projectStatusFilter]);
 
   const refreshSharedProjects = useCallback(async () => {
     try {
+      if (onRefreshSharedProjects) {
+        await onRefreshSharedProjects();
+      }
       const list = await projectsService.list();
       list.forEach(p => { serverVersions.current[p.id] = p.version; });
       setSharedEvents(list.map(p => ({
@@ -128,7 +170,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     } finally {
       setSharedLoading(false);
     }
-  }, []);
+  }, [onRefreshSharedProjects, setSharedEvents]);
 
   useEffect(() => { refreshSharedProjects(); }, [refreshSharedProjects]);
 
@@ -195,18 +237,15 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
   const [renamingCardId, setRenamingCardId] = useState<string | null>(null);
   const [renamingCardValue, setRenamingCardValue] = useState('');
 
+  // Ollama Card Cover States
+  const [coverModalEvent, setCoverModalEvent] = useState<BudgetEvent | null>(null);
+  const [isBatchGeneratingCovers, setIsBatchGeneratingCovers] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedEvent = useMemo(() => (allEvents || []).find(e => e.id === selectedEventId), [allEvents, selectedEventId]);
   const canEdit = !selectedEvent?.isShared || selectedEvent.role !== 'viewer';
-
-  // Icon + colour treatment for a project card, based on its plan type —
-  // mirrors the Trip/Startup/General badges used elsewhere in the app.
-  const getEventTypeIconMeta = (eventType?: BudgetEvent['eventType']) => {
-    if (eventType === 'trip') return { Icon: Plane, wrapClass: 'bg-cyan-50 text-cyan-600 border-cyan-100' };
-    if (eventType === 'startup') return { Icon: Briefcase, wrapClass: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    return { Icon: FileText, wrapClass: 'bg-indigo-50 text-indigo-600 border-indigo-100' };
-  };
 
   const commitRename = (event: BudgetEvent, rawName: string) => {
     const trimmed = rawName.trim();
@@ -790,44 +829,31 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
     const file = e.target.files?.[0];
     if (!selectedEvent || !file) return;
 
+    if (!directoryHandle) {
+      alert("Hard Drive Vault not linked. Mirroring unavailable.");
+      return;
+    }
+
     try {
-      let storageRef: string;
-      let storageType: ProjectFile['storageType'];
-      const fileId = generateId();
-
-      if (directoryHandle) {
-        // A local "SSD Mirror" folder is linked — store the physical file there.
-        storageRef = await saveFileToHardDrive(directoryHandle, selectedEvent.name, file.name, file);
-        storageType = 'filesystem';
-      } else {
-        // No mirror linked — fall back to the browser's own IndexedDB so
-        // uploads still work without requiring the File System Access API.
-        await saveFileBlob(fileId, file);
-        storageRef = `internal-file/${fileId}`;
-        storageType = 'indexeddb';
-      }
-
+      const storageRef = await saveFileToHardDrive(directoryHandle, selectedEvent.name, file.name, file);
       const newFile: ProjectFile = {
-        id: fileId,
+        id: generateId(),
         name: file.name,
         type: file.type,
         size: file.size,
         timestamp: new Date().toISOString(),
         storageRef,
-        storageType,
+        storageType: 'filesystem',
         version: 1,
         lastModifiedBy: currentUser
       };
       
       const updatedEvent = { ...selectedEvent, files: [...(selectedEvent.files || []), newFile] };
       updateEvent(updatedEvent);
-      addActionLog(updatedEvent, `Uploaded document: "${file.name}"`, 'file');
+      addActionLog(updatedEvent, `Linked local asset: "${file.name}"`, 'file');
     } catch (err: any) {
-      console.error("File upload error:", err);
-      alert(`Upload Failed: ${err.message || 'Unknown error'}`);
-    } finally {
-      // Allow re-selecting the same file consecutively
-      e.target.value = '';
+      console.error("Vault access error:", err);
+      alert(`Vault Access Failed: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -937,19 +963,6 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
 
     if (file.storageType === 'url') {
       window.open(file.storageRef, '_blank');
-      return;
-    }
-
-    if (file.storageType === 'indexeddb') {
-      // Plain uploaded file (not a .fdoc/.fcel doc) stored in the browser's
-      // own IndexedDB — download it directly.
-      try {
-        const blob = await getFileBlob(file.id);
-        if (!blob) throw new Error("Asset missing.");
-        triggerSecureDownload(blob, file.name);
-      } catch (err: any) {
-        alert(`Retrieval Error: ${err.message || 'Asset missing.'}`);
-      }
       return;
     }
 
@@ -1093,6 +1106,129 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
       onUpdateEvent(updatedEvent);
     }
   }, [onUpdateEvent, flushSave]);
+
+  const handleOpenCloseModal = useCallback((event: BudgetEvent) => {
+    setProjectPendingClose(event);
+  }, []);
+
+  const handleConfirmClose = useCallback((closeData: {
+    outcome: 'success' | 'failed' | 'cancelled' | 'neutral';
+    lessonsLearnt?: string;
+    closedReason?: string;
+    completeRemainingTasks: boolean;
+  }) => {
+    if (!projectPendingClose) return;
+
+    const now = new Date().toISOString();
+    let updatedTasks = projectPendingClose.tasks || [];
+
+    if (closeData.completeRemainingTasks) {
+      const markDone = (tasks: ProjectTask[]): ProjectTask[] => {
+        return tasks.map(t => ({
+          ...t,
+          completed: true,
+          completionDate: t.completionDate || now,
+          subTasks: t.subTasks ? markDone(t.subTasks) : []
+        }));
+      };
+      updatedTasks = markDone(updatedTasks);
+    }
+
+    const newLog: EventLog = {
+      id: generateId(),
+      action: `Project marked as Closed (${closeData.outcome.toUpperCase()})`,
+      timestamp: now,
+      username: currentUser,
+      type: 'system',
+      details: closeData.closedReason || closeData.lessonsLearnt 
+        ? `Outcome: ${closeData.outcome}. ${closeData.closedReason ? `Reason: ${closeData.closedReason}. ` : ''}${closeData.lessonsLearnt ? `Lessons: ${closeData.lessonsLearnt}` : ''}`
+        : `Outcome: ${closeData.outcome}`
+    };
+
+    const updatedEvent: BudgetEvent = {
+      ...projectPendingClose,
+      status: 'closed',
+      outcome: closeData.outcome,
+      closedReason: closeData.closedReason,
+      lessonsLearnt: closeData.lessonsLearnt,
+      closedAt: now,
+      closedBy: currentUser,
+      tasks: updatedTasks,
+      logs: [newLog, ...(projectPendingClose.logs || [])],
+      lastUpdated: now
+    };
+
+    updateEvent(updatedEvent);
+    setProjectPendingClose(null);
+  }, [projectPendingClose, currentUser, updateEvent]);
+
+  const handleReopenProject = useCallback((event: BudgetEvent) => {
+    const now = new Date().toISOString();
+    const newLog: EventLog = {
+      id: generateId(),
+      action: 'Project reopened to Active status',
+      timestamp: now,
+      username: currentUser,
+      type: 'system',
+      details: `Reopened by ${currentUser}`
+    };
+
+    const updatedEvent: BudgetEvent = {
+      ...event,
+      status: 'active',
+      logs: [newLog, ...(event.logs || [])],
+      lastUpdated: now
+    };
+
+    updateEvent(updatedEvent);
+  }, [currentUser, updateEvent]);
+
+  const handleSaveCoverImage = useCallback((targetEvent: BudgetEvent, imageUrl: string | undefined) => {
+    const updatedEvent: BudgetEvent = {
+      ...targetEvent,
+      coverImage: imageUrl,
+      lastUpdated: new Date().toISOString()
+    };
+    updateEvent(updatedEvent);
+  }, [updateEvent]);
+
+  const handleBatchGenerateCovers = useCallback(async () => {
+    if (isBatchGeneratingCovers || activeEvents.length === 0) return;
+    setIsBatchGeneratingCovers(true);
+    setBatchProgress({ current: 0, total: activeEvents.length });
+
+    for (let i = 0; i < activeEvents.length; i++) {
+      const ev = activeEvents[i];
+      setBatchProgress({ current: i + 1, total: activeEvents.length });
+      try {
+        const res = await fetch('/api/ai/ollama/generate-card-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectName: ev.name,
+            eventType: ev.eventType || 'event',
+            tasks: (ev.tasks || []).map(t => t.title),
+            style: 'modern-abstract'
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.imageUrl) {
+            updateEvent({
+              ...ev,
+              coverImage: data.imageUrl,
+              lastUpdated: new Date().toISOString()
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Failed batch generating cover for event', ev.id, e);
+      }
+    }
+
+    setIsBatchGeneratingCovers(false);
+    setBatchProgress(null);
+  }, [isBatchGeneratingCovers, activeEvents, updateEvent]);
 
   const handleShareClick = async (event: BudgetEvent) => {
     if (event.isShared) {
@@ -1387,28 +1523,44 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
              <div className="flex items-center gap-4 relative z-10">
                <button onClick={() => setSelectedEventId(null)} className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded hover:bg-white/20 transition-all border border-white/5 shadow-sm"><i className="fas fa-chevron-left text-xs"></i></button>
                <div>
-                 {isEditingName && canEdit ? (
-                   <input
-                     autoFocus
-                     type="text"
-                     value={editNameValue}
-                     onChange={(e) => setEditNameValue(e.target.value)}
-                     onBlur={() => { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }}
-                     onKeyDown={(e) => {
-                       if (e.key === 'Enter') { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }
-                       if (e.key === 'Escape') setIsEditingName(false);
-                     }}
-                     className="text-2xl font-bold text-white tracking-tight leading-none bg-white/10 border border-white/30 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 w-full max-w-sm"
-                   />
-                 ) : (
-                   <h2
-                     onClick={() => { if (canEdit) { setEditNameValue(selectedEvent.name); setIsEditingName(true); } }}
-                     title={canEdit ? 'Click to rename' : undefined}
-                     className={`text-2xl font-bold text-white tracking-tight leading-none ${canEdit ? 'cursor-text hover:bg-white/10 rounded px-2 py-0.5 -mx-2 -my-0.5 transition-colors' : ''}`}
-                   >
-                     {selectedEvent.name}
-                   </h2>
-                 )}
+                 <div className="flex items-center gap-2 flex-wrap">
+                   {isEditingName && canEdit ? (
+                     <input
+                       autoFocus
+                       type="text"
+                       value={editNameValue}
+                       onChange={(e) => setEditNameValue(e.target.value)}
+                       onBlur={() => { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }}
+                       onKeyDown={(e) => {
+                         if (e.key === 'Enter') { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }
+                         if (e.key === 'Escape') setIsEditingName(false);
+                       }}
+                       className="text-2xl font-bold text-white tracking-tight leading-none bg-white/10 border border-white/30 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 w-full max-w-sm"
+                     />
+                   ) : (
+                     <h2
+                       onClick={() => { if (canEdit) { setEditNameValue(selectedEvent.name); setIsEditingName(true); } }}
+                       title={canEdit ? 'Click to rename' : undefined}
+                       className={`text-2xl font-bold text-white tracking-tight leading-none ${canEdit ? 'cursor-text hover:bg-white/10 rounded px-2 py-0.5 -mx-2 -my-0.5 transition-colors' : ''}`}
+                     >
+                       {selectedEvent.name}
+                     </h2>
+                   )}
+                   <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider border shadow-xs flex items-center gap-1 ${
+                     selectedEvent.status === 'closed'
+                       ? 'bg-stone-900/90 text-stone-200 border-stone-600/70'
+                       : 'bg-emerald-500/25 text-emerald-100 border-emerald-400/40'
+                   }`}>
+                     {selectedEvent.status === 'closed' ? (
+                       <>
+                         <FolderCheck size={10} className="text-amber-300" />
+                         Closed
+                       </>
+                     ) : (
+                       'Active'
+                     )}
+                   </span>
+                 </div>
                  <p className="text-[10px] text-white/70 font-bold uppercase tracking-wider mt-1.5">
                    {selectedEvent.eventType === 'trip' 
                      ? `Vacation to ${selectedEvent.tripDetails?.destination || 'Destination'}` 
@@ -1421,6 +1573,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
              <div className="flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto no-scrollbar relative z-10 backdrop-blur-md">
                {[
                  'dashboard',
+                 'grants',
                  ...(selectedEvent.eventType === 'trip' 
                    ? ['trip_planner', 'tasks', 'vault', 'contacts', 'log']
                    : selectedEvent.eventType === 'startup'
@@ -1428,13 +1581,14 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                    : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']),
                  ...(selectedEvent.isShared ? ['chat'] : []),
                ].map(tab => {
-                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
+                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'grants' ? 'Grants & Funding' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
                  return (
                    <button 
                      key={tab} 
                      onClick={() => setActiveTab(tab as ProjectTab)} 
                      className={`px-3 sm:px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab ? 'bg-white text-stone-900 shadow-sm font-extrabold' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
                    >
+                     {tab === 'grants' && <Landmark size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
                      {tab === 'log' && <Activity size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
                      <span>{label}</span>
                      {tab === 'log' && (selectedEvent.logs || []).length > 0 && (
@@ -1449,6 +1603,27 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                })}
              </div>
              <div className="flex items-center gap-2 relative z-10 shrink-0">
+               {canEdit && (
+                 selectedEvent.status === 'closed' ? (
+                   <button
+                     onClick={() => handleReopenProject(selectedEvent)}
+                     title="Reopen project to active status"
+                     className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
+                   >
+                     <RotateCcw className="w-4 h-4 text-amber-300" />
+                     <span className="hidden md:inline">Reopen</span>
+                   </button>
+                 ) : (
+                   <button
+                     onClick={() => handleOpenCloseModal(selectedEvent)}
+                     title="Close this project"
+                     className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
+                   >
+                     <FolderCheck className="w-4 h-4 text-emerald-300" />
+                     <span className="hidden md:inline">Close Project</span>
+                   </button>
+                 )
+               )}
                <button
                  onClick={() => setShowIdeaBinModal(true)}
                  title="Open Idea Bin"
@@ -1481,6 +1656,48 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                ) : null}
              </div>
           </div>
+
+          {selectedEvent.status === 'closed' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 -mt-3 mb-6 px-4 py-3 bg-stone-900 text-white border border-stone-800 rounded-xl shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-stone-800 flex items-center justify-center text-amber-400 shrink-0">
+                  <FolderCheck size={16} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-stone-100">This project is closed</span>
+                    {selectedEvent.outcome && (
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase border ${
+                        selectedEvent.outcome === 'success' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
+                        selectedEvent.outcome === 'cancelled' ? 'bg-amber-950 text-amber-300 border-amber-800' :
+                        selectedEvent.outcome === 'failed' ? 'bg-rose-950 text-rose-300 border-rose-800' :
+                        'bg-indigo-950 text-indigo-300 border-indigo-800'
+                      }`}>
+                        Outcome: {selectedEvent.outcome}
+                      </span>
+                    )}
+                    {selectedEvent.closedAt && (
+                      <span className="text-[11px] text-stone-400 font-medium">
+                        • Closed {new Date(selectedEvent.closedAt).toLocaleDateString()} {selectedEvent.closedBy ? `by ${selectedEvent.closedBy}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  {selectedEvent.closedReason && (
+                    <p className="text-[11px] text-stone-300 mt-0.5">{selectedEvent.closedReason}</p>
+                  )}
+                </div>
+              </div>
+              {canEdit && (
+                <button
+                  onClick={() => handleReopenProject(selectedEvent)}
+                  className="self-start sm:self-center px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-200 hover:text-white rounded-lg border border-stone-700 text-xs font-bold transition flex items-center gap-1.5 shrink-0"
+                >
+                  <RotateCcw size={12} />
+                  Reopen Project
+                </button>
+              )}
+            </div>
+          )}
 
           {selectedEvent.isShared && selectedEvent.role === 'viewer' && (
             <div className="flex items-center gap-2 -mt-3 mb-6 px-4 py-2 bg-amber-50 border border-amber-100 rounded-lg text-[11px] text-amber-700 font-semibold">
@@ -2810,7 +3027,7 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                     })}
                     <div className="p-5 border border-dashed border-stone-300 rounded-lg flex flex-col items-center justify-center text-stone-400 hover:text-indigo-600 hover:border-indigo-200 cursor-pointer transition-all" onClick={() => fileInputRef.current?.click()}>
                       <i className="fas fa-file-circle-plus text-lg mb-2"></i>
-                      <span className="text-[9px] font-bold uppercase tracking-wider">Upload File</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider">Link Physical</span>
                       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                     </div>
                   </div>
@@ -2823,7 +3040,20 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
                 event={selectedEvent} 
                 members={selectedEvent.isShared ? projectMembers : undefined} 
                 onViewLogs={() => setActiveTab('log')}
+                onCloseProject={() => handleOpenCloseModal(selectedEvent)}
+                onReopenProject={() => handleReopenProject(selectedEvent)}
+                onNavigateToFunding={() => setActiveTab('grants')}
+                canEdit={canEdit}
               />
+            )}
+
+            {activeTab === 'grants' && (
+              <div className="space-y-6">
+                <ProjectGrantMatcher 
+                  event={selectedEvent} 
+                  onNavigateToFunding={() => setActiveTab('grants')}
+                />
+              </div>
             )}
 
             {activeTab === 'chat' && selectedEvent.isShared && selectedEvent.sharedProjectId && (
@@ -3058,86 +3288,444 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <div className="xl:col-span-2 space-y-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Active Planning Frameworks</h3>
-            
-            {allEvents.length === 0 ? (
-              <div className="p-12 text-center bg-white border border-stone-200 rounded-xl shadow-xs">
-                <p className="text-stone-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Frameworks</p>
-                <button onClick={() => setShowAddForm(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg shadow-xs transition-colors">
-                  Initiate Framework
-                </button>
+          <div className="xl:col-span-2 space-y-8">
+            {/* Active Projects Section */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-200">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                    Active Planning Frameworks
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                    {activeEvents.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  <button
+                    type="button"
+                    disabled={isBatchGeneratingCovers || activeEvents.length === 0}
+                    onClick={handleBatchGenerateCovers}
+                    title="Generate Ollama card background images for all active projects"
+                    className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-xs transition-colors flex items-center gap-1.5 border border-stone-700"
+                  >
+                    {isBatchGeneratingCovers ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin text-indigo-400" />
+                        <span>Generating ({batchProgress ? `${batchProgress.current}/${batchProgress.total}` : '...'})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={12} className="text-indigo-400" />
+                        <span>Generate Ollama Covers</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+                  >
+                    <Plus size={12} />
+                    <span>Initiate Framework</span>
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {allEvents.map(event => {
-                  const { Icon: EventTypeIcon, wrapClass } = getEventTypeIconMeta(event.eventType);
-                  return (
-                  <div key={event.id} onClick={() => setSelectedEventId(event.id)} className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm cursor-pointer hover:border-indigo-600/50 hover:bg-stone-50/50 transition-all relative overflow-hidden group">
-                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                      {(!event.isShared || event.role !== 'viewer') && (
+
+              {activeEvents.length === 0 ? (
+                <div className="p-10 text-center bg-white border border-stone-200 rounded-xl shadow-xs">
+                  <p className="text-stone-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Frameworks</p>
+                  <p className="text-stone-500 text-xs max-w-sm mx-auto mb-4">Start a new project plan, event framework, or budget roadmap.</p>
+                  <button onClick={() => setShowAddForm(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg shadow-xs transition-colors inline-flex items-center gap-1.5">
+                    <Plus size={12} />
+                    <span>Initiate Framework</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {activeEvents.map(event => (
+                    <div 
+                      key={event.id} 
+                      onClick={() => setSelectedEventId(event.id)} 
+                      className={`p-6 rounded-xl border shadow-sm cursor-pointer transition-all relative overflow-hidden group ${
+                        event.coverImage 
+                          ? 'border-stone-800 bg-stone-950 text-white hover:border-indigo-500/80 hover:shadow-lg' 
+                          : 'bg-white border-stone-200 hover:border-indigo-600/50 hover:bg-stone-50/50'
+                      }`}
+                    >
+                      {/* Generated Ollama Card Background Image */}
+                      {event.coverImage && (
+                        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                          <img 
+                            src={event.coverImage} 
+                            alt={event.name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                          />
+                          {/* High-contrast gradient overlay ensuring text is clearly visible */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-900/80 to-stone-900/50 backdrop-blur-[0.5px]"></div>
+                        </div>
+                      )}
+
+                      {/* Card Actions (Top Right) */}
+                      <div className="absolute top-4 right-4 z-20 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                         <button
-                          onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
-                          title="Rename plan"
-                          className="w-8 h-8 flex items-center justify-center rounded text-stone-300 hover:text-stone-600 hover:bg-stone-100 transition-all"
+                          onClick={(e) => { e.stopPropagation(); setCoverModalEvent(event); }}
+                          title={event.coverImage ? 'Edit / Regenerate Ollama Cover' : 'Generate Cover Image with Ollama'}
+                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                            event.coverImage
+                              ? 'text-indigo-300 hover:text-white bg-stone-900/70 hover:bg-indigo-600 backdrop-blur-md border border-white/15'
+                              : 'text-stone-400 hover:text-indigo-600 hover:bg-indigo-50'
+                          }`}
                         >
-                          <i className="fas fa-pen text-xs"></i>
+                          <Sparkles className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
-                        title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
-                        className="w-8 h-8 flex items-center justify-center rounded text-stone-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
-                      >
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                      {(!event.isShared && isAdmin) || event.role === 'owner' ? (
+
+                        {(!event.isShared || event.role !== 'viewer') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
+                            title="Rename plan"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                              event.coverImage
+                                ? 'text-stone-300 hover:text-white bg-stone-900/70 hover:bg-stone-800 backdrop-blur-md border border-white/15'
+                                : 'text-stone-300 hover:text-stone-600 hover:bg-stone-100'
+                            }`}
+                          >
+                            <i className="fas fa-pen text-xs"></i>
+                          </button>
+                        )}
+                        {(!event.isShared || event.role !== 'viewer') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenCloseModal(event); }}
+                            title="Close project"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                              event.coverImage
+                                ? 'text-emerald-300 hover:text-white bg-stone-900/70 hover:bg-emerald-700 backdrop-blur-md border border-white/15'
+                                : 'text-stone-300 hover:text-emerald-600 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <FolderCheck className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
-                          onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
-                          title="Delete plan"
-                          className="w-8 h-8 flex items-center justify-center rounded text-stone-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                          onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
+                          title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
+                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                            event.coverImage
+                              ? 'text-indigo-300 hover:text-white bg-stone-900/70 hover:bg-indigo-600 backdrop-blur-md border border-white/15'
+                              : 'text-stone-300 hover:text-indigo-500 hover:bg-indigo-50'
+                          }`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Share2 className="w-4 h-4" />
                         </button>
-                      ) : null}
+                        {(!event.isShared && isAdmin) || event.role === 'owner' ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
+                            title="Delete plan"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                              event.coverImage
+                                ? 'text-rose-300 hover:text-white bg-stone-900/70 hover:bg-rose-700 backdrop-blur-md border border-white/15'
+                                : 'text-stone-300 hover:text-red-500 hover:bg-red-50'
+                            }`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {/* Foreground Content with High-Contrast Text Overlay */}
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-2 pr-24 flex-wrap">
+                          {renamingCardId === event.id ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              value={renamingCardValue}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setRenamingCardValue(e.target.value)}
+                              onBlur={() => { commitRename(event, renamingCardValue); setRenamingCardId(null); }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
+                                if (e.key === 'Escape') setRenamingCardId(null);
+                              }}
+                              className={`font-black text-lg truncate rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full ${
+                                event.coverImage ? 'bg-stone-900/90 text-white border border-indigo-400' : 'bg-stone-50 text-stone-800 border border-indigo-300'
+                              }`}
+                            />
+                          ) : (
+                            <h3 className={`font-black text-lg transition-colors truncate drop-shadow-sm ${
+                              event.coverImage 
+                                ? 'text-white group-hover:text-indigo-300' 
+                                : 'text-stone-800 group-hover:text-indigo-600'
+                            }`}>
+                              {event.name}
+                            </h3>
+                          )}
+                          {event.isShared && (
+                            <span 
+                              title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} 
+                              className={`shrink-0 w-5 h-5 flex items-center justify-center rounded ${
+                                event.coverImage ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-500'
+                              }`}
+                            >
+                              <Share2 className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[9px] font-bold uppercase tracking-wider mb-6 drop-shadow-xs ${
+                          event.coverImage ? 'text-stone-300' : 'text-stone-400'
+                        }`}>
+                          Updated: {new Date(event.lastUpdated).toLocaleDateString()}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-3 py-1.5 rounded text-[8px] font-extrabold uppercase tracking-wider border backdrop-blur-md transition-colors ${
+                            event.coverImage 
+                              ? 'bg-white/15 border-white/25 text-white shadow-xs' 
+                              : 'bg-indigo-50 border-indigo-100 text-indigo-600'
+                          }`}>
+                            {(event.files || []).length} Assets
+                          </span>
+                          <span className={`px-3 py-1.5 rounded text-[8px] font-extrabold uppercase tracking-wider border backdrop-blur-md transition-colors ${
+                            event.coverImage 
+                              ? 'bg-white/15 border-white/25 text-white shadow-xs' 
+                              : 'bg-stone-50 border-stone-100 text-stone-600'
+                          }`}>
+                            {(event.tasks || []).length} Phases
+                          </span>
+                          {!event.coverImage && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setCoverModalEvent(event); }}
+                              className="px-2.5 py-1 rounded text-[8px] font-extrabold uppercase tracking-wider border border-dashed border-stone-300 hover:border-indigo-500 text-stone-400 hover:text-indigo-600 hover:bg-indigo-50/50 flex items-center gap-1 transition"
+                            >
+                              <Sparkles size={10} />
+                              <span>Ollama Cover</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mb-2 pr-16">
-                      <span title={event.eventType === 'trip' ? 'Trip' : event.eventType === 'startup' ? 'Startup' : 'General plan'} className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border ${wrapClass}`}>
-                        <EventTypeIcon className="w-4 h-4" />
-                      </span>
-                      {renamingCardId === event.id ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          value={renamingCardValue}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setRenamingCardValue(e.target.value)}
-                          onBlur={() => { commitRename(event, renamingCardValue); setRenamingCardId(null); }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
-                            if (e.key === 'Escape') setRenamingCardId(null);
-                          }}
-                          className="font-bold text-stone-800 text-lg truncate bg-stone-50 border border-indigo-300 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full"
-                        />
-                      ) : (
-                        <h3 className="font-bold text-stone-800 text-lg group-hover:text-indigo-600 transition-colors truncate">{event.name}</h3>
-                      )}
-                      {event.isShared && (
-                        <span title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} className="shrink-0 w-5 h-5 flex items-center justify-center rounded bg-indigo-50 text-indigo-500">
-                          <Share2 className="w-3 h-3" />
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mb-6">Updated: {new Date(event.lastUpdated).toLocaleDateString()}</p>
-                    <div className="flex gap-2">
-                      <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-indigo-50 border-indigo-100 text-indigo-600">{(event.files || []).length} Assets</span>
-                      <span className="px-3 py-1.5 rounded text-[8px] font-bold uppercase tracking-wider border bg-stone-50 border-stone-100 text-stone-600">{(event.tasks || []).length} Phases</span>
-                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Closed Projects Section */}
+            <div className="space-y-4 pt-4 border-t border-stone-200">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-stone-200 flex items-center justify-center text-stone-700">
+                    <FolderCheck size={14} className="text-amber-600" />
                   </div>
-                  );
-                })}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                        Closed Projects
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-stone-200 text-stone-700">
+                        {closedEvents.length}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-stone-400 font-medium">
+                      Completed & archived frameworks. You can reopen any project anytime to resume planning.
+                    </p>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {closedEvents.length === 0 ? (
+                <div className="p-6 text-center bg-stone-50/60 border border-dashed border-stone-200 rounded-xl">
+                  <p className="text-stone-400 text-xs">No closed projects. When you complete or close a project, it will move here and can be reopened whenever needed.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {closedEvents.map(event => (
+                    <div 
+                      key={event.id} 
+                      onClick={() => setSelectedEventId(event.id)} 
+                      className={`p-6 rounded-xl border shadow-xs cursor-pointer transition-all relative overflow-hidden group ${
+                        event.coverImage 
+                          ? 'border-stone-800 bg-stone-950 text-white hover:border-stone-700 hover:shadow-lg' 
+                          : 'bg-stone-50/80 border-stone-300/80 hover:border-stone-400 hover:bg-stone-100/60'
+                      }`}
+                    >
+                      {/* Generated Ollama Card Background Image */}
+                      {event.coverImage && (
+                        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                          <img 
+                            src={event.coverImage} 
+                            alt={event.name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                          />
+                          {/* High-contrast gradient overlay ensuring text is clearly visible */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-900/85 to-stone-900/60 backdrop-blur-[0.5px]"></div>
+                        </div>
+                      )}
+
+                      {/* Card Actions (Top Right) */}
+                      <div className="absolute top-4 right-4 z-20 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setCoverModalEvent(event); }}
+                          title={event.coverImage ? 'Edit / Regenerate Ollama Cover' : 'Generate Cover Image with Ollama'}
+                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                            event.coverImage
+                              ? 'text-indigo-300 hover:text-white bg-stone-900/70 hover:bg-indigo-600 backdrop-blur-md border border-white/15'
+                              : 'text-stone-400 hover:text-indigo-600 hover:bg-white'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+
+                        {(!event.isShared || event.role !== 'viewer') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setRenamingCardValue(event.name); setRenamingCardId(event.id); }}
+                            title="Rename plan"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                              event.coverImage
+                                ? 'text-stone-300 hover:text-white bg-stone-900/70 hover:bg-stone-800 backdrop-blur-md border border-white/15'
+                                : 'text-stone-400 hover:text-stone-600 hover:bg-white'
+                            }`}
+                          >
+                            <i className="fas fa-pen text-xs"></i>
+                          </button>
+                        )}
+                        {(!event.isShared || event.role !== 'viewer') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReopenProject(event); }}
+                            title="Reopen project"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-amber-700 hover:text-amber-900 bg-amber-100/90 hover:bg-amber-200 transition-all shadow-xs"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleShareClick(event); }}
+                          title={event.isShared ? 'Manage collaborators' : 'Share this plan'}
+                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                            event.coverImage
+                              ? 'text-indigo-300 hover:text-white bg-stone-900/70 hover:bg-indigo-600 backdrop-blur-md border border-white/15'
+                              : 'text-stone-400 hover:text-indigo-500 hover:bg-white'
+                          }`}
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        {(!event.isShared && isAdmin) || event.role === 'owner' ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); requestDeleteEvent(event); }}
+                            title="Delete plan"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                              event.coverImage
+                                ? 'text-rose-300 hover:text-white bg-stone-900/70 hover:bg-rose-700 backdrop-blur-md border border-white/15'
+                                : 'text-stone-400 hover:text-red-500 hover:bg-white'
+                            }`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                      
+                      {/* Foreground Content with High-Contrast Text Overlay */}
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-2 pr-24 flex-wrap">
+                          {renamingCardId === event.id ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              value={renamingCardValue}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setRenamingCardValue(e.target.value)}
+                              onBlur={() => { commitRename(event, renamingCardValue); setRenamingCardId(null); }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') { commitRename(event, renamingCardValue); setRenamingCardId(null); }
+                                if (e.key === 'Escape') setRenamingCardId(null);
+                              }}
+                              className={`font-black text-lg truncate rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-500 w-full ${
+                                event.coverImage ? 'bg-stone-900/90 text-white border border-indigo-400' : 'bg-white text-stone-800 border border-indigo-300'
+                              }`}
+                            />
+                          ) : (
+                            <h3 className={`font-black text-lg transition-colors truncate drop-shadow-sm ${
+                              event.coverImage 
+                                ? 'text-white group-hover:text-stone-200' 
+                                : 'text-stone-700 group-hover:text-stone-900'
+                            }`}>
+                              {event.name}
+                            </h3>
+                          )}
+                          <span className={`shrink-0 px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${
+                            event.coverImage ? 'bg-stone-800 text-stone-200 border border-stone-700' : 'bg-stone-800 text-stone-200'
+                          }`}>
+                            <FolderCheck size={10} className="text-amber-400" />
+                            Closed
+                          </span>
+                          {event.isShared && (
+                            <span 
+                              title={`Shared · you're ${event.role === 'owner' ? 'the owner' : `an ${event.role}`}`} 
+                              className={`shrink-0 w-5 h-5 flex items-center justify-center rounded ${
+                                event.coverImage ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-600'
+                              }`}
+                            >
+                              <Share2 className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+
+                        <p className={`text-[9px] font-bold uppercase tracking-wider mb-3 drop-shadow-xs ${
+                          event.coverImage ? 'text-stone-300' : 'text-stone-400'
+                        }`}>
+                          {event.closedAt ? `Closed: ${new Date(event.closedAt).toLocaleDateString()}` : `Updated: ${new Date(event.lastUpdated).toLocaleDateString()}`}
+                          {event.closedBy ? ` · by ${event.closedBy}` : ''}
+                        </p>
+
+                        {event.closedReason && (
+                          <p className={`text-xs line-clamp-2 italic p-2 rounded-lg border mb-4 ${
+                            event.coverImage 
+                              ? 'bg-stone-900/80 text-stone-200 border-stone-700/80 backdrop-blur-xs' 
+                              : 'bg-white/70 text-stone-600 border-stone-200/60'
+                          }`}>
+                            "{event.closedReason}"
+                          </p>
+                        )}
+
+                        <div className={`flex items-center justify-between gap-2 flex-wrap pt-2 border-t ${
+                          event.coverImage ? 'border-white/15' : 'border-stone-200/80'
+                        }`}>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {event.outcome && (
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                                event.outcome === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                                event.outcome === 'cancelled' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                                event.outcome === 'failed' ? 'bg-rose-50 border-rose-200 text-rose-700' :
+                                'bg-stone-100 border-stone-200 text-stone-700'
+                              }`}>
+                                {event.outcome}
+                              </span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                              event.coverImage ? 'bg-white/15 border-white/20 text-white' : 'bg-stone-100 border-stone-200 text-stone-600'
+                            }`}>{(event.files || []).length} Assets</span>
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                              event.coverImage ? 'bg-white/15 border-white/20 text-white' : 'bg-stone-100 border-stone-200 text-stone-600'
+                            }`}>{(event.tasks || []).length} Phases</span>
+                          </div>
+
+                          {(!event.isShared || event.role !== 'viewer') && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleReopenProject(event); }}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all shadow-xs flex items-center gap-1.5 group/reopen border ${
+                                event.coverImage 
+                                  ? 'bg-stone-900/80 hover:bg-amber-500 hover:text-white text-stone-200 border-stone-700 backdrop-blur-md'
+                                  : 'bg-white hover:bg-amber-500 hover:text-white text-stone-700 hover:border-amber-600 border-stone-300'
+                              }`}
+                            >
+                              <RotateCcw size={11} className="text-amber-500 group-hover/reopen:text-white transition-colors" />
+                              <span>Reopen</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* IDEA BIN COLUMN */}
@@ -3428,6 +4016,19 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
         />
       )}
 
+      {projectPendingClose && (
+        <CloseProjectModal
+          event={projectPendingClose}
+          projectName={projectPendingClose.name}
+          onClose={() => setProjectPendingClose(null)}
+          onCancel={() => setProjectPendingClose(null)}
+          onConfirmClose={handleConfirmClose}
+          onConfirm={handleConfirmClose}
+          totalTasks={(projectPendingClose.tasks || []).length}
+          completedTasks={(projectPendingClose.tasks || []).filter(t => t.completed).length}
+        />
+      )}
+
       {/* Idea Bin Global Modal / Drawer */}
       {showIdeaBinModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -3663,6 +4264,16 @@ const EventPlanner: React.FC<Props> = ({ events, contacts, directoryHandle, curr
             </div>
           </div>
         </div>
+      )}
+
+      {/* Ollama Card Cover Customization & Generation Modal */}
+      {coverModalEvent && (
+        <ProjectCardCoverModal
+          isOpen={!!coverModalEvent}
+          onClose={() => setCoverModalEvent(null)}
+          event={coverModalEvent}
+          onSaveCoverImage={handleSaveCoverImage}
+        />
       )}
     </div>
   );

@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
 import { decryptForUser } from '../crypto.js';
-import { getValidGoogleAccessToken } from '../googleTokens.js';
+import { getValidGoogleAccessToken, clearGoogleTokens } from '../googleTokens.js';
 import { getProcessedMessageIds, markMessageProcessed, getAllProcessedMessages } from '../gmailProcessedStore.js';
 
 const router = Router();
@@ -462,6 +462,39 @@ router.post('/mark-read', requireAuthorizedAccount, async (req, res) => {
   }
 
   res.json({ ok: true, messageId, status: 'read' });
+});
+
+/**
+ * GET /api/gmail/status
+ * Returns whether the authorized user currently has a valid Google connection and tokens.
+ */
+router.get('/status', requireAuthorizedAccount, async (req, res) => {
+  try {
+    const accessToken = await getValidGoogleAccessToken(req.user.id);
+    return res.json({
+      connected: !!accessToken,
+      account: AUTHORIZED_EMAIL,
+    });
+  } catch (err) {
+    return res.json({ connected: false, account: AUTHORIZED_EMAIL });
+  }
+});
+
+/**
+ * POST /api/gmail/disconnect
+ * Revokes Google access and removes stored tokens from the database.
+ */
+router.post('/disconnect', requireAuthorizedAccount, async (req, res) => {
+  try {
+    await clearGoogleTokens(req.user.id);
+    return res.json({
+      ok: true,
+      message: 'Google Gmail connection removed successfully.',
+    });
+  } catch (err) {
+    console.error('[gmail] Disconnect error:', err);
+    return res.status(500).json({ error: 'Failed to disconnect Google Gmail.' });
+  }
 });
 
 export default router;

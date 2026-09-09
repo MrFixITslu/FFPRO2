@@ -10,6 +10,7 @@ import {
   generateStrategicFeedback,
   generateFinancialInsight
 } from '../services/ollamaService.js';
+import { generateProjectCardImage } from '../services/cardImageGenerator.js';
 
 const router = Router();
 
@@ -277,6 +278,72 @@ const handleMarketData = async (req, res) => {
 router.get('/market-data', marketDataLimiter, handleMarketData);
 router.post('/market-data', marketDataLimiter, handleMarketData);
 
+// Ollama Status & Config Endpoints
+router.get('/ollama/status', async (req, res) => {
+  const health = await checkOllamaHealth(3000);
+  res.json(health);
+});
+
+router.post('/ollama/config', async (req, res) => {
+  const { baseURL, model } = req.body || {};
+  const updated = updateOllamaConfig({ baseURL, model });
+  const health = await checkOllamaHealth(3000);
+  res.json({
+    config: updated,
+    health
+  });
+});
+
+// Generate Project Card Background Image via Ollama
+router.post('/ollama/generate-card-image', aiGenerationLimiter, async (req, res) => {
+  try {
+    const { projectName, eventType, tasks, notes, style, customPrompt, model } = req.body || {};
+    if (!projectName) {
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    const result = await generateProjectCardImage({
+      projectName,
+      eventType,
+      tasks,
+      notes,
+      style,
+      customPrompt,
+      requestedModel: model
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error generating card image via Ollama:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate card image' });
+  }
+});
+
+// Alias for general card image endpoint
+router.post('/generate-card-image', aiGenerationLimiter, async (req, res) => {
+  try {
+    const { projectName, eventType, tasks, notes, style, customPrompt, model } = req.body || {};
+    if (!projectName) {
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    const result = await generateProjectCardImage({
+      projectName,
+      eventType,
+      tasks,
+      notes,
+      style,
+      customPrompt,
+      requestedModel: model
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error generating card image:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate card image' });
+  }
+});
+
 router.use(requireAuth);
 router.use(aiGenerationLimiter);
 
@@ -350,24 +417,6 @@ router.post('/parse', async (req, res) => {
     console.error('Gemini AI Error:', error);
     res.status(500).json({ error: 'Failed to process request with AI service.' });
   }
-});
-
-// 2. Market data is now a public endpoint defined above
-
-// Ollama Status & Config Endpoints
-router.get('/ollama/status', async (req, res) => {
-  const health = await checkOllamaHealth(3000);
-  res.json(health);
-});
-
-router.post('/ollama/config', async (req, res) => {
-  const { baseURL, model } = req.body || {};
-  const updated = updateOllamaConfig({ baseURL, model });
-  const health = await checkOllamaHealth(3000);
-  res.json({
-    config: updated,
-    health
-  });
 });
 
 // 3. AI Chat Endpoint

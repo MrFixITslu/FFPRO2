@@ -6,6 +6,7 @@ import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
 import { UnifiedNotificationHub } from './UnifiedNotificationHub';
 import { EmailDetailModal } from './EmailDetailModal';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
+import { hasCalendarEventPassed } from '../utils/calendarNotificationUtils';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -161,6 +162,7 @@ const Dashboard: React.FC<Props> = ({
     unreadCount,
     gmailLoading,
     gmailConnected,
+    gmailError,
     fetchGmail,
     handleConnectGmail,
     handleDisconnectGmail,
@@ -357,10 +359,9 @@ const Dashboard: React.FC<Props> = ({
 
   const upcomingCalendarItems = useMemo(() => {
     const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return [...calendarItems]
-      .filter(item => item.date >= todayStr)
-      .sort((a, b) => a.date.localeCompare(b.date))
+      .filter(item => !hasCalendarEventPassed(item, now))
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
       .slice(0, 3);
   }, [calendarItems]);
 
@@ -1100,26 +1101,6 @@ const Dashboard: React.FC<Props> = ({
       ) : (
         /* Detailed Financial Analytics View */
         <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Unified Notification & Planning Intelligence Hub */}
-          <UnifiedNotificationHub
-            userEmail={userEmail}
-            events={events}
-            calendarItems={calendarItems}
-            unpaidBills={unpaidBills}
-            unconfirmedIncomes={unconfirmedIncomes}
-            categoryBudgets={categoryBudgets}
-            transactions={transactions}
-            bankConnections={bankConnections}
-            onNavigateToTask={onNavigateToTask}
-            onNavigateToPlanner={onNavigateToPlanner}
-            onPayRecurring={onPayRecurring}
-            onReceiveRecurringIncome={onReceiveRecurringIncome}
-            onOpenTransactionForm={onOpenTransactionForm}
-            onSelectEmailModal={(email) => setSelectedEmailModal(email)}
-            onDismissEmail={onDismissEmail || handleDismissEmail}
-            externalDismissedIds={dismissedEmailIds}
-          />
-
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
            <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
@@ -1558,6 +1539,34 @@ const Dashboard: React.FC<Props> = ({
         </div>
         )}
       </section>
+
+          {/* Active Notifications & Planning Intelligence (Moved to bottom of Detail View) */}
+          <UnifiedNotificationHub
+            userEmail={userEmail}
+            events={events}
+            calendarItems={calendarItems}
+            unpaidBills={unpaidBills}
+            unconfirmedIncomes={unconfirmedIncomes}
+            categoryBudgets={categoryBudgets}
+            transactions={transactions}
+            bankConnections={bankConnections}
+            onNavigateToTask={onNavigateToTask}
+            onNavigateToPlanner={onNavigateToPlanner}
+            onNavigateToCalendar={onNavigateToCalendar}
+            onPayRecurring={onPayRecurring}
+            onReceiveRecurringIncome={onReceiveRecurringIncome}
+            onOpenTransactionForm={onOpenTransactionForm}
+            onSelectEmailModal={(email) => setSelectedEmailModal(email)}
+            onDismissEmail={onDismissEmail || handleDismissEmail}
+            externalDismissedIds={dismissedEmailIds}
+            gmailNotifications={activeUnreadEmails}
+            gmailConnected={gmailConnected}
+            gmailLoading={gmailLoading}
+            gmailError={gmailError}
+            onFetchGmail={fetchGmail}
+            onConnectGmail={handleConnectGmail}
+            onDisconnectGmail={handleDisconnectGmail}
+          />
         </div>
       )}
 

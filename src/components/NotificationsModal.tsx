@@ -118,6 +118,10 @@ export const NotificationsModal: React.FC<Props> = ({
               onClose();
               if (onNavigateToPlanner) onNavigateToPlanner();
             }}
+            onNavigateToCalendar={() => {
+              onClose();
+              if (onNavigateToCalendar) onNavigateToCalendar();
+            }}
             onPayRecurring={onPayRecurring}
             onReceiveRecurringIncome={onReceiveRecurringIncome}
             onOpenTransactionForm={() => {

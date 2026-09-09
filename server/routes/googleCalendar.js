@@ -165,19 +165,35 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
     const rawItems = Array.isArray(data.items) ? data.items : [];
 
     // 3. Transform Google Calendar items into app-compatible CalendarItem schema
+    const now = Date.now();
+    const todayYMD = new Date().toISOString().split('T')[0];
+
     const formattedEvents = rawItems
       .filter(item => item.status !== 'cancelled' && (item.start?.dateTime || item.start?.date))
       .map(item => {
         const isAllDay = !!item.start.date && !item.start.dateTime;
         let dateStr = '';
         let startTimeStr = '';
+        let isPassed = false;
+        let startIso = item.start.dateTime || (item.start.date ? `${item.start.date}T00:00:00` : '');
+        let endIso = item.end?.dateTime || (item.end?.date ? `${item.end.date}T23:59:59` : '');
 
         if (isAllDay) {
           dateStr = item.start.date; // Format: YYYY-MM-DD
+          // For all-day events, Google API sets end.date to the day after (exclusive).
+          // An all-day event on dateStr has passed only once dateStr is strictly before today.
+          isPassed = dateStr < todayYMD;
         } else {
+          // Timed event: parse ISO with timezone offset
           const startDateObj = new Date(item.start.dateTime);
-          dateStr = startDateObj.toISOString().split('T')[0];
-          startTimeStr = startDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+          // Extract the local date component from the ISO string directly to avoid UTC shift
+          dateStr = item.start.dateTime.slice(0, 10);
+          const timePart = item.start.dateTime.slice(11, 16);
+          startTimeStr = timePart || startDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+          // An event has passed if its end time (or start time) is in the past
+          const eventEndMs = item.end?.dateTime ? new Date(item.end.dateTime).getTime() : startDateObj.getTime();
+          isPassed = eventEndMs < now;
         }
 
         // Determine item category/type from summary or attendees
@@ -195,6 +211,10 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
           title: item.summary || '(No Title)',
           date: dateStr,
           startTime: startTimeStr || undefined,
+          startDateTime: startIso,
+          endDateTime: endIso,
+          isAllDay,
+          isPassed,
           description: item.description || (item.location ? `Location: ${item.location}` : undefined),
           type: itemType,
           recurring: 'none', // Single instances resolved by singleEvents=true
@@ -207,10 +227,14 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
         };
       });
 
+    // If futureOnly or upcomingOnly query param is provided, filter out passed events
+    const futureOnly = req.query.futureOnly === 'true' || req.query.upcomingOnly === 'true';
+    const finalEvents = futureOnly ? formattedEvents.filter(ev => !ev.isPassed) : formattedEvents;
+
     return res.json({
       ok: true,
-      count: formattedEvents.length,
-      events: formattedEvents,
+      count: finalEvents.length,
+      events: finalEvents,
       syncTime: new Date().toISOString(),
       account: AUTHORIZED_EMAIL,
     });
@@ -220,6 +244,90 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
       error: 'Internal server error while syncing Google Calendar events.',
       details: err?.message,
     });
+  }
+});
+
+/**
+ * GET /api/calendar/notifications
+ * Dedicated API endpoint for active calendar notifications.
+ * Strictly returns only future/upcoming relevant calendar events.
+ * Filters out all past events at the API level.
+ */
+router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
+  try {
+    const accessToken = await getValidGoogleAccessToken(req.user.id);
+    if (!accessToken) {
+      return res.json({ ok: true, events: [], totalUpcoming: 0 });
+    }
+
+    const nowIso = new Date().toISOString();
+    const maxFutureIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const calUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    calUrl.searchParams.set('timeMin', nowIso);
+    calUrl.searchParams.set('timeMax', maxFutureIso);
+    calUrl.searchParams.set('singleEvents', 'true');
+    calUrl.searchParams.set('orderBy', 'startTime');
+    calUrl.searchParams.set('maxResults', '50');
+
+    const googleRes = await fetch(calUrl.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!googleRes.ok) {
+      return res.json({ ok: true, events: [], totalUpcoming: 0 });
+    }
+
+    const data = await googleRes.json();
+    const rawItems = Array.isArray(data.items) ? data.items : [];
+    const now = Date.now();
+    const todayYMD = new Date().toISOString().split('T')[0];
+
+    const upcomingEvents = rawItems
+      .filter(item => item.status !== 'cancelled' && (item.start?.dateTime || item.start?.date))
+      .map(item => {
+        const isAllDay = !!item.start.date && !item.start.dateTime;
+        let dateStr = '';
+        let startTimeStr = '';
+        let isPassed = false;
+
+        if (isAllDay) {
+          dateStr = item.start.date;
+          isPassed = dateStr < todayYMD;
+        } else {
+          const startDateObj = new Date(item.start.dateTime);
+          dateStr = item.start.dateTime.slice(0, 10);
+          startTimeStr = item.start.dateTime.slice(11, 16);
+          const endMs = item.end?.dateTime ? new Date(item.end.dateTime).getTime() : startDateObj.getTime();
+          isPassed = endMs < now;
+        }
+
+        return {
+          id: `gcal-${item.id}`,
+          googleEventId: item.id,
+          title: item.summary || '(No Title)',
+          date: dateStr,
+          startTime: startTimeStr || undefined,
+          isAllDay,
+          isPassed,
+          isGoogleCalendar: true,
+          location: item.location,
+          hangoutLink: item.hangoutLink || item.conferenceData?.entryPoints?.[0]?.uri,
+        };
+      })
+      .filter(item => !item.isPassed); // Strictly future/relevant events only
+
+    return res.json({
+      ok: true,
+      events: upcomingEvents,
+      totalUpcoming: upcomingEvents.length,
+      syncTime: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[google-calendar] Notifications handler error:', err);
+    return res.json({ ok: true, events: [], totalUpcoming: 0 });
   }
 });
 

@@ -1,6 +1,29 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { GmailPlanningNotification, BudgetEvent, ProjectTask } from '../types';
-import { realtimeService } from '../services/realtimeService';
+
+// Global shared state & request deduplicator to prevent duplicate API calls
+interface SharedGmailState {
+  notifications: GmailPlanningNotification[];
+  connected: boolean;
+  error: string | null;
+  lastSyncTime: Date | null;
+  inFlight: Promise<any> | null;
+  lastFetchMs: number;
+}
+
+const sharedGmail: SharedGmailState = {
+  notifications: [],
+  connected: false,
+  error: null,
+  lastSyncTime: null,
+  inFlight: null,
+  lastFetchMs: 0,
+};
+
+const listeners = new Set<() => void>();
+function notifyListeners() {
+  listeners.forEach(fn => fn());
+}
 
 export function useGmailNotifications(
   userEmail?: string,
@@ -8,18 +31,27 @@ export function useGmailNotifications(
   externalDismissedIds?: string[],
   onDismissEmailProp?: (emailId: string) => void
 ) {
-  const [gmailNotifications, setGmailNotifications] = useState<GmailPlanningNotification[]>([]);
+  const [gmailNotifications, setGmailNotifications] = useState<GmailPlanningNotification[]>(sharedGmail.notifications);
   const [gmailLoading, setGmailLoading] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState<boolean>(false);
-  const [gmailError, setGmailError] = useState<string | null>(null);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [gmailConnected, setGmailConnected] = useState<boolean>(sharedGmail.connected);
+  const [gmailError, setGmailError] = useState<string | null>(sharedGmail.error);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(sharedGmail.lastSyncTime);
 
-  // Persistent local dismissed email IDs stored in localStorage, scoped per
-  // logged-in user (by email) so dismissals from one account never leak to
-  // another account signed in on the same shared browser/device. The server
-  // is still the source of truth (see /api/gmail/dismissed fetch below) —
-  // this local cache just avoids a flash of previously-dismissed emails
-  // before that fetch resolves.
+  // Subscribe to shared state updates across all hook instances
+  useEffect(() => {
+    const handleUpdate = () => {
+      setGmailNotifications(sharedGmail.notifications);
+      setGmailConnected(sharedGmail.connected);
+      setGmailError(sharedGmail.error);
+      setLastSyncTime(sharedGmail.lastSyncTime);
+    };
+    listeners.add(handleUpdate);
+    return () => {
+      listeners.delete(handleUpdate);
+    };
+  }, []);
+
+  // Persistent local dismissed email IDs stored in localStorage, scoped per logged-in user
   const dismissedStorageKey = userEmail ? `dashboard_dismissed_email_ids_${userEmail}` : 'dashboard_dismissed_email_ids';
   const [dismissedEmailIds, setDismissedEmailIds] = useState<Set<string>>(() => {
     try {
@@ -37,14 +69,13 @@ export function useGmailNotifications(
     } catch (e) {
       setDismissedEmailIds(new Set());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dismissedStorageKey]);
 
-  // Pull server-persisted dismissed email IDs on mount so fresh devices/phones immediately reflect deletions
+  // Pull server-persisted dismissed email IDs on mount so fresh devices immediately reflect deletions
   useEffect(() => {
     let isMounted = true;
     fetch('/api/gmail/dismissed', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
+      .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (isMounted && data && Array.isArray(data.dismissedIds) && data.dismissedIds.length > 0) {
           setDismissedEmailIds(prev => {
@@ -61,15 +92,12 @@ export function useGmailNotifications(
         }
       })
       .catch(() => {});
-    return () => { isMounted = false; };
-  }, []);
+    return () => {
+      isMounted = false;
+    };
+  }, [dismissedStorageKey]);
 
-  // Removed realtime 'email_dismissed' listener broadcast from server across all devices (phone, laptop, etc.)
-  useEffect(() => {
-    // Empty or completely removed
-  }, []);
-
-  // Sync external dismissed IDs from parent state (cloud sync)
+  // Sync external dismissed IDs from parent state
   useEffect(() => {
     if (Array.isArray(externalDismissedIds) && externalDismissedIds.length > 0) {
       setDismissedEmailIds(prev => {
@@ -121,44 +149,68 @@ export function useGmailNotifications(
     return list;
   }, [events]);
 
-  // Fetch Gmail notifications from backend API (server-stored Google OAuth token)
+  // Fetch Gmail notifications from backend API with automatic request deduplication
   const fetchGmail = useCallback(async (isSilent = false) => {
-    if (!isSilent) setGmailLoading(true);
-    setGmailError(null);
-
-    try {
-      const res = await fetch('/api/gmail/notifications', {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setGmailNotifications(data.notifications || []);
-        setGmailConnected(true);
-        setLastSyncTime(new Date());
-        return;
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        setGmailConnected(false);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setGmailError(errData.error || 'Gmail service temporarily unavailable');
-      }
-    } catch (err: any) {
-      console.warn('Gmail fetch error:', err);
-      setGmailConnected(false);
-    } finally {
-      if (!isSilent) setGmailLoading(false);
+    // If request already in flight, reuse the exact same promise (zero duplicate calls)
+    if (sharedGmail.inFlight) {
+      return sharedGmail.inFlight;
     }
+
+    // Cache guard: if fetched less than 10 seconds ago and silent, return cached data
+    const now = Date.now();
+    if (isSilent && sharedGmail.lastFetchMs > 0 && now - sharedGmail.lastFetchMs < 10000) {
+      return;
+    }
+
+    if (!isSilent) setGmailLoading(true);
+
+    const executeFetch = async () => {
+      try {
+        const res = await fetch('/api/gmail/notifications', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const notifs = data.notifications || [];
+          sharedGmail.notifications = notifs;
+          sharedGmail.connected = true;
+          sharedGmail.error = null;
+          sharedGmail.lastSyncTime = new Date();
+          sharedGmail.lastFetchMs = Date.now();
+          notifyListeners();
+          return notifs;
+        }
+
+        if (res.status === 401 || res.status === 403) {
+          sharedGmail.connected = false;
+          sharedGmail.notifications = [];
+          sharedGmail.lastFetchMs = Date.now();
+          notifyListeners();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          sharedGmail.error = errData.error || 'Gmail service temporarily unavailable';
+          notifyListeners();
+        }
+      } catch (err: any) {
+        console.warn('[gmail] Fetch error:', err);
+        sharedGmail.connected = false;
+        notifyListeners();
+      } finally {
+        sharedGmail.inFlight = null;
+        if (!isSilent) setGmailLoading(false);
+      }
+    };
+
+    sharedGmail.inFlight = executeFetch();
+    return sharedGmail.inFlight;
   }, []);
 
-  // Initial fetch and 15-minute interval timer to sync emails with Google automatically
+  // Initial fetch on mount and 15-minute sync interval
   useEffect(() => {
     fetchGmail(true);
 
-    // Auto-sync with Google every 15 minutes (900,000 ms)
     const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
     const intervalId = setInterval(() => {
       fetchGmail(true);
@@ -167,10 +219,10 @@ export function useGmailNotifications(
     return () => clearInterval(intervalId);
   }, [fetchGmail]);
 
-  // Connect via Google Auth - redirect to server OAuth endpoint
-  const handleConnectGmail = () => {
+  // Connect via Google Auth - redirect to server OAuth endpoint (reusing Executive Inbox Briefing flow)
+  const handleConnectGmail = useCallback(() => {
     window.location.href = '/api/auth/google';
-  };
+  }, []);
 
   // Disconnect Gmail and revoke tokens
   const handleDisconnectGmail = useCallback(async () => {
@@ -181,8 +233,11 @@ export function useGmailNotifications(
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-      setGmailConnected(false);
-      setGmailNotifications([]);
+      sharedGmail.connected = false;
+      sharedGmail.notifications = [];
+      sharedGmail.error = null;
+      sharedGmail.lastFetchMs = 0;
+      notifyListeners();
     } catch (err) {
       console.warn('Error disconnecting Gmail:', err);
     } finally {
@@ -191,44 +246,52 @@ export function useGmailNotifications(
   }, []);
 
   // Remove email from dashboard locally & persist across devices permanently
-  const handleDismissEmail = useCallback((emailId: string) => {
-    // 1. Instantly update local state and localStorage
-    setDismissedEmailIds(prev => {
-      const next = new Set(prev);
-      next.add(emailId);
-      next.add(`gmail-${emailId}`);
-      try {
-        localStorage.setItem(dismissedStorageKey, JSON.stringify(Array.from(next)));
-      } catch (e) {}
-      return next;
-    });
+  const handleDismissEmail = useCallback(
+    (emailId: string) => {
+      const cleanId = emailId.replace(/^gmail-/, '');
+      // 1. Instantly update local state and localStorage
+      setDismissedEmailIds(prev => {
+        const next = new Set(prev);
+        next.add(emailId);
+        next.add(cleanId);
+        next.add(`gmail-${cleanId}`);
+        try {
+          localStorage.setItem(dismissedStorageKey, JSON.stringify(Array.from(next)));
+        } catch (e) {}
+        return next;
+      });
 
-    // 2. Instantly remove from local notification list
-    setGmailNotifications(prev => prev.filter(g => g.id !== emailId && `gmail-${g.id}` !== emailId));
+      // 2. Instantly remove from shared notification list
+      sharedGmail.notifications = sharedGmail.notifications.filter(
+        g => g.id !== cleanId && g.id !== emailId && `gmail-${g.id}` !== emailId
+      );
+      notifyListeners();
 
-    // 3. Notify parent callback (App.tsx for immediate cloud state synchronization)
-    if (onDismissEmailProp) {
-      onDismissEmailProp(emailId);
-    }
+      // 3. Notify parent callback
+      if (onDismissEmailProp) {
+        onDismissEmailProp(cleanId);
+      }
 
-    // 4. Send permanent dismiss to server database & real-time broadcast to all devices (phones, tabs, etc.)
-    fetch('/api/gmail/dismiss', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ messageId: emailId }),
-    }).catch(e => console.warn('Server permanent dismiss notice:', e));
+      // 4. Send permanent dismiss to server database
+      fetch('/api/gmail/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ messageId: cleanId }),
+      }).catch(e => console.warn('Server permanent dismiss notice:', e));
 
-    // 5. Attempt marking read on Gmail server in background (as a courtesy if token is valid)
-    fetch('/api/gmail/mark-read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ messageId: emailId }),
-    }).catch(e => console.warn('Server mark-read notice:', e));
-  }, [onDismissEmailProp]);
+      // 5. Attempt marking read on Gmail server in background
+      fetch('/api/gmail/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ messageId: cleanId }),
+      }).catch(e => console.warn('Server mark-read notice:', e));
+    },
+    [dismissedStorageKey, onDismissEmailProp]
+  );
 
-  // Filtered active unread emails (excluding those dismissed locally/synced)
+  // Filtered active unread emails (excluding those dismissed)
   const activeUnreadEmails = useMemo(() => {
     return gmailNotifications.filter(
       g => !dismissedEmailIds.has(g.id) && !dismissedEmailIds.has(`gmail-${g.id}`)

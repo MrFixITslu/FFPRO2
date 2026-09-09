@@ -98,3 +98,26 @@ export async function getValidGoogleAccessToken(userId) {
     return null;
   }
 }
+
+/**
+ * Clears stored Google OAuth tokens for a user, revoking the token with Google if possible.
+ */
+export async function clearGoogleTokens(userId) {
+  const stored = await loadStoredTokens(userId);
+  if (stored?.refreshToken || stored?.accessToken) {
+    try {
+      const tokenToRevoke = stored.refreshToken || stored.accessToken;
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+    } catch (err) {
+      console.warn('[google-tokens] Token revocation error:', err?.message);
+    }
+  }
+
+  await pool.query(
+    `UPDATE users SET google_gmail_ciphertext = NULL, google_gmail_iv = NULL, google_gmail_auth_tag = NULL, google_gmail_token_expiry = NULL WHERE id = $1`,
+    [userId]
+  );
+}

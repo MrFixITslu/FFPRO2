@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { BudgetEvent, CalendarItem, RecurringExpense, RecurringIncome, GmailPlanningNotification } from '../types';
 import { badgeService } from '../services/badgeService';
 import { realtimeService } from '../services/realtimeService';
+import { isCalendarNotificationActive } from '../utils/calendarNotificationUtils';
 
 export interface NotificationBreakdown {
   tasks: number;
@@ -24,8 +25,8 @@ export function useNotificationBadge(
 
   // Calculate unread counts from active local data
   const breakdown = useMemo<NotificationBreakdown>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     // 1. Tasks: Overdue or Due Today in active projects
     let taskCount = 0;
@@ -64,17 +65,12 @@ export function useNotificationBadge(
       }
     });
 
-    // 2. Calendar: Overdue or Due Today
+    // 2. Calendar: Active & Upcoming Relevant Events (Excluding Past Events)
     let calendarCount = 0;
     calendarItems.forEach(cal => {
       if (!cal || cal.completed || dismissedSet.has(`cal-${cal.id}`)) return;
-      if (cal.date) {
-        const calDate = new Date(cal.date + 'T00:00:00');
-        calDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((calDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 0) {
-          calendarCount++;
-        }
+      if (isCalendarNotificationActive(cal, now)) {
+        calendarCount++;
       }
     });
 

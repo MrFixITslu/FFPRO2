@@ -328,6 +328,7 @@ export interface BudgetEvent {
   isShared?: boolean;
   role?: ProjectRole;
   serverVersion?: number;
+  coverImage?: string;
 }
 
 export interface CalendarItem {
