@@ -7,6 +7,7 @@ const DB_NAME = 'FireFinance_v1';
 const DATA_STORE = 'app_state';
 const DOC_STORE = 'internal_docs';
 const MIRROR_HANDLE_STORE = 'mirror_handles';
+const FILE_BLOB_STORE = 'internal_files';
 
 // FIX: Add timeout wrapper for file operations to prevent hanging
 const TIMEOUT_MS = 10000; // 10 second timeout
@@ -22,12 +23,13 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number = TIMEOUT_MS): Pr
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 4); // Incremented version
+    const request = indexedDB.open(DB_NAME, 5); // Incremented version for FILE_BLOB_STORE
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(DATA_STORE)) db.createObjectStore(DATA_STORE);
       if (!db.objectStoreNames.contains(MIRROR_HANDLE_STORE)) db.createObjectStore(MIRROR_HANDLE_STORE);
       if (!db.objectStoreNames.contains(DOC_STORE)) db.createObjectStore(DOC_STORE);
+      if (!db.objectStoreNames.contains(FILE_BLOB_STORE)) db.createObjectStore(FILE_BLOB_STORE);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -61,6 +63,37 @@ export const deleteInternalDoc = async (id: string): Promise<void> => {
   const db = await initDB();
   const transaction = db.transaction(DOC_STORE, 'readwrite');
   transaction.objectStore(DOC_STORE).delete(id);
+};
+
+/**
+ * Internal File Blob CRUD (browser-native fallback for regular file
+ * uploads — used whenever no local "SSD Mirror" folder is linked, so
+ * uploading a document doesn't require the File System Access API).
+ */
+export const saveFileBlob = async (id: string, blob: Blob): Promise<void> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
+    transaction.objectStore(FILE_BLOB_STORE).put(blob, id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+};
+
+export const getFileBlob = async (id: string): Promise<Blob | null> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(FILE_BLOB_STORE, 'readonly');
+    const request = transaction.objectStore(FILE_BLOB_STORE).get(id);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const deleteFileBlob = async (id: string): Promise<void> => {
+  const db = await initDB();
+  const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
+  transaction.objectStore(FILE_BLOB_STORE).delete(id);
 };
 
 /**
