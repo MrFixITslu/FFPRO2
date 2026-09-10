@@ -90,7 +90,8 @@ services:
 
 networks:
   proxy_network:
-    external: true
+    name: proxy_network
+    driver: bridge
 
 volumes:
   ffpro2_pgdata:

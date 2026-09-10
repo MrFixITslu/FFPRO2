@@ -331,7 +331,11 @@ const App: React.FC = () => {
   const [events, setEvents] = useState<BudgetEvent[]>(() => {
     const parsed = safeParse(STORAGE_KEYS.EVENTS, null);
     if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-      return sanitizeEventLogs(parsed);
+      const migrated = parsed.map(ev => ({
+        ...ev,
+        eventType: ev.eventType || (ev.startupDetails || /laser|startup|business|plan|venture|store|shop|app|service|trade|project/i.test(ev.name || '') ? 'startup' : 'event')
+      }));
+      return sanitizeEventLogs(migrated);
     }
     return DEFAULT_SAMPLE_EVENTS;
   });
