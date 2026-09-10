@@ -235,6 +235,29 @@ function cleanAndParseJSON(rawText) {
 }
 
 /**
+ * Helper to parse numbers from various international quote formats (e.g. "9 828,00", "$15,366.40", "1 200,00")
+ */
+function parseCurrencyNumber(val) {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (!val) return 0;
+  let str = String(val).trim();
+  str = str.replace(/[$€£¥₹]/g, '').trim();
+  // Handle negative sign
+  const isNegative = str.startsWith('-') || str.includes('(-') || (str.startsWith('(') && str.endsWith(')'));
+  str = str.replace(/[()\-]/g, '').trim();
+
+  // If decimal is comma (e.g. "9 828,00" or "10,00")
+  if (/,\d{1,2}$/.test(str)) {
+    str = str.replace(/[\s\.]/g, '').replace(',', '.');
+  } else {
+    str = str.replace(/[\s,]/g, '');
+  }
+  const num = parseFloat(str);
+  const finalNum = isNaN(num) ? 0 : num;
+  return isNegative ? -Math.abs(finalNum) : finalNum;
+}
+
+/**
  * Extract structured Supplier Quote data using local Ollama.
  * STRICT CONSTRAINT: Used ONLY for quote data extraction into Interactive Sale Price Costing.
  * No business plan generation, no selling price determination, no financial projections.
@@ -251,7 +274,7 @@ STRICT BOUNDARIES:
 - Quoted prices are supplier COSTS, never sale prices.
 - Do NOT generate selling prices, profit margins, or business plans.
 - Identify: Supplier Name, Quote Number/Ref, Quote Date (YYYY-MM-DD or as written), Currency (e.g. USD, EUR, GBP, CAD, XCD), Line Items (item name, description, quantity, unitCost, discount, lineTotal), Discounts, Shipping/Freight costs, Subtotal, Total, and relevant Commercial Terms (payment terms, validity, lead times).
-- Ensure all numeric values are numbers, not strings with currency symbols.
+- Ensure all numeric values are numbers or clean formatted number strings.
 - If quantity is missing for an item, default to 1.
 - If unitCost is missing but lineTotal exists, unitCost = lineTotal / quantity.
 - Return ONLY the JSON object. No commentary, no preamble, no markdown formatting.`;
@@ -299,13 +322,13 @@ Extract all quote information and return ONLY this JSON structure:
     throw new Error('Ollama returned non-object response for quote extraction.');
   }
 
-  // Normalize fields to ensure consistency
+  // Normalize fields to ensure consistency with international format resilience
   const normalizedItems = Array.isArray(parsed.items) ? parsed.items.map((it, idx) => {
-    const qty = Math.max(1, parseFloat(it.quantity) || 1);
-    const unitCost = Math.max(0, parseFloat(it.unitCost) || 0);
-    const discount = Math.max(0, parseFloat(it.discount) || 0);
-    const shipping = Math.max(0, parseFloat(it.shippingCost) || 0);
-    const lineTotal = parseFloat(it.lineTotal) || (qty * unitCost - discount + shipping);
+    const qty = Math.max(1, Math.round(parseCurrencyNumber(it.quantity)) || 1);
+    const unitCost = Math.max(0, parseCurrencyNumber(it.unitCost) || 0);
+    const discount = Math.abs(parseCurrencyNumber(it.discount) || 0);
+    const shipping = Math.max(0, parseCurrencyNumber(it.shippingCost) || 0);
+    const lineTotal = parseCurrencyNumber(it.lineTotal) || (qty * unitCost - discount + shipping);
 
     return {
       item: String(it.item || `Quoted Item ${idx + 1}`).trim(),
@@ -318,10 +341,10 @@ Extract all quote information and return ONLY this JSON structure:
     };
   }) : [];
 
-  const subtotal = parseFloat(parsed.subtotal) || normalizedItems.reduce((s, it) => s + it.lineTotal, 0);
-  const shippingCosts = parseFloat(parsed.shippingCosts) || 0;
-  const discounts = parseFloat(parsed.discounts) || 0;
-  const total = parseFloat(parsed.total) || (subtotal + shippingCosts - discounts);
+  const subtotal = Math.abs(parseCurrencyNumber(parsed.subtotal)) || normalizedItems.reduce((s, it) => s + it.lineTotal, 0);
+  const shippingCosts = Math.abs(parseCurrencyNumber(parsed.shippingCosts)) || 0;
+  const discounts = Math.abs(parseCurrencyNumber(parsed.discounts)) || 0;
+  const total = Math.abs(parseCurrencyNumber(parsed.total)) || (subtotal + shippingCosts - discounts);
 
   return {
     supplier: String(parsed.supplier || 'Unknown Supplier').trim(),
