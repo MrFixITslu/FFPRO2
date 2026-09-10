@@ -5,19 +5,20 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-ffpro2_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ffpro2_postgres_secret_change_me}
       - POSTGRES_DB=${POSTGRES_DB:-fire_finance}
     volumes:
       # Dedicated, persistent volume for FFPRO2's own database — separate
       # from every other app's data on this server.
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
-      - proxy_network
+      - ffpro2_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
   fire-finance:
     build:
@@ -31,7 +32,7 @@ services:
     ports:
       - "${APP_PORT:-3010}:3010"
     networks:
-      - proxy_network
+      - ffpro2_network
 
     environment:
       - NODE_ENV=production
@@ -46,15 +47,13 @@ services:
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
       
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
-      # Host is the Docker service name "postgres", resolved over ffpro2_internal.
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fire_finance}
+      # Host is the Docker service name "postgres", resolved over ffpro2_network.
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:-ffpro2_postgres_secret_change_me}@postgres:5432/${POSTGRES_DB:-fire_finance}
       
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
 
-      # Funding Finder — uses the EXISTING Ollama container (already running
-      # on proxy_network, which this service already joins below). Never
-      # installs/manages Ollama itself.
+      # Funding Finder — uses Ollama if available
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b}
       - OLLAMA_MAX_CONCURRENT=${OLLAMA_MAX_CONCURRENT:-1}
@@ -87,14 +86,14 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
     volumes:
       # Persistent local data directory for encryption key + session store.
-      # (App data itself now lives in the "postgres" service above.)
       - ./data:/app/data
 
 networks:
-  # Join your existing external Nginx/OpenResty proxy network
-  proxy_network:
-    external: true
+  ffpro2_network:
+    name: ffpro2_network
+    driver: bridge
 
 volumes:
   ffpro2_pgdata:
     name: ffpro2_pgdata
+
