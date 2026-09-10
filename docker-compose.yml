@@ -12,7 +12,7 @@ services:
       # from every other app's data on this server.
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
-      - ffpro2_network
+      - proxy_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
       interval: 5s
@@ -32,7 +32,7 @@ services:
     ports:
       - "${APP_PORT:-3010}:3010"
     networks:
-      - ffpro2_network
+      - proxy-network
 
     environment:
       - NODE_ENV=production
@@ -89,8 +89,8 @@ services:
       - ./data:/app/data
 
 networks:
-  ffpro2_network:
-    name: ffpro2_network
+  proxy_network:
+    name: proxy_network
     driver: bridge
 
 volumes:
