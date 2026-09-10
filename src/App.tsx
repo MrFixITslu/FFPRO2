@@ -17,6 +17,7 @@ import { useToast } from './components/Toast';
 import { syncBankData } from './bankApiService';
 import { useNotificationBadge } from './hooks/useNotificationBadge';
 import { useGmailNotifications } from './hooks/useGmailNotifications';
+import { useGoogleCalendarSync } from './hooks/useGoogleCalendarSync';
 import { badgeService } from './services/badgeService';
 import { 
   Transaction, 
@@ -478,6 +479,8 @@ const App: React.FC = () => {
     authUser?.email,
     allEventsForSummary
   );
+
+  useGoogleCalendarSync(calendarItems, setCalendarItems, authUser?.email);
 
   const { unreadCount, badgeLabel, breakdown } = useNotificationBadge(
     allEventsForSummary,

@@ -139,6 +139,9 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
     calUrl.searchParams.set('singleEvents', 'true');
     calUrl.searchParams.set('orderBy', 'startTime');
     calUrl.searchParams.set('maxResults', String(maxResults));
+    if (req.query.updatedMin) {
+      calUrl.searchParams.set('updatedMin', new Date(String(req.query.updatedMin)).toISOString());
+    }
 
     const googleRes = await fetch(calUrl.toString(), {
       headers: {
@@ -328,6 +331,153 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
   } catch (err) {
     console.error('[google-calendar] Notifications handler error:', err);
     return res.json({ ok: true, events: [], totalUpcoming: 0 });
+  }
+});
+
+/**
+ * POST /api/calendar/events
+ * Create a new event in user's primary Google Calendar (optionally with Google Meet conference)
+ */
+router.post('/events', requireAuthorizedAccount, async (req, res) => {
+  try {
+    const accessToken = await getValidGoogleAccessToken(req.user.id);
+    if (!accessToken) {
+      return res.status(401).json({
+        error: 'Log in with Google to enable Google Calendar synchronization.',
+        code: 'AUTH_REQUIRED',
+      });
+    }
+
+    const { title, date, startTime, endTime, description, location, addMeet } = req.body || {};
+    if (!title || !date) {
+      return res.status(400).json({ error: 'Title and date are required.' });
+    }
+
+    const isAllDay = !startTime;
+    let startObj = {};
+    let endObj = {};
+
+    if (isAllDay) {
+      startObj = { date };
+      // Google expects exclusive end date for all-day events
+      const nextDay = new Date(date + 'T00:00:00');
+      nextDay.setDate(nextDay.getDate() + 1);
+      endObj = { date: nextDay.toISOString().split('T')[0] };
+    } else {
+      const startDateTimeStr = `${date}T${startTime}:00`;
+      const startDate = new Date(startDateTimeStr);
+      let endDate;
+      if (endTime) {
+        endDate = new Date(`${date}T${endTime}:00`);
+      } else {
+        endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour
+      }
+      startObj = { dateTime: startDate.toISOString() };
+      endObj = { dateTime: endDate.toISOString() };
+    }
+
+    const eventPayload = {
+      summary: title,
+      description: description || undefined,
+      location: location || undefined,
+      start: startObj,
+      end: endObj,
+    };
+
+    if (addMeet) {
+      eventPayload.conferenceData = {
+        createRequest: {
+          requestId: `ffpro-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+    }
+
+    const calUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    if (addMeet) {
+      calUrl.searchParams.set('conferenceDataVersion', '1');
+    }
+
+    const googleRes = await fetch(calUrl.toString(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(eventPayload),
+    });
+
+    if (!googleRes.ok) {
+      const errBody = await googleRes.json().catch(() => ({}));
+      return res.status(googleRes.status).json({
+        error: errBody.error?.message || 'Failed to create event in Google Calendar.',
+        code: 'GOOGLE_API_ERROR',
+      });
+    }
+
+    const createdItem = await googleRes.json();
+    const formattedItem = {
+      id: `gcal-${createdItem.id}`,
+      googleEventId: createdItem.id,
+      title: createdItem.summary || title,
+      date,
+      startTime: startTime || undefined,
+      isAllDay,
+      isPassed: false,
+      description: createdItem.description || (createdItem.location ? `Location: ${createdItem.location}` : undefined),
+      type: addMeet ? 'meeting' : 'event',
+      recurring: 'none',
+      completed: false,
+      isGoogleCalendar: true,
+      htmlLink: createdItem.htmlLink,
+      location: createdItem.location,
+      hangoutLink: createdItem.hangoutLink || createdItem.conferenceData?.entryPoints?.[0]?.uri,
+      attendeesCount: createdItem.attendees?.length || 0,
+    };
+
+    return res.status(201).json({
+      ok: true,
+      event: formattedItem,
+    });
+  } catch (err) {
+    console.error('[google-calendar] Create event error:', err);
+    return res.status(500).json({ error: 'Failed to create calendar event.', details: err?.message });
+  }
+});
+
+/**
+ * DELETE /api/calendar/events/:id
+ * Delete an event from user's primary Google Calendar
+ */
+router.delete('/events/:id', requireAuthorizedAccount, async (req, res) => {
+  try {
+    const accessToken = await getValidGoogleAccessToken(req.user.id);
+    if (!accessToken) {
+      return res.status(401).json({ error: 'Auth required.', code: 'AUTH_REQUIRED' });
+    }
+
+    const eventId = req.params.id.replace(/^gcal-/, '');
+    const calUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`;
+
+    const googleRes = await fetch(calUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!googleRes.ok && googleRes.status !== 404 && googleRes.status !== 410) {
+      const errBody = await googleRes.json().catch(() => ({}));
+      return res.status(googleRes.status).json({
+        error: errBody.error?.message || 'Failed to delete event from Google Calendar.',
+      });
+    }
+
+    return res.json({ ok: true, deletedId: req.params.id });
+  } catch (err) {
+    console.error('[google-calendar] Delete event error:', err);
+    return res.status(500).json({ error: 'Failed to delete calendar event.' });
   }
 });
 

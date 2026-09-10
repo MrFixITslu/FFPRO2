@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea } from '../types';
-import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc } from '../services/fileStorageService';
+import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc, deleteInternalDoc, saveFileBlob, getFileBlob, deleteFileBlob, formatFileSize } from '../services/fileStorageService';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
 import ProjectDashboard from './ProjectDashboard';
@@ -17,7 +17,8 @@ import {
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
-  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark
+  Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark,
+  Upload, Download, FileSpreadsheet, FileImage, FileArchive, FileCode, Folder, HardDrive, File as FileIcon, UploadCloud
 } from 'lucide-react';
 import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 
@@ -110,6 +111,8 @@ const EventPlanner: React.FC<Props> = ({
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [projectPendingClose, setProjectPendingClose] = useState<BudgetEvent | null>(null);
   const [projectStatusFilter, setProjectStatusFilter] = useState<'active' | 'closed' | 'all'>('active');
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   // --- Collaboration: shared projects live server-side; local plans stay in the encrypted blob ---
   const [internalSharedEvents, setInternalSharedEvents] = useState<BudgetEvent[]>([]);
@@ -826,34 +829,90 @@ const EventPlanner: React.FC<Props> = ({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!selectedEvent || !file) return;
+    const fileList = e.target.files;
+    if (!selectedEvent || !fileList || fileList.length === 0) return;
+    await processUploadedFiles(Array.from(fileList));
+    e.target.value = '';
+  };
 
-    if (!directoryHandle) {
-      alert("Hard Drive Vault not linked. Mirroring unavailable.");
-      return;
-    }
+  const processUploadedFiles = async (files: File[]) => {
+    if (!selectedEvent || files.length === 0) return;
+    setUploadingFiles(true);
 
     try {
-      const storageRef = await saveFileToHardDrive(directoryHandle, selectedEvent.name, file.name, file);
-      const newFile: ProjectFile = {
-        id: generateId(),
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        timestamp: new Date().toISOString(),
-        storageRef,
-        storageType: 'filesystem',
-        version: 1,
-        lastModifiedBy: currentUser
+      const newProjectFiles: ProjectFile[] = [];
+
+      for (const file of files) {
+        const fileId = generateId();
+        // Persist the binary file blob in IndexedDB
+        await saveFileBlob(fileId, file);
+
+        let storageRef = `internal/${fileId}`;
+        let storageType: 'indexeddb' | 'filesystem' = 'indexeddb';
+
+        // Optional hardware mirror if user connected an SSD vault directory
+        if (directoryHandle) {
+          try {
+            storageRef = await saveFileToHardDrive(directoryHandle, selectedEvent.name, file.name, file);
+            storageType = 'filesystem';
+          } catch (mirrorErr) {
+            console.warn(`[Vault] Hardware mirror failed for ${file.name}, preserved in local vault.`);
+          }
+        }
+
+        const newFile: ProjectFile = {
+          id: fileId,
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          size: file.size,
+          timestamp: new Date().toISOString(),
+          storageRef,
+          storageType,
+          version: 1,
+          lastModifiedBy: currentUser
+        };
+
+        newProjectFiles.push(newFile);
+      }
+
+      const updatedEvent: BudgetEvent = {
+        ...selectedEvent,
+        files: [...(selectedEvent.files || []), ...newProjectFiles],
+        lastUpdated: new Date().toISOString()
       };
-      
-      const updatedEvent = { ...selectedEvent, files: [...(selectedEvent.files || []), newFile] };
+
       updateEvent(updatedEvent);
-      addActionLog(updatedEvent, `Linked local asset: "${file.name}"`, 'file');
+      const names = files.map(f => `"${f.name}"`).join(', ');
+      addActionLog(updatedEvent, `Uploaded ${files.length} document(s): ${names}`, 'file');
     } catch (err: any) {
-      console.error("Vault access error:", err);
-      alert(`Vault Access Failed: ${err.message || 'Unknown error'}`);
+      console.error('File upload error:', err);
+      alert(`File Upload Failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleDeleteFile = async (file: ProjectFile, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!selectedEvent) return;
+    if (!window.confirm(`Are you sure you want to delete "${file.name}" from this project?`)) return;
+
+    try {
+      await deleteFileBlob(file.id);
+      await deleteInternalDoc(file.id);
+
+      const updatedFiles = (selectedEvent.files || []).filter(f => f.id !== file.id);
+      const updatedEvent = {
+        ...selectedEvent,
+        files: updatedFiles,
+        lastUpdated: new Date().toISOString()
+      };
+
+      updateEvent(updatedEvent);
+      addActionLog(updatedEvent, `Deleted document: "${file.name}"`, 'file');
+    } catch (err: any) {
+      console.error('File delete error:', err);
+      alert(`Delete error: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -966,17 +1025,33 @@ const EventPlanner: React.FC<Props> = ({
       return;
     }
 
-    if (file.storageType === 'filesystem') {
-      if (!directoryHandle) {
-        alert("SSD Mirror Disconnected.");
-        return;
+    try {
+      let blob: Blob | null = null;
+      if (directoryHandle && file.storageType === 'filesystem') {
+        try {
+          blob = await getFileFromHardDrive(directoryHandle, file.storageRef);
+        } catch (e) {
+          console.warn('Filesystem read fallback to IndexedDB...');
+        }
       }
-      try {
-        const blob = await getFileFromHardDrive(directoryHandle, file.storageRef);
+      if (!blob) {
+        blob = await getFileBlob(file.id);
+      }
+      if (!blob) {
+        const textContent = await getInternalDoc(file.id);
+        if (textContent) {
+          blob = new Blob([textContent], { type: file.type || 'text/plain' });
+        }
+      }
+
+      if (blob) {
         triggerSecureDownload(blob, file.name);
-      } catch (err: any) {
-        alert(`Access Denied.`);
+      } else {
+        alert(`File "${file.name}" is not stored locally.`);
       }
+    } catch (err: any) {
+      console.error('File retrieval error:', err);
+      alert(`Access error: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -2990,47 +3065,163 @@ const EventPlanner: React.FC<Props> = ({
             })()}
 
             {activeTab === 'vault' && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-stone-200 shadow-sm min-h-[500px]">
-                  <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Encrypted Vault Assets</h3>
-                    <div className="flex gap-2 flex-wrap">
-                      <button onClick={handleOpenLogDocument} className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-100 transition flex items-center gap-1.5">
-                        <i className="fas fa-file-shield text-indigo-500"></i> Editable Log File
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm min-h-[500px]">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-stone-150">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-stone-900 tracking-tight">Project Documents & Hard Drive Files</h3>
+                        <span className="px-2 py-0.5 text-[10px] font-bold bg-stone-100 text-stone-600 rounded-full">
+                          {(selectedEvent.files || []).length} {(selectedEvent.files || []).length === 1 ? 'file' : 'files'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 mt-0.5">Upload local files from your hard drive, manage spreadsheets, or author project docs.</p>
+                    </div>
+
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <button 
+                        onClick={() => fileInputRef.current?.click()} 
+                        disabled={uploadingFiles}
+                        className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {uploadingFiles ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        Upload from Hard Drive
                       </button>
-                      <button onClick={() => { setIsEditingSheet(true); setCurrentDoc(null); }} className="px-3 py-1.5 bg-emerald-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500 transition">
-                        <i className="fas fa-table mr-1.5"></i> New Sheet
+                      <button 
+                        onClick={() => { setIsEditingDoc(true); setCurrentDoc(null); }} 
+                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold shadow-sm hover:bg-indigo-500 transition flex items-center gap-1.5"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> New Doc
                       </button>
-                      <button onClick={() => { setIsEditingDoc(true); setCurrentDoc(null); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-500 transition">
-                        <i className="fas fa-file-pen mr-1.5"></i> New Doc
+                      <button 
+                        onClick={() => { setIsEditingSheet(true); setCurrentDoc(null); }} 
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold shadow-sm hover:bg-emerald-500 transition flex items-center gap-1.5"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" /> New Sheet
+                      </button>
+                      <button 
+                        onClick={handleOpenLogDocument} 
+                        className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-stone-500" /> Log File
                       </button>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-                    {(selectedEvent.files || []).map(file => {
-                      const isSheet = file.name.endsWith('.fcel') || file.type === 'application/fire-cell';
-                      const isDoc = file.name.endsWith('.fdoc') || file.type === 'application/fire-doc';
-                      const isInternal = file.storageType === 'indexeddb';
-                      
-                      return (
-                        <div key={file.id} className="p-5 bg-stone-50 border border-stone-200 rounded-lg flex flex-col items-center text-center group cursor-pointer hover:border-indigo-500 transition-all shadow-sm" onClick={() => handleAssetClick(file)}>
-                          <div className={`w-12 h-12 rounded flex items-center justify-center shadow-sm mb-4 group-hover:scale-105 transition-transform ${isSheet ? 'bg-emerald-600 text-white' : (isDoc ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-stone-250')}`}>
-                            <i className={`fas ${isSheet ? 'fa-table' : (isDoc ? 'fa-file-lines' : 'fa-file-invoice')} text-lg`}></i>
+
+                  {/* Drag and Drop Zone */}
+                  <div 
+                    onDragOver={(e) => { e.preventDefault(); setIsDraggingFiles(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setIsDraggingFiles(false); }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      setIsDraggingFiles(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        await processUploadedFiles(Array.from(e.dataTransfer.files));
+                      }
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`p-6 mb-6 rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
+                      isDraggingFiles 
+                        ? 'border-indigo-500 bg-indigo-50/60 scale-[1.01]' 
+                        : 'border-stone-300 hover:border-indigo-400 bg-stone-50/70 hover:bg-stone-50'
+                    }`}
+                  >
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      multiple 
+                      onChange={handleFileUpload} 
+                    />
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2 shadow-sm">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-semibold text-stone-800">
+                      {isDraggingFiles ? 'Drop files to upload instantly' : 'Click to select or drag and drop files from your computer'}
+                    </p>
+                    <p className="text-[11px] text-stone-500 mt-0.5">Supports PDF, DOCX, XLSX, Images, CSV, Archives, and all standard project files</p>
+                  </div>
+
+                  {/* Documents Grid */}
+                  {(selectedEvent.files || []).length === 0 ? (
+                    <div className="py-12 text-center text-stone-400">
+                      <Folder className="w-12 h-12 mx-auto mb-2 text-stone-300 stroke-1" />
+                      <p className="text-xs font-medium text-stone-600">No documents in this project yet</p>
+                      <p className="text-[11px] text-stone-400 mt-1">Click "Upload from Hard Drive" or drop files above to attach them to this project.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {(selectedEvent.files || []).map(file => {
+                        const isSheet = file.name.endsWith('.fcel') || file.type?.includes('spreadsheet') || file.type?.includes('excel') || file.name.endsWith('.xlsx') || file.name.endsWith('.csv');
+                        const isDoc = file.name.endsWith('.fdoc') || file.type?.includes('word') || file.type?.includes('text') || file.name.endsWith('.docx') || file.name.endsWith('.pdf');
+                        const isImage = file.type?.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
+                        const isArchive = /\.(zip|tar|gz|7z|rar)$/i.test(file.name);
+                        const isInternal = file.storageType === 'indexeddb';
+                        
+                        return (
+                          <div 
+                            key={file.id} 
+                            className="p-4 bg-white hover:bg-stone-50/80 border border-stone-200 hover:border-indigo-400 rounded-xl flex flex-col justify-between group cursor-pointer transition-all shadow-sm hover:shadow relative"
+                            onClick={() => handleAssetClick(file)}
+                          >
+                            <div>
+                              <div className="flex items-start justify-between mb-3">
+                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${
+                                  isSheet ? 'bg-emerald-100 text-emerald-700' :
+                                  isImage ? 'bg-amber-100 text-amber-700' :
+                                  isArchive ? 'bg-purple-100 text-purple-700' :
+                                  isDoc ? 'bg-indigo-100 text-indigo-700' : 'bg-stone-100 text-stone-700'
+                                }`}>
+                                  {isSheet ? <FileSpreadsheet className="w-5 h-5" /> :
+                                   isImage ? <FileImage className="w-5 h-5" /> :
+                                   isArchive ? <FileArchive className="w-5 h-5" /> :
+                                   isDoc ? <FileText className="w-5 h-5" /> : <FileIcon className="w-5 h-5" />}
+                                </div>
+
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleAssetClick(file); }}
+                                    title="Download / Open file"
+                                    className="p-1 text-stone-500 hover:text-indigo-600 hover:bg-stone-200/60 rounded"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button 
+                                    onClick={(e) => handleDeleteFile(file, e)}
+                                    title="Delete file"
+                                    className="p-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <p className="font-semibold text-xs text-stone-900 truncate mb-1" title={file.name.replace(/_/g, ' ')}>
+                                {file.name.replace(/_/g, ' ')}
+                              </p>
+                              
+                              <div className="flex items-center gap-2 text-[10px] text-stone-400">
+                                <span>{formatFileSize(file.size)}</span>
+                                <span>•</span>
+                                <span>{file.timestamp ? new Date(file.timestamp).toLocaleDateString() : 'Added'}</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between">
+                              <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${
+                                isInternal ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                              }`}>
+                                {isInternal ? 'Encrypted Vault' : 'Mirror Drive'}
+                              </span>
+                              <span className="text-[10px] text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                Open <ArrowRight className="w-2.5 h-2.5" />
+                              </span>
+                            </div>
                           </div>
-                          <p className="font-bold text-[11px] text-stone-800 truncate w-full mb-1" title={file.name.replace(/_/g, ' ')}>{file.name.replace(/_/g, ' ')}</p>
-                          <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${isInternal ? 'bg-indigo-50 text-indigo-500 border border-indigo-100' : 'bg-emerald-50 text-emerald-500 border border-emerald-100'}`}>
-                            {isInternal ? 'SECURE_VAULT' : 'MIRROR_DRIVE'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    <div className="p-5 border border-dashed border-stone-300 rounded-lg flex flex-col items-center justify-center text-stone-400 hover:text-indigo-600 hover:border-indigo-200 cursor-pointer transition-all" onClick={() => fileInputRef.current?.click()}>
-                      <i className="fas fa-file-circle-plus text-lg mb-2"></i>
-                      <span className="text-[9px] font-bold uppercase tracking-wider">Link Physical</span>
-                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                        );
+                      })}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}

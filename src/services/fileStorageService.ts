@@ -200,3 +200,15 @@ export const clearVaultHandle = async () => {
   const transaction = db.transaction(MIRROR_HANDLE_STORE, 'readwrite');
   transaction.objectStore(MIRROR_HANDLE_STORE).delete('active_mirror');
 };
+
+/**
+ * Format bytes into human-readable size
+ */
+export const formatFileSize = (bytes: number): string => {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
+
