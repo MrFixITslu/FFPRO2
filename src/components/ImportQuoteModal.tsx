@@ -69,8 +69,8 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         setOllamaStatus({
-          connected: Boolean(data.connected),
-          model: data.model || 'Local Model',
+          connected: Boolean(data.connected || data.online),
+          model: data.model || data.effectiveModel || 'Local Model',
           checking: false
         });
       } else {

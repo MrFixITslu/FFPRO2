@@ -366,7 +366,7 @@ router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req
 
     // Check Ollama health
     const health = await checkOllamaHealth(2000);
-    if (!health.connected) {
+    if (!health.online && !health.connected) {
       return res.status(503).json({
         ok: false,
         error: `Local Ollama is currently unreachable at ${health.baseURL}. Please ensure Ollama is running ('ollama serve') with a model installed (e.g. 'ollama run llama3.2').`,

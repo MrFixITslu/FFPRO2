@@ -1,10 +1,33 @@
 /**
  * Ollama Local AI Service
- * Provides local LLM inference for AI Strategic Feedback, Financial Insights, and Advisory.
+ * Provides local LLM inference for AI Strategic Feedback, Financial Insights, Quote Extraction, and Advisory.
  */
 
-let activeBaseUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/+$/, '');
-let activeModel = process.env.OLLAMA_MODEL || 'llama3.2';
+let isUserConfigured = false;
+let activeBaseUrl = (process.env.OLLAMA_BASE_URL || 'http://ollama:11434').replace(/\/+$/, '');
+let activeModel = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+
+// Concurrency Semaphore (max 1 request at a time to prevent OOM on host)
+const MAX_CONCURRENT = Math.max(1, parseInt(process.env.OLLAMA_MAX_CONCURRENT || '1', 10));
+let activeRequests = 0;
+const waitQueue = [];
+
+function acquireSlot() {
+  if (activeRequests < MAX_CONCURRENT) {
+    activeRequests++;
+    return Promise.resolve();
+  }
+  return new Promise(resolve => waitQueue.push(resolve));
+}
+
+function releaseSlot() {
+  activeRequests--;
+  const next = waitQueue.shift();
+  if (next) {
+    activeRequests++;
+    next();
+  }
+}
 
 /**
  * Get current Ollama configuration
@@ -24,6 +47,7 @@ export function getOllamaConfig() {
 export function updateOllamaConfig({ baseURL, model }) {
   if (baseURL && typeof baseURL === 'string') {
     activeBaseUrl = baseURL.trim().replace(/\/+$/, '');
+    isUserConfigured = true;
   }
   if (model && typeof model === 'string') {
     activeModel = model.trim();
@@ -32,112 +56,147 @@ export function updateOllamaConfig({ baseURL, model }) {
 }
 
 /**
- * Check Ollama connection and list available local models
+ * Helper to probe a single Ollama base URL
  */
-export async function checkOllamaHealth(timeoutMs = 2500) {
+async function probeUrl(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    const res = await fetch(`${activeBaseUrl}/api/tags`, {
+    const res = await fetch(`${url}/api/tags`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
       signal: controller.signal
     });
     clearTimeout(timeout);
-
-    if (!res.ok) {
-      return {
-        online: false,
-        error: `Ollama returned HTTP ${res.status}`,
-        baseURL: activeBaseUrl,
-        model: activeModel,
-        models: []
-      };
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: true, data };
     }
+  } catch {
+    clearTimeout(timeout);
+  }
+  return { ok: false };
+}
 
-    const data = await res.json();
-    const models = Array.isArray(data.models) ? data.models.map(m => m.name || m.model) : [];
-    
-    // Pick the best available model if the requested one is not downloaded
-    let effectiveModel = activeModel;
-    if (models.length > 0 && !models.some(m => m.startsWith(activeModel))) {
-      // Pick first available model
-      effectiveModel = models[0];
+/**
+ * Check Ollama connection and list available local models.
+ * Includes auto-discovery of working host URL if default is unreachable.
+ */
+export async function checkOllamaHealth(timeoutMs = 2500) {
+  // Try current activeBaseUrl
+  let probe = await probeUrl(activeBaseUrl, timeoutMs);
+
+  // If current activeBaseUrl fails and user hasn't manually overridden it, test candidates
+  if (!probe.ok && !isUserConfigured) {
+    const candidateUrls = [
+      process.env.OLLAMA_BASE_URL,
+      'http://ollama:11434',
+      'http://127.0.0.1:11434',
+      'http://host.docker.internal:11434',
+      'http://localhost:11434'
+    ].filter(Boolean).map(u => u.replace(/\/+$/, ''));
+
+    for (const cand of candidateUrls) {
+      if (cand === activeBaseUrl) continue;
+      const res = await probeUrl(cand, Math.min(1500, timeoutMs));
+      if (res.ok) {
+        activeBaseUrl = cand;
+        probe = res;
+        console.log(`[Ollama Service] Auto-discovered working Ollama endpoint at: ${activeBaseUrl}`);
+        break;
+      }
     }
+  }
 
-    return {
-      online: true,
-      baseURL: activeBaseUrl,
-      model: activeModel,
-      effectiveModel,
-      models,
-      version: data.version || 'v0.x'
-    };
-  } catch (err) {
+  if (!probe.ok) {
     return {
       online: false,
-      error: err.name === 'AbortError' ? 'Connection timed out' : err.message || 'Cannot reach Ollama host',
+      connected: false,
+      error: `Cannot reach Ollama host at ${activeBaseUrl}`,
       baseURL: activeBaseUrl,
       model: activeModel,
       models: []
     };
   }
+
+  const data = probe.data || {};
+  const models = Array.isArray(data.models) ? data.models.map(m => m.name || m.model) : [];
+  
+  // Pick best available model if requested one is not installed
+  let effectiveModel = activeModel;
+  if (models.length > 0 && !models.some(m => m.startsWith(activeModel))) {
+    effectiveModel = models[0];
+  }
+
+  return {
+    online: true,
+    connected: true,
+    baseURL: activeBaseUrl,
+    model: activeModel,
+    effectiveModel,
+    models,
+    version: data.version || 'v0.x'
+  };
 }
 
 /**
  * Low-level text generation via Ollama /api/generate
  */
-export async function generateOllama({ prompt, system, model, temperature = 0.2, timeoutMs = 15000, jsonFormat = false }) {
-  const targetModel = model || activeModel;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
+export async function generateOllama({ prompt, system, model, temperature = 0.2, timeoutMs = 60000, jsonFormat = false }) {
+  await acquireSlot();
   try {
-    const body = {
-      model: targetModel,
-      prompt,
-      stream: false,
-      options: {
-        temperature
+    const targetModel = model || activeModel;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const body = {
+        model: targetModel,
+        prompt,
+        stream: false,
+        options: {
+          temperature
+        }
+      };
+
+      if (system) {
+        body.system = system;
       }
-    };
 
-    if (system) {
-      body.system = system;
+      if (jsonFormat) {
+        body.format = 'json';
+      }
+
+      const res = await fetch(`${activeBaseUrl}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Ollama error (${res.status}): ${errText || res.statusText}`);
+      }
+
+      const data = await res.json();
+      return {
+        text: (data.response || '').trim(),
+        model: data.model || targetModel,
+        provider: 'ollama',
+        totalDuration: data.total_duration
+      };
+    } catch (err) {
+      clearTimeout(timeout);
+      throw err;
     }
-
-    if (jsonFormat) {
-      body.format = 'json';
-    }
-
-    const res = await fetch(`${activeBaseUrl}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`Ollama error (${res.status}): ${errText || res.statusText}`);
-    }
-
-    const data = await res.json();
-    return {
-      text: (data.response || '').trim(),
-      model: data.model || targetModel,
-      provider: 'ollama',
-      totalDuration: data.total_duration
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
+  } finally {
+    releaseSlot();
   }
 }
 
