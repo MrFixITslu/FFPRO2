@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { parseInputToTransaction, parseStatementToTransactions } from '../services/geminiService';
 import { AIAnalysisResult } from '../types';
+import { uploadFileToSystemDatabase } from '../services/fileStorageService';
 
 interface Props {
   onSuccess: (data: AIAnalysisResult) => void;
@@ -39,7 +40,14 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
     const fileList = Array.from(files) as File[];
     
     // Turbo Mode: Batch Processing
-    const processingPromises = fileList.map((file: File) => {
+    const processingPromises = fileList.map(async (file: File) => {
+      // Persist in system database
+      try {
+        await uploadFileToSystemDatabase(file);
+      } catch (sysErr) {
+        console.warn('System database save for magic input file non-fatal fallback:', sysErr);
+      }
+
       return new Promise<AIAnalysisResult | AIAnalysisResult[] | null>((resolve) => {
         const reader = new FileReader();
         reader.onloadend = async () => {

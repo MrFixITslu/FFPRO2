@@ -4,22 +4,38 @@ import { filesDb } from '../filesDb.js';
 
 const router = Router();
 
-// Configure multer for in-memory storage (up to 25MB per file)
+// Configure multer for in-memory storage (up to 50MB per file)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25 MB max per file
-    files: 10 // Up to 10 files per batch
+    fileSize: 50 * 1024 * 1024, // 50 MB max per file
+    files: 20 // Up to 20 files per batch
   }
 });
+
+// Middleware wrapper that intercepts Multer errors gracefully
+const handleUploadMiddleware = (req, res, next) => {
+  upload.any()(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ ok: false, error: 'File too large. Maximum supported file size is 50MB.' });
+        }
+        return res.status(400).json({ ok: false, error: `Upload error: ${err.message}` });
+      }
+      return res.status(400).json({ ok: false, error: err.message || 'File upload parsing failed.' });
+    }
+    next();
+  });
+};
 
 /**
  * POST /api/files/upload
  * Accepts multipart/form-data with one or multiple files in field 'files' or 'file'
  * Optional form field 'projectId'
  */
-router.post('/upload', upload.any(), async (req, res) => {
+router.post('/upload', handleUploadMiddleware, async (req, res) => {
   try {
     const rawFiles = req.files || [];
     const projectId = req.body?.projectId || req.query?.projectId || null;
@@ -40,7 +56,7 @@ router.post('/upload', upload.any(), async (req, res) => {
         });
         return res.status(201).json({ ok: true, files: [saved] });
       }
-      return res.status(400).json({ error: 'No files were provided for upload.' });
+      return res.status(400).json({ ok: false, error: 'No files were provided for upload.' });
     }
 
     const savedFiles = [];
@@ -63,7 +79,7 @@ router.post('/upload', upload.any(), async (req, res) => {
     });
   } catch (err) {
     console.error('File upload to system database error:', err);
-    res.status(500).json({ error: err.message || 'Failed to save file to system database.' });
+    res.status(500).json({ ok: false, error: err.message || 'Failed to save file to system database.' });
   }
 });
 
@@ -78,9 +94,10 @@ router.get('/:id/download', async (req, res) => {
       return res.status(404).send('File not found in system database.');
     }
 
-    const sanitizedName = (file.fileName || 'file').replace(/[^\w\.\-\s]/gi, '_');
+    const rawName = file.fileName || 'file';
+    const asciiName = rawName.replace(/[^\w\.\-\s]/gi, '_');
     res.setHeader('Content-Type', file.fileType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(sanitizedName)}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(rawName)}`);
     res.setHeader('Content-Length', file.fileSize || file.fileData.length);
     res.send(file.fileData);
   } catch (err) {
@@ -100,8 +117,10 @@ router.get('/:id', async (req, res) => {
       return res.status(404).send('File not found in system database.');
     }
 
+    const rawName = file.fileName || 'file';
+    const asciiName = rawName.replace(/[^\w\.\-\s]/gi, '_');
     res.setHeader('Content-Type', file.fileType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.fileName || 'file')}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(rawName)}`);
     res.setHeader('Content-Length', file.fileSize || file.fileData.length);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(file.fileData);

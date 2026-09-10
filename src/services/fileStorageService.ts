@@ -21,48 +21,109 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number = TIMEOUT_MS): Pr
   ]);
 }
 
-const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 5); // Incremented version for FILE_BLOB_STORE
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(DATA_STORE)) db.createObjectStore(DATA_STORE);
-      if (!db.objectStoreNames.contains(MIRROR_HANDLE_STORE)) db.createObjectStore(MIRROR_HANDLE_STORE);
-      if (!db.objectStoreNames.contains(DOC_STORE)) db.createObjectStore(DOC_STORE);
-      if (!db.objectStoreNames.contains(FILE_BLOB_STORE)) db.createObjectStore(FILE_BLOB_STORE);
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+const initDB = (): Promise<IDBDatabase | null> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      resolve(null);
+      return;
+    }
+    try {
+      const request = indexedDB.open(DB_NAME, 5);
+      const timeoutId = setTimeout(() => {
+        console.warn('indexedDB.open timed out');
+        resolve(null);
+      }, 3000);
+
+      request.onupgradeneeded = () => {
+        try {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(DATA_STORE)) db.createObjectStore(DATA_STORE);
+          if (!db.objectStoreNames.contains(MIRROR_HANDLE_STORE)) db.createObjectStore(MIRROR_HANDLE_STORE);
+          if (!db.objectStoreNames.contains(DOC_STORE)) db.createObjectStore(DOC_STORE);
+          if (!db.objectStoreNames.contains(FILE_BLOB_STORE)) db.createObjectStore(FILE_BLOB_STORE);
+        } catch (e) {
+          console.warn('IDB upgrade failed:', e);
+        }
+      };
+      request.onsuccess = () => {
+        clearTimeout(timeoutId);
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        clearTimeout(timeoutId);
+        resolve(null);
+      };
+      request.onblocked = () => {
+        clearTimeout(timeoutId);
+        console.warn('IDB open blocked by other tab');
+        resolve(null);
+      };
+    } catch (e) {
+      console.warn('indexedDB access error:', e);
+      resolve(null);
+    }
   });
 };
+
+// In-memory fallback for document storage when IndexedDB is unavailable
+const memoryDocs = new Map<string, string>();
 
 /**
  * Internal Document CRUD (Bypasses FileSystem API)
  */
 export const saveInternalDoc = async (id: string, content: string): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(DOC_STORE, 'readwrite');
-    transaction.objectStore(DOC_STORE).put(content, id);
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
+  memoryDocs.set(id, content);
+  try {
+    const db = await initDB();
+    if (!db || !db.objectStoreNames.contains(DOC_STORE)) return;
+    await new Promise<void>((resolve) => {
+      try {
+        const transaction = db.transaction(DOC_STORE, 'readwrite');
+        transaction.objectStore(DOC_STORE).put(content, id);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => resolve();
+        transaction.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  } catch (err) {
+    console.warn('saveInternalDoc error (non-fatal):', err);
+  }
 };
 
 export const getInternalDoc = async (id: string): Promise<string | null> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(DOC_STORE, 'readonly');
-    const request = transaction.objectStore(DOC_STORE).get(id);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
+  if (memoryDocs.has(id)) {
+    return memoryDocs.get(id) || null;
+  }
+  try {
+    const db = await initDB();
+    if (!db || !db.objectStoreNames.contains(DOC_STORE)) return null;
+    return await new Promise<string | null>((resolve) => {
+      try {
+        const transaction = db.transaction(DOC_STORE, 'readonly');
+        const request = transaction.objectStore(DOC_STORE).get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  } catch {
+    return null;
+  }
 };
 
 export const deleteInternalDoc = async (id: string): Promise<void> => {
-  const db = await initDB();
-  const transaction = db.transaction(DOC_STORE, 'readwrite');
-  transaction.objectStore(DOC_STORE).delete(id);
+  memoryDocs.delete(id);
+  try {
+    const db = await initDB();
+    if (!db || !db.objectStoreNames.contains(DOC_STORE)) return;
+    const transaction = db.transaction(DOC_STORE, 'readwrite');
+    transaction.objectStore(DOC_STORE).delete(id);
+  } catch (e) {
+    console.warn('deleteInternalDoc error:', e);
+  }
 };
 
 /**
@@ -73,11 +134,21 @@ export const deleteInternalDoc = async (id: string): Promise<void> => {
 export const saveFileBlob = async (id: string, blob: Blob): Promise<void> => {
   try {
     const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
-      transaction.objectStore(FILE_BLOB_STORE).put(blob, id);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+    if (!db || !db.objectStoreNames.contains(FILE_BLOB_STORE)) return;
+    await new Promise<void>((resolve) => {
+      try {
+        const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
+        transaction.objectStore(FILE_BLOB_STORE).put(blob, id);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = (e) => {
+          console.warn('saveFileBlob transaction error:', e);
+          resolve();
+        };
+        transaction.onabort = () => resolve();
+      } catch (err) {
+        console.warn('saveFileBlob put error:', err);
+        resolve();
+      }
     });
   } catch (err) {
     console.warn('saveFileBlob IDB error (non-fatal):', err);
@@ -87,11 +158,16 @@ export const saveFileBlob = async (id: string, blob: Blob): Promise<void> => {
 export const getFileBlob = async (id: string): Promise<Blob | null> => {
   try {
     const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(FILE_BLOB_STORE, 'readonly');
-      const request = transaction.objectStore(FILE_BLOB_STORE).get(id);
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
+    if (!db || !db.objectStoreNames.contains(FILE_BLOB_STORE)) return null;
+    return await new Promise<Blob | null>((resolve) => {
+      try {
+        const transaction = db.transaction(FILE_BLOB_STORE, 'readonly');
+        const request = transaction.objectStore(FILE_BLOB_STORE).get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
     });
   } catch (err) {
     console.warn('getFileBlob IDB error:', err);
@@ -102,6 +178,7 @@ export const getFileBlob = async (id: string): Promise<Blob | null> => {
 export const deleteFileBlob = async (id: string): Promise<void> => {
   try {
     const db = await initDB();
+    if (!db || !db.objectStoreNames.contains(FILE_BLOB_STORE)) return;
     const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
     transaction.objectStore(FILE_BLOB_STORE).delete(id);
   } catch (err) {
@@ -126,32 +203,108 @@ export interface SystemUploadedFile {
   viewUrl: string;
 }
 
+// Convert Blob or File to Base64 string safely
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const res = reader.result;
+      if (typeof res === 'string') {
+        resolve(res.split(',')[1] || '');
+      } else {
+        reject(new Error('Failed to read file as data URL'));
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error('FileReader error'));
+    reader.readAsDataURL(blob);
+  });
+};
+
 export const uploadFileToSystemDatabase = async (
-  file: File,
-  projectId?: string
+  file: File | Blob,
+  projectId?: string,
+  customName?: string
 ): Promise<SystemUploadedFile> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  if (projectId) {
-    formData.append('projectId', projectId);
+  const fileName = customName || (file instanceof File ? file.name : 'document.bin');
+  const fileType = file.type || 'application/octet-stream';
+  const fileSize = file.size;
+
+  // Primary: Try multipart/form-data upload
+  try {
+    const formData = new FormData();
+    formData.append('file', file, fileName);
+    if (projectId) {
+      formData.append('projectId', projectId);
+    }
+
+    const res = await fetch('/api/files/upload', {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.ok && Array.isArray(data.files) && data.files.length > 0) {
+        return data.files[0];
+      }
+    }
+  } catch (multipartErr) {
+    console.warn('Multipart upload failed, attempting base64 JSON upload fallback:', multipartErr);
   }
 
-  const res = await fetch('/api/files/upload', {
+  // Fallback: Base64 JSON upload
+  const base64Data = await blobToBase64(file);
+  const jsonRes = await fetch('/api/files/upload', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify({
+      fileName,
+      fileType,
+      fileSize,
+      base64Data,
+      projectId: projectId || null,
+    }),
   });
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Upload failed with status ${res.status}`);
+  if (!jsonRes.ok) {
+    const errorData = await jsonRes.json().catch(() => ({}));
+    throw new Error(errorData.error || `Upload failed with status ${jsonRes.status}`);
   }
 
-  const data = await res.json();
-  if (data.ok && Array.isArray(data.files) && data.files.length > 0) {
-    return data.files[0];
+  const jsonData = await jsonRes.json();
+  if (jsonData.ok && Array.isArray(jsonData.files) && jsonData.files.length > 0) {
+    return jsonData.files[0];
   }
   throw new Error('Upload succeeded but no file record was returned by the system database.');
+};
+
+export const listFilesFromSystemDatabase = async (projectId: string): Promise<SystemUploadedFile[]> => {
+  try {
+    const res = await fetch(`/api/files/project/${encodeURIComponent(projectId)}`, {
+      credentials: 'include'
+    });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => ({}));
+    return Array.isArray(data.files) ? data.files : [];
+  } catch (err) {
+    console.warn('listFilesFromSystemDatabase error:', err);
+    return [];
+  }
+};
+
+export const getFileContentFromSystemDatabase = async (fileId: string): Promise<string | null> => {
+  try {
+    const res = await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
+      credentials: 'include'
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch (err) {
+    console.warn('getFileContentFromSystemDatabase error:', err);
+    return null;
+  }
 };
 
 export const downloadFileFromSystemDatabase = async (fileId: string, fileName: string): Promise<void> => {

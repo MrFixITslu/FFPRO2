@@ -400,6 +400,7 @@ function readDB() {
     parsed.project_invites ||= [];
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
+    parsed.system_files ||= [];
     if (!parsed.funding_opportunities || parsed.funding_opportunities.length === 0) {
       parsed.funding_opportunities = getDefaultFundingOpportunities();
     }
@@ -418,7 +419,8 @@ function readDB() {
       project_messages: [],
       password_reset_tokens: [],
       funding_opportunities: getDefaultFundingOpportunities(),
-      funding_research_jobs: []
+      funding_research_jobs: [],
+      system_files: []
     };
   }
 }

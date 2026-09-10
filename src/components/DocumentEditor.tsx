@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { uploadFileToSystemDatabase } from '../services/fileStorageService';
 
 interface Props {
   initialTitle: string;
@@ -132,13 +133,27 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
     updateStats();
   };
 
-  const handleImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageInsert = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    try {
+      const savedSysFile = await uploadFileToSystemDatabase(file);
+      if (savedSysFile && (savedSysFile.viewUrl || savedSysFile.downloadUrl)) {
+        const url = savedSysFile.viewUrl || savedSysFile.downloadUrl;
+        const imgTag = `<img src="${url}" alt="${savedSysFile.fileName}" style="max-width:100%; border-radius:12px; margin: 10px 0; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);" />`;
+        document.execCommand('insertHTML', false, imgTag);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+    } catch (uploadErr) {
+      console.warn('Direct system db image upload fallback to local dataUrl:', uploadErr);
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
-      const imgTag = `<img src="${dataUrl}" style="max-width:100%; border-radius:12px; margin: 10px 0; border: 1px solid #e2e8f0; shadow: 0 10px 15px -3px rgba(0,0,0,0.1);" />`;
+      const imgTag = `<img src="${dataUrl}" style="max-width:100%; border-radius:12px; margin: 10px 0; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);" />`;
       document.execCommand('insertHTML', false, imgTag);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };

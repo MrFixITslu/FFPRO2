@@ -14,8 +14,11 @@ import {
   formatFileSize,
   uploadFileToSystemDatabase,
   downloadFileFromSystemDatabase,
-  deleteFileFromSystemDatabase
+  deleteFileFromSystemDatabase,
+  listFilesFromSystemDatabase,
+  getFileContentFromSystemDatabase
 } from '../services/fileStorageService';
+import { useToast } from './Toast';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
 import ProjectDashboard from './ProjectDashboard';
@@ -127,6 +130,7 @@ const EventPlanner: React.FC<Props> = ({
   const [projectStatusFilter, setProjectStatusFilter] = useState<'active' | 'closed' | 'all'>('active');
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const { showToast } = useToast();
 
   // --- Collaboration: shared projects live server-side; local plans stay in the encrypted blob ---
   const [internalSharedEvents, setInternalSharedEvents] = useState<BudgetEvent[]>([]);
@@ -295,6 +299,55 @@ const EventPlanner: React.FC<Props> = ({
       realtimeService.unwatchProject(pid);
     };
   }, [selectedEvent?.isShared, selectedEvent?.sharedProjectId]);
+
+  // Reconcile project files with system database files when selecting a project
+  useEffect(() => {
+    if (!selectedEventId) return;
+    let cancelled = false;
+
+    listFilesFromSystemDatabase(selectedEventId)
+      .then(sysFiles => {
+        if (cancelled || !sysFiles || sysFiles.length === 0) return;
+        const currentEvent = (allEvents || []).find(e => e.id === selectedEventId);
+        if (!currentEvent) return;
+
+        const existingFiles = currentEvent.files || [];
+        const existingIds = new Set(existingFiles.map(f => f.systemFileId || f.id));
+        const missingFiles: ProjectFile[] = [];
+
+        for (const sf of sysFiles) {
+          if (!existingIds.has(sf.id)) {
+            missingFiles.push({
+              id: sf.id,
+              name: sf.fileName,
+              type: sf.fileType,
+              size: sf.fileSize,
+              timestamp: sf.createdAt,
+              storageRef: `db/${sf.id}`,
+              storageType: 'database',
+              systemFileId: sf.id,
+              downloadUrl: sf.downloadUrl,
+              viewUrl: sf.viewUrl,
+              version: 1,
+              lastModifiedBy: currentUser
+            });
+          }
+        }
+
+        if (missingFiles.length > 0) {
+          updateEvent({
+            ...currentEvent,
+            files: [...existingFiles, ...missingFiles],
+            lastUpdated: new Date().toISOString()
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('System database files reconciliation non-fatal:', err);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedEventId]);
 
   useEffect(() => {
     const unsubUpdate = realtimeService.on('project_updated', (payload: any) => {
@@ -873,13 +926,17 @@ const EventPlanner: React.FC<Props> = ({
             viewUrl = savedSysFile.viewUrl;
             storageType = 'database';
           }
-        } catch (dbErr) {
-          console.warn('System database upload fallback to local indexeddb:', dbErr);
+        } catch (dbErr: any) {
+          console.warn('System database upload fallback:', dbErr);
           storageType = 'indexeddb';
         }
 
-        // Persist in IndexedDB as client cache/offline support
-        await saveFileBlob(fileId, file);
+        // Persist in IndexedDB as client cache/offline support (safely non-blocking)
+        try {
+          await saveFileBlob(fileId, file);
+        } catch (idbErr) {
+          console.warn('Local blob caching skipped:', idbErr);
+        }
 
         let storageRef = systemFileId ? `db/${systemFileId}` : `internal/${fileId}`;
 
@@ -920,9 +977,18 @@ const EventPlanner: React.FC<Props> = ({
       updateEvent(updatedEvent);
       const names = files.map(f => `"${f.name}"`).join(', ');
       addActionLog(updatedEvent, `Uploaded & saved ${files.length} document(s) in system database: ${names}`, 'file');
+      showToast({
+        type: 'success',
+        title: 'Upload Complete',
+        message: `Saved ${files.length} file(s) in system database.`
+      });
     } catch (err: any) {
       console.error('File upload error:', err);
-      alert(`File Upload Failed: ${err.message || 'Unknown error'}`);
+      showToast({
+        type: 'error',
+        title: 'File Upload Failed',
+        message: err.message || 'Could not complete upload to system database.'
+      });
     } finally {
       setUploadingFiles(false);
     }
@@ -940,7 +1006,7 @@ const EventPlanner: React.FC<Props> = ({
       await deleteFileBlob(file.id);
       await deleteInternalDoc(file.id);
 
-      const updatedFiles = (selectedEvent.files || []).filter(f => f.id !== file.id);
+      const updatedFiles = (selectedEvent.files || []).filter(f => f.id !== file.id && f.systemFileId !== file.id);
       const updatedEvent = {
         ...selectedEvent,
         files: updatedFiles,
@@ -949,9 +1015,18 @@ const EventPlanner: React.FC<Props> = ({
 
       updateEvent(updatedEvent);
       addActionLog(updatedEvent, `Deleted document: "${file.name}"`, 'file');
+      showToast({
+        type: 'info',
+        title: 'File Deleted',
+        message: `Removed "${file.name}" from system database.`
+      });
     } catch (err: any) {
       console.error('File delete error:', err);
-      alert(`Delete error: ${err.message || 'Unknown error'}`);
+      showToast({
+        type: 'error',
+        title: 'Delete Error',
+        message: err.message || 'Could not delete file.'
+      });
     }
   };
 
@@ -979,7 +1054,27 @@ const EventPlanner: React.FC<Props> = ({
       await saveInternalDoc(docId, content);
 
       let storageRef = `internal/${docId}`;
-      let storageType: 'indexeddb' | 'filesystem' = 'indexeddb';
+      let storageType: 'database' | 'indexeddb' | 'filesystem' = 'database';
+      let systemFileId: string | undefined;
+      let downloadUrl: string | undefined;
+      let viewUrl: string | undefined;
+
+      // Save document to system database
+      try {
+        const mimeType = extension === '.fdoc' ? 'application/fire-doc' : 'application/fire-cell';
+        const docBlob = new Blob([content], { type: mimeType });
+        const savedSysDoc = await uploadFileToSystemDatabase(docBlob, selectedEvent.id, fileName);
+        if (savedSysDoc && savedSysDoc.id) {
+          systemFileId = savedSysDoc.id;
+          storageType = 'database';
+          storageRef = `db/${savedSysDoc.id}`;
+          downloadUrl = savedSysDoc.downloadUrl;
+          viewUrl = savedSysDoc.viewUrl;
+        }
+      } catch (sysErr) {
+        console.warn('System database document save fallback to local:', sysErr);
+        storageType = 'indexeddb';
+      }
 
       if (directoryHandle) {
         try {
@@ -1002,7 +1097,10 @@ const EventPlanner: React.FC<Props> = ({
           lastModifiedBy: currentUser,
           version: (f.version || 1) + 1,
           storageRef,
-          storageType
+          storageType,
+          systemFileId: systemFileId || f.systemFileId,
+          downloadUrl: downloadUrl || f.downloadUrl,
+          viewUrl: viewUrl || f.viewUrl
         } : f);
       } else {
         const newFile: ProjectFile = {
@@ -1013,6 +1111,9 @@ const EventPlanner: React.FC<Props> = ({
           timestamp: new Date().toISOString(),
           storageRef,
           storageType,
+          systemFileId,
+          downloadUrl,
+          viewUrl,
           version: 1,
           lastModifiedBy: currentUser
         };
@@ -1028,8 +1129,17 @@ const EventPlanner: React.FC<Props> = ({
       updateEvent(updatedEvent); 
       addActionLog(updatedEvent, `Vault Commit: "${fileName}"`, 'file');
       setCurrentDoc({ id: docId, title, content });
+      showToast({
+        type: 'success',
+        title: 'Document Saved',
+        message: `Saved "${fileName}" to system database.`
+      });
     } catch (err: any) {
-      alert(`Save Failure: ${err.message}`);
+      showToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: err.message || 'Could not save document.'
+      });
       throw err;
     }
   };
@@ -1041,6 +1151,9 @@ const EventPlanner: React.FC<Props> = ({
     if (isDoc || isSheet) {
       try {
         let content = await getInternalDoc(file.id);
+        if (!content && (file.systemFileId || file.storageType === 'database')) {
+          content = await getFileContentFromSystemDatabase(file.systemFileId || file.id);
+        }
         if (!content && directoryHandle && file.storageType === 'filesystem') {
           const blob = await getFileFromHardDrive(directoryHandle, file.storageRef);
           content = await blob.text();
@@ -1051,10 +1164,14 @@ const EventPlanner: React.FC<Props> = ({
           if (isDoc) setIsEditingDoc(true);
           else setIsEditingSheet(true);
         } else {
-          throw new Error("Asset missing.");
+          throw new Error("Document content not found.");
         }
-      } catch (err) {
-        alert("Retrieval Error.");
+      } catch (err: any) {
+        showToast({
+          type: 'error',
+          title: 'Retrieval Error',
+          message: err.message || 'Unable to open project document.'
+        });
       }
       return;
     }
@@ -1097,7 +1214,11 @@ const EventPlanner: React.FC<Props> = ({
       }
     } catch (err: any) {
       console.error('File retrieval error:', err);
-      alert(`Access error: ${err.message || 'Unknown error'}`);
+      showToast({
+        type: 'error',
+        title: 'Access Error',
+        message: err.message || 'Unable to access file.'
+      });
     }
   };
 
