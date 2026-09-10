@@ -82,7 +82,7 @@ async function probeUrl(url, timeoutMs) {
  * Check Ollama connection and list available local models.
  * Includes auto-discovery of working host URL if default is unreachable.
  */
-export async function checkOllamaHealth(timeoutMs = 2500) {
+export async function checkOllamaHealth(timeoutMs = 8000) {
   // Try current activeBaseUrl
   let probe = await probeUrl(activeBaseUrl, timeoutMs);
 
@@ -142,7 +142,7 @@ export async function checkOllamaHealth(timeoutMs = 2500) {
 /**
  * Low-level text generation via Ollama /api/generate
  */
-export async function generateOllama({ prompt, system, model, temperature = 0.2, timeoutMs = 60000, jsonFormat = false }) {
+export async function generateOllama({ prompt, system, model, temperature = 0.2, timeoutMs = 180000, jsonFormat = false }) {
   await acquireSlot();
   try {
     const targetModel = model || activeModel;
@@ -340,7 +340,7 @@ STRICT BOUNDARIES:
 
   const prompt = `SUPPLIER QUOTE DOCUMENT (${fileName || 'Quote Document'}):
 ============================================================
-${quoteText.slice(0, 15000)}
+${quoteText.slice(0, 10000)}
 ============================================================
 
 Extract all quote information and return ONLY this JSON structure:
@@ -372,7 +372,7 @@ Extract all quote information and return ONLY this JSON structure:
     system,
     model,
     temperature: 0.1,
-    timeoutMs: 45000,
+    timeoutMs: 180000,
     jsonFormat: true
   });
 

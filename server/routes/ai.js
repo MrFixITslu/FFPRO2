@@ -365,7 +365,7 @@ router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req
     }
 
     // Check Ollama health
-    const health = await checkOllamaHealth(2000);
+    const health = await checkOllamaHealth(8000);
     if (!health.online && !health.connected) {
       return res.status(503).json({
         ok: false,
