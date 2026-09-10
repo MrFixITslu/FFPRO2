@@ -208,7 +208,7 @@ const EventPlanner: React.FC<Props> = ({
     }
   }, [initialSelectedEventId, initialSelectedTaskId]);
   
-  const [selectedPlanType, setSelectedPlanType] = useState<'event' | 'trip' | 'startup'>('event');
+  const [selectedPlanType, setSelectedPlanType] = useState<'event' | 'trip' | 'startup'>('startup');
   const [destination, setDestination] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -1824,12 +1824,15 @@ const EventPlanner: React.FC<Props> = ({
              <div className="flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto no-scrollbar relative z-10 backdrop-blur-md">
                {[
                  'dashboard',
+                 'startup_planner',
+                 'ledger',
                  'grants',
-                 ...(selectedEvent.eventType === 'trip' 
-                   ? ['trip_planner', 'tasks', 'vault', 'contacts', 'log']
-                   : selectedEvent.eventType === 'startup'
-                   ? ['startup_planner', 'tasks', 'vault', 'contacts', 'log']
-                   : ['ledger', 'tasks', 'vault', 'team', 'contacts', 'log']),
+                 'tasks',
+                 'vault',
+                 'team',
+                 'contacts',
+                 'log',
+                 ...(selectedEvent.eventType === 'trip' ? ['trip_planner'] : []),
                  ...(selectedEvent.isShared ? ['chat'] : []),
                ].map(tab => {
                  const label = tab === 'dashboard' ? 'Dashboard' : tab === 'grants' ? 'Grants & Funding' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
@@ -2488,7 +2491,7 @@ const EventPlanner: React.FC<Props> = ({
               );
             })()}
 
-            {activeTab === 'startup_planner' && (selectedEvent.startupDetails || selectedEvent.eventType === 'startup') && (() => {
+            {activeTab === 'startup_planner' && (() => {
               const defaultStartupDetails: StartupPlanDetails = {
                 cogs: 10,
                 markup: 50,
