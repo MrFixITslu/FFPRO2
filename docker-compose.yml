@@ -32,24 +32,24 @@ services:
     ports:
       - "${APP_PORT:-3010}:3010"
     networks:
-      - proxy-network
+      - proxy_network
 
     environment:
       - NODE_ENV=production
       - PORT=3010
-      
+
       # Persist Database and Keys
       - DATABASE_FILE=/app/data/database.json
       - ENCRYPTION_KEY_FILE=/app/data/encryption.key
-      
+
       # Master Encryption Keys (Will read from your server's .env file, or auto-generate on boot)
       - SESSION_SECRET=${SESSION_SECRET}
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
-      
+
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
-      # Host is the Docker service name "postgres", resolved over ffpro2_network.
+      # Host is the Docker service name "postgres", resolved over proxy_network.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:-ffpro2_postgres_secret_change_me}@postgres:5432/${POSTGRES_DB:-fire_finance}
-      
+
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
 
@@ -63,17 +63,17 @@ services:
       - FUNDING_RESEARCH_MAX_URLS_PER_RUN=${FUNDING_RESEARCH_MAX_URLS_PER_RUN:-15}
       - FUNDING_RESEARCH_MAX_RUN_MINUTES=${FUNDING_RESEARCH_MAX_RUN_MINUTES:-45}
       - FUNDING_SEARCH_QUERIES=${FUNDING_SEARCH_QUERIES:-}
-      
+
       # OAuth - Google Developer Portal
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-/api/auth/google/callback}
-      
+
       # OAuth - Meta Developer Portal
       - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
       - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
       - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL:-/api/auth/facebook/callback}
-      
+
       # Outgoing Email - project-share invites (optional)
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
@@ -81,7 +81,7 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
       - SMTP_FROM=${SMTP_FROM}
-      
+
       # Base Application URLs (auto-detected from request headers if blank)
       - FRONTEND_URL=${FRONTEND_URL}
     volumes:
@@ -90,10 +90,8 @@ services:
 
 networks:
   proxy_network:
-    name: proxy_network
-    driver: bridge
+    external: true
 
 volumes:
   ffpro2_pgdata:
     name: ffpro2_pgdata
-
