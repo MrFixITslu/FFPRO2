@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { GoogleGenAI, Type } from '@google/genai';
 import { requireAuth } from '../middleware/requireAuth.js';
 import rateLimit from 'express-rate-limit';
@@ -8,11 +9,17 @@ import {
   updateOllamaConfig,
   generateOllama,
   generateStrategicFeedback,
-  generateFinancialInsight
+  generateFinancialInsight,
+  extractSupplierQuote
 } from '../services/ollamaService.js';
 import { generateProjectCardImage } from '../services/cardImageGenerator.js';
 
 const router = Router();
+
+const quoteUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
 
 // Rate limiting for public market data feed to prevent ticker flooding
 const marketDataLimiter = rateLimit({
@@ -292,6 +299,97 @@ router.post('/ollama/config', async (req, res) => {
     config: updated,
     health
   });
+});
+
+/**
+ * Extract supplier quote data using local Ollama.
+ * Strictly bounded: Extracts quote items, costs, and terms into Interactive Sale Price Costing format.
+ * No selling price determination, no business plan writing.
+ */
+router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req, res) => {
+  try {
+    let quoteText = '';
+    let fileName = 'Quote Document';
+    let mimeType = 'text/plain';
+
+    if (req.file) {
+      fileName = req.file.originalname || 'Uploaded_Quote.pdf';
+      mimeType = req.file.mimetype || 'application/pdf';
+      const buffer = req.file.buffer;
+
+      if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
+        try {
+          const { PDFParse } = await import('pdf-parse');
+          const parser = new PDFParse({ data: buffer });
+          const parsed = await parser.getText();
+          quoteText = parsed?.text || '';
+        } catch (pdfErr) {
+          console.warn('PDF text extraction error:', pdfErr.message);
+          quoteText = buffer.toString('utf8');
+        }
+      } else {
+        quoteText = buffer.toString('utf8');
+      }
+    } else if (req.body?.base64Data) {
+      fileName = req.body.fileName || 'Uploaded_Quote.pdf';
+      mimeType = req.body.mimeType || 'application/pdf';
+      const buffer = Buffer.from(req.body.base64Data, 'base64');
+      if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
+        try {
+          const { PDFParse } = await import('pdf-parse');
+          const parser = new PDFParse({ data: buffer });
+          const parsed = await parser.getText();
+          quoteText = parsed?.text || '';
+        } catch (pdfErr) {
+          console.warn('PDF text extraction error:', pdfErr.message);
+          quoteText = buffer.toString('utf8');
+        }
+      } else {
+        quoteText = buffer.toString('utf8');
+      }
+    } else if (req.body?.quoteText) {
+      quoteText = req.body.quoteText;
+      fileName = req.body.fileName || 'Pasted Quote Text';
+    } else {
+      return res.status(400).json({ ok: false, error: 'No quote file or quote text was provided.' });
+    }
+
+    if (!quoteText || quoteText.trim().length < 5) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Unable to extract text from the uploaded quote document. Please ensure the file is not a blank or flattened image scan.'
+      });
+    }
+
+    // Check Ollama health
+    const health = await checkOllamaHealth(2000);
+    if (!health.connected) {
+      return res.status(503).json({
+        ok: false,
+        error: `Local Ollama is currently unreachable at ${health.baseURL}. Please ensure Ollama is running ('ollama serve') with a model installed (e.g. 'ollama run llama3.2').`,
+        health
+      });
+    }
+
+    const extracted = await extractSupplierQuote({
+      quoteText,
+      fileName,
+      model: req.body?.model
+    });
+
+    return res.json({
+      ok: true,
+      extracted,
+      fileName,
+      textLength: quoteText.length
+    });
+  } catch (err) {
+    console.error('Error in /ollama/extract-quote:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || 'Failed to extract quote data via Ollama.'
+    });
+  }
 });
 
 // Generate Project Card Background Image via Ollama

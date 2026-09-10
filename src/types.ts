@@ -245,6 +245,82 @@ export interface ProductionItem {
   id: string;
   name: string;
   cost: number;
+  description?: string;
+  quantity?: number;
+  unitCost?: number;
+  discount?: number;
+  shippingCost?: number;
+  supplier?: string;
+  sourceQuoteId?: string;
+}
+
+export interface ExtractedQuoteItem {
+  item: string;
+  description?: string;
+  quantity: number;
+  unitCost: number;
+  discount?: number;
+  shippingCost?: number;
+  lineTotal: number;
+}
+
+export interface SupplierQuoteData {
+  id: string;
+  supplier: string;
+  supplierName?: string;
+  quoteNumber: string;
+  quoteDate: string;
+  currency: string;
+  items: ExtractedQuoteItem[];
+  discounts?: number;
+  shippingCosts?: number;
+  subtotal?: number;
+  total?: number;
+  commercialTerms?: string;
+  savedFileId?: string;
+  savedFileName?: string;
+  importedAt?: string;
+}
+
+export interface BusinessPlanSections {
+  executiveSummary?: string;
+  businessDescription?: string;
+  businessObjectives?: string;
+  productsServices?: string;
+  problemOpportunity?: string;
+  targetMarket?: string;
+  customerProfile?: string;
+  marketAnalysis?: string;
+  competitorAnalysis?: string;
+  competitiveAdvantage?: string;
+  businessModel?: string;
+  revenueModel?: string;
+  marketingSalesStrategy?: string;
+  operationsPlan?: string;
+  equipmentTechRequirements?: string;
+  suppliers?: string;
+  managementStaffing?: string;
+  startupRequirements?: string;
+  financialRequirements?: string;
+  salesRevenueProjectionsNotes?: string;
+  operatingCostsNotes?: string;
+  fundingRequirements?: string;
+  useOfFunds?: string;
+  implementationPlan?: string;
+  milestonesNotes?: string;
+  risksMitigation?: string;
+  conclusion?: string;
+
+  // Cover page & official submission metadata
+  companyName?: string;
+  businessPlanTitle?: string;
+  preparedBy?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  businessAddress?: string;
+  websiteUrl?: string;
+  preparedDate?: string;
+  fundingAgencyOrBank?: string;
 }
 
 export interface StartupPlanDetails {
@@ -270,6 +346,10 @@ export interface StartupPlanDetails {
   includeLevy?: boolean;
   contingencyPercent?: number;
   allocateOverhead?: boolean;
+
+  // Comprehensive Funding-Ready Business Plan
+  businessPlan?: BusinessPlanSections;
+  importedQuotes?: SupplierQuoteData[];
 }
 
 export type ProjectRole = 'owner' | 'editor' | 'viewer';

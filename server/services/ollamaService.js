@@ -199,3 +199,141 @@ Write exactly ONE sentence of punchy, highly actionable strategic insight.`;
     timeoutMs: 10000
   });
 }
+
+/**
+ * Clean and parse JSON returned by LLMs (strips markdown codeblocks and extraneous preamble)
+ */
+function cleanAndParseJSON(rawText) {
+  if (!rawText) return null;
+  let text = rawText.trim();
+  
+  // Strip markdown code fences if present
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  }
+
+  // Find first { and last }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    text = text.substring(firstBrace, lastBrace + 1);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    // Attempt minor regex cleanups for trailing commas
+    try {
+      const sanitized = text
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/\/\/.*/g, '');
+      return JSON.parse(sanitized);
+    } catch {
+      throw new Error(`Failed to parse extracted JSON from Ollama: ${err.message}. Raw output: ${rawText.slice(0, 300)}`);
+    }
+  }
+}
+
+/**
+ * Extract structured Supplier Quote data using local Ollama.
+ * STRICT CONSTRAINT: Used ONLY for quote data extraction into Interactive Sale Price Costing.
+ * No business plan generation, no selling price determination, no financial projections.
+ */
+export async function extractSupplierQuote({ quoteText, fileName, model }) {
+  if (!quoteText || quoteText.trim().length === 0) {
+    throw new Error('Quote text content is empty or unreadable.');
+  }
+
+  const system = `You are a precise data extraction engine.
+Your sole job is to extract structured supplier quote information from the provided document into a clean, valid JSON object.
+STRICT BOUNDARIES:
+- Extract ONLY what is explicitly stated in the quote document.
+- Quoted prices are supplier COSTS, never sale prices.
+- Do NOT generate selling prices, profit margins, or business plans.
+- Identify: Supplier Name, Quote Number/Ref, Quote Date (YYYY-MM-DD or as written), Currency (e.g. USD, EUR, GBP, CAD, XCD), Line Items (item name, description, quantity, unitCost, discount, lineTotal), Discounts, Shipping/Freight costs, Subtotal, Total, and relevant Commercial Terms (payment terms, validity, lead times).
+- Ensure all numeric values are numbers, not strings with currency symbols.
+- If quantity is missing for an item, default to 1.
+- If unitCost is missing but lineTotal exists, unitCost = lineTotal / quantity.
+- Return ONLY the JSON object. No commentary, no preamble, no markdown formatting.`;
+
+  const prompt = `SUPPLIER QUOTE DOCUMENT (${fileName || 'Quote Document'}):
+============================================================
+${quoteText.slice(0, 15000)}
+============================================================
+
+Extract all quote information and return ONLY this JSON structure:
+{
+  "supplier": "Name of supplier or vendor",
+  "quoteNumber": "Quote reference or invoice number",
+  "quoteDate": "YYYY-MM-DD or date as written",
+  "currency": "USD",
+  "items": [
+    {
+      "item": "Product / Part / Service Name",
+      "description": "Item details, SKU, specifications, or model",
+      "quantity": 1,
+      "unitCost": 0.00,
+      "discount": 0.00,
+      "shippingCost": 0.00,
+      "lineTotal": 0.00
+    }
+  ],
+  "discounts": 0.00,
+  "shippingCosts": 0.00,
+  "subtotal": 0.00,
+  "total": 0.00,
+  "commercialTerms": "Key terms, validity period, delivery notes or payment conditions"
+}`;
+
+  const result = await generateOllama({
+    prompt,
+    system,
+    model,
+    temperature: 0.1,
+    timeoutMs: 45000,
+    jsonFormat: true
+  });
+
+  const parsed = cleanAndParseJSON(result.text);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Ollama returned non-object response for quote extraction.');
+  }
+
+  // Normalize fields to ensure consistency
+  const normalizedItems = Array.isArray(parsed.items) ? parsed.items.map((it, idx) => {
+    const qty = Math.max(1, parseFloat(it.quantity) || 1);
+    const unitCost = Math.max(0, parseFloat(it.unitCost) || 0);
+    const discount = Math.max(0, parseFloat(it.discount) || 0);
+    const shipping = Math.max(0, parseFloat(it.shippingCost) || 0);
+    const lineTotal = parseFloat(it.lineTotal) || (qty * unitCost - discount + shipping);
+
+    return {
+      item: String(it.item || `Quoted Item ${idx + 1}`).trim(),
+      description: String(it.description || '').trim(),
+      quantity: qty,
+      unitCost: parseFloat(unitCost.toFixed(2)),
+      discount: parseFloat(discount.toFixed(2)),
+      shippingCost: parseFloat(shipping.toFixed(2)),
+      lineTotal: parseFloat(lineTotal.toFixed(2))
+    };
+  }) : [];
+
+  const subtotal = parseFloat(parsed.subtotal) || normalizedItems.reduce((s, it) => s + it.lineTotal, 0);
+  const shippingCosts = parseFloat(parsed.shippingCosts) || 0;
+  const discounts = parseFloat(parsed.discounts) || 0;
+  const total = parseFloat(parsed.total) || (subtotal + shippingCosts - discounts);
+
+  return {
+    supplier: String(parsed.supplier || 'Unknown Supplier').trim(),
+    quoteNumber: String(parsed.quoteNumber || '').trim(),
+    quoteDate: String(parsed.quoteDate || new Date().toISOString().split('T')[0]).trim(),
+    currency: String(parsed.currency || 'USD').trim().toUpperCase(),
+    items: normalizedItems,
+    discounts: parseFloat(discounts.toFixed(2)),
+    shippingCosts: parseFloat(shippingCosts.toFixed(2)),
+    subtotal: parseFloat(subtotal.toFixed(2)),
+    total: parseFloat(total.toFixed(2)),
+    commercialTerms: String(parsed.commercialTerms || '').trim(),
+    modelUsed: result.model
+  };
+}

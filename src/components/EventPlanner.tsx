@@ -1,6 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea } from '../types';
+import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea, BusinessPlanSections, SupplierQuoteData } from '../types';
+import { BusinessPlanForm } from './BusinessPlanForm';
+import { ImportQuoteModal } from './ImportQuoteModal';
+import { ExportBusinessPlanModal } from './ExportBusinessPlanModal';
+import { BusinessPlanCalculations, computeStartupCalculations } from '../services/businessPlanExportService';
 import { 
   saveFileToHardDrive, 
   getFileFromHardDrive, 
@@ -251,6 +255,11 @@ const EventPlanner: React.FC<Props> = ({
   // Sale Price Calculator Local State
   const [calcItemName, setCalcItemName] = useState('');
   const [calcItemCost, setCalcItemCost] = useState('');
+
+  // Business Plan Sub-tab & Modals
+  const [businessPlanSubTab, setBusinessPlanSubTab] = useState<'plan' | 'costing'>('plan');
+  const [showImportQuoteModal, setShowImportQuoteModal] = useState(false);
+  const [showExportPlanModal, setShowExportPlanModal] = useState(false);
 
   // Rename State
   const [isEditingName, setIsEditingName] = useState(false);
@@ -2479,111 +2488,109 @@ const EventPlanner: React.FC<Props> = ({
               );
             })()}
 
-            {activeTab === 'startup_planner' && selectedEvent.startupDetails && (() => {
-              const sd = selectedEvent.startupDetails;
-              
-              // Sale Price Calculator Fallback / Safe Initialization
+            {activeTab === 'startup_planner' && (selectedEvent.startupDetails || selectedEvent.eventType === 'startup') && (() => {
+              const defaultStartupDetails: StartupPlanDetails = {
+                cogs: 10,
+                markup: 50,
+                monthlyVolume: 500,
+                rent: 800,
+                salaries: 1500,
+                marketing: 300,
+                utilities: 200,
+                otherExpenses: 200,
+                growthRateYear3: 15,
+                growthRateYear5: 35,
+                productionItems: [],
+                derivedUnits: 1,
+                hourlyRate: 20,
+                laborHours: 5,
+                desiredProfitType: 'percentage',
+                desiredProfitValue: 50,
+                includeVat: false,
+                includeLevy: false,
+                contingencyPercent: 5,
+                allocateOverhead: false,
+                businessPlan: {},
+                importedQuotes: []
+              };
+
+              const sd: StartupPlanDetails = selectedEvent.startupDetails || defaultStartupDetails;
+              const calculations = computeStartupCalculations(sd);
+
+              const {
+                costOfGoodsSoldUnit,
+                sellingPrice,
+                markupPercent,
+                monthlyUnits,
+                grossMarginPercent,
+                netMarginPercent,
+                monthlyRevenue,
+                monthlyCOGS,
+                monthlyGrossProfit,
+                monthlyOpExpenses,
+                monthlyNetOperatingProfit,
+                y1Rev,
+                y3Rev,
+                y5Rev,
+                y1COGS,
+                y3COGS,
+                y5COGS,
+                y1Gross,
+                y3Gross,
+                y5Gross,
+                y1OpEx,
+                y3OpEx,
+                y5OpEx,
+                y1Net,
+                y3Net,
+                y5Net,
+                materialsCostPerUnit,
+                laborCostPerUnit,
+                allocatedOverheadPerUnit,
+                calculatedProfitPerUnit,
+                preTaxSellingPrice,
+                finalSuggestedPrice,
+                contingencyPercent,
+                includeVat,
+                includeLevy,
+                vatCost,
+                levyCost
+              } = calculations;
+
               const productionItems = sd.productionItems || [];
               const derivedUnits = sd.derivedUnits !== undefined ? sd.derivedUnits : 1;
               const hourlyRate = sd.hourlyRate !== undefined ? sd.hourlyRate : 20;
               const laborHours = sd.laborHours !== undefined ? sd.laborHours : 5;
               const desiredProfitType = sd.desiredProfitType || 'percentage';
               const desiredProfitValue = sd.desiredProfitValue !== undefined ? sd.desiredProfitValue : 50;
-              const includeVat = !!sd.includeVat;
-              const includeLevy = !!sd.includeLevy;
-              const contingencyPercent = sd.contingencyPercent !== undefined ? sd.contingencyPercent : 5;
               const allocateOverhead = !!sd.allocateOverhead;
-
-              // Calculations
-              // 1. Materials
               const totalMaterialsCost = productionItems.reduce((sum, item) => sum + (item.cost || 0), 0);
-              const materialsCostPerUnit = derivedUnits > 0 ? totalMaterialsCost / derivedUnits : 0;
               const contingencyCostPerUnit = materialsCostPerUnit * (contingencyPercent / 100);
-              const finalMaterialsCostPerUnit = materialsCostPerUnit + contingencyCostPerUnit;
-
-              // 2. Labor
-              const totalLaborCost = hourlyRate * laborHours;
-              const laborCostPerUnit = derivedUnits > 0 ? totalLaborCost / derivedUnits : 0;
-
-              // 3. Allocated Overhead
-              const monthlyOpExpenses = sd.rent + sd.salaries + sd.marketing + sd.utilities + sd.otherExpenses;
-              const monthlyVolumeUnits = sd.monthlyVolume || 1;
-              const allocatedOverheadPerUnit = (allocateOverhead && monthlyVolumeUnits > 0) ? (monthlyOpExpenses / monthlyVolumeUnits) : 0;
-
-              // 4. Calculated Unit Production Cost (Calculated COGS)
-              const calculatedCogs = parseFloat((finalMaterialsCostPerUnit + laborCostPerUnit + allocatedOverheadPerUnit).toFixed(2));
-
-              // 5. Desired Profit
-              let calculatedProfitPerUnit = 0;
-              if (desiredProfitType === 'percentage') {
-                calculatedProfitPerUnit = calculatedCogs * (desiredProfitValue / 100);
-              } else {
-                calculatedProfitPerUnit = desiredProfitValue;
-              }
-              calculatedProfitPerUnit = parseFloat(calculatedProfitPerUnit.toFixed(2));
-
-              // 6. Pre-Tax Selling Price
-              const preTaxSellingPrice = parseFloat((calculatedCogs + calculatedProfitPerUnit).toFixed(2));
-
-              // 7. Taxes & Levies
-              const levyCost = includeLevy ? parseFloat((preTaxSellingPrice * 0.025).toFixed(2)) : 0;
-              const vatCost = includeVat ? parseFloat((preTaxSellingPrice * 0.125).toFixed(2)) : 0;
-
-              // 8. Final Suggested Retail Price
-              const finalSuggestedPrice = parseFloat((preTaxSellingPrice + levyCost + vatCost).toFixed(2));
-
-              // Integration logic: Use calculated price values if dynamic costing is in place
+              const calculatedCogs = calculations.costOfGoodsSoldUnit;
               const hasDynamicCosting = productionItems.length > 0 || laborHours > 0 || allocateOverhead;
-              
-              const costOfGoodsSoldUnit = hasDynamicCosting ? calculatedCogs : sd.cogs;
-              const markupPercent = hasDynamicCosting 
-                ? (desiredProfitType === 'percentage' ? desiredProfitValue : parseFloat(((calculatedProfitPerUnit / (calculatedCogs || 1)) * 100).toFixed(1)))
-                : sd.markup;
+              const g3 = 1 + (sd.growthRateYear3 || 15) / 100;
+              const g5 = 1 + (sd.growthRateYear5 || 35) / 100;
 
-              const sellingPrice = hasDynamicCosting ? finalSuggestedPrice : parseFloat((costOfGoodsSoldUnit * (1 + markupPercent / 100)).toFixed(2));
-              
-              const monthlyCOGS = costOfGoodsSoldUnit * monthlyVolumeUnits;
-              const monthlyRevenue = sellingPrice * monthlyVolumeUnits;
-              const monthlyGrossProfit = monthlyRevenue - monthlyCOGS;
-              const monthlyUnits = monthlyVolumeUnits;
-              
-              const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
-              const grossMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyGrossProfit / monthlyRevenue) * 100) : 0;
-              const netMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyNetOperatingProfit / monthlyRevenue) * 100) : 0;
-
-              // Projections Growth Rates
-              const g3 = 1 + sd.growthRateYear3 / 100;
-              const g5 = 1 + sd.growthRateYear5 / 100;
-
-              // Year 1, Year 3, Year 5 projections
-              const y1Rev = monthlyRevenue * 12;
-              const y1COGS = monthlyCOGS * 12;
-              const y1Gross = y1Rev - y1COGS;
-              const y1OpEx = monthlyOpExpenses * 12;
-              const y1Net = y1Gross - y1OpEx;
-
-              const y3Rev = y1Rev * g3;
-              const y3COGS = y1COGS * g3;
-              const y3Gross = y3Rev - y3COGS;
-              const y3OpEx = y1OpEx * 1.08; // 8% operating scaling inflation
-              const y3Net = y3Gross - y3OpEx;
-
-              const y5Rev = y1Rev * g5;
-              const y5COGS = y1COGS * g5;
-              const y5Gross = y5Rev - y5COGS;
-              const y5OpEx = y1OpEx * 1.15; // 15% operating scaling inflation
-              const y5Net = y5Gross - y5OpEx;
-
-              const handleUpdateStartup = (fields: Partial<typeof selectedEvent.startupDetails>) => {
-                if (!selectedEvent || !selectedEvent.startupDetails) return;
+              const handleUpdateStartup = (fields: Partial<StartupPlanDetails>) => {
+                if (!selectedEvent) return;
                 updateEvent({
                   ...selectedEvent,
                   startupDetails: {
-                    ...selectedEvent.startupDetails,
+                    ...(selectedEvent.startupDetails || defaultStartupDetails),
                     ...fields
                   },
                   lastUpdated: new Date().toISOString()
                 });
+              };
+
+              const handleUpdateBusinessPlan = (bpChanges: Partial<BusinessPlanSections>) => {
+                if (!selectedEvent) return;
+                const currentSd = selectedEvent.startupDetails || defaultStartupDetails;
+                const updatedBp = {
+                  ...(currentSd.businessPlan || {}),
+                  ...bpChanges
+                };
+                handleUpdateStartup({ businessPlan: updatedBp });
               };
 
               const handleAddMaterial = () => {
@@ -2605,10 +2612,79 @@ const EventPlanner: React.FC<Props> = ({
                 handleUpdateStartup({ productionItems: updated });
               };
 
+              const importedQuotesList = sd.importedQuotes || [];
+
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
-                  {/* Financial projections banner */}
-                  <div className="bg-stone-900 border border-stone-850 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
+                  {/* Top Mode Switcher & Funding Action Bar */}
+                  <div className="bg-white border border-stone-200 p-3.5 rounded-2xl shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex bg-stone-100/90 p-1 rounded-xl w-full md:w-auto border border-stone-200/50">
+                      <button
+                        type="button"
+                        onClick={() => setBusinessPlanSubTab('plan')}
+                        className={`flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                          businessPlanSubTab === 'plan'
+                            ? 'bg-white text-emerald-800 shadow-xs'
+                            : 'text-stone-600 hover:text-stone-900'
+                        }`}
+                      >
+                        <FileText size={14} className={businessPlanSubTab === 'plan' ? 'text-emerald-600' : 'text-stone-400'} />
+                        <span>Business Plan Narrative</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBusinessPlanSubTab('costing')}
+                        className={`flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                          businessPlanSubTab === 'costing'
+                            ? 'bg-white text-emerald-800 shadow-xs'
+                            : 'text-stone-600 hover:text-stone-900'
+                        }`}
+                      >
+                        <Calculator size={14} className={businessPlanSubTab === 'costing' ? 'text-emerald-600' : 'text-stone-400'} />
+                        <span>Interactive Costing & Financials</span>
+                        {productionItems.length > 0 && (
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                            {productionItems.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setShowImportQuoteModal(true)}
+                        className="flex-1 md:flex-initial px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
+                        title="Extract quote items from PDF or text file using local Ollama AI"
+                      >
+                        <Sparkles size={14} className="text-emerald-600" />
+                        <span>Import Supplier Quote (Ollama)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowExportPlanModal(true)}
+                        className="flex-1 md:flex-initial px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
+                        title="Export funding-ready business plan document in Word (.docx) format"
+                      >
+                        <Download size={14} className="text-white/80" />
+                        <span>Export Business Plan (.docx)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {businessPlanSubTab === 'plan' ? (
+                    <BusinessPlanForm
+                      businessPlan={sd.businessPlan || {}}
+                      onUpdateBusinessPlan={handleUpdateBusinessPlan}
+                      eventName={selectedEvent.name}
+                      onExportClick={() => setShowExportPlanModal(true)}
+                      onImportQuoteClick={() => setShowImportQuoteModal(true)}
+                    />
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Financial projections banner */}
+                      <div className="bg-stone-900 border border-stone-850 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
                     <div>
                       <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest block mb-1">Caribbean Commercial Standard</span>
                       <h3 className="text-xl font-light">Startup: <span className="font-semibold text-emerald-300">{selectedEvent.name}</span></h3>
@@ -2649,9 +2725,32 @@ const EventPlanner: React.FC<Props> = ({
                       {/* Section 1: Raw Materials / Ingredients */}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block">1. Production Items / Materials List</label>
+                          <div className="flex items-center gap-2">
+                            <label className="text-[9px] font-bold text-stone-400 uppercase block">1. Production Items / Materials List</label>
+                            <button
+                              type="button"
+                              onClick={() => setShowImportQuoteModal(true)}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md transition-colors"
+                              title="Import items directly from supplier quotes using local Ollama AI"
+                            >
+                              <Sparkles size={11} className="text-emerald-600" />
+                              Import Quote (Ollama)
+                            </button>
+                          </div>
                           <span className="text-[10px] text-stone-600 font-bold">Total Batch Cost: ${totalMaterialsCost.toFixed(2)}</span>
                         </div>
+
+                        {importedQuotesList.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 p-2 bg-emerald-50/60 border border-emerald-100 rounded-lg text-[11px] text-emerald-800">
+                            <FileText size={12} className="text-emerald-600 shrink-0" />
+                            <span className="font-semibold">{importedQuotesList.length} quote{importedQuotesList.length > 1 ? 's' : ''} saved:</span>
+                            {importedQuotesList.map((q, idx) => (
+                              <span key={q.id || idx} className="bg-white/80 border border-emerald-200/80 px-1.5 py-0.5 rounded text-[10px] font-medium text-stone-700">
+                                {q.supplierName || q.supplier || 'Supplier'} ({q.items?.length || 0} items)
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         
                         {/* Material List Items */}
                         <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2 max-h-44 overflow-y-auto">
@@ -3073,9 +3172,19 @@ const EventPlanner: React.FC<Props> = ({
                         <p className="text-[10px] text-stone-400 leading-normal mt-0.5">Compliant presentation for Commercial Banks, Credit Unions, or Caribbean Export Development Agency grants.</p>
                       </div>
                       
-                      <button
-                        type="button"
-                        onClick={async () => {
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowExportPlanModal(true)}
+                          className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-sm flex items-center gap-1.5 transition-all shrink-0"
+                          title="Generate complete funding-ready Word document"
+                        >
+                          <Download size={12} />
+                          Export Business Plan (.docx)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
                           const docContent = `
                             <h2>Commercial Loan Proposal - Startup Projections</h2>
                             <h3>Plan Name: ${selectedEvent.name}</h3>
@@ -3153,6 +3262,7 @@ const EventPlanner: React.FC<Props> = ({
                         Export P&L to Documents
                       </button>
                     </div>
+                  </div>
 
                     <div className="overflow-x-auto no-scrollbar">
                       <table className="w-full text-left text-xs border-collapse">
@@ -3228,8 +3338,10 @@ const EventPlanner: React.FC<Props> = ({
                     </div>
                   </div>
                 </div>
-              );
-            })()}
+              )}
+            </div>
+          );
+        })()}
 
             {activeTab === 'vault' && (
               <div className="space-y-6">
@@ -4633,6 +4745,93 @@ const EventPlanner: React.FC<Props> = ({
           onClose={() => setCoverModalEvent(null)}
           event={coverModalEvent}
           onSaveCoverImage={handleSaveCoverImage}
+        />
+      )}
+
+      {/* Ollama Supplier Quote Import Modal */}
+      {showImportQuoteModal && selectedEvent && (
+        <ImportQuoteModal
+          isOpen={showImportQuoteModal}
+          onClose={() => setShowImportQuoteModal(false)}
+          selectedEvent={selectedEvent}
+          currentUser={currentUser}
+          onConfirmImport={(itemsToCosting, savedFileDoc, quoteRecord, replaceExisting) => {
+            const currentSd = selectedEvent.startupDetails || {
+              cogs: 10,
+              markup: 50,
+              monthlyVolume: 500,
+              rent: 800,
+              salaries: 1500,
+              marketing: 300,
+              utilities: 200,
+              otherExpenses: 200,
+              growthRateYear3: 15,
+              growthRateYear5: 35,
+              productionItems: [],
+              derivedUnits: 1,
+              hourlyRate: 20,
+              laborHours: 5,
+              desiredProfitType: 'percentage',
+              desiredProfitValue: 50,
+              includeVat: false,
+              includeLevy: false,
+              contingencyPercent: 5,
+              allocateOverhead: false,
+              businessPlan: {},
+              importedQuotes: []
+            };
+
+            const existingItems = currentSd.productionItems || [];
+            const nextProductionItems = replaceExisting
+              ? itemsToCosting
+              : [...existingItems, ...itemsToCosting];
+
+            const existingQuotes = currentSd.importedQuotes || [];
+            const updatedQuotes = [...existingQuotes, quoteRecord];
+
+            const existingFiles = selectedEvent.files || [];
+            const updatedFiles = savedFileDoc && savedFileDoc.id
+              ? [savedFileDoc, ...existingFiles.filter(f => f.id !== savedFileDoc.id)]
+              : existingFiles;
+
+            updateEvent({
+              ...selectedEvent,
+              files: updatedFiles,
+              startupDetails: {
+                ...currentSd,
+                productionItems: nextProductionItems,
+                importedQuotes: updatedQuotes
+              },
+              lastUpdated: new Date().toISOString()
+            });
+
+            setShowImportQuoteModal(false);
+            setBusinessPlanSubTab('costing');
+          }}
+        />
+      )}
+
+      {/* Export Business Plan Modal */}
+      {showExportPlanModal && selectedEvent && (
+        <ExportBusinessPlanModal
+          isOpen={showExportPlanModal}
+          onClose={() => setShowExportPlanModal(false)}
+          selectedEvent={selectedEvent}
+          calculations={computeStartupCalculations(selectedEvent.startupDetails)}
+          currentUser={currentUser}
+          onUpdateBusinessPlanMeta={(meta) => {
+            const currentSd = selectedEvent.startupDetails;
+            if (!currentSd) return;
+            const updatedBp = { ...(currentSd.businessPlan || {}), ...meta };
+            updateEvent({
+              ...selectedEvent,
+              startupDetails: {
+                ...currentSd,
+                businessPlan: updatedBp
+              },
+              lastUpdated: new Date().toISOString()
+            });
+          }}
         />
       )}
     </div>
