@@ -71,29 +71,122 @@ export const deleteInternalDoc = async (id: string): Promise<void> => {
  * uploading a document doesn't require the File System Access API).
  */
 export const saveFileBlob = async (id: string, blob: Blob): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
-    transaction.objectStore(FILE_BLOB_STORE).put(blob, id);
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
+      transaction.objectStore(FILE_BLOB_STORE).put(blob, id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch (err) {
+    console.warn('saveFileBlob IDB error (non-fatal):', err);
+  }
 };
 
 export const getFileBlob = async (id: string): Promise<Blob | null> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(FILE_BLOB_STORE, 'readonly');
-    const request = transaction.objectStore(FILE_BLOB_STORE).get(id);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(FILE_BLOB_STORE, 'readonly');
+      const request = transaction.objectStore(FILE_BLOB_STORE).get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn('getFileBlob IDB error:', err);
+    return null;
+  }
 };
 
 export const deleteFileBlob = async (id: string): Promise<void> => {
-  const db = await initDB();
-  const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
-  transaction.objectStore(FILE_BLOB_STORE).delete(id);
+  try {
+    const db = await initDB();
+    const transaction = db.transaction(FILE_BLOB_STORE, 'readwrite');
+    transaction.objectStore(FILE_BLOB_STORE).delete(id);
+  } catch (err) {
+    console.warn('deleteFileBlob IDB error (non-fatal):', err);
+  }
+};
+
+/**
+ * System Database File Management API
+ * Uploads, downloads, and manages project files directly in the backend database.
+ */
+export interface SystemUploadedFile {
+  id: string;
+  userId?: string | null;
+  projectId?: string | null;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+  updatedAt: string;
+  downloadUrl: string;
+  viewUrl: string;
+}
+
+export const uploadFileToSystemDatabase = async (
+  file: File,
+  projectId?: string
+): Promise<SystemUploadedFile> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (projectId) {
+    formData.append('projectId', projectId);
+  }
+
+  const res = await fetch('/api/files/upload', {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Upload failed with status ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (data.ok && Array.isArray(data.files) && data.files.length > 0) {
+    return data.files[0];
+  }
+  throw new Error('Upload succeeded but no file record was returned by the system database.');
+};
+
+export const downloadFileFromSystemDatabase = async (fileId: string, fileName: string): Promise<void> => {
+  const downloadUrl = `/api/files/${encodeURIComponent(fileId)}/download`;
+  
+  try {
+    const res = await fetch(downloadUrl, { credentials: 'include' });
+    if (!res.ok) {
+      throw new Error(`Failed to download file from database (Status ${res.status})`);
+    }
+    const blob = await res.blob();
+    triggerSecureDownload(blob, fileName);
+  } catch (err) {
+    // Direct anchor fallback
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 2000);
+  }
+};
+
+export const deleteFileFromSystemDatabase = async (fileId: string): Promise<void> => {
+  try {
+    await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+  } catch (err) {
+    console.warn('deleteFileFromSystemDatabase non-fatal error:', err);
+  }
 };
 
 /**

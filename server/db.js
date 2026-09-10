@@ -229,6 +229,25 @@ if (hasPostgres) {
   }).then(() => {
     return realPool.query(`CREATE INDEX IF NOT EXISTS idx_funding_jobs_status_next ON funding_research_jobs(status, next_attempt_at);`);
   }).then(() => {
+    // System database table for uploaded project documents, receipts, files, and spreadsheets
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS system_files (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        project_id VARCHAR(255),
+        file_name VARCHAR(255) NOT NULL,
+        file_type VARCHAR(120) NOT NULL,
+        file_size BIGINT NOT NULL,
+        file_data BYTEA NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_system_files_user ON system_files(user_id);`);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_system_files_project ON system_files(project_id);`);
+  }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
     console.error('Failed to initialize PostgreSQL database tables:', err);
@@ -254,7 +273,8 @@ if (!fs.existsSync(DB_FILE)) {
     project_members: [],
     project_invites: [],
     project_messages: [],
-    password_reset_tokens: []
+    password_reset_tokens: [],
+    system_files: []
   }, null, 2));
 }
 

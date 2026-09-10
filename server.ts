@@ -18,6 +18,7 @@ import googleCalendarRoutes from './server/routes/googleCalendar.js';
 import legalRoutes from './server/routes/legal.js';
 import fundingRoutes from './server/routes/funding.js';
 import notificationsRoutes from './server/routes/notifications.js';
+import filesRoutes from './server/routes/files.js';
 import { startFundingResearchScheduler } from './server/jobs/fundingScheduler.js';
 import { createServer as createViteServer } from 'vite';
 import rateLimit from 'express-rate-limit';
@@ -251,6 +252,7 @@ app.use('/api/gmail', gmailRoutes);
 app.use('/api/calendar', googleCalendarRoutes);
 app.use('/api/funding', fundingRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/files', filesRoutes);
 
 // Public legal pages — plain server-rendered HTML (not part of the SPA
 // bundle) so they're reachable, indexable, and stable even if the frontend

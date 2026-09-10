@@ -1,7 +1,21 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea } from '../types';
-import { saveFileToHardDrive, getFileFromHardDrive, triggerSecureDownload, saveInternalDoc, getInternalDoc, deleteInternalDoc, saveFileBlob, getFileBlob, deleteFileBlob, formatFileSize } from '../services/fileStorageService';
+import { 
+  saveFileToHardDrive, 
+  getFileFromHardDrive, 
+  triggerSecureDownload, 
+  saveInternalDoc, 
+  getInternalDoc, 
+  deleteInternalDoc, 
+  saveFileBlob, 
+  getFileBlob, 
+  deleteFileBlob, 
+  formatFileSize,
+  uploadFileToSystemDatabase,
+  downloadFileFromSystemDatabase,
+  deleteFileFromSystemDatabase
+} from '../services/fileStorageService';
 import DocumentEditor from './DocumentEditor';
 import ExcelEditor from './ExcelEditor';
 import ProjectDashboard from './ProjectDashboard';
@@ -843,12 +857,31 @@ const EventPlanner: React.FC<Props> = ({
       const newProjectFiles: ProjectFile[] = [];
 
       for (const file of files) {
-        const fileId = generateId();
-        // Persist the binary file blob in IndexedDB
+        let systemFileId: string | undefined;
+        let downloadUrl: string | undefined;
+        let viewUrl: string | undefined;
+        let storageType: 'database' | 'indexeddb' | 'filesystem' = 'database';
+        let fileId = generateId();
+
+        try {
+          // Primary: Save file directly to System Database (PostgreSQL / backend files store)
+          const savedSysFile = await uploadFileToSystemDatabase(file, selectedEvent.id);
+          if (savedSysFile && savedSysFile.id) {
+            systemFileId = savedSysFile.id;
+            fileId = savedSysFile.id;
+            downloadUrl = savedSysFile.downloadUrl;
+            viewUrl = savedSysFile.viewUrl;
+            storageType = 'database';
+          }
+        } catch (dbErr) {
+          console.warn('System database upload fallback to local indexeddb:', dbErr);
+          storageType = 'indexeddb';
+        }
+
+        // Persist in IndexedDB as client cache/offline support
         await saveFileBlob(fileId, file);
 
-        let storageRef = `internal/${fileId}`;
-        let storageType: 'indexeddb' | 'filesystem' = 'indexeddb';
+        let storageRef = systemFileId ? `db/${systemFileId}` : `internal/${fileId}`;
 
         // Optional hardware mirror if user connected an SSD vault directory
         if (directoryHandle) {
@@ -856,7 +889,7 @@ const EventPlanner: React.FC<Props> = ({
             storageRef = await saveFileToHardDrive(directoryHandle, selectedEvent.name, file.name, file);
             storageType = 'filesystem';
           } catch (mirrorErr) {
-            console.warn(`[Vault] Hardware mirror failed for ${file.name}, preserved in local vault.`);
+            console.warn(`[Vault] Hardware mirror failed for ${file.name}, preserved in system database.`);
           }
         }
 
@@ -868,6 +901,9 @@ const EventPlanner: React.FC<Props> = ({
           timestamp: new Date().toISOString(),
           storageRef,
           storageType,
+          systemFileId,
+          downloadUrl,
+          viewUrl,
           version: 1,
           lastModifiedBy: currentUser
         };
@@ -883,7 +919,7 @@ const EventPlanner: React.FC<Props> = ({
 
       updateEvent(updatedEvent);
       const names = files.map(f => `"${f.name}"`).join(', ');
-      addActionLog(updatedEvent, `Uploaded ${files.length} document(s): ${names}`, 'file');
+      addActionLog(updatedEvent, `Uploaded & saved ${files.length} document(s) in system database: ${names}`, 'file');
     } catch (err: any) {
       console.error('File upload error:', err);
       alert(`File Upload Failed: ${err.message || 'Unknown error'}`);
@@ -895,9 +931,12 @@ const EventPlanner: React.FC<Props> = ({
   const handleDeleteFile = async (file: ProjectFile, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!selectedEvent) return;
-    if (!window.confirm(`Are you sure you want to delete "${file.name}" from this project?`)) return;
+    if (!window.confirm(`Are you sure you want to delete "${file.name}" from this project and system database?`)) return;
 
     try {
+      if (file.systemFileId || file.storageType === 'database') {
+        await deleteFileFromSystemDatabase(file.systemFileId || file.id);
+      }
       await deleteFileBlob(file.id);
       await deleteInternalDoc(file.id);
 
@@ -1026,6 +1065,12 @@ const EventPlanner: React.FC<Props> = ({
     }
 
     try {
+      // If stored in system database or has systemFileId / downloadUrl
+      if (file.systemFileId || file.storageType === 'database' || file.downloadUrl) {
+        await downloadFileFromSystemDatabase(file.systemFileId || file.id, file.name);
+        return;
+      }
+
       let blob: Blob | null = null;
       if (directoryHandle && file.storageType === 'filesystem') {
         try {
@@ -1047,7 +1092,8 @@ const EventPlanner: React.FC<Props> = ({
       if (blob) {
         triggerSecureDownload(blob, file.name);
       } else {
-        alert(`File "${file.name}" is not stored locally.`);
+        // Direct database download fallback
+        await downloadFileFromSystemDatabase(file.id, file.name);
       }
     } catch (err: any) {
       console.error('File retrieval error:', err);
@@ -3156,6 +3202,7 @@ const EventPlanner: React.FC<Props> = ({
                         const isDoc = file.name.endsWith('.fdoc') || file.type?.includes('word') || file.type?.includes('text') || file.name.endsWith('.docx') || file.name.endsWith('.pdf');
                         const isImage = file.type?.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
                         const isArchive = /\.(zip|tar|gz|7z|rar)$/i.test(file.name);
+                        const isDatabase = file.storageType === 'database' || Boolean(file.systemFileId);
                         const isInternal = file.storageType === 'indexeddb';
                         
                         return (
@@ -3209,12 +3256,13 @@ const EventPlanner: React.FC<Props> = ({
 
                             <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between">
                               <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded ${
+                                isDatabase ? 'bg-blue-50 text-blue-700 border border-blue-200 font-medium' :
                                 isInternal ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                               }`}>
-                                {isInternal ? 'Encrypted Vault' : 'Mirror Drive'}
+                                {isDatabase ? 'System Database' : isInternal ? 'Encrypted Vault' : 'Mirror Drive'}
                               </span>
                               <span className="text-[10px] text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                                Open <ArrowRight className="w-2.5 h-2.5" />
+                                Download <ArrowRight className="w-2.5 h-2.5" />
                               </span>
                             </div>
                           </div>

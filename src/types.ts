@@ -192,9 +192,12 @@ export interface ProjectFile {
   size: number;
   timestamp: string;
   storageRef: string;
-  storageType: 'indexeddb' | 'filesystem' | 'url';
+  storageType: 'database' | 'indexeddb' | 'filesystem' | 'url';
   version: number;
   lastModifiedBy: string;
+  systemFileId?: string;
+  downloadUrl?: string;
+  viewUrl?: string;
 }
 
 export interface IOU {
