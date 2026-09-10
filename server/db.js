@@ -822,6 +822,64 @@ export const pool = {
       return { rows: [] };
     }
 
+    // 28. Transactions & DDL statements (BEGIN, COMMIT, ROLLBACK, CREATE TABLE, etc.)
+    if (
+      cleanSql === 'BEGIN' ||
+      cleanSql === 'COMMIT' ||
+      cleanSql === 'ROLLBACK' ||
+      cleanSql.startsWith('CREATE TABLE') ||
+      cleanSql.startsWith('CREATE INDEX') ||
+      cleanSql.startsWith('CREATE EXTENSION')
+    ) {
+      return { rows: [], rowCount: 0 };
+    }
+
+    // 29. gmail_processed_messages SELECT
+    if (cleanSql.includes('FROM gmail_processed_messages')) {
+      const list = db.gmail_processed_messages || [];
+      const userId = params[0];
+      const rows = list
+        .filter(item => item.user_id === userId)
+        .sort((a, b) => new Date(b.processed_at || 0).getTime() - new Date(a.processed_at || 0).getTime())
+        .map(item => ({
+          message_id: item.message_id,
+          status: item.status,
+          processed_at: item.processed_at
+        }));
+      return { rows };
+    }
+
+    // 30. gmail_processed_messages INSERT / UPSERT
+    if (cleanSql.startsWith('INSERT INTO gmail_processed_messages')) {
+      if (!db.gmail_processed_messages) db.gmail_processed_messages = [];
+      const userId = params[0];
+      const messageId = params[1];
+      const status = params[2] || 'read';
+      const now = new Date().toISOString();
+
+      const existingIdx = db.gmail_processed_messages.findIndex(
+        m => m.user_id === userId && m.message_id === messageId
+      );
+      const record = { user_id: userId, message_id: messageId, status, processed_at: now };
+      if (existingIdx >= 0) {
+        db.gmail_processed_messages[existingIdx] = record;
+      } else {
+        db.gmail_processed_messages.push(record);
+      }
+      writeDB(db);
+      return { rows: [record], rowCount: 1 };
+    }
+
+    // 31. gmail_processed_messages DELETE
+    if (cleanSql.startsWith('DELETE FROM gmail_processed_messages')) {
+      if (db.gmail_processed_messages) {
+        const userId = params[0];
+        db.gmail_processed_messages = db.gmail_processed_messages.filter(m => m.user_id !== userId);
+        writeDB(db);
+      }
+      return { rows: [], rowCount: 1 };
+    }
+
     console.warn('Unhandled SQL query in mock db.js:', sql, params);
     return { rows: [] };
   },

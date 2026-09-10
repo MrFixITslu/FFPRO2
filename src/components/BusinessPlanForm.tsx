@@ -20,11 +20,15 @@ import {
 import { BudgetEvent, BusinessPlanSections, SupplierQuoteData } from '../types';
 
 interface BusinessPlanFormProps {
-  selectedEvent: BudgetEvent;
+  selectedEvent?: BudgetEvent;
+  businessPlan?: BusinessPlanSections;
+  eventName?: string;
   onUpdateBusinessPlan: (updatedPlan: BusinessPlanSections) => void;
-  onOpenImportQuote: () => void;
-  onOpenExportModal: () => void;
-  onScrollToCosting: () => void;
+  onOpenImportQuote?: () => void;
+  onOpenExportModal?: () => void;
+  onScrollToCosting?: () => void;
+  onExportClick?: () => void;
+  onImportQuoteClick?: () => void;
 }
 
 interface SectionFieldDef {
@@ -37,13 +41,21 @@ interface SectionFieldDef {
 
 export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
   selectedEvent,
+  businessPlan,
+  eventName,
   onUpdateBusinessPlan,
   onOpenImportQuote,
   onOpenExportModal,
-  onScrollToCosting
+  onScrollToCosting,
+  onExportClick,
+  onImportQuoteClick
 }) => {
-  const sd = selectedEvent.startupDetails;
-  const currentPlan: BusinessPlanSections = sd?.businessPlan || {};
+  const openExport = onOpenExportModal || onExportClick || (() => {});
+  const openImport = onOpenImportQuote || onImportQuoteClick || (() => {});
+  const scrollToCosting = onScrollToCosting || (() => {});
+
+  const sd = selectedEvent?.startupDetails;
+  const currentPlan: BusinessPlanSections = businessPlan || sd?.businessPlan || {};
   const importedQuotes: SupplierQuoteData[] = sd?.importedQuotes || [];
 
   const [activeTab, setActiveTab] = useState<'exec' | 'market' | 'offering' | 'financials' | 'execution'>('exec');
@@ -314,7 +326,7 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             type="button"
-            onClick={onOpenImportQuote}
+            onClick={openImport}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 transition-all"
           >
             <Upload size={14} />
@@ -323,7 +335,7 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
 
           <button
             type="button"
-            onClick={onOpenExportModal}
+            onClick={openExport}
             className="px-3.5 py-2 bg-white hover:bg-stone-100 text-stone-900 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 transition-all"
           >
             <Download size={14} />
@@ -454,7 +466,7 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onScrollToCosting}
+              onClick={scrollToCosting}
               className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 underline"
             >
               Interactive Sale Price Costing <ChevronRight size={13} />
@@ -537,7 +549,7 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={onOpenExportModal}
+                onClick={openExport}
                 className="px-5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
               >
                 <Download size={13} /> Export Business Plan

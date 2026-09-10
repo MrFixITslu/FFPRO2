@@ -2675,11 +2675,15 @@ const EventPlanner: React.FC<Props> = ({
 
                   {businessPlanSubTab === 'plan' ? (
                     <BusinessPlanForm
+                      selectedEvent={selectedEvent}
                       businessPlan={sd.businessPlan || {}}
                       onUpdateBusinessPlan={handleUpdateBusinessPlan}
                       eventName={selectedEvent.name}
+                      onOpenExportModal={() => setShowExportPlanModal(true)}
+                      onOpenImportQuote={() => setShowImportQuoteModal(true)}
                       onExportClick={() => setShowExportPlanModal(true)}
                       onImportQuoteClick={() => setShowImportQuoteModal(true)}
+                      onScrollToCosting={() => setBusinessPlanSubTab('costing')}
                     />
                   ) : (
                     <div className="space-y-6">

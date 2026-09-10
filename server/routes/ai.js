@@ -247,7 +247,7 @@ const handleMarketData = async (req, res) => {
           }
         }
       } catch (geminiErr) {
-        console.error('Gemini market-data fallback failed:', geminiErr);
+        console.warn('Gemini market-data fallback unavailable:', geminiErr?.message || geminiErr);
       }
     }
   }

@@ -39,10 +39,12 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
   onUpdateBusinessPlanMeta,
   onExportPnlToDocuments
 }) => {
-  const sd = selectedEvent.startupDetails;
+  if (!isOpen || !selectedEvent) return null;
+
+  const sd = selectedEvent?.startupDetails || {};
   const bp: BusinessPlanSections = sd?.businessPlan || {};
 
-  const [companyName, setCompanyName] = useState<string>(bp.companyName || selectedEvent.name || '');
+  const [companyName, setCompanyName] = useState<string>(bp.companyName || selectedEvent?.name || '');
   const [preparedBy, setPreparedBy] = useState<string>(bp.preparedBy || currentUser || 'Project Executive');
   const [fundingAgency, setFundingAgency] = useState<string>(bp.fundingAgencyOrBank || 'Commercial Lending & Development Agency');
   const [contactEmail, setContactEmail] = useState<string>(bp.contactEmail || '');
@@ -56,8 +58,6 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
   const [isGeneratingDocx, setIsGeneratingDocx] = useState<boolean>(false);
   const [isExportingPnl, setIsExportingPnl] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  if (!isOpen) return null;
 
   const handleSaveMeta = () => {
     onUpdateBusinessPlanMeta({
@@ -77,12 +77,25 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
     try {
       handleSaveMeta();
       // Clone event with latest metadata
+      const currentStartupDetails = selectedEvent.startupDetails || {
+        cogs: 0,
+        markup: 0,
+        monthlyVolume: 0,
+        rent: 0,
+        salaries: 0,
+        marketing: 0,
+        utilities: 0,
+        otherExpenses: 0,
+        growthRateYear3: 15,
+        growthRateYear5: 35
+      };
+
       const updatedEvent: BudgetEvent = {
         ...selectedEvent,
         startupDetails: {
-          ...selectedEvent.startupDetails!,
+          ...currentStartupDetails,
           businessPlan: {
-            ...selectedEvent.startupDetails?.businessPlan,
+            ...(currentStartupDetails.businessPlan || {}),
             companyName,
             preparedBy,
             fundingAgencyOrBank: fundingAgency,
