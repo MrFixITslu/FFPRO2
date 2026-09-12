@@ -25,7 +25,7 @@ cp .env.example .env
 
 Open the newly created `.env` file and configure the settings:
 *   **`APP_PORT`**: Change this to an unused port (e.g., `3010`) if port `3000` is already in use by another application.
-*   **`FRONTEND_URL`**: Set this to your public IP or domain name (e.g., `http://199.223.249.193` or `https://ffpro.v79sl.duckdns.org`).
+*   **`FRONTEND_URL`**: Set this to your public IP or domain name (e.g., `http://199.223.249.193` or `https://ffpro.v79sl.com`).
 *   **`SESSION_SECRET`**: Run `openssl rand -base64 32` to generate a secure random secret key.
 *   **`DATA_ENCRYPTION_KEY`**: Run `openssl rand -base64 32` to generate your 256-bit database encryption key.
 *   **`GEMINI_API_KEY`**: Insert your Google Gemini API Key to enable live budget advice, portfolio analysis, and predictions.

@@ -531,7 +531,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                         <div># Google Cloud Console OAuth Client</div>
                         <div>GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"</div>
                         <div>GOOGLE_CLIENT_SECRET="your_google_client_secret"</div>
-                        <div>GOOGLE_CALLBACK_URL="https://ffpro.v79sl.duckdns.org/api/auth/google/callback"</div>
+                        <div>GOOGLE_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/google/callback"</div>
                       </>
                     )}
                     {selectedProvider === 'facebook' && (
@@ -539,7 +539,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                         <div># Meta Developer Portal Facebook App</div>
                         <div>FACEBOOK_APP_ID="your_facebook_app_id"</div>
                         <div>FACEBOOK_APP_SECRET="your_facebook_app_secret"</div>
-                        <div>FACEBOOK_CALLBACK_URL="https://ffpro.v79sl.duckdns.org/api/auth/facebook/callback"</div>
+                        <div>FACEBOOK_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/facebook/callback"</div>
                       </>
                     )}
                     {selectedProvider === 'apple' && (
@@ -549,7 +549,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                         <div>APPLE_TEAM_ID="your_developer_team_id"</div>
                         <div>APPLE_KEY_ID="your_private_key_id"</div>
                         <div>APPLE_PRIVATE_KEY_PATH="/path/to/key.p8"</div>
-                        <div>APPLE_CALLBACK_URL="https://ffpro.v79sl.duckdns.org/api/auth/apple/callback"</div>
+                        <div>APPLE_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/apple/callback"</div>
                       </>
                     )}
                   </div>
@@ -597,13 +597,13 @@ services:
       - GEMINI_API_KEY=your_gemini_api_key
       ` + (selectedProvider === 'google' ? `- GOOGLE_CLIENT_ID=your_google_client_id
       - GOOGLE_CLIENT_SECRET=your_google_client_secret
-      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/google/callback` : selectedProvider === 'facebook' ? `- FACEBOOK_APP_ID=your_facebook_app_id
+      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/google/callback` : selectedProvider === 'facebook' ? `- FACEBOOK_APP_ID=your_facebook_app_id
       - FACEBOOK_APP_SECRET=your_facebook_app_secret
-      - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/facebook/callback` : `- APPLE_CLIENT_ID=your_services_id
+      - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/facebook/callback` : `- APPLE_CLIENT_ID=your_services_id
       - APPLE_TEAM_ID=your_developer_team_id
       - APPLE_KEY_ID=your_private_key_id
-      - APPLE_CALLBACK_URL=https://ffpro.v79sl.duckdns.org/api/auth/apple/callback`) + `
-      - FRONTEND_URL=https://ffpro.v79sl.duckdns.org
+      - APPLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/apple/callback`) + `
+      - FRONTEND_URL=https://ffpro.v79sl.com
 
 networks:
   proxy_network:
@@ -618,16 +618,16 @@ networks:
                     <pre className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
 {`server {
     listen 80;
-    server_name ffpro.v79sl.duckdns.org;
+    server_name ffpro.v79sl.com;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name ffpro.v79sl.duckdns.org;
+    server_name ffpro.v79sl.com;
 
-    ssl_certificate /etc/letsencrypt/live/ffpro.v79sl.duckdns.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ffpro.v79sl.duckdns.org/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ffpro.v79sl.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ffpro.v79sl.com/privkey.pem;
 
     location / {
         # Route to container internally on same Docker network
