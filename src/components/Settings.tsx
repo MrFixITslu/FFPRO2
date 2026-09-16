@@ -1,3 +1,8 @@
+import { authService } from '../services/authService';
+import { useAccessibleDialog } from '../hooks/useAccessibleDialog';
+import { PushSettings } from './PushSettings';
+import type { AppState } from '../services/vaultService';
+import { validateAppState } from '../../shared/appState.js';
 
 import React, { useState, useMemo, useRef } from 'react';
 import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS } from '../types';
@@ -30,6 +35,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
+  currentState: AppState;
+  onRestoreState: (data: AppState) => Promise<void>;
   salary: number;
   onUpdateSalary: (val: number) => void;
   targetMargin: number;
@@ -94,8 +101,9 @@ const Settings: React.FC<Props> = ({
   cloudLastSyncTime = null,
   cloudVersion = 1,
   realtimeStatus = 'connected',
-  onForceSync
+  onForceSync, currentState, onRestoreState
 }) => {
+  const dialog=useAccessibleDialog(onClose);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isChangingPass, setIsChangingPass] = useState(false);
   const [passForm, setPassForm] = useState({ new: '', confirm: '' });
@@ -206,12 +214,7 @@ const Settings: React.FC<Props> = ({
   }, [recurringIncomes, recurringExpenses, categoryBudgets]);
 
   const handleExportBackup = () => {
-    const backupData: Record<string, string | null> = {};
-    Object.values(STORAGE_KEYS).forEach(key => {
-      backupData[key] = localStorage.getItem(key);
-    });
-    
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ format: 'ffpro2-backup', version: 1, data: currentState }, null, 2)], { type: 'application/json' });
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     triggerSecureDownload(blob, `fire_finance_backup_${timestamp}.json`);
   };
@@ -220,37 +223,33 @@ const Settings: React.FC<Props> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        if (confirm("RESTORE WARNING: This will overwrite ALL current vault data. This action cannot be undone. Proceed?")) {
-          Object.keys(data).forEach(key => {
-            if (data[key] !== null) {
-              localStorage.setItem(key, data[key]);
-            }
-          });
-          alert("Vault Data Restored Successfully. Terminal will now reload.");
-          window.location.reload();
-        }
-      } catch (err) {
-        alert("CRITICAL ERROR: Invalid backup file structure.");
+    if (file.size > 5 * 1024 * 1024) { alert('Backup exceeds the 5 MB limit.'); return; }
+    file.text().then(async text => {
+      const backup = JSON.parse(text);
+      let data = backup.format === 'ffpro2-backup' ? backup.data : backup;
+      if (backup[STORAGE_KEYS.TRANSACTIONS] !== undefined) {
+        const keys = { transactions: STORAGE_KEYS.TRANSACTIONS, recurringExpenses: STORAGE_KEYS.RECURRING_EXPENSES, recurringIncomes: STORAGE_KEYS.RECURRING_INCOMES, savingGoals: STORAGE_KEYS.SAVINGS_GOALS, investmentGoals: STORAGE_KEYS.INVESTMENT_GOALS, categoryBudgets: STORAGE_KEYS.CATEGORY_LIMITS, bankConnections: STORAGE_KEYS.BANK_CONNECTIONS, investments: STORAGE_KEYS.INVESTMENTS, events: STORAGE_KEYS.EVENTS, calendarItems: STORAGE_KEYS.CALENDAR_ITEMS, contacts: STORAGE_KEYS.CONTACTS, ideas: STORAGE_KEYS.IDEAS, forecastSettings: STORAGE_KEYS.FORECAST_SETTINGS, financialLogs: STORAGE_KEYS.FINANCIAL_LOGS, cashOpeningBalance: STORAGE_KEYS.CASH_OPENING };
+        data = Object.fromEntries(Object.entries(keys).filter(([,key])=>backup[key]!=null).map(([name,key])=>[name,JSON.parse(backup[key])]));
       }
-    };
-    reader.readAsText(file);
+      if (!Array.isArray(data?.transactions) || !Array.isArray(data?.events)) throw new Error('Not a complete FFPRO2 backup.');
+      const error = validateAppState(data); if (error) throw new Error(error);
+      if (!confirm('Replace your personal ledger with this backup? Export your current data first if you want to keep it. Shared projects and uploaded files are separate.')) return;
+      await onRestoreState(data);
+      alert('Backup restored and saved to your account.');
+    }).catch(error=>alert(`Restore failed: ${error.message}`));
+    e.target.value = '';
   };
 
   const handleBudgetChange = (category: string, value: string) => {
     onUpdateCategoryBudgets({ ...categoryBudgets, [category]: parseFloat(value) || 0 });
   };
 
-  const handlePasswordSubmit = () => {
-    if (!passForm.new || passForm.new.length < 4) return alert('Min 4 chars');
-    if (passForm.new !== passForm.confirm) return alert('Mismatch');
-    onUpdatePassword(passForm.new);
-    setIsChangingPass(false);
-    setPassForm({ new: '', confirm: '' });
-    alert("Vault credentials updated.");
+  const handlePasswordSubmit = async () => {
+    try {
+      const user=await authService.me();if(!user)throw new Error('Sign in before requesting a password reset.');
+      const result=await authService.forgotPassword(user.email);
+      alert(result.message);setIsChangingPass(false);
+    }catch(error:any){alert(error.message || 'Could not request password reset.');}
   };
 
   const startEditRec = (exp: RecurringExpense) => {
@@ -293,7 +292,7 @@ const Settings: React.FC<Props> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-4xl rounded-xl border border-stone-200 shadow-lg overflow-hidden animate-in zoom-in-95 duration-200 h-[85vh] flex flex-col md:flex-row">
         
         {/* Sidebar Navigation */}
@@ -307,7 +306,7 @@ const Settings: React.FC<Props> = ({
             />
             <div>
               <h2 className="text-sm font-bold text-stone-900 leading-tight">Vault Settings</h2>
-              <p className="text-[9px] text-indigo-600 font-bold uppercase tracking-wider">Fire Finance Pro</p>
+              <p className="text-xs text-indigo-600 font-bold uppercase tracking-wider">Fire Finance Pro</p>
             </div>
           </div>
           
@@ -316,7 +315,7 @@ const Settings: React.FC<Props> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-800'}`}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-800'}`}
               >
                 <i className={`fas ${tab.icon} w-3.5`}></i>
                 {tab.label}
@@ -325,7 +324,7 @@ const Settings: React.FC<Props> = ({
           </div>
 
           <div className="mt-auto pt-4 hidden md:block">
-            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded text-[10px] font-bold uppercase tracking-wider text-rose-500 hover:bg-rose-50 transition">
+            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-2.5 rounded text-xs font-bold uppercase tracking-wider text-rose-500 hover:bg-rose-50 transition">
               <i className="fas fa-power-off text-xs"></i> Logout
             </button>
           </div>
@@ -333,15 +332,16 @@ const Settings: React.FC<Props> = ({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-white relative">
-          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-stone-50 border border-stone-200 rounded text-stone-400 hover:text-stone-800 transition shadow-sm z-10"><i className="fas fa-times text-xs"></i></button>
+          <button aria-label="Close settings" onClick={onClose} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-stone-50 border border-stone-200 rounded text-stone-400 hover:text-stone-800 transition shadow-sm z-10"><i className="fas fa-times text-xs"></i></button>
 
           {activeTab === 'general' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                <PushSettings />
               <section>
                 <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-coins text-indigo-600 text-xs"></i> Financial Baseline</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-5 bg-stone-50 rounded-lg border border-stone-200">
-                    <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-2 block">Opening Cash Ledger</label>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Opening Cash Ledger</label>
                     <input 
                       type="number" 
                       value={cashOpeningBalance} 
@@ -351,7 +351,7 @@ const Settings: React.FC<Props> = ({
                   </div>
                   <div className="p-5 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col justify-between">
                     <div>
-                      <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-2 block">Monthly Surplus Target</label>
+                      <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Monthly Surplus Target</label>
                       <p className={`text-xl font-bold ${monthlyCashflowSurplus >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
                         ${monthlyCashflowSurplus.toLocaleString()}
                       </p>
@@ -373,7 +373,7 @@ const Settings: React.FC<Props> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {CATEGORIES.filter(c => !['Income', 'Savings', 'Investments', 'Other', 'Transfer'].includes(c)).map(cat => (
                     <div key={cat} className="p-3 bg-white border border-stone-200 rounded-lg shadow-sm">
-                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">{cat}</p>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">{cat}</p>
                       <input 
                         type="number" 
                         value={categoryBudgets[cat] || ''} 
@@ -393,7 +393,7 @@ const Settings: React.FC<Props> = ({
               <section>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-sm font-bold text-stone-800">Recurring Commitments</h3>
-                  <span className="text-[9px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Fixed Expenses</span>
+                  <span className="text-xs font-bold bg-indigo-50 border border-indigo-100 text-indigo-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Fixed Expenses</span>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-2 mb-4">
@@ -410,8 +410,8 @@ const Settings: React.FC<Props> = ({
                             <input type="date" value={editRecData?.nextDueDate} onChange={e => setEditRecData(prev => prev ? {...prev, nextDueDate: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" />
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={saveEditRec} className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-[9px] font-bold uppercase tracking-wider">Save Changes</button>
-                            <button onClick={() => { setEditingRecId(null); setEditRecData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-[9px] font-bold uppercase tracking-wider">Cancel</button>
+                            <button onClick={saveEditRec} className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider">Save Changes</button>
+                            <button onClick={() => { setEditingRecId(null); setEditRecData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">Cancel</button>
                           </div>
                         </div>
                       ) : (
@@ -420,7 +420,7 @@ const Settings: React.FC<Props> = ({
                             <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-rose-500 shadow-sm"><i className="fas fa-calendar-minus text-xs"></i></div>
                             <div>
                               <p className="text-xs font-semibold text-stone-800">{exp.description}</p>
-                              <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider">${exp.amount} • {exp.category} • Next: {new Date(exp.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                              <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">${exp.amount} • {exp.category} • Next: {new Date(exp.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -434,7 +434,7 @@ const Settings: React.FC<Props> = ({
                 </div>
 
                 <div className="p-5 bg-stone-900 rounded-lg border border-stone-800 text-white shadow-sm">
-                  <h4 className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 mb-3">Register New Recurring Bill</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-3">Register New Recurring Bill</h4>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <input type="text" placeholder="Description" value={newRec.description} onChange={e => setNewRec({...newRec, description: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
                     <input type="number" placeholder="Amount" value={newRec.amount} onChange={e => setNewRec({...newRec, amount: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
@@ -458,7 +458,7 @@ const Settings: React.FC<Props> = ({
                       });
                       setNewRec({ description: '', amount: '', category: CATEGORIES[0], nextDate: new Date().toISOString().split('T')[0] });
                     }} 
-                    className="w-full py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-500 transition shadow-sm"
+                    className="w-full py-2 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 transition shadow-sm"
                   >Authorize Commitment</button>
                 </div>
               </section>
@@ -466,7 +466,7 @@ const Settings: React.FC<Props> = ({
               <section>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-sm font-bold text-stone-800">Recurring Inflows</h3>
-                  <span className="text-[9px] font-bold bg-emerald-50 border border-emerald-100 text-emerald-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Income Sources</span>
+                  <span className="text-xs font-bold bg-emerald-50 border border-emerald-100 text-emerald-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Income Sources</span>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-2 mb-4">
@@ -483,8 +483,8 @@ const Settings: React.FC<Props> = ({
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={saveEditInc} className="flex-1 py-1.5 bg-emerald-600 text-white rounded text-[9px] font-bold uppercase tracking-wider">Save Changes</button>
-                            <button onClick={() => { setEditingIncId(null); setEditIncData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-[9px] font-bold uppercase tracking-wider">Cancel</button>
+                            <button onClick={saveEditInc} className="flex-1 py-1.5 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider">Save Changes</button>
+                            <button onClick={() => { setEditingIncId(null); setEditIncData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">Cancel</button>
                           </div>
                         </div>
                       ) : (
@@ -493,7 +493,7 @@ const Settings: React.FC<Props> = ({
                             <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-emerald-500 shadow-sm"><i className="fas fa-calendar-plus text-xs"></i></div>
                             <div>
                               <p className="text-xs font-semibold text-stone-800">{inc.description}</p>
-                              <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider">${inc.amount} • {inc.category} • Next: {new Date(inc.nextConfirmationDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                              <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">${inc.amount} • {inc.category} • Next: {new Date(inc.nextConfirmationDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -507,7 +507,7 @@ const Settings: React.FC<Props> = ({
                 </div>
 
                 <div className="p-5 bg-stone-900 rounded-lg border border-stone-800 text-white shadow-sm">
-                  <h4 className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 mb-3">Register Recurring Income</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3">Register Recurring Income</h4>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <input type="text" placeholder="Source (e.g. Salary, Rent)" value={newInc.description} onChange={e => setNewInc({...newInc, description: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500" />
                     <input type="number" placeholder="Amount" value={newInc.amount} onChange={e => setNewInc({...newInc, amount: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500" />
@@ -529,7 +529,7 @@ const Settings: React.FC<Props> = ({
                       });
                       setNewInc({ description: '', amount: '', nextDate: new Date().toISOString().split('T')[0] });
                     }} 
-                    className="w-full py-2 bg-emerald-600 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 transition shadow-sm"
+                    className="w-full py-2 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-emerald-500 transition shadow-sm"
                   >Register Inflow</button>
                 </div>
               </section>
@@ -548,7 +548,7 @@ const Settings: React.FC<Props> = ({
                         <button onClick={() => onDeleteSavingGoal(goal.id)} className="text-stone-300 hover:text-rose-500"><i className="fas fa-times text-xs"></i></button>
                       </div>
                       <div className="space-y-1.5">
-                        <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-stone-400">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-stone-400">
                           <span>Progress</span>
                           <span className="text-indigo-600 font-semibold">${goal.currentAmount} / ${goal.targetAmount}</span>
                         </div>
@@ -560,7 +560,7 @@ const Settings: React.FC<Props> = ({
                   ))}
                 </div>
                 <div className="p-6 border border-dashed border-stone-300 rounded-lg text-center bg-stone-50/50">
-                  <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-4">Initialize New Objective</h4>
+                  <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-4">Initialize New Objective</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto">
                     <input type="text" placeholder="Goal Name (e.g. New Car)" value={newGoal.name} onChange={e => setNewGoal({...newGoal, name: e.target.value})} className="px-3 py-1.5 bg-white border border-stone-200 rounded outline-none font-semibold text-xs" />
                     <input type="number" placeholder="Target Amount" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} className="px-3 py-1.5 bg-white border border-stone-200 rounded outline-none font-semibold text-xs" />
@@ -570,7 +570,7 @@ const Settings: React.FC<Props> = ({
                         onAddSavingGoal({ name: newGoal.name, targetAmount: parseFloat(newGoal.target), institution: 'Savings Account', institutionType: 'bank', openingBalance: 0, category: 'Savings' });
                         setNewGoal({ name: '', target: '', category: CATEGORIES[0] });
                       }}
-                      className="md:col-span-2 py-2 bg-stone-900 text-white font-bold rounded text-[10px] uppercase tracking-wider hover:bg-indigo-600 transition shadow-sm"
+                      className="md:col-span-2 py-2 bg-stone-900 text-white font-bold rounded text-xs uppercase tracking-wider hover:bg-indigo-600 transition shadow-sm"
                     >Activate Goal Matrix</button>
                   </div>
                 </div>
@@ -583,7 +583,7 @@ const Settings: React.FC<Props> = ({
                     <div key={goal.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex justify-between items-center">
                       <div>
                         <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
-                        <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider">Target: ${goal.targetAmount} • Provider: {goal.provider}</p>
+                        <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Target: ${goal.targetAmount} • Provider: {goal.provider}</p>
                       </div>
                       <button onClick={() => onDeleteInvestmentGoal(goal.id)} className="text-stone-300 hover:text-rose-500"><i className="fas fa-trash-alt text-xs"></i></button>
                     </div>
@@ -606,17 +606,17 @@ const Settings: React.FC<Props> = ({
                       <div className="flex items-center gap-2">
                         <h3 className="text-sm font-bold text-stone-800">Ollama Local AI Engine</h3>
                         {ollamaStatus?.online ? (
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                             Online {ollamaStatus.version ? `v${ollamaStatus.version}` : ''}
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-stone-200 text-stone-600 rounded text-[9px] font-bold uppercase tracking-wider">
+                          <span className="px-2 py-0.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">
                             Offline / Standby
                           </span>
                         )}
                       </div>
-                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">
                         Private on-premise LLM for Strategic Feedback & Insights
                       </p>
                     </div>
@@ -625,7 +625,7 @@ const Settings: React.FC<Props> = ({
                     onClick={() => fetchOllamaStatus()}
                     disabled={isCheckingOllama}
                     title="Test Ollama connection"
-                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <RefreshCw size={12} className={isCheckingOllama ? 'animate-spin text-indigo-600' : ''} />
                     <span>{isCheckingOllama ? 'Testing…' : 'Test Gateway'}</span>
@@ -635,7 +635,7 @@ const Settings: React.FC<Props> = ({
                 <form onSubmit={handleSaveOllama} className="p-4 bg-white rounded-lg border border-stone-200 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">
                         Ollama Base URL / Host
                       </label>
                       <input
@@ -645,11 +645,11 @@ const Settings: React.FC<Props> = ({
                         placeholder="http://localhost:11434"
                         className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
-                      <p className="text-[9px] text-stone-400 mt-1">Docker default: <code className="text-stone-600">http://host.docker.internal:11434</code> or <code className="text-stone-600">http://localhost:11434</code></p>
+                      <p className="text-xs text-stone-400 mt-1">Docker default: <code className="text-stone-600">http://host.docker.internal:11434</code> or <code className="text-stone-600">http://localhost:11434</code></p>
                     </div>
 
                     <div>
-                      <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">
                         Active Model Name
                       </label>
                       <div className="space-y-1.5">
@@ -668,7 +668,7 @@ const Settings: React.FC<Props> = ({
                                 key={m}
                                 type="button"
                                 onClick={() => setOllamaModel(m)}
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-mono border transition-all ${
+                                className={`px-1.5 py-0.5 rounded text-xs font-mono border transition-all ${
                                   ollamaModel === m
                                     ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
                                     : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
@@ -699,13 +699,13 @@ const Settings: React.FC<Props> = ({
                   )}
 
                   <div className="flex items-center justify-between pt-1 border-t border-stone-100">
-                    <p className="text-[10px] text-stone-500">
+                    <p className="text-xs text-stone-500">
                       When active, AI Strategic Feedback & insights are processed locally via Ollama with automatic fallback to cloud.
                     </p>
                     <button
                       type="submit"
                       disabled={isSavingOllama}
-                      className="px-4 py-2 bg-stone-900 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-stone-800 shadow transition-all disabled:opacity-50"
+                      className="px-4 py-2 bg-stone-900 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-stone-800 shadow transition-all disabled:opacity-50"
                     >
                       {isSavingOllama ? 'Saving…' : 'Save AI Configuration'}
                     </button>
@@ -722,14 +722,14 @@ const Settings: React.FC<Props> = ({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-stone-800">Google Workspace Gateways</h3>
-                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Google Calendar & Gmail Read-Only Sync</p>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Google Calendar & Gmail Read-Only Sync</p>
                     </div>
                   </div>
                   <a
                     href="/api/auth/google"
-                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5"
                   >
-                    <i className="fab fa-google text-red-500 text-[10px]"></i>
+                    <i className="fab fa-google text-red-500 text-xs"></i>
                     <span>Connect / Refresh</span>
                   </a>
                 </div>
@@ -739,7 +739,7 @@ const Settings: React.FC<Props> = ({
                     <span className="font-semibold text-stone-800 flex items-center gap-1.5">
                       <i className="fas fa-calendar-check text-blue-500"></i> Google Calendar (One-Way Sync)
                     </span>
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[9px] font-bold uppercase">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs font-bold uppercase">
                       Read-Only (Google → App)
                     </span>
                   </div>
@@ -753,13 +753,13 @@ const Settings: React.FC<Props> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-stone-800">Managed API Connections</h3>
-                    <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Banks & Investment Portals</p>
+                    <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Banks & Investment Portals</p>
                   </div>
                   <button 
                     onClick={onOpenBankSync}
-                    className="px-4 py-2 bg-stone-900 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow hover:bg-stone-800 transition-all flex items-center gap-2"
+                    className="px-4 py-2 bg-stone-900 text-white rounded text-xs font-bold uppercase tracking-wider shadow hover:bg-stone-800 transition-all flex items-center gap-2"
                   >
-                    <i className="fas fa-plus text-[10px]"></i> Link New
+                    <i className="fas fa-plus text-xs"></i> Link New
                   </button>
                 </div>
 
@@ -772,14 +772,14 @@ const Settings: React.FC<Props> = ({
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-stone-800">{conn.institution}</p>
-                          <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider">
+                          <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">
                             {conn.institutionType} • {conn.accountLastFour}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-right hidden sm:block">
-                          <p className={`text-[9px] font-bold uppercase tracking-wider ${conn.status === 'syncing' ? 'text-indigo-500' : 'text-emerald-600'}`}>
+                          <p className={`text-xs font-bold uppercase tracking-wider ${conn.status === 'syncing' ? 'text-indigo-500' : 'text-emerald-600'}`}>
                             Status: {conn.status === 'syncing' ? 'Syncing…' : 'Linked'}
                           </p>
                           <p className="text-[8px] text-stone-400 font-bold">Synced: {conn.lastSynced ? new Date(conn.lastSynced).toLocaleTimeString() : 'Never'}</p>
@@ -815,7 +815,7 @@ const Settings: React.FC<Props> = ({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-stone-800">Cloud Database & Live Sync</h3>
-                      <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Persistent Storage & Event Stream</p>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Persistent Storage & Event Stream</p>
                     </div>
                   </div>
 
@@ -823,10 +823,10 @@ const Settings: React.FC<Props> = ({
                     <button
                       onClick={onForceSync}
                       disabled={cloudSyncing}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
                     >
                       <RefreshCw size={12} className={cloudSyncing ? 'animate-spin' : ''} />
-                      <span>{cloudSyncing ? 'Syncing…' : 'Sync Now'}</span>
+                      <span>{cloudSyncing ? 'Syncing…' : 'Manual account'}</span>
                     </button>
                   )}
                 </div>
@@ -834,7 +834,7 @@ const Settings: React.FC<Props> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   <div className="p-3 bg-white rounded-lg border border-stone-200 flex items-center justify-between">
                     <div>
-                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Real-Time Channel</p>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Real-Time Channel</p>
                       <p className="text-xs font-bold text-stone-800 mt-0.5 capitalize flex items-center gap-1.5">
                         {realtimeStatus === 'connected' ? (
                           <>
@@ -862,7 +862,7 @@ const Settings: React.FC<Props> = ({
 
                   <div className="p-3 bg-white rounded-lg border border-stone-200 flex items-center justify-between">
                     <div>
-                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Database Version & State</p>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Database Version & State</p>
                       <p className="text-xs font-bold text-stone-800 mt-0.5">
                         {cloudError ? (
                           <span className="text-rose-600 font-semibold">{cloudError}</span>
@@ -875,12 +875,12 @@ const Settings: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <div className="text-[10px] text-stone-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-stone-200/80">
+                <div className="text-xs text-stone-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-stone-200/80">
                   <span>
                     <strong className="text-stone-700 font-medium">Last Cloud Backup:</strong>{' '}
                     {cloudLastSyncTime ? new Date(cloudLastSyncTime).toLocaleString() : 'Just now'}
                   </span>
-                  <span className="text-[9px] text-stone-400 uppercase tracking-wider font-semibold">
+                  <span className="text-xs text-stone-400 uppercase tracking-wider font-semibold">
                     Encrypted Background Sync
                   </span>
                 </div>
@@ -890,8 +890,8 @@ const Settings: React.FC<Props> = ({
                 <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2.5"><i className="fas fa-shield-virus text-indigo-600 text-xs"></i> Authentication Logic</h3>
                 <div className="space-y-4">
                   <div className="flex gap-3">
-                    <button onClick={() => setIsChangingPass(true)} className="flex-1 py-2 bg-white border border-stone-200 rounded text-[10px] font-bold uppercase tracking-wider text-stone-600 hover:bg-stone-100 transition shadow-sm">Rotate Credentials</button>
-                    <button onClick={onResetData} className="flex-1 py-2 bg-white border border-stone-200 rounded text-[10px] font-bold uppercase tracking-wider text-rose-600 hover:bg-rose-50 transition shadow-sm">Factory Purge</button>
+                    <button onClick={() => setIsChangingPass(true)} className="flex-1 py-2 bg-white border border-stone-200 rounded text-xs font-bold uppercase tracking-wider text-stone-600 hover:bg-stone-100 transition shadow-sm">Change password</button>
+                    <button onClick={onResetData} className="flex-1 py-2 bg-white border border-stone-200 rounded text-xs font-bold uppercase tracking-wider text-rose-600 hover:bg-rose-50 transition shadow-sm">Reset personal ledger</button>
                   </div>
                 </div>
               </section>
@@ -903,13 +903,13 @@ const Settings: React.FC<Props> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button 
                     onClick={handleExportBackup}
-                    className="py-2.5 bg-indigo-600 text-white font-bold rounded shadow-sm uppercase tracking-wider text-[10px] hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                    className="py-2.5 bg-indigo-600 text-white font-bold rounded shadow-sm uppercase tracking-wider text-xs hover:bg-indigo-700 transition flex items-center justify-center gap-2"
                   >
                     <Download size={14} /> Manual Export
                   </button>
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="py-2.5 bg-stone-100 text-stone-600 font-bold rounded shadow-sm uppercase tracking-wider text-[10px] hover:bg-stone-200 transition flex items-center justify-center gap-2 border border-stone-200"
+                    className="py-2.5 bg-stone-100 text-stone-600 font-bold rounded shadow-sm uppercase tracking-wider text-xs hover:bg-stone-200 transition flex items-center justify-center gap-2 border border-stone-200"
                   >
                     <Upload size={14} /> Import Backup
                   </button>
@@ -923,7 +923,7 @@ const Settings: React.FC<Props> = ({
                 </div>
               </section>
 
-              <button onClick={onLogout} className="w-full py-3 bg-stone-900 text-white font-bold rounded text-[10px] uppercase tracking-wider hover:bg-rose-600 transition-all shadow flex items-center justify-center gap-2">
+              <button onClick={onLogout} className="w-full py-3 bg-stone-900 text-white font-bold rounded text-xs uppercase tracking-wider hover:bg-rose-600 transition-all shadow flex items-center justify-center gap-2">
                 <Lock size={14} /> Close Vault & Logout
               </button>
             </div>
@@ -935,18 +935,11 @@ const Settings: React.FC<Props> = ({
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-sm rounded-lg p-6 border border-stone-200 shadow-xl">
             <h3 className="text-base font-bold text-stone-800 mb-1">Security Update</h3>
-            <p className="text-[9px] text-stone-400 font-bold uppercase tracking-wider mb-6">Update Vault Credentials</p>
+            <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mb-6">Update Vault Credentials</p>
             <div className="space-y-4">
-              <div className="relative">
-                <i className="fas fa-key absolute left-3 top-1/2 -translate-y-1/2 text-stone-300 text-xs"></i>
-                <input type="password" value={passForm.new} onChange={e => setPassForm({...passForm, new: e.target.value})} className="w-full pl-9 px-3 py-2 bg-stone-50 border border-stone-200 rounded outline-none font-semibold text-stone-800 text-xs" placeholder="New Password" />
-              </div>
-              <div className="relative">
-                <i className="fas fa-check-double absolute left-3 top-1/2 -translate-y-1/2 text-stone-300 text-xs"></i>
-                <input type="password" value={passForm.confirm} onChange={e => setPassForm({...passForm, confirm: e.target.value})} className="w-full pl-9 px-3 py-2 bg-stone-50 border border-stone-200 rounded outline-none font-semibold text-stone-800 text-xs" placeholder="Confirm Password" />
-              </div>
-              <button onClick={handlePasswordSubmit} className="w-full py-2.5 bg-stone-900 text-white font-bold rounded shadow-sm uppercase tracking-wider text-[10px] hover:bg-indigo-600 transition active:scale-95">Apply Cryptography</button>
-              <button onClick={() => setIsChangingPass(false)} className="w-full py-1 text-stone-400 font-bold text-[9px] uppercase tracking-wider">Abort Process</button>
+              <p className="text-sm text-stone-600">Use the secure link sent to your account email to choose a new password. Resetting your password signs out existing sessions.</p>
+              <button onClick={handlePasswordSubmit} className="w-full py-2.5 bg-stone-900 text-white font-bold rounded text-sm">Send password reset email</button>
+              <button onClick={() => setIsChangingPass(false)} className="w-full py-1 text-stone-400 font-bold text-xs uppercase tracking-wider">Abort Process</button>
             </div>
           </div>
         </div>

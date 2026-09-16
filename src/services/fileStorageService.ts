@@ -229,55 +229,14 @@ export const uploadFileToSystemDatabase = async (
   const fileType = file.type || 'application/octet-stream';
   const fileSize = file.size;
 
-  // Primary: Try multipart/form-data upload
-  try {
-    const formData = new FormData();
-    formData.append('file', file, fileName);
-    if (projectId) {
-      formData.append('projectId', projectId);
-    }
-
-    const res = await fetch('/api/files/upload', {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    });
-
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (data.ok && Array.isArray(data.files) && data.files.length > 0) {
-        return data.files[0];
-      }
-    }
-  } catch (multipartErr) {
-    console.warn('Multipart upload failed, attempting base64 JSON upload fallback:', multipartErr);
-  }
-
-  // Fallback: Base64 JSON upload
-  const base64Data = await blobToBase64(file);
-  const jsonRes = await fetch('/api/files/upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
-      fileName,
-      fileType,
-      fileSize,
-      base64Data,
-      projectId: projectId || null,
-    }),
-  });
-
-  if (!jsonRes.ok) {
-    const errorData = await jsonRes.json().catch(() => ({}));
-    throw new Error(errorData.error || `Upload failed with status ${jsonRes.status}`);
-  }
-
-  const jsonData = await jsonRes.json();
-  if (jsonData.ok && Array.isArray(jsonData.files) && jsonData.files.length > 0) {
-    return jsonData.files[0];
-  }
-  throw new Error('Upload succeeded but no file record was returned by the system database.');
+  if(fileSize>10*1024*1024)throw new Error('Choose a file up to 10 MiB.');
+  const formData=new FormData();formData.append('file',file,fileName);
+  if(projectId)formData.append('projectId',projectId);
+  const response=await fetch('/api/files/upload',{method:'POST',body:formData,credentials:'include'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error || 'Upload failed.');
+  if(!data.files?.[0])throw new Error('The file could not be saved.');
+  return data.files[0];
 };
 
 export const listFilesFromSystemDatabase = async (projectId: string): Promise<SystemUploadedFile[]> => {
@@ -332,14 +291,8 @@ export const downloadFileFromSystemDatabase = async (fileId: string, fileName: s
 };
 
 export const deleteFileFromSystemDatabase = async (fileId: string): Promise<void> => {
-  try {
-    await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-  } catch (err) {
-    console.warn('deleteFileFromSystemDatabase non-fatal error:', err);
-  }
+  const response=await fetch(`/api/files/${encodeURIComponent(fileId)}`,{method:'DELETE',credentials:'include'});
+  if(!response.ok)throw new Error('The file could not be deleted.');
 };
 
 /**

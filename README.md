@@ -1,3 +1,5 @@
+> **Production upgrade:** Read [the remediation and deployment guide](docs/PRODUCTION-READINESS.md) before deploying this branch. The production entry point is `build/server.cjs`; preserve the existing encryption key and database.
+
 # Fire Finance Pro - Production Deployment Guide
 
 Fire Finance Pro is a strategic personal finance hub featuring secure data synchronization, wealth forecasts, budget assistance, transaction trackers, and dynamic AI-powered insights.

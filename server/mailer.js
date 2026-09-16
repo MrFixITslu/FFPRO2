@@ -8,7 +8,7 @@ function getTransporter() {
   attemptedInit = true;
 
   if (!process.env.SMTP_HOST) {
-    console.warn('[mailer] SMTP_HOST is not set — invite emails will not be sent. The invite link will still be logged and returned to the inviter to share manually.');
+    console.warn('[mailer] SMTP_HOST is not set — invite emails will not be sent. The invite link will be returned to the inviter to share manually.');
     return null;
   }
 
@@ -42,7 +42,6 @@ export async function sendProjectInviteEmail({ toEmail, projectName, inviterName
     </div>
   `;
 
-  console.log(`[mailer] Invite link for ${toEmail}: ${inviteLink}`);
 
   if (!t) {
     return { sent: false };
@@ -80,7 +79,6 @@ export async function sendPasswordResetEmail({ toEmail, resetLink }) {
     </div>
   `;
 
-  console.log(`[mailer] Password reset link for ${toEmail}: ${resetLink}`);
 
   if (!t) {
     return { sent: false };
@@ -105,4 +103,15 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+export async function sendVerificationEmail({ toEmail, verificationLink }) {
+  const t = getTransporter();
+  if (!t) return { sent: false };
+  try {
+    await t.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: toEmail, subject: 'Verify your Fire Finance Pro email',
+      text: `Verify your email to accept project invitations. This link expires in one hour: ${verificationLink}` });
+    return { sent: true };
+  } catch { return { sent: false }; }
 }

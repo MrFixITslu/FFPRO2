@@ -8,6 +8,7 @@ const DB_FILE = process.env.DATABASE_FILE || path.join(process.cwd(), 'database.
 // Detect real PostgreSQL config
 const hasPostgres = !!(process.env.DATABASE_URL || process.env.PGHOST || process.env.PGUSER);
 let realPool = null;
+export let databaseReady = Promise.resolve();
 
 if (hasPostgres) {
   console.log('PostgreSQL configuration detected. Initializing real PostgreSQL pool...');
@@ -40,10 +41,10 @@ if (hasPostgres) {
   const forceSSL = process.env.DATABASE_SSL === 'true';
   const disableSSL = process.env.DATABASE_SSL === 'false';
   if (forceSSL || (!disableSSL && effectiveHost && !isLocalDockerHost(effectiveHost))) {
-    poolConfig.ssl = { rejectUnauthorized: false };
+    poolConfig.ssl = { rejectUnauthorized: true, ...(process.env.DATABASE_CA_FILE ? { ca: fs.readFileSync(process.env.DATABASE_CA_FILE, 'utf8') } : {}) };
   }
 
-  realPool = new pg.Pool(poolConfig);
+  realPool = new pg.Pool({ ...poolConfig, max: 10, connectionTimeoutMillis: 5000, statement_timeout: 15000 });
 
   // Handle background pool connection errors so DNS/network glitches don't crash Node process
   realPool.on('error', (err) => {
@@ -51,7 +52,7 @@ if (hasPostgres) {
   });
 
   // Initialize tables asynchronously
-  realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
+  databaseReady = realPool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`).then(() => {
     return realPool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -250,19 +251,19 @@ if (hasPostgres) {
   }).then(() => {
     console.log('PostgreSQL database tables initialized successfully.');
   }).catch(err => {
-    console.error('Failed to initialize PostgreSQL database tables:', err);
+    throw err;
   });
   });
 }
 
 // Ensure parent directory exists for file-based fallback
 const dir = path.dirname(DB_FILE);
-if (!fs.existsSync(dir)) {
+if (!realPool && !fs.existsSync(dir)) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
 // Initialize database file if it doesn't exist
-if (!fs.existsSync(DB_FILE)) {
+if (!realPool && !fs.existsSync(DB_FILE)) {
   fs.writeFileSync(DB_FILE, JSON.stringify({
     users: [],
     oauth_accounts: [],
@@ -407,45 +408,24 @@ function readDB() {
     parsed.funding_research_jobs ||= [];
     return parsed;
   } catch (e) {
-    return {
-      users: [],
-      oauth_accounts: [],
-      user_data: [],
-      login_attempts: [],
-      sessions: [],
-      projects: [],
-      project_members: [],
-      project_invites: [],
-      project_messages: [],
-      password_reset_tokens: [],
-      funding_opportunities: getDefaultFundingOpportunities(),
-      funding_research_jobs: [],
-      system_files: []
-    };
+    throw new Error('Development database is unreadable; restore the file before continuing.', { cause: e });
   }
 }
 
 function writeDB(data) {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    const temporary = `${DB_FILE}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify(data, null, 2), { mode: 0o600 });
+    fs.renameSync(temporary, DB_FILE);
   } catch (e) {
-    console.error('Failed to write database file:', e);
+    throw e;
   }
 }
 
+let developmentTransaction = Promise.resolve();
 export const pool = {
   async query(sql, params = []) {
-    if (realPool) {
-      try {
-        return await realPool.query(sql, params);
-      } catch (err) {
-        if (err.code === 'EAI_AGAIN' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
-          console.warn('[db] PostgreSQL pool query failed due to network error, falling back to local database file:', err.message);
-        } else {
-          throw err;
-        }
-      }
-    }
+    if (realPool) return await realPool.query(sql, params);
 
     const db = readDB();
     const cleanSql = sql.replace(/\s+/g, ' ').trim();
@@ -824,6 +804,7 @@ export const pool = {
 
     // 28. Transactions & DDL statements (BEGIN, COMMIT, ROLLBACK, CREATE TABLE, etc.)
     if (
+      cleanSql.startsWith('SELECT pg_advisory_xact_lock(') ||
       cleanSql === 'BEGIN' ||
       cleanSql === 'COMMIT' ||
       cleanSql === 'ROLLBACK' ||
@@ -880,17 +861,24 @@ export const pool = {
       return { rows: [], rowCount: 1 };
     }
 
-    console.warn('Unhandled SQL query in mock db.js:', sql, params);
-    return { rows: [] };
+    throw new Error('Unsupported query in development JSON store. Use PostgreSQL for this workflow.');
   },
 
   async connect() {
     if (realPool) {
       return realPool.connect();
     }
+    const previous=developmentTransaction;
+    let unlock;developmentTransaction=new Promise(resolve=>{unlock=resolve;});
+    await previous;
+    let snapshot;
     return {
-      query: (sql, params) => this.query(sql, params),
-      release: () => {}
+      query: async (sql, params) => {
+        if(sql==='BEGIN')snapshot=readDB();
+        if(sql==='ROLLBACK' && snapshot)writeDB(snapshot);
+        return this.query(sql,params);
+      },
+      release: () => unlock()
     };
   },
 

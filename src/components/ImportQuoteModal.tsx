@@ -1,3 +1,5 @@
+import { useAccessibleDialog } from '../hooks/useAccessibleDialog';
+import { quoteTotals, recalculateQuote, allocatedQuoteCosts } from '../../shared/quoteMath.js';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
@@ -36,6 +38,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
   currentUser,
   onConfirmImport
 }) => {
+  const dialog=useAccessibleDialog(onClose,isOpen);
   const [file, setFile] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState<string>('');
   const [useTextMode, setUseTextMode] = useState<boolean>(false);
@@ -142,7 +145,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
         id: 'quote_' + Date.now(),
         supplier: extracted.supplier || 'Supplier',
         quoteNumber: extracted.quoteNumber || '',
-        quoteDate: extracted.quoteDate || new Date().toISOString().split('T')[0],
+        quoteDate: extracted.quoteDate || '',
         currency: extracted.currency || 'USD',
         items: extracted.items || [],
         discounts: extracted.discounts || 0,
@@ -170,11 +173,11 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
     const item = { ...updatedItems[index], [field]: value };
     
     // Auto-calculate line total
-    if (field === 'quantity' || field === 'unitCost' || field === 'discount') {
+    if (field === 'quantity' || field === 'unitCost' || field === 'discount' || field === 'shippingCost') {
       const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
       const unitCost = field === 'unitCost' ? parseFloat(value) || 0 : item.unitCost;
       const discount = field === 'discount' ? parseFloat(value) || 0 : (item.discount || 0);
-      item.lineTotal = Math.max(0, qty * unitCost - discount);
+      item.lineTotal = Math.max(0, qty * unitCost - discount + (item.shippingCost || 0));
     }
 
     updatedItems[index] = item;
@@ -223,6 +226,9 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
   // Final confirmation: save original quote to documents & populate costing
   const handleConfirm = async () => {
     if (!quoteData) return;
+    const review = quoteTotals(quoteData);
+    if(review.issues.length){setExtractionError(review.issues.join(' '));return;}
+    const allocatedCosts=allocatedQuoteCosts(quoteData);
     setIsSaving(true);
 
     try {
@@ -281,7 +287,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
         discount: it.discount || 0,
         shippingCost: it.shippingCost || 0,
         // The cost field in productionItems is the total cost for this line item
-        cost: it.lineTotal || (it.quantity * it.unitCost - (it.discount || 0)),
+        cost: allocatedCosts[idx],
         supplier: quoteData.supplier,
         sourceQuoteId: quoteData.id
       }));
@@ -294,7 +300,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
           description: `Supplier delivery charges for quote ${quoteData.quoteNumber || ''}`,
           quantity: 1,
           unitCost: quoteData.shippingCosts,
-          cost: quoteData.shippingCosts,
+          cost: allocatedCosts[quoteData.items.length],
           supplier: quoteData.supplier,
           sourceQuoteId: quoteData.id
         });
@@ -317,7 +323,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div ref={dialog} role="dialog" aria-modal="true" aria-label="Import supplier quote" tabIndex={-1} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white border border-stone-200 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
@@ -329,7 +335,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
             <div>
               <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
                 Import Supplier Quote
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
+                <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
                   Local Ollama AI
                 </span>
               </h3>
@@ -369,7 +375,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
               Check Status
             </button>
             <span className="text-stone-300">|</span>
-            <span className="text-[10px] text-stone-500 flex items-center gap-1">
+            <span className="text-xs text-stone-500 flex items-center gap-1">
               <ShieldCheck size={12} className="text-emerald-600" />
               Strict: Cost extraction only
             </span>
@@ -507,10 +513,15 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                   </button>
                 </div>
 
+                {quoteTotals(quoteData).issues.length>0 && <div role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+                  <p>{quoteTotals(quoteData).issues.join(' ')}</p>
+                  <button type="button" className="mt-2 underline" onClick={()=>setQuoteData(recalculateQuote(quoteData))}>Use totals calculated from the reviewed lines</button>
+                </div>}
+                <p className="text-sm text-stone-600">Verify every line against the original document, including taxes and freight. Add tax as a separate line. Overall discounts are allocated across imported costs.</p>
                 {/* Quote Header Information */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-stone-50 p-3.5 rounded-xl border border-stone-200 text-xs">
                   <div>
-                    <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">Supplier</label>
+                    <label className="text-xs font-bold uppercase text-stone-400 block mb-1">Supplier</label>
                     <input
                       type="text"
                       value={quoteData.supplier}
@@ -519,7 +530,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">Quote / Ref #</label>
+                    <label className="text-xs font-bold uppercase text-stone-400 block mb-1">Quote / Ref #</label>
                     <input
                       type="text"
                       value={quoteData.quoteNumber}
@@ -528,7 +539,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">Quote Date</label>
+                    <label className="text-xs font-bold uppercase text-stone-400 block mb-1">Quote Date</label>
                     <input
                       type="text"
                       value={quoteData.quoteDate}
@@ -537,7 +548,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">Currency</label>
+                    <label className="text-xs font-bold uppercase text-stone-400 block mb-1">Currency</label>
                     <input
                       type="text"
                       value={quoteData.currency}
@@ -546,7 +557,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                     />
                   </div>
                   <div className="col-span-2 sm:col-span-4 mt-1">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">Commercial Terms / Validity</label>
+                    <label className="text-xs font-bold uppercase text-stone-400 block mb-1">Commercial Terms / Validity</label>
                     <input
                       type="text"
                       value={quoteData.commercialTerms || ''}
@@ -616,7 +627,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                             </td>
                             <td className="py-2 px-2 text-right">
                               <div className="relative">
-                                <span className="absolute left-1.5 top-1 text-stone-400 text-[10px]">$</span>
+                                <span className="absolute left-1.5 top-1 text-stone-400 text-xs">$</span>
                                 <input
                                   type="number"
                                   step="0.01"
@@ -661,7 +672,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
                   <div className="space-y-3">
                     <div>
-                      <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">
+                      <label className="text-xs font-bold uppercase text-stone-400 block mb-1">
                         Shipping / Freight Costs ($)
                       </label>
                       <input
@@ -681,7 +692,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase text-stone-400 block mb-1">
+                      <label className="text-xs font-bold uppercase text-stone-400 block mb-1">
                         Overall Quote Discount ($)
                       </label>
                       <input
@@ -783,7 +794,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={isSaving || !quoteData || quoteData.items.length === 0}
+              disabled={isSaving || !quoteData || quoteData.items.length === 0 || quoteTotals(quoteData).issues.length>0}
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? (

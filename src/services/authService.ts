@@ -4,6 +4,7 @@ export interface AuthUser {
   username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  emailVerified?: boolean;
 }
 
 const BASE = '/api/auth';
@@ -71,10 +72,7 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    await fetch(`${BASE}/logout`, { 
-      method: 'POST', 
-      credentials: 'include'
-    });
+    await handle(await fetch(`${BASE}/logout`, { method:'POST', credentials:'include' }));
   },
 
   async loginWithGoogleToken(payload: {

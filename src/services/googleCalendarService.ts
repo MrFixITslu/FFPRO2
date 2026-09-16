@@ -114,7 +114,7 @@ export const googleCalendarService = {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
     });
 
     const data = await res.json().catch(() => ({}));

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { fileAccess, projectAccess, forbidden } from './fileAccess.js';
 import { hasPostgres, realPool, readDB, writeDB } from './db.js';
 
 const nowISO = () => new Date().toISOString();
@@ -176,13 +177,51 @@ const jsonFiles = {
   }
 };
 
-export const filesDb = new Proxy({}, {
-  get(_target, prop) {
-    const impl = (hasPostgres && realPool) ? pgFiles : jsonFiles;
-    const value = impl[prop];
-    if (typeof value === 'function') {
-      return value.bind(impl);
+// Identity checks live here as well as on routes, so a forgotten route guard cannot expose bytes.
+const implementation = () => (hasPostgres && realPool) ? pgFiles : jsonFiles;
+export const filesDb = {
+  async saveFile(args) {
+    if (!args.userId || (args.projectId && !(await projectAccess(args.projectId,args.userId,true)))) throw forbidden();
+    if (!args.buffer || args.buffer.length > 10*1024*1024) throw Object.assign(new Error('File too large'),{status:413});
+    const maxBytes = Number(process.env.MAX_USER_FILE_BYTES || 250*1024*1024);
+    if(realPool) {
+      const client=await realPool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`files:${args.userId}`]);
+        const used=Number((await client.query('SELECT COALESCE(SUM(file_size),0) AS bytes FROM system_files WHERE user_id=$1',[args.userId])).rows[0].bytes);
+        if(used+args.buffer.length>maxBytes) throw Object.assign(new Error('File storage quota exceeded'),{status:413,publicMessage:'Your file storage quota is full.'});
+        const id=crypto.randomUUID();
+        const row=(await client.query(`INSERT INTO system_files (id,user_id,project_id,file_name,file_type,file_size,file_data) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,[id,args.userId,args.projectId,args.fileName,args.fileType,args.buffer.length,args.buffer])).rows[0];
+        await client.query('COMMIT');return sanitizeFileMetadata(row);
+      }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
     }
-    return value;
-  }
-});
+    const used=(readDB().system_files||[]).filter(f=>f.user_id===args.userId).reduce((n,f)=>n+Number(f.file_size),0);
+    if(used+args.buffer.length>maxBytes) throw Object.assign(new Error('File storage quota exceeded'),{status:413});
+    return jsonFiles.saveFile({...args,id:undefined,fileSize:args.buffer.length});
+  },
+  async getFileById(id,userId) {
+    if(!userId) throw forbidden();
+    if(!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    const file=await implementation().getFileById(id);
+    return await fileAccess(file,userId) ? file : null;
+  },
+  async deleteFile(id,userId) {
+    if(!userId) throw forbidden();
+    const file=await implementation().getFileById(id);
+    if(!(await fileAccess(file,userId,true))) return false;
+    // Authorisation above includes current project membership, including editors.
+    if(realPool) return (await realPool.query('DELETE FROM system_files WHERE id=$1',[id])).rowCount>0;
+    const db=readDB();db.system_files=(db.system_files||[]).filter(f=>f.id!==id);writeDB(db);return true;
+  },
+  async listFilesByProject(projectId,userId) {
+    if(!(await projectAccess(projectId,userId))) throw forbidden();
+    const files=await implementation().listFilesByProject(projectId);
+    const allowed=await Promise.all(files.map(f=>fileAccess(f,userId)));
+    return files.filter((_,i)=>allowed[i]);
+  },
+  async listFilesByUser(userId) {
+    if(!userId) throw forbidden();
+    return implementation().listFilesByUser(userId);
+  },
+};

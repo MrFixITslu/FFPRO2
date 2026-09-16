@@ -1,49 +1,27 @@
-// Modern browsers send `Sec-Fetch-Site` on nearly all requests. For an API
-// that is only ever meant to be called from our own frontend (same origin,
-// cookie-based sessions, no CORS headers issued), a cross-site value here
-// means either a foreign page or a foreign tab is making the request — which
-// legitimate use of this app never does. This is a defense-in-depth layer on
-// top of SameSite=Lax cookies and the absence of any CORS allow-list.
-//
-// NOTE: When running inside an iframe (like the AI Studio builder preview),
-// the browser may report "cross-site" even though the request originates from
-// our own frontend on the same host. We fall back to validating that the Origin
-// or Referer header matches the current Host to allow preview environments to function.
+import { canonicalOrigin, production } from '../config.js';
+import crypto from 'node:crypto';
+const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 export function sameOriginOnly(req, res, next) {
-  // Safe HTTP methods do not mutate server state
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-    return next();
+  if (safeMethods.has(req.method)) return next();
+  const origin = req.get('origin');
+  const referer = req.get('referer');
+  let supplied;
+  try { supplied = origin || (referer ? new URL(referer).origin : null); } catch { supplied = null; }
+  let expected = canonicalOrigin();
+  // Development preview stays same-origin without opening production to Host poisoning.
+  if (!production) expected = `${req.protocol}://${req.get('host')}`;
+  if (!supplied || supplied !== expected || req.get('sec-fetch-site') === 'cross-site') {
+    return res.status(403).json({ error: 'Request origin is not allowed.' });
   }
-
-  const site = req.get('sec-fetch-site');
-  // Missing header = older browser or a non-browser client (curl, mobile
-  // webview); we don't block those since SameSite cookies already protect us.
-  if (site && site !== 'same-origin' && site !== 'none') {
-    const host = req.headers.host;
-    const origin = req.get('origin');
-    const referer = req.get('referer');
-
-    let isSameHost = false;
-    if (origin) {
-      try {
-        const originUrl = new URL(origin);
-        if (originUrl.host === host) {
-          isSameHost = true;
-        }
-      } catch (_) {}
-    }
-    if (!isSameHost && referer) {
-      try {
-        const refererUrl = new URL(referer);
-        if (refererUrl.host === host) {
-          isSameHost = true;
-        }
-      } catch (_) {}
-    }
-
-    if (!isSameHost) {
-      return res.status(403).json({ error: 'Cross-site request blocked.' });
-    }
+  next();
+}
+export function csrfProtection(req, res, next) {
+  if (safeMethods.has(req.method)) return next();
+  const supplied = req.get('x-csrf-token');
+  const expected = req.session?.csrfToken;
+  if (typeof supplied !== 'string' || !expected || !/^[a-f0-9]{64}$/.test(supplied) || supplied.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) {
+    return res.status(403).json({ error: 'Your session changed. Please retry.', code: 'CSRF_INVALID' });
   }
   next();
 }

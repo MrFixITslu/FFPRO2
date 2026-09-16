@@ -19,7 +19,7 @@ interface Props {
   onNavigateToPlanner?: () => void;
 }
 
-const AUTHORIZED_EMAIL = import.meta.env.VITE_AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
+
 
 export const GmailPlanningNotifications: React.FC<Props> = ({
   userEmail,
@@ -27,7 +27,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
   onNavigateToPlanner,
 }) => {
   // CRITICAL: Double check client-side (server also strictly checks)
-  const isAuthorized = (userEmail || '').trim().toLowerCase() === AUTHORIZED_EMAIL.toLowerCase();
+  const isAuthorized = Boolean(userEmail);
 
   const [notifications, setNotifications] = useState<GmailPlanningNotification[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -197,7 +197,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
             </div>
             <h4 className="text-sm font-bold text-white mb-1">Log in with Google to enable this</h4>
             <p className="text-xs text-indigo-200/70 mb-4 max-w-sm">
-              Planning email alerts for <strong>{AUTHORIZED_EMAIL}</strong> use the same Google sign-in as your
+              Planning email alerts for <strong>{userEmail}</strong> use the same Google sign-in as your
               account — log out and back in with Google (or sign in with Google if you haven't yet) and this
               will start working automatically. No separate connection step needed.
             </p>
@@ -244,7 +244,7 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
             </div>
             <p className="text-xs font-bold text-indigo-100">No new planning notifications</p>
             <p className="text-[11px] text-indigo-300/60 mt-0.5">
-              All planning-related emails for {AUTHORIZED_EMAIL} have been reviewed.
+              All planning-related emails for {userEmail} have been reviewed.
             </p>
           </div>
         )}

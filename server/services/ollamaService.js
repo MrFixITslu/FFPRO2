@@ -3,31 +3,23 @@
  * Provides local LLM inference for AI Strategic Feedback, Financial Insights, Quote Extraction, and Advisory.
  */
 
-let isUserConfigured = false;
-let activeBaseUrl = (process.env.OLLAMA_BASE_URL || 'http://ollama:11434').replace(/\/+$/, '');
-let activeModel = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
-
-// Concurrency Semaphore (max 1 request at a time to prevent OOM on host)
-const MAX_CONCURRENT = Math.max(1, parseInt(process.env.OLLAMA_MAX_CONCURRENT || '1', 10));
+const activeBaseUrl = (process.env.OLLAMA_BASE_URL || 'http://ollama:11434').replace(/\/+$/, '');
+const configuredUrl = new URL(activeBaseUrl);
+if (!['http:', 'https:'].includes(configuredUrl.protocol) || configuredUrl.username || configuredUrl.password || configuredUrl.search || configuredUrl.hash) throw new Error('Invalid OLLAMA_BASE_URL.');
+const activeModel = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+const MAX_CONCURRENT = Math.max(1, Math.min(2, Number(process.env.OLLAMA_MAX_CONCURRENT || 1)));
 let activeRequests = 0;
 const waitQueue = [];
-
 function acquireSlot() {
-  if (activeRequests < MAX_CONCURRENT) {
-    activeRequests++;
-    return Promise.resolve();
-  }
-  return new Promise(resolve => waitQueue.push(resolve));
+  if(activeRequests<MAX_CONCURRENT){activeRequests++;return Promise.resolve();}
+  if(waitQueue.length>=2)return Promise.reject(Object.assign(new Error('AI is busy. Please retry shortly.'),{status:503}));
+  return new Promise((resolve,reject)=>{
+    const entry={resolve:()=>{clearTimeout(entry.timer);resolve();},timer:null};
+    entry.timer=setTimeout(()=>{const i=waitQueue.indexOf(entry);if(i>=0)waitQueue.splice(i,1);reject(Object.assign(new Error('AI queue timed out. Please retry.'),{status:503}));},10000);
+    waitQueue.push(entry);
+  });
 }
-
-function releaseSlot() {
-  activeRequests--;
-  const next = waitQueue.shift();
-  if (next) {
-    activeRequests++;
-    next();
-  }
-}
+function releaseSlot(){activeRequests--;const next=waitQueue.shift();if(next){activeRequests++;next.resolve();}}
 
 /**
  * Get current Ollama configuration
@@ -44,16 +36,7 @@ export function getOllamaConfig() {
 /**
  * Dynamically update Ollama configuration at runtime
  */
-export function updateOllamaConfig({ baseURL, model }) {
-  if (baseURL && typeof baseURL === 'string') {
-    activeBaseUrl = baseURL.trim().replace(/\/+$/, '');
-    isUserConfigured = true;
-  }
-  if (model && typeof model === 'string') {
-    activeModel = model.trim();
-  }
-  return getOllamaConfig();
-}
+export function updateOllamaConfig() { throw Object.assign(new Error('Ollama configuration is server-managed.'),{status:403}); }
 
 /**
  * Helper to probe a single Ollama base URL
@@ -65,6 +48,7 @@ async function probeUrl(url, timeoutMs) {
     const res = await fetch(`${url}/api/tags`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
+      redirect: 'error',
       signal: controller.signal
     });
     clearTimeout(timeout);
@@ -85,28 +69,6 @@ async function probeUrl(url, timeoutMs) {
 export async function checkOllamaHealth(timeoutMs = 8000) {
   // Try current activeBaseUrl
   let probe = await probeUrl(activeBaseUrl, timeoutMs);
-
-  // If current activeBaseUrl fails and user hasn't manually overridden it, test candidates
-  if (!probe.ok && !isUserConfigured) {
-    const candidateUrls = [
-      process.env.OLLAMA_BASE_URL,
-      'http://ollama:11434',
-      'http://127.0.0.1:11434',
-      'http://host.docker.internal:11434',
-      'http://localhost:11434'
-    ].filter(Boolean).map(u => u.replace(/\/+$/, ''));
-
-    for (const cand of candidateUrls) {
-      if (cand === activeBaseUrl) continue;
-      const res = await probeUrl(cand, Math.min(1500, timeoutMs));
-      if (res.ok) {
-        activeBaseUrl = cand;
-        probe = res;
-        console.log(`[Ollama Service] Auto-discovered working Ollama endpoint at: ${activeBaseUrl}`);
-        break;
-      }
-    }
-  }
 
   if (!probe.ok) {
     return {
@@ -143,9 +105,11 @@ export async function checkOllamaHealth(timeoutMs = 8000) {
  * Low-level text generation via Ollama /api/generate
  */
 export async function generateOllama({ prompt, system, model, temperature = 0.2, timeoutMs = 180000, jsonFormat = false }) {
+  const startedAt=Date.now();
   await acquireSlot();
+  timeoutMs=Math.max(1,Math.min(timeoutMs,Number(process.env.OLLAMA_REQUEST_TIMEOUT_MS || 120000))-(Date.now()-startedAt));
   try {
-    const targetModel = model || activeModel;
+    const targetModel = activeModel;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -174,7 +138,8 @@ export async function generateOllama({ prompt, system, model, temperature = 0.2,
           'Accept': 'application/json'
         },
         body: JSON.stringify(body),
-        signal: controller.signal
+        redirect: 'error',
+      signal: controller.signal
       });
 
       clearTimeout(timeout);
@@ -326,6 +291,7 @@ export async function extractSupplierQuote({ quoteText, fileName, model }) {
     throw new Error('Quote text content is empty or unreadable.');
   }
 
+  if(quoteText.length>10000) throw Object.assign(new Error('This quote is too long for reliable extraction. Split it into sections of up to 10,000 characters and reconcile the full total.'),{status:422});
   const system = `You are a precise data extraction engine.
 Your sole job is to extract structured supplier quote information from the provided document into a clean, valid JSON object.
 STRICT BOUNDARIES:
@@ -340,7 +306,7 @@ STRICT BOUNDARIES:
 
   const prompt = `SUPPLIER QUOTE DOCUMENT (${fileName || 'Quote Document'}):
 ============================================================
-${quoteText.slice(0, 10000)}
+${quoteText}
 ============================================================
 
 Extract all quote information and return ONLY this JSON structure:
@@ -383,11 +349,11 @@ Extract all quote information and return ONLY this JSON structure:
 
   // Normalize fields to ensure consistency with international format resilience
   const normalizedItems = Array.isArray(parsed.items) ? parsed.items.map((it, idx) => {
-    const qty = Math.max(1, Math.round(parseCurrencyNumber(it.quantity)) || 1);
-    const unitCost = Math.max(0, parseCurrencyNumber(it.unitCost) || 0);
+    const qty = it.quantity == null ? 1 : parseCurrencyNumber(it.quantity);
+    const unitCost = it.unitCost == null && it.lineTotal != null && qty>0 ? (parseCurrencyNumber(it.lineTotal)+(parseCurrencyNumber(it.discount)||0)-(parseCurrencyNumber(it.shippingCost)||0))/qty : parseCurrencyNumber(it.unitCost);
     const discount = Math.abs(parseCurrencyNumber(it.discount) || 0);
     const shipping = Math.max(0, parseCurrencyNumber(it.shippingCost) || 0);
-    const lineTotal = parseCurrencyNumber(it.lineTotal) || (qty * unitCost - discount + shipping);
+    const lineTotal = it.lineTotal == null ? (qty * unitCost - discount + shipping) : parseCurrencyNumber(it.lineTotal);
 
     return {
       item: String(it.item || `Quoted Item ${idx + 1}`).trim(),
@@ -400,15 +366,15 @@ Extract all quote information and return ONLY this JSON structure:
     };
   }) : [];
 
-  const subtotal = Math.abs(parseCurrencyNumber(parsed.subtotal)) || normalizedItems.reduce((s, it) => s + it.lineTotal, 0);
+  const subtotal = parsed.subtotal == null ? normalizedItems.reduce((s, it) => s + it.lineTotal, 0) : parseCurrencyNumber(parsed.subtotal);
   const shippingCosts = Math.abs(parseCurrencyNumber(parsed.shippingCosts)) || 0;
   const discounts = Math.abs(parseCurrencyNumber(parsed.discounts)) || 0;
-  const total = Math.abs(parseCurrencyNumber(parsed.total)) || (subtotal + shippingCosts - discounts);
+  const total = parsed.total == null ? (subtotal + shippingCosts - discounts) : parseCurrencyNumber(parsed.total);
 
   return {
     supplier: String(parsed.supplier || 'Unknown Supplier').trim(),
     quoteNumber: String(parsed.quoteNumber || '').trim(),
-    quoteDate: String(parsed.quoteDate || new Date().toISOString().split('T')[0]).trim(),
+    quoteDate: String(parsed.quoteDate || '').trim(),
     currency: String(parsed.currency || 'USD').trim().toUpperCase(),
     items: normalizedItems,
     discounts: parseFloat(discounts.toFixed(2)),

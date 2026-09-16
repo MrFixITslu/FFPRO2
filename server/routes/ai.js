@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import multer from 'multer';
 import { GoogleGenAI, Type } from '@google/genai';
 import { requireAuth } from '../middleware/requireAuth.js';
 import rateLimit from 'express-rate-limit';
+import { uploadGate } from '../middleware/uploadGate.js';
 import {
   checkOllamaHealth,
   getOllamaConfig,
@@ -18,7 +19,7 @@ const router = Router();
 
 const quoteUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }
+  limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 3, fieldSize: 1024, parts: 4 }
 });
 
 // Rate limiting for public market data feed to prevent ticker flooding
@@ -171,7 +172,7 @@ async function fetchStockPrices() {
   return results;
 }
 
-const handleMarketData = async (req, res) => {
+const fetchMarketData = async () => {
   let prices = [];
   const fetchedSymbols = new Set();
 
@@ -200,80 +201,6 @@ const handleMarketData = async (req, res) => {
   const allSymbols = ['BTC', 'ETH', 'SOL', 'VOO', 'VOOG'];
   const missingSymbols = allSymbols.filter(s => !fetchedSymbols.has(s));
 
-  // 3. Fallback to Gemini with search grounding for missing symbols if configured
-  if (missingSymbols.length > 0) {
-    const geminiKey = getValidGeminiKey();
-    if (geminiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: geminiKey });
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: `Provide current market prices and 24h percent changes for these specific symbols: ${missingSymbols.join(', ')}.`,
-          config: {
-            tools: [{ googleSearch: {} }],
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                prices: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      symbol: { type: Type.STRING },
-                      price: { type: Type.NUMBER },
-                      change24h: { type: Type.NUMBER }
-                    },
-                    required: ["symbol", "price", "change24h"]
-                  }
-                }
-              },
-              required: ["prices"]
-            }
-          }
-        });
-
-        const text = response.text;
-        if (text) {
-          const parsed = JSON.parse(text);
-          if (parsed && Array.isArray(parsed.prices)) {
-            for (const item of parsed.prices) {
-              if (item && item.symbol && typeof item.price === 'number') {
-                prices.push({
-                  symbol: item.symbol,
-                  price: item.price,
-                  change24h: typeof item.change24h === 'number' ? item.change24h : 0
-                });
-                fetchedSymbols.add(item.symbol);
-              }
-            }
-          }
-        }
-      } catch (geminiErr) {
-        // Silently fallback to built-in market defaults
-      }
-    }
-  }
-
-  // 4. Fill in hardcoded fallbacks for any still-missing symbols so the ticker NEVER breaks
-  const fallbackPrices = {
-    'BTC': { price: 64000.00, change24h: 1.2 },
-    'ETH': { price: 1820.00, change24h: -0.5 },
-    'SOL': { price: 77.00, change24h: 3.4 },
-    'VOO': { price: 693.86, change24h: 0.2 },
-    'VOOG': { price: 83.31, change24h: 0.1 }
-  };
-
-  for (const s of allSymbols) {
-    if (!fetchedSymbols.has(s)) {
-      prices.push({
-        symbol: s,
-        price: fallbackPrices[s].price,
-        change24h: fallbackPrices[s].change24h
-      });
-    }
-  }
-
   // Sort prices in standard order: BTC, ETH, SOL, VOO, VOOG
   const order = { 'BTC': 1, 'ETH': 2, 'SOL': 3, 'VOO': 4, 'VOOG': 5 };
   prices.sort((a, b) => (order[a.symbol] || 99) - (order[b.symbol] || 99));
@@ -281,12 +208,23 @@ const handleMarketData = async (req, res) => {
   // Determine if it is live
   const isLive = fetchedSymbols.size > 0;
 
-  res.json({ prices, quotaExhausted: !isLive });
+  return { prices, quotaExhausted: fetchedSymbols.size < allSymbols.length, fetchedAt: new Date().toISOString() };
+};
+let marketCache=null,marketFetchedAt=0,marketPending=null;
+const handleMarketData=async(_req,res)=>{
+  if(!marketCache || Date.now()-marketFetchedAt>30000){
+    if(!marketPending)marketPending=fetchMarketData().then(data=>{marketCache=data;marketFetchedAt=Date.now();}).finally(()=>{marketPending=null;});
+    await marketPending;
+  }
+  res.json(marketCache);
 };
 
 // Public endpoints (no authentication required so ticker is live for anyone, but rate-limited)
 router.get('/market-data', marketDataLimiter, handleMarketData);
 router.post('/market-data', marketDataLimiter, handleMarketData);
+
+router.use(requireAuth);
+router.use(aiGenerationLimiter);
 
 // Ollama Status & Config Endpoints
 router.get('/ollama/status', async (req, res) => {
@@ -294,22 +232,14 @@ router.get('/ollama/status', async (req, res) => {
   res.json(health);
 });
 
-router.post('/ollama/config', async (req, res) => {
-  const { baseURL, model } = req.body || {};
-  const updated = updateOllamaConfig({ baseURL, model });
-  const health = await checkOllamaHealth(3000);
-  res.json({
-    config: updated,
-    health
-  });
-});
+router.post('/ollama/config', (_req, res) => res.status(403).json({ error: 'Ollama connection settings are managed by the server administrator.' }));
 
 /**
  * Extract supplier quote data using local Ollama.
  * Strictly bounded: Extracts quote items, costs, and terms into Interactive Sale Price Costing format.
  * No selling price determination, no business plan writing.
  */
-router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req, res) => {
+router.post('/ollama/extract-quote', uploadGate, quoteUpload.single('quoteFile'), async (req, res) => {
   try {
     let quoteText = '';
     let fileName = 'Quote Document';
@@ -324,11 +254,10 @@ router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req
         try {
           const { PDFParse } = await import('pdf-parse');
           const parser = new PDFParse({ data: buffer });
-          const parsed = await parser.getText();
-          quoteText = parsed?.text || '';
+          try { const parsed = await parser.getText(); quoteText = parsed?.text || ''; } finally { await parser.destroy(); }
         } catch (pdfErr) {
           console.warn('PDF text extraction error:', pdfErr.message);
-          quoteText = buffer.toString('utf8');
+          return res.status(422).json({ ok: false, error: 'The PDF could not be read. Upload a text-based PDF or paste its text.' });
         }
       } else {
         quoteText = buffer.toString('utf8');
@@ -341,11 +270,10 @@ router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req
         try {
           const { PDFParse } = await import('pdf-parse');
           const parser = new PDFParse({ data: buffer });
-          const parsed = await parser.getText();
-          quoteText = parsed?.text || '';
+          try { const parsed = await parser.getText(); quoteText = parsed?.text || ''; } finally { await parser.destroy(); }
         } catch (pdfErr) {
           console.warn('PDF text extraction error:', pdfErr.message);
-          quoteText = buffer.toString('utf8');
+          return res.status(422).json({ ok: false, error: 'The PDF could not be read. Upload a text-based PDF or paste its text.' });
         }
       } else {
         quoteText = buffer.toString('utf8');
@@ -388,7 +316,7 @@ router.post('/ollama/extract-quote', quoteUpload.single('quoteFile'), async (req
     });
   } catch (err) {
     console.error('Error in /ollama/extract-quote:', err);
-    return res.status(500).json({
+    return res.status(err.status || 502).json({
       ok: false,
       error: err.message || 'Failed to extract quote data via Ollama.'
     });
@@ -725,64 +653,7 @@ router.post('/projection-analysis', async (req, res) => {
   });
 });
 
-// 6. Bank Sync Simulation Endpoint
-router.post('/bank-sync', async (req, res) => {
-  const { institution, lastSynced } = req.body || {};
-  
-  const geminiKey = getValidGeminiKey();
-  if (!geminiKey) {
-    return res.json([
-      { date: new Date().toISOString().split('T')[0], description: 'Sample transaction', amount: 45.00, type: 'expense', category: 'Shopping', institution }
-    ]);
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey: geminiKey });
-    const prompt = `Generate an array of 3 realistic transactional items in JSON format that a user might spend on at ${institution}. 
-    Categories must be selected from: Food, Transport, Housing, Entertainment, Utilities, Health, Shopping, Education, Personal, Other.
-    Return only valid JSON in this schema:
-    [
-      { "date": "YYYY-MM-DD", "description": "merchant name", "amount": 12.34, "type": "expense", "category": "Food", "institution": "${institution}" }
-    ]`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
-
-    const parsed = JSON.parse(response.text || '[]');
-    res.json(parsed);
-  } catch (error) {
-    res.json([
-      { date: new Date().toISOString().split('T')[0], description: 'Sample transaction', amount: 45.00, type: 'expense', category: 'Shopping', institution }
-    ]);
-  }
-});
-
-// 7. Investment Sync Simulation Endpoint
-router.post('/investment-sync', async (req, res) => {
-  const { provider } = req.body || {};
-
-  try {
-    // Return sample holdings
-    if (provider === 'Binance') {
-      res.json([
-        { symbol: 'BTC', quantity: 0.12, purchasePrice: 62500.00 },
-        { symbol: 'ETH', quantity: 1.5, purchasePrice: 2450.00 },
-        { symbol: 'SOL', quantity: 12.0, purchasePrice: 110.00 }
-      ]);
-    } else {
-      res.json([
-        { symbol: 'VOO', quantity: 45.0, purchasePrice: 480.00 },
-        { symbol: 'VOOG', quantity: 15.0, purchasePrice: 280.00 }
-      ]);
-    }
-  } catch (error) {
-    res.json([]);
-  }
-});
-
+// No provider integration is implemented. Never fabricate financial records.
+router.post('/bank-sync', (_req,res) => res.status(501).json({error:'Automatic bank sync is not available. Use manual entry or import verified records.',code:'BANK_SYNC_UNAVAILABLE'}));
+router.post('/investment-sync', (_req,res) => res.status(501).json({error:'Automatic investment sync is not available. Enter verified holdings manually.',code:'BANK_SYNC_UNAVAILABLE'}));
 export default router;

@@ -1,12 +1,20 @@
-import 'dotenv/config';
+import './server/config.js';
+import { initPush, startPushScheduler } from './server/push.js';
 import express from 'express';
 import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import path from 'path';
-import crypto from 'crypto';
-import fs from 'fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import rateLimit from 'express-rate-limit';
 import passport from './server/passport.js';
+import { canonicalOrigin, production } from './server/config.js';
+import { databaseReady, realPool, hasPostgres } from './server/db.js';
+import { initSecuritySchema } from './server/securityStore.js';
+import { sameOriginOnly, csrfProtection } from './server/middleware/sameOriginOnly.js';
+import { realtimeHub } from './server/realtime.js';
+import { startFundingResearchScheduler } from './server/jobs/fundingScheduler.js';
 import authRoutes from './server/routes/auth.js';
 import dataRoutes from './server/routes/data.js';
 import aiRoutes from './server/routes/ai.js';
@@ -19,274 +27,107 @@ import legalRoutes from './server/routes/legal.js';
 import fundingRoutes from './server/routes/funding.js';
 import notificationsRoutes from './server/routes/notifications.js';
 import filesRoutes from './server/routes/files.js';
-import { startFundingResearchScheduler } from './server/jobs/fundingScheduler.js';
-import { createServer as createViteServer } from 'vite';
-import rateLimit from 'express-rate-limit';
-import { sameOriginOnly } from './server/middleware/sameOriginOnly.js';
 
-import connectPgSimple from 'connect-pg-simple';
-import { realPool, hasPostgres } from './server/db.js';
-
-// Auto-generate SESSION_SECRET and DATA_ENCRYPTION_KEY if not provided
-if (!process.env.SESSION_SECRET) {
-  process.env.SESSION_SECRET = crypto.randomBytes(48).toString('hex');
-  console.log('[server] Automatically generated SESSION_SECRET');
-}
-
-if (!process.env.DATA_ENCRYPTION_KEY) {
-  const keyFile = process.env.ENCRYPTION_KEY_FILE || path.join(process.cwd(), 'encryption.key');
-  // Ensure parent directory exists
-  const keyDir = path.dirname(keyFile);
-  if (!fs.existsSync(keyDir)) {
-    fs.mkdirSync(keyDir, { recursive: true });
-  }
-  if (fs.existsSync(keyFile)) {
-    process.env.DATA_ENCRYPTION_KEY = fs.readFileSync(keyFile, 'utf8').trim();
-    console.log('[server] Loaded persistent DATA_ENCRYPTION_KEY from encryption.key');
-  } else {
-    const key = crypto.randomBytes(32).toString('base64');
-    fs.writeFileSync(keyFile, key, 'utf8');
-    process.env.DATA_ENCRYPTION_KEY = key;
-    console.log('[server] Automatically generated and persisted DATA_ENCRYPTION_KEY to encryption.key');
-  }
-}
-
-// Map GEMINI_API_KEY to API_KEY for gemini routes if missing
-if (!process.env.API_KEY && process.env.GEMINI_API_KEY) {
-  process.env.API_KEY = process.env.GEMINI_API_KEY;
-}
-
-const app = express();
-// AI Studio container routes traffic to port 3000 via internal reverse proxy.
-// In custom Docker deployment or production host, container listens on PORT (defaults to 3010).
-const PORT = (process.env.DEFAULT_APP_PORT || process.env.CONTROL_PLANE_PORT || process.env.PORT === '8080')
-  ? 3000
-  : parseInt(process.env.PORT || '3010', 10);
-
-// Trust reverse proxy (Cloud Run, Nginx, etc.) to correctly detect req.secure and HTTPS.
-// Set to 1 hop rather than boolean `true` so express-rate-limit reliably bounds IP rate-limiting.
-const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS || 1);
-app.set('trust proxy', TRUST_PROXY_HOPS);
-
-// Helmet security configuration with tailored Content Security Policy
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
-      imgSrc: ["'self'", "data:", "blob:", "https://*.googleusercontent.com", "https://*.fbcdn.net", "https://*.apple.com", "https://images.unsplash.com"],
-      connectSrc: ["'self'", "wss:", "ws:", "https://api.kraken.com", "https://query1.finance.yahoo.com", "https://www.googleapis.com", "https://oauth2.googleapis.com"],
-      frameAncestors: ["'self'", "https://*.google.com", "https://*.run.app", "https://ai.studio"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-    },
-  },
-  frameguard: false, // Governed by frameAncestors above to allow embedding in preview
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: false,
-}));
-
-// Logger middleware
-app.use(morgan('dev'));
-
-// Security guard: block any requests attempting to read server files, credentials, dotfiles, or database files
-app.use((req, res, next) => {
-  const reqPath = decodeURIComponent(req.path || '').toLowerCase();
-  const isBlocked = 
-    reqPath.startsWith('/.') ||
-    reqPath.includes('/..') ||
-    reqPath.endsWith('.key') ||
-    reqPath.endsWith('.env') ||
-    reqPath.endsWith('.sql') ||
-    reqPath.endsWith('.sqlite') ||
-    reqPath.endsWith('.db') ||
-    reqPath.endsWith('.pem') ||
-    reqPath.endsWith('.crt') ||
-    reqPath.endsWith('.log') ||
-    reqPath.startsWith('/server/') ||
-    reqPath.startsWith('/server.') ||
-    reqPath === '/database.json' ||
-    reqPath === '/encryption.key' ||
-    reqPath === '/package.json' ||
-    reqPath === '/package-lock.json' ||
-    reqPath === '/tsconfig.json' ||
-    reqPath === '/dockerfile' ||
-    reqPath === '/docker-compose.yml' ||
-    reqPath === '/firebase-applet-config.json' ||
-    reqPath === '/metadata.json' ||
-    reqPath === '/update_css.cjs';
-
-  if (isBlocked) {
-    return res.status(404).send('Not found');
-  }
-  next();
-});
-
-// Payload parsing
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-const PgStore = connectPgSimple(session);
-
-// Instantiate session middleware ONCE at module level so we use a single persistent session store
-const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-let sessionStore: session.Store | undefined;
-
-if (hasPostgres && realPool) {
-  try {
-    const pgStore = new PgStore({
-      pool: realPool,
-      tableName: 'sessions',
-      createTableIfMissing: true,
-      errorLog: (err: any) => {
-        console.warn('[session-store] PGStore non-fatal error:', err?.message || err);
-      }
-    });
-    pgStore.on('error', (err: any) => {
-      console.warn('[session-store] PGStore pool error:', err?.message || err);
-    });
-    sessionStore = pgStore;
-  } catch (err) {
-    console.warn('[session-store] Failed to initialize PgStore, using default memory store fallback:', err);
-  }
-}
-
-const sessionMiddleware = session({
-  name: 'ffpro.sid',
-  store: sessionStore,
-  secret: sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  cookie: {
-    httpOnly: true,
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  }
-});
-
-// Dynamic express-session middleware wrapper: sets the cookie's Secure/SameSite
-// attributes to match the ACTUAL connection security for this request, so the
-// cookie the browser receives is one it will actually store and send back.
-//
-// `app.set('trust proxy', true)` above already makes `req.secure` correctly
-// reflect the `X-Forwarded-Proto` header set by a TLS-terminating reverse
-// proxy (Nginx, Cloud Run, etc.). We only add small, explicit fallbacks on
-// top of that — never a blanket "host isn't literally 'localhost', so treat
-// it as secure" rule. Forcing `secure: true` on a connection that is actually
-// plain HTTP causes the browser to silently discard the Set-Cookie response
-// (browsers never store/send Secure cookies over an insecure origin), which
-// breaks the session on the very next request: login appears to succeed, but
-// every request after it looks logged-out, kicking the user back to the
-// login screen in an endless loop.
-app.use((req, res, next) => {
-  const xSessionId = req.headers['x-session-id'];
-  if (xSessionId && typeof xSessionId === 'string') {
-    let existingCookie = req.headers.cookie || '';
-    if (existingCookie.includes('ffpro.sid=')) {
-      existingCookie = existingCookie.replace(/ffpro\.sid=[^;]+/, `ffpro.sid=${xSessionId}`);
-      req.headers.cookie = existingCookie;
-    } else {
-      req.headers.cookie = existingCookie ? `ffpro.sid=${xSessionId}; ${existingCookie}` : `ffpro.sid=${xSessionId}`;
+async function bootstrap() {
+  await databaseReady;
+  await initSecuritySchema();
+  await initPush();
+  const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+  app.use(helmet({ contentSecurityPolicy: { directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: production ? ["'self'", 'https://cdnjs.cloudflare.com'] : ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdnjs.cloudflare.com'],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com', 'data:'],
+    imgSrc: ["'self'", 'data:', 'blob:', 'https://*.googleusercontent.com', 'https://*.fbcdn.net', 'https://images.unsplash.com'],
+    connectSrc: ["'self'", ...(production ? [] : ['ws:', 'wss:'])],
+    frameAncestors: ["'self'"], objectSrc: ["'none'"], baseUri: ["'self'"],
+    upgradeInsecureRequests: production ? [] : null,
+  }}, crossOriginEmbedderPolicy: false }));
+  // Log paths only: OAuth codes and recovery tokens must not reach access logs.
+  morgan.token('safe-path', req => (req.url || '/').split('?')[0]);
+  app.use(morgan(':method :safe-path :status :response-time ms'));
+  app.use((req, res, next) => {
+    if (production && req.get('host') !== new URL(canonicalOrigin()).host && !['/api/live', '/api/health'].includes(req.path)) {
+      return res.status(400).json({ error: 'Invalid host.' });
     }
-  }
-
-  const xfp = req.headers['x-forwarded-proto'];
-  const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
-  const isSecure = req.secure ||
-    isCloudSandbox ||
-    (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
-
-  // Execute session middleware, then dynamically configure cookie secure and sameSite attributes.
-  // Catch any transient session store errors so HTTP requests never return 500 if PG store has network blips.
-  (sessionMiddleware as any)(req, res, (err: any) => {
-    if (err) {
-      console.warn('[server] Session middleware error (continuing request):', err?.message || err);
-    }
-    if (req.session && req.session.cookie) {
-      req.session.cookie.secure = isSecure;
-      req.session.cookie.sameSite = isSecure ? 'none' : 'lax';
-    }
+    let requestedPath;
+    try { requestedPath=decodeURIComponent(req.path); } catch { return res.sendStatus(404); }
+    const developmentBundle=!production && requestedPath.startsWith('/node_modules/.vite/');
+    if (requestedPath.startsWith('/server') || requestedPath.startsWith('/build/') || requestedPath.endsWith('/database.json') ||
+      (!developmentBundle && /(?:^|\/)\.|\.(?:key|env|sql|sqlite|db|pem|map)$/.test(requestedPath))) return res.sendStatus(404);
     next();
   });
-});
-
-// Passport initialization
-app.use(passport.initialize() as any);
-app.use(passport.session() as any);
-
-// Rate limiting on credential authentication endpoints (brute-force protection)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many authentication attempts. Please try again later.' }
-});
-
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
-
-// CSRF Defense: Enforce same-origin verification on state-mutating auth & data operations
-app.use(['/api/auth/login', '/api/auth/register', '/api/auth/logout'], sameOriginOnly);
-app.use('/api/data', sameOriginOnly);
-
-// Mount Backend API Routes
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    environment: process.env.NODE_ENV || 'development',
-    database: hasPostgres ? 'postgresql' : 'local_json_ephemeral',
-    timestamp: new Date().toISOString()
+  app.get('/api/live', (_req, res) => res.json({ ok: true }));
+  app.get('/api/health', async (_req, res) => {
+    try {
+      if (realPool) await realPool.query('SELECT 1');
+      else if (production) throw new Error('Database unavailable');
+      res.json({ ok: true, database: hasPostgres ? 'postgresql' : 'development-only' });
+    } catch { res.status(503).json({ ok: false }); }
   });
-});
-
-app.use('/api/auth', authRoutes);
-app.use('/api/data', dataRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/projects', projectsRoutes);
-app.use('/api/invites', invitesRoutes);
-app.use('/api/realtime', realtimeRoutes);
-app.use('/api/gmail', gmailRoutes);
-app.use('/api/calendar', googleCalendarRoutes);
-app.use('/api/funding', fundingRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/files', filesRoutes);
-
-// Public legal pages — plain server-rendered HTML (not part of the SPA
-// bundle) so they're reachable, indexable, and stable even if the frontend
-// build changes. Must be registered before the SPA catch-all below.
-app.use(legalRoutes);
-
-// Vite Integration
-async function bootstrap() {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[server] Mounting Vite Dev Middleware...');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
+  app.use(express.json({ limit: '5mb' }));
+  app.use(express.urlencoded({ extended: false, limit: '32kb' }));
+  const PgStore = connectPgSimple(session);
+  app.use(session({
+    name: 'ffpro.sid', secret: process.env.SESSION_SECRET!, resave: false, saveUninitialized: false,
+    store: realPool ? new PgStore({ pool: realPool, tableName: 'sessions', createTableIfMissing: true }) : undefined,
+    cookie: { httpOnly: true, secure: production, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 },
+  }));
+  app.use(passport.initialize());
+  app.use(passport.session());
+  app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+  app.get('/api/auth/csrf', (req, res) => {
+    const current = req.session as any;
+    current.csrfToken ||= crypto.randomBytes(32).toString('hex');
+    res.json({ csrfToken: current.csrfToken });
+  });
+  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+  app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
+  // Apple form_post is not enabled until it can use an isolated SameSite=None state cookie.
+  app.use('/api', sameOriginOnly, csrfProtection);
+  app.use('/api/auth', authRoutes);
+  app.use('/api/data', dataRoutes);
+  app.use('/api/ai', aiRoutes);
+  app.use('/api/projects', projectsRoutes);
+  app.use('/api/invites', invitesRoutes);
+  app.use('/api/realtime', realtimeRoutes);
+  app.use('/api/gmail', gmailRoutes);
+  app.use('/api/calendar', googleCalendarRoutes);
+  app.use('/api/funding', fundingRoutes);
+  app.use('/api/notifications', notificationsRoutes);
+  app.use('/api/files', filesRoutes);
+  app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
+  app.use(legalRoutes);
+  if (!production) {
+    const { createServer } = await import('vite');
+    const vite = await createServer({ server: { middlewareMode: true }, appType: 'spa' });
     app.use(vite.middlewares);
   } else {
-    console.log('[server] Serving static built assets from dist...');
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.use((req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    const dist = path.join(process.cwd(), 'dist');
+    app.use('/assets', express.static(path.join(dist, 'assets'), { immutable: true, maxAge: '1y' }));
+    app.use(express.static(dist, { index: false, maxAge: 0 }));
+    app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[server] Fire Finance Pro running on port ${PORT}`);
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error('[request]', err.code || err.name || 'Error');
+    if (res.headersSent) return res.end();
+    const status = Number(err.status || err.statusCode) || 500;
+    res.status(status >= 400 && status < 600 ? status : 500).json({ error: status < 500 ? (err.publicMessage || 'Invalid request.') : 'Request failed. Please retry.' });
   });
-
-  // Funding Finder's nightly research job — reads/writes only through
-  // server/services/fundingResearch.js, and never blocks server startup.
-  startFundingResearchScheduler();
+  const port = Number(process.env.PORT || 3010);
+  const server = app.listen(port, '0.0.0.0', () => console.log(`FFPRO2 running on port ${port}`));
+  const pushTimer=startPushScheduler();
+  const fundingJob = startFundingResearchScheduler();
+  const shutdown = () => {
+    if(pushTimer)clearInterval(pushTimer);
+    fundingJob?.stop();
+    realtimeHub.close();
+    server.close(async () => { await realPool?.end(); process.exit(0); });
+    server.closeIdleConnections();
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);
 }
-
-bootstrap().catch(err => {
-  console.error('[server] Fatal bootstrap error:', err);
-  process.exit(1);
-});
+bootstrap().catch(error => { console.error('Startup failed:', error.message); process.exit(1); });

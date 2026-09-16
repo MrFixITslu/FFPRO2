@@ -1,4 +1,6 @@
 
+import DOMPurify from 'dompurify';
+import { useAccessibleDialog } from '../hooks/useAccessibleDialog';
 import React, { useState, useEffect, useRef } from 'react';
 import { uploadFileToSystemDatabase } from '../services/fileStorageService';
 
@@ -12,6 +14,7 @@ interface Props {
 }
 
 const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave, onClose, isVaultMounted, onMountVault }) => {
+  const dialogRef = useAccessibleDialog(onClose);
   const [title, setTitle] = useState(initialTitle ? initialTitle.replace(/_/g, ' ') : '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -22,7 +25,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
 
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = initialContent || '<p><br></p>';
+      editorRef.current.innerHTML = DOMPurify.sanitize(initialContent || '<p><br></p>');
       updateStats();
       // Force paragraph wrapping
       document.execCommand('defaultParagraphSeparator', false, 'p');
@@ -34,10 +37,10 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
       const text = editorRef.current.innerText || "";
       const words = text.trim().split(/\s+/).filter(w => w.length > 0);
       setWordCount(words.length);
-      
+
       const currentBlock = document.queryCommandValue('formatBlock').toLowerCase();
       const currentFontSize = document.queryCommandValue('fontSize');
-      
+
       setActiveStates({
         bold: document.queryCommandState('bold'),
         italic: document.queryCommandState('italic'),
@@ -81,7 +84,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
         }
       };
       sanitize(doc.body);
-      document.execCommand('insertHTML', false, doc.body.innerHTML);
+      document.execCommand('insertHTML', false, DOMPurify.sanitize(doc.body.innerHTML));
     } else if (text) {
       document.execCommand('insertText', false, text);
     }
@@ -89,7 +92,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
   };
 
   const execCommand = (e: React.MouseEvent | React.KeyboardEvent | null, command: string, value: string = '') => {
-    if (e && 'preventDefault' in e) e.preventDefault(); 
+    if (e && 'preventDefault' in e) e.preventDefault();
     if (!editorRef.current) return;
     editorRef.current.focus();
     try {
@@ -141,7 +144,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
       const savedSysFile = await uploadFileToSystemDatabase(file);
       if (savedSysFile && (savedSysFile.viewUrl || savedSysFile.downloadUrl)) {
         const url = savedSysFile.viewUrl || savedSysFile.downloadUrl;
-        const imgTag = `<img src="${url}" alt="${savedSysFile.fileName}" style="max-width:100%; border-radius:12px; margin: 10px 0; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);" />`;
+        const imgTag = `<img src="${url}" alt="${savedSysFile.fileName.replace(/[&<>"']/g,'_')}" style="max-width:100%; border-radius:12px; margin: 10px 0; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);" />`;
         document.execCommand('insertHTML', false, imgTag);
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
@@ -165,7 +168,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      const content = editorRef.current.innerHTML;
+      const content = DOMPurify.sanitize(editorRef.current.innerHTML);
       await onSave(title, content);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -177,42 +180,42 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
   };
 
   return (
-    <div className="fixed inset-0 z-[250] bg-stone-200 flex flex-col items-center justify-start animate-in fade-in duration-300 overflow-hidden">
-      
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Document editor" tabIndex={-1} className="fixed inset-0 z-[250] bg-stone-200 flex flex-col items-center justify-start animate-in fade-in duration-300 overflow-hidden">
+
       {/* RIBBON UI */}
       <div className="w-full bg-white border-b border-stone-300 shadow-sm z-30 px-6 pt-2 pb-1 shrink-0 no-print">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 rounded-lg border border-indigo-100">
               <i className="fas fa-file-word text-indigo-600 text-lg"></i>
-              <span className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Document Pro</span>
+              <span className="text-xs font-black text-indigo-900 uppercase tracking-widest">Document Pro</span>
             </div>
-            <input 
-              type="text" 
-              value={title} 
+            <input
+              type="text"
+              value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="bg-transparent border-none outline-none font-bold text-stone-700 text-sm w-64 placeholder:text-stone-300"
               placeholder="Untitled Document..."
             />
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={exportToPDF}
-              className="px-4 py-2 bg-stone-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-stone-800 transition flex items-center gap-2 shadow-lg shadow-slate-200"
+              className="px-4 py-2 bg-stone-900 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-stone-800 transition flex items-center gap-2 shadow-lg shadow-slate-200"
             >
               <i className="fas fa-file-pdf"></i> Export PDF
             </button>
             <div className="w-px h-6 bg-stone-200 mx-1"></div>
-            <button 
+            <button
               onClick={handleSave}
               disabled={isSaving}
-              className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md transition flex items-center gap-2 ${isSaving ? 'bg-stone-100 text-stone-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest shadow-md transition flex items-center gap-2 ${isSaving ? 'bg-stone-100 text-stone-400' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
             >
               {isSaving ? <i className="fas fa-sync fa-spin"></i> : <i className="fas fa-floppy-disk"></i>}
               {isSaving ? 'Saving...' : 'Save Draft'}
             </button>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-400 hover:text-rose-600 rounded-lg border border-stone-200 transition-colors">
+            <button aria-label="Close document editor" onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-400 hover:text-rose-600 rounded-lg border border-stone-200 transition-colors">
               <i className="fas fa-times"></i>
             </button>
           </div>
@@ -224,59 +227,59 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
                <button onMouseDown={(e) => execCommand(e, 'undo')} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Undo"><i className="fas fa-undo text-xs"></i></button>
                <button onMouseDown={(e) => execCommand(e, 'redo')} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Redo"><i className="fas fa-redo text-xs"></i></button>
              </div>
-             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">History</span>
+             <span className="text-xs font-bold text-stone-400 uppercase text-center">History</span>
           </div>
 
           <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-                <button 
-                  onMouseDown={(e) => execCommand(e, 'bold')} 
+                <button
+                  aria-label="Bold" onMouseDown={(e) => execCommand(e, 'bold')}
                   className={`w-8 h-8 rounded transition-all ${activeStates.bold ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}
                 ><i className="fas fa-bold text-xs"></i></button>
-                <button 
-                  onMouseDown={(e) => execCommand(e, 'italic')} 
+                <button
+                  aria-label="Italic" onMouseDown={(e) => execCommand(e, 'italic')}
                   className={`w-8 h-8 rounded transition-all ${activeStates.italic ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}
                 ><i className="fas fa-italic text-xs"></i></button>
-                <button 
-                  onMouseDown={(e) => execCommand(e, 'underline')} 
+                <button
+                  aria-label="Underline" onMouseDown={(e) => execCommand(e, 'underline')}
                   className={`w-8 h-8 rounded transition-all ${activeStates.underline ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}
                 ><i className="fas fa-underline text-xs"></i></button>
                 <div className="w-px h-6 bg-stone-200 mx-1"></div>
                 <button onMouseDown={() => changeFontSize(1)} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Large"><i className="fas fa-font text-xs"></i><i className="fas fa-plus text-[6px]"></i></button>
-                <button onMouseDown={() => changeFontSize(-1)} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Small"><i className="fas fa-font text-[8px]"></i><i className="fas fa-minus text-[6px]"></i></button>
+                <button onMouseDown={() => changeFontSize(-1)} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Small"><i className="fas fa-font text-xs"></i><i className="fas fa-minus text-[6px]"></i></button>
              </div>
-             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Format</span>
+             <span className="text-xs font-bold text-stone-400 uppercase text-center">Format</span>
           </div>
 
           <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h1')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.h1 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>H1</button>
-                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h2')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.h2 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>H2</button>
-                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'p')} className={`px-3 h-8 rounded text-[10px] font-black transition-all ${activeStates.p ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>P</button>
+                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h1')} className={`px-3 h-8 rounded text-xs font-black transition-all ${activeStates.h1 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>H1</button>
+                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'h2')} className={`px-3 h-8 rounded text-xs font-black transition-all ${activeStates.h2 ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>H2</button>
+                <button onMouseDown={(e) => execCommand(e, 'formatBlock', 'p')} className={`px-3 h-8 rounded text-xs font-black transition-all ${activeStates.p ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}>P</button>
              </div>
-             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Paragraph</span>
+             <span className="text-xs font-bold text-stone-400 uppercase text-center">Paragraph</span>
           </div>
 
           <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
-                <button onMouseDown={(e) => execCommand(e, 'insertUnorderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listUl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}><i className="fas fa-list-ul text-xs"></i></button>
-                <button onMouseDown={(e) => execCommand(e, 'insertOrderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listOl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}><i className="fas fa-list-ol text-xs"></i></button>
+                <button aria-label="Bulleted list" onMouseDown={(e) => execCommand(e, 'insertUnorderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listUl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}><i className="fas fa-list-ul text-xs"></i></button>
+                <button aria-label="Numbered list" onMouseDown={(e) => execCommand(e, 'insertOrderedList')} className={`w-8 h-8 rounded transition-all ${activeStates.listOl ? 'bg-indigo-600 text-white shadow-inner' : 'hover:bg-stone-100 text-stone-600'}`}><i className="fas fa-list-ol text-xs"></i></button>
              </div>
-             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Lists</span>
+             <span className="text-xs font-bold text-stone-400 uppercase text-center">Lists</span>
           </div>
 
           <div className="flex flex-col gap-1 pr-4 border-r border-stone-200 shrink-0">
              <div className="flex items-center gap-1">
                 <button onMouseDown={(e) => { e.preventDefault(); fileInputRef.current?.click(); }} className="w-8 h-8 hover:bg-stone-100 rounded text-stone-600" title="Insert Image"><i className="fas fa-image text-xs"></i></button>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageInsert} />
-                <button onMouseDown={insertPageBreak} className="px-3 h-8 bg-stone-50 text-stone-500 rounded font-black text-[8px] uppercase tracking-widest hover:bg-stone-100 border border-stone-100" title="Page Break">
+                <button onMouseDown={insertPageBreak} className="px-3 h-8 bg-stone-50 text-stone-500 rounded font-black text-xs uppercase tracking-widest hover:bg-stone-100 border border-stone-100" title="Page Break">
                   <i className="fas fa-scissors mr-1.5"></i> Page Break
                 </button>
              </div>
-             <span className="text-[8px] font-bold text-stone-400 uppercase text-center">Insert</span>
+             <span className="text-xs font-bold text-stone-400 uppercase text-center">Insert</span>
           </div>
 
-          <button onMouseDown={(e) => execCommand(e, 'removeFormat')} className="ml-auto px-4 h-8 bg-stone-50 text-stone-400 hover:text-rose-500 rounded-lg font-black text-[8px] uppercase tracking-widest flex items-center gap-2 border border-stone-100 transition-all shrink-0">
+          <button onMouseDown={(e) => execCommand(e, 'removeFormat')} className="ml-auto px-4 h-8 bg-stone-50 text-stone-400 hover:text-rose-500 rounded-lg font-black text-xs uppercase tracking-widest flex items-center gap-2 border border-stone-100 transition-all shrink-0">
             <i className="fas fa-eraser"></i> Clear Styles
           </button>
         </div>
@@ -285,7 +288,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
       {/* PAPER CANVAS */}
       <div className="flex-1 w-full overflow-y-auto custom-scrollbar flex flex-col items-center py-10 px-4 bg-stone-200 print:bg-white print:p-0 print:block">
         <div className="w-full max-w-[850px] relative shadow-2xl print:shadow-none print:max-w-none">
-          <div 
+          <div
             ref={editorRef}
             contentEditable
             onInput={updateStats}
@@ -299,7 +302,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
       </div>
 
       {/* STATUS BAR */}
-      <div className="w-full bg-indigo-700 text-white h-7 flex items-center justify-between px-6 text-[10px] font-bold z-40 shrink-0 no-print">
+      <div className="w-full bg-indigo-700 text-white h-7 flex items-center justify-between px-6 text-xs font-bold z-40 shrink-0 no-print">
          <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
                <i className="fas fa-file-alt"></i>
@@ -309,7 +312,7 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
                <span>{wordCount} Words</span>
             </div>
          </div>
-         
+
          <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
                <i className={`fas ${isVaultMounted ? 'fa-cloud-check text-emerald-300' : 'fa-database text-amber-300'}`}></i>
