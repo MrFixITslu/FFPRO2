@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import { pool } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { encryptForUser, decryptForUser } from '../crypto.js';
@@ -9,54 +9,7 @@ const router = Router();
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB limit
 
 // Add schema validation for data payloads
-function validateAppState(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    return 'Invalid data format.';
-  }
-  
-  // Basic structure validation
-  if (data.transactions && !Array.isArray(data.transactions)) {
-    return 'Transactions must be an array.';
-  }
-  if (data.recurringExpenses && !Array.isArray(data.recurringExpenses)) {
-    return 'Recurring expenses must be an array.';
-  }
-  if (data.recurringIncomes && !Array.isArray(data.recurringIncomes)) {
-    return 'Recurring incomes must be an array.';
-  }
-  if (data.savingGoals && !Array.isArray(data.savingGoals)) {
-    return 'Saving goals must be an array.';
-  }
-  if (data.investmentGoals && !Array.isArray(data.investmentGoals)) {
-    return 'Investment goals must be an array.';
-  }
-  if (data.contacts && !Array.isArray(data.contacts)) {
-    return 'Contacts must be an array.';
-  }
-  if (data.events && !Array.isArray(data.events)) {
-    return 'Events must be an array.';
-  }
-  if (data.categoryBudgets && typeof data.categoryBudgets !== 'object') {
-    return 'Category budgets must be an object.';
-  }
-  if (data.bankConnections && !Array.isArray(data.bankConnections)) {
-    return 'Bank connections must be an array.';
-  }
-  if (data.investments && !Array.isArray(data.investments)) {
-    return 'Investments must be an array.';
-  }
-  if (data.calendarItems && !Array.isArray(data.calendarItems)) {
-    return 'Calendar items must be an array.';
-  }
-  if (data.ideas && !Array.isArray(data.ideas)) {
-    return 'Ideas must be an array.';
-  }
-  if (data.forecastSettings && typeof data.forecastSettings !== 'object') {
-    return 'Forecast settings must be an object.';
-  }
-  
-  return null;
-}
+import { validateAppState } from '../../shared/appState.js';
 
 // Generous write limiter for data sync
 const dataWriteLimiter = rateLimit({
@@ -95,14 +48,14 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', async (req, res) => {
-  const { data, expectedVersion, force } = req.body || {};
+  const { data, expectedVersion } = req.body || {};
   
   // FIX: Add comprehensive schema validation
   const validationError = validateAppState(data);
   if (validationError || typeof data !== 'object' || data === null || Array.isArray(data)) {
     return res.status(400).json({ error: validationError || 'Invalid payload.' });
   }
-  if (typeof expectedVersion !== 'number' && !force) {
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
     return res.status(400).json({ error: 'expectedVersion is required.' });
   }
 
@@ -116,9 +69,11 @@ router.put('/', async (req, res) => {
     return res.status(413).json({ error: 'Data payload too large.' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`data:${req.user.id}`]);
     // Lock this user's row (if any) so two concurrent saves from the same
     // account can't both read the same version and silently clobber one another.
     const { rows } = await client.query(
@@ -127,7 +82,7 @@ router.put('/', async (req, res) => {
     );
     const currentVersion = rows[0]?.version || 0;
 
-    if (!force && expectedVersion !== -1 && expectedVersion !== currentVersion) {
+    if (expectedVersion !== currentVersion) {
       await client.query('ROLLBACK');
       return res.status(409).json({
         error: 'Data was updated elsewhere since you last loaded it.',
@@ -157,11 +112,11 @@ router.put('/', async (req, res) => {
     });
     res.json({ ok: true, version: newVersion });
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (client) await client.query('ROLLBACK');
     console.error('PUT /api/data error:', err);
     res.status(500).json({ error: 'Failed to save your data.' });
   } finally {
-    client.release();
+    client?.release();
   }
 });
 
@@ -169,13 +124,21 @@ router.put('/', async (req, res) => {
 // not just the local browser cache (which would otherwise be overwritten
 // again on next login by the still-present cloud copy).
 router.delete('/', async (req, res) => {
+  const expectedVersion=req.body?.expectedVersion;
+  if(!Number.isSafeInteger(expectedVersion) || expectedVersion<0) return res.status(400).json({error:'expectedVersion is required.'});
+  let client;
   try {
-    await pool.query('DELETE FROM user_data WHERE user_id = $1', [req.user.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('DELETE /api/data error:', err);
-    res.status(500).json({ error: 'Failed to delete your data.' });
-  }
+    client=await pool.connect();await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`data:${req.user.id}`]);
+    const row=(await client.query('SELECT version FROM user_data WHERE user_id = $1 FOR UPDATE',[req.user.id])).rows[0];
+    if((row?.version || 0)!==expectedVersion){await client.query('ROLLBACK');return res.status(409).json({error:'Data changed elsewhere. Reload before resetting.'});}
+    const version=expectedVersion+1;
+    const empty={transactions:[],recurringExpenses:[],recurringIncomes:[],savingGoals:[],investmentGoals:[],categoryBudgets:{},bankConnections:[],investments:[],events:[],calendarItems:[],contacts:[],ideas:[],financialLogs:[],cashOpeningBalance:0,lastUpdated:new Date().toISOString()};
+    const {ciphertext,iv,authTag}=encryptForUser(req.user.id,empty);
+    await client.query(`INSERT INTO user_data (user_id,ciphertext,iv,auth_tag,version,updated_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(user_id) DO UPDATE SET ciphertext=EXCLUDED.ciphertext,iv=EXCLUDED.iv,auth_tag=EXCLUDED.auth_tag,version=EXCLUDED.version,updated_at=now()`,[req.user.id,ciphertext,iv,authTag,version]);
+    await client.query('COMMIT');realtimeHub.broadcastUserDataUpdate(req.user.id,{version,updatedAt:empty.lastUpdated});
+    res.json({ok:true,version});
+  } catch(error) {if(client)await client.query('ROLLBACK');throw error;}finally{client?.release();}
 });
 
 export default router;

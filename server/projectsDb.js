@@ -24,6 +24,7 @@ function sanitizeInviteRow(row) {
     email: row.email,
     role: row.role,
     status: row.status,
+    token: row.token,
     createdAt: row.created_at,
     acceptedAt: row.accepted_at || null,
   };
@@ -174,7 +175,7 @@ const pg = {
 
   async getInviteByToken(token) {
     const { rows } = await realPool.query('SELECT * FROM project_invites WHERE token = $1', [token]);
-    return rows[0] || null;
+    return sanitizeInviteRow(rows[0]);
   },
 
   async listPendingInvitesForProject(projectId) {
@@ -368,7 +369,8 @@ const file = {
 
   async getInviteByToken(token) {
     const db = readDB();
-    return db.project_invites.find(i => i.token === token) || null;
+    const invite = db.project_invites.find(i => i.token === token);
+    return invite ? sanitizeInviteRow(invite) : null;
   },
 
   async listPendingInvitesForProject(projectId) {
@@ -452,3 +454,23 @@ export const projectsDb = {
   listMessages: (...args) => impl().listMessages(...args),
   createMessage: (...args) => impl().createMessage(...args),
 };
+
+// Consume the invitation and grant membership in one transaction.
+export async function acceptInvitation(token, user) {
+  const valid = invite => invite && invite.status==='pending' && Date.now()-new Date(invite.created_at).getTime()<7*86400000 && invite.email.toLowerCase()===user.email.toLowerCase() && user.email_verified_at;
+  if(!realPool) {
+    const db=readDB(),invite=db.project_invites.find(i=>i.token===token);
+    if(!valid(invite)) return null;
+    if(!db.project_members.some(m=>m.project_id===invite.project_id && m.user_id===user.id)) db.project_members.push({id:uuid(),project_id:invite.project_id,user_id:user.id,role:invite.role,joined_at:nowISO()});
+    invite.status='accepted';invite.accepted_at=nowISO();writeDB(db);return sanitizeInviteRow(invite);
+  }
+  const client=await realPool.connect();
+  try {
+    await client.query('BEGIN');
+    const invite=(await client.query('SELECT * FROM project_invites WHERE token=$1 FOR UPDATE',[token])).rows[0];
+    if(!valid(invite)){await client.query('ROLLBACK');return null;}
+    await client.query('INSERT INTO project_members(project_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(project_id,user_id) DO NOTHING',[invite.project_id,user.id,invite.role]);
+    await client.query("UPDATE project_invites SET status='accepted',accepted_at=now() WHERE id=$1",[invite.id]);
+    await client.query('COMMIT');return sanitizeInviteRow(invite);
+  } catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+}

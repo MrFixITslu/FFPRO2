@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { calendarTimes, calendarPages } from '../calendarTime.js';
+import { Router } from '../http.js';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getValidGoogleAccessToken } from '../googleTokens.js';
 
 const router = Router();
-const AUTHORIZED_EMAIL = process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
 
 const calendarRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -22,7 +22,7 @@ router.use(calendarRateLimiter);
  */
 function requireAuthorizedAccount(req, res, next) {
   const userEmail = (req.user?.email || '').trim().toLowerCase();
-  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+  if (userEmail) {
     return next();
   }
   return res.status(403).json({
@@ -57,7 +57,7 @@ router.get('/status', requireAuthorizedAccount, async (req, res) => {
 
     const tokenInfo = await tokenInfoRes.json();
     const tokenScope = tokenInfo.scope || '';
-    const hasCalendarScope = tokenScope.includes('calendar.events.readonly') || tokenScope.includes('calendar.readonly') || tokenScope.includes('calendar');
+    const hasCalendarScope = tokenScope.split(' ').some(scope => ['calendar', 'calendar.events', 'calendar.readonly', 'calendar.events.readonly'].some(name => scope === `https://www.googleapis.com/auth/${name}`));
 
     return res.json({
       connected: true,
@@ -104,16 +104,16 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify token identity strictly belongs to vision79slu@gmail.com
-    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
+    // Verify token identity belongs to the signed-in account
+    if (tokenEmail !== String(req.user.email).toLowerCase()) {
       return res.status(403).json({
-        error: `Google token must belong to ${AUTHORIZED_EMAIL}.`,
+        error: `Google token must belong to ${req.user.email}.`,
         code: 'ACCOUNT_MISMATCH',
       });
     }
 
     const tokenScope = tokenInfo.scope || '';
-    const hasCalendarScope = tokenScope.includes('calendar.events.readonly') || tokenScope.includes('calendar.readonly') || tokenScope.includes('calendar');
+    const hasCalendarScope = tokenScope.split(' ').some(scope => ['calendar', 'calendar.events', 'calendar.readonly', 'calendar.events.readonly'].some(name => scope === `https://www.googleapis.com/auth/${name}`));
 
     if (!hasCalendarScope) {
       return res.status(403).json({
@@ -143,29 +143,7 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
       calUrl.searchParams.set('updatedMin', new Date(String(req.query.updatedMin)).toISOString());
     }
 
-    const googleRes = await fetch(calUrl.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    });
-
-    if (!googleRes.ok) {
-      const errBody = await googleRes.json().catch(() => ({}));
-      console.warn('[google-calendar] API error:', googleRes.status, errBody);
-      const isInsufficientScope = googleRes.status === 403 || 
-        (errBody.error?.message && /insufficient.*scope|permission/i.test(errBody.error.message));
-      return res.status(googleRes.status).json({
-        error: isInsufficientScope
-          ? 'Google Calendar permissions required. Please re-authenticate with Google to grant Calendar read access.'
-          : (errBody.error?.message || 'Failed to fetch events from Google Calendar.'),
-        code: isInsufficientScope ? 'INSUFFICIENT_SCOPES' : 'GOOGLE_API_ERROR',
-        authUrl: isInsufficientScope ? '/api/auth/google' : undefined,
-      });
-    }
-
-    const data = await googleRes.json();
-    const rawItems = Array.isArray(data.items) ? data.items : [];
+    const rawItems = await calendarPages(calUrl, accessToken);
 
     // 3. Transform Google Calendar items into app-compatible CalendarItem schema
     const now = Date.now();
@@ -239,14 +217,11 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
       count: finalEvents.length,
       events: finalEvents,
       syncTime: new Date().toISOString(),
-      account: AUTHORIZED_EMAIL,
+      account: req.user.email,
     });
   } catch (err) {
     console.error('[google-calendar] Sync handler error:', err);
-    return res.status(500).json({
-      error: 'Internal server error while syncing Google Calendar events.',
-      details: err?.message,
-    });
+    return res.status(err.status || 502).json({ error: err.message || 'Calendar sync failed.', code: err.code });
   }
 });
 
@@ -272,19 +247,7 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     calUrl.searchParams.set('orderBy', 'startTime');
     calUrl.searchParams.set('maxResults', '50');
 
-    const googleRes = await fetch(calUrl.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    });
-
-    if (!googleRes.ok) {
-      return res.json({ ok: true, events: [], totalUpcoming: 0 });
-    }
-
-    const data = await googleRes.json();
-    const rawItems = Array.isArray(data.items) ? data.items : [];
+    const rawItems = await calendarPages(calUrl, accessToken);
     const now = Date.now();
     const todayYMD = new Date().toISOString().split('T')[0];
 
@@ -330,7 +293,7 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     });
   } catch (err) {
     console.error('[google-calendar] Notifications handler error:', err);
-    return res.json({ ok: true, events: [], totalUpcoming: 0 });
+    return res.status(err.status || 502).json({ ok: false, error: 'Calendar notifications could not be refreshed.' });
   }
 });
 
@@ -354,27 +317,7 @@ router.post('/events', requireAuthorizedAccount, async (req, res) => {
     }
 
     const isAllDay = !startTime;
-    let startObj = {};
-    let endObj = {};
-
-    if (isAllDay) {
-      startObj = { date };
-      // Google expects exclusive end date for all-day events
-      const nextDay = new Date(date + 'T00:00:00');
-      nextDay.setDate(nextDay.getDate() + 1);
-      endObj = { date: nextDay.toISOString().split('T')[0] };
-    } else {
-      const startDateTimeStr = `${date}T${startTime}:00`;
-      const startDate = new Date(startDateTimeStr);
-      let endDate;
-      if (endTime) {
-        endDate = new Date(`${date}T${endTime}:00`);
-      } else {
-        endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour
-      }
-      startObj = { dateTime: startDate.toISOString() };
-      endObj = { dateTime: endDate.toISOString() };
-    }
+    const { start: startObj, end: endObj } = calendarTimes(req.body);
 
     const eventPayload = {
       summary: title,
@@ -442,7 +385,7 @@ router.post('/events', requireAuthorizedAccount, async (req, res) => {
     });
   } catch (err) {
     console.error('[google-calendar] Create event error:', err);
-    return res.status(500).json({ error: 'Failed to create calendar event.', details: err?.message });
+    return res.status(err.status || 502).json({ error: err.status===400 ? err.message : 'Failed to create calendar event. Reconnect Google if write access has not been granted.' });
   }
 });
 

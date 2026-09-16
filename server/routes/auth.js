@@ -1,11 +1,12 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
-import passport, { findOrCreateOAuthUser } from '../passport.js';
-import { saveGoogleTokens } from '../googleTokens.js';
+import passport from '../passport.js';
+import { createVerification, consumeVerification, resetPassword } from '../securityStore.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
-import { sendPasswordResetEmail } from '../mailer.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../mailer.js';
 import { getFrontendUrl } from '../utils/urlHelper.js';
 import crypto from 'crypto';
 
@@ -28,8 +29,8 @@ function hashResetToken(rawToken) {
 
 // FIX: Add password validation function — strict version for register/reset
 function validatePasswordStrength(password) {
-  if (!password || password.length < 8) {
-    return 'Password must be at least 8 characters.';
+  if (typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+    return 'Password must be at least 8 characters and at most 72 UTF-8 bytes.';
   }
   if (!/[A-Z]/.test(password)) {
     return 'Password must contain at least one uppercase letter.';
@@ -49,7 +50,7 @@ function validatePasswordStrength(password) {
 // Lenient check for login — only ensure something was provided with min length.
 // Prevents lock-out for accounts registered before the strict rules were added.
 function validatePasswordForLogin(password) {
-  if (!password || password.length < 1) {
+  if (typeof password !== 'string' || password.length < 1 || Buffer.byteLength(password, 'utf8') > 72) {
     return 'Password is required.';
   }
   return null;
@@ -70,7 +71,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
   AVAILABLE_OAUTH_PROVIDERS.push('facebook');
 }
-if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID) {
+if (false) {
   AVAILABLE_OAUTH_PROVIDERS.push('apple');
 }
 
@@ -82,31 +83,19 @@ function sanitizeUser(user) {
     username: user.username,
     displayName: user.display_name,
     avatarUrl: user.avatar_url,
+    emailVerified: !!user.email_verified_at,
   };
-}
-
-function signSessionId(sid, secret) {
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(sid)
-    .digest('base64')
-    .replace(/\=+$/, '');
-  return 's:' + sid + '.' + signature;
 }
 
 // --- Session status -------------------------------------------------------
 router.get('/me', (req, res) => {
   const user = sanitizeUser(req.user);
-  const sessionSecret = process.env.SESSION_SECRET || '';
-  const token = req.user && req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
-  res.json({ user, token });
+  res.json({ user });
 });
 
 router.get('/session-state', (req, res) => {
   const user = sanitizeUser(req.user);
-  const sessionSecret = process.env.SESSION_SECRET || '';
-  const token = req.user && req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
-  res.json({ authenticated: !!req.user, user, token });
+  res.json({ authenticated: !!req.user, user });
 });
 
 router.get('/providers', (_req, res) => {
@@ -132,7 +121,7 @@ router.post('/register', async (req, res) => {
   
   // FIX: Add password strength validation
   const passwordError = validatePasswordStrength(password);
-  if (!email || passwordError) {
+  if (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || passwordError) {
     return res.status(400).json({ error: passwordError || 'Email is required.' });
   }
 
@@ -167,23 +156,12 @@ router.post('/register', async (req, res) => {
       req.login(inserted.rows[0], async (err) => {
         if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
 
-        // Honor any project invites that were sent to this email before the account existed.
+        // Mailbox proof is required before invitations can grant access.
         try {
-          const pendingInvites = await projectsDb.getPendingInvitesForEmail(email);
-          for (const invite of pendingInvites) {
-            await projectsDb.addMember(invite.projectId, inserted.rows[0].id, invite.role);
-            await projectsDb.markInviteAccepted(invite.id);
-          }
-        } catch (inviteErr) {
-          console.error('Failed to auto-accept pending invites on register:', inviteErr);
-        }
-
-        const sessionSecret = process.env.SESSION_SECRET || '';
-        const token = sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
-        res.status(201).json({ 
-          user: sanitizeUser(inserted.rows[0]),
-          token
-        });
+          const verificationToken = await createVerification(inserted.rows[0].id);
+          await sendVerificationEmail({ toEmail: email, verificationLink: `${getFrontendUrl(req)}/verify-email?token=${verificationToken}` });
+        } catch { console.warn('Verification delivery unavailable; user may retry from the app.'); }
+        res.status(201).json({ user: sanitizeUser(inserted.rows[0]) });
       });
     });
   } catch (err) {
@@ -198,7 +176,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
   const loginPasswordError = validatePasswordForLogin(password);
-  if (!email || loginPasswordError) {
+  if (typeof email !== 'string' || email.length > 254 || loginPasswordError) {
     return res.status(400).json({ error: loginPasswordError || 'Email and password are required.' });
   }
 
@@ -229,11 +207,8 @@ router.post('/login', async (req, res) => {
 
       req.login(user, (err) => {
         if (err) return res.status(500).json({ error: 'Failed to start a session.' });
-        const sessionSecret = process.env.SESSION_SECRET || '';
-        const token = sessionSecret ? signSessionId(req.sessionID, sessionSecret) : null;
         res.json({ 
-          user: sanitizeUser(user),
-          token
+          user: sanitizeUser(user)
         });
       });
     });
@@ -303,26 +278,10 @@ router.post('/reset-password', forgotPasswordLimiter, async (req, res) => {
   }
 
   try {
-    const tokenHash = hashResetToken(token);
-    const { rows } = await pool.query(
-      'SELECT * FROM password_reset_tokens WHERE token_hash = $1',
-      [tokenHash]
-    );
-    const resetRow = rows[0];
-
-    const isExpired = !resetRow || new Date(resetRow.expires_at).getTime() < Date.now();
-    if (!resetRow || resetRow.used_at || isExpired) {
-      return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
-    }
-
     const passwordHash = await bcrypt.hash(password, 12);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, resetRow.user_id]);
-
-    // Single-use: mark this token (and any other outstanding ones for the
-    // account) used so the link can't be replayed.
-    await pool.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [resetRow.id]);
-    await pool.query('UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [resetRow.user_id]);
-
+    if (!(await resetPassword(token, passwordHash))) {
+      return res.status(400).json({ error: 'This reset link is invalid or expired. Request a new one.' });
+    }
     res.json({ ok: true, message: 'Your password has been reset. You can now log in with your new password.' });
   } catch (err) {
     console.error('Reset-password error:', err);
@@ -340,22 +299,9 @@ router.post('/logout', (req, res) => {
     req.session.destroy((destroyErr) => {
       if (destroyErr) {
         console.error('Session destroy error:', destroyErr);
-        // Still clear cookie and return success even if destroy fails
+        return res.status(500).json({error:'Logout failed. Please retry.'});
       }
-      const host = req.headers.host || '';
-      const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
-      const xfp = req.headers['x-forwarded-proto'];
-      const isCloudSandbox = !!(process.env.K_SERVICE || process.env.APP_URL);
-      const isSecure = req.secure ||
-        isCloudSandbox ||
-        (typeof xfp === 'string' && xfp.split(',').map(s => s.trim().toLowerCase()).includes('https'));
-
-      res.clearCookie('ffpro.sid', { 
-        path: '/', 
-        httpOnly: true, 
-        secure: isSecure, 
-        sameSite: isSecure ? 'none' : 'lax' 
-      });
+      res.clearCookie('ffpro.sid', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
       res.json({ ok: true });
     });
   });
@@ -373,7 +319,7 @@ router.get('/google', (req, res, next) => ensureOAuthProvider(req, res, next, 'g
     'email', 
     'https://www.googleapis.com/auth/gmail.readonly', 
     'https://www.googleapis.com/auth/gmail.modify',
-    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/calendar.readonly'
   ],
   accessType: 'offline',
@@ -395,9 +341,10 @@ router.get(
           console.error('[auth] Google session login error:', loginErr);
           return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
         }
-        const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-        const token = req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : '';
-        return res.redirect(`${baseUrl}/?auth=success${token ? `&session_token=${encodeURIComponent(token)}` : ''}`);
+        req.session.save(saveErr => {
+          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
+          res.redirect(`${baseUrl}/?auth=success`);
+        });
       });
     })(req, res, next);
   }
@@ -421,9 +368,10 @@ router.get(
           console.error('[auth] Facebook session login error:', loginErr);
           return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
         }
-        const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-        const token = req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : '';
-        return res.redirect(`${baseUrl}/?auth=success${token ? `&session_token=${encodeURIComponent(token)}` : ''}`);
+        req.session.save(saveErr => {
+          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
+          res.redirect(`${baseUrl}/?auth=success`);
+        });
       });
     })(req, res, next);
   }
@@ -448,12 +396,27 @@ router.post(
           console.error('[auth] Apple session login error:', loginErr);
           return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
         }
-        const sessionSecret = process.env.SESSION_SECRET || 'fallback-secret-key-12345';
-        const token = req.sessionID && sessionSecret ? signSessionId(req.sessionID, sessionSecret) : '';
-        return res.redirect(`${baseUrl}/?auth=success${token ? `&session_token=${encodeURIComponent(token)}` : ''}`);
+        req.session.save(saveErr => {
+          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
+          res.redirect(`${baseUrl}/?auth=success`);
+        });
       });
     })(req, res, next);
   }
 );
 
+router.post('/verify-email/send', requireAuth, forgotPasswordLimiter, async (req, res) => {
+  if (req.user.email_verified_at) return res.json({ ok: true });
+  const token = await createVerification(req.user.id);
+  const result = await sendVerificationEmail({ toEmail: req.user.email, verificationLink: `${getFrontendUrl(req)}/verify-email?token=${token}` });
+  if (!result.sent) return res.status(503).json({ error: 'Email delivery is not configured or is unavailable. Contact the administrator.' });
+  res.json({ ok: true });
+});
+router.post('/verify-email', forgotPasswordLimiter, async (req, res) => {
+  const token = req.body?.token;
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token) || !(await consumeVerification(token))) {
+    return res.status(400).json({ error: 'Verification link is invalid or expired.' });
+  }
+  res.json({ ok: true });
+});
 export default router;

@@ -5,14 +5,14 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-ffpro2_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ffpro2_postgres_secret_change_me}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to the existing database password}
       - POSTGRES_DB=${POSTGRES_DB:-fire_finance}
     volumes:
       # Dedicated, persistent volume for FFPRO2's own database — separate
       # from every other app's data on this server.
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
-      - proxy_network
+      - database_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
       interval: 5s
@@ -30,9 +30,10 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${APP_PORT:-3010}:3010"
+      - "127.0.0.1:${APP_PORT:-3010}:3010"
     networks:
       - proxy_network
+      - database_internal
 
     environment:
       - NODE_ENV=production
@@ -42,13 +43,17 @@ services:
       - DATABASE_FILE=/app/data/database.json
       - ENCRYPTION_KEY_FILE=/app/data/encryption.key
 
-      # Master Encryption Keys (Will read from your server's .env file, or auto-generate on boot)
-      - SESSION_SECRET=${SESSION_SECRET}
-      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
+      # Master Encryption Keys (Will read from your server's .env file, or read the existing encryption key file)
+      - SESSION_SECRET=${SESSION_SECRET:?Set a stable SESSION_SECRET of at least 32 characters}
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY:-}
+      - TRUST_PROXY_HOPS=${TRUST_PROXY_HOPS:-1}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-}
 
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
       # Host is the Docker service name "postgres", resolved over proxy_network.
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:-ffpro2_postgres_secret_change_me}@postgres:5432/${POSTGRES_DB:-fire_finance}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to the existing database password}@postgres:5432/${POSTGRES_DB:-fire_finance}
 
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -82,8 +87,8 @@ services:
       - SMTP_PASS=${SMTP_PASS}
       - SMTP_FROM=${SMTP_FROM}
 
-      # Base Application URLs (auto-detected from request headers if blank)
-      - FRONTEND_URL=${FRONTEND_URL}
+      # Base Application URLs (required canonical public HTTPS origin)
+      - FRONTEND_URL=${FRONTEND_URL:?Set the canonical HTTPS app origin}
     volumes:
       # Persistent local data directory for encryption key + session store.
       - ./data:/app/data
@@ -91,7 +96,9 @@ services:
 networks:
   proxy_network:
     name: proxy_network
-    driver: bridge
+    external: true
+  database_internal:
+    internal: true
 
 volumes:
   ffpro2_pgdata:

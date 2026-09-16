@@ -1,15 +1,16 @@
+import { AccessibleDialog } from './components/AccessibleDialog';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy } from 'react';
 import Login from './components/Login';
 import TransactionForm from './components/TransactionForm';
-import Dashboard from './components/Dashboard';
-import { FundingFinder } from './components/FundingFinder';
-import Settings from './components/Settings';
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const FundingFinder = lazy(() => import('./components/FundingFinder').then(module => ({ default: module.FundingFinder })));
+const Settings = lazy(() => import('./components/Settings'));
 import BankSyncModal from './components/BankSyncModal';
-import EventPlanner from './components/EventPlanner';
+const EventPlanner = lazy(() => import('./components/EventPlanner'));
 import InviteAcceptScreen from './components/InviteAcceptScreen';
-import Projections from './components/Projections';
-import Calendar from './components/Calendar';
+const Projections = lazy(() => import('./components/Projections'));
+const Calendar = lazy(() => import('./components/Calendar'));
 import { NotificationsModal } from './components/NotificationsModal';
 import { CommandPalette } from './components/CommandPalette';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
@@ -39,6 +40,9 @@ import {
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
+import { checkpointService } from './services/checkpointService';
+import { mergeStates, sameState } from './utils/stateMerge';
+import { EmailVerificationNotice, EmailVerificationScreen } from './components/EmailVerification';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
 import { projectsService } from './services/projectsService';
@@ -126,7 +130,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
             <span className={`relative inline-flex rounded-full h-2 w-2 ${quotaExhausted ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
           </span>
           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-stone-400 hidden sm:inline">
-            {quotaExhausted ? 'Cached Data' : 'Live Market Feed'}
+            {!prices.length ? 'Quotes unavailable' : quotaExhausted ? 'Limited market quotes' : 'Market quotes'}
           </span>
         </div>
         <div className="overflow-hidden relative flex-1">
@@ -203,9 +207,7 @@ const App: React.FC = () => {
       const provider = params.get('provider') || undefined;
       const sessionToken = params.get('session_token');
 
-      if (sessionToken) {
-        localStorage.setItem('ffpro_session_token', sessionToken);
-      }
+      localStorage.removeItem('ffpro_session_token');
 
       if (authStatus === 'failed') {
         return {
@@ -263,7 +265,7 @@ const App: React.FC = () => {
         const res = await fetch('/api/ai/market-data');
         if (res.ok && active) {
           const data = await res.json();
-          if (data && Array.isArray(data.prices) && data.prices.length > 0) {
+          if (data && Array.isArray(data.prices)) {
             setMarketPrices(data.prices);
             setQuotaExhausted(!!data.quotaExhausted);
           }
@@ -289,45 +291,6 @@ const App: React.FC = () => {
   const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>(() => safeParse(STORAGE_KEYS.CATEGORY_LIMITS, {}));
   const [bankConnections, setBankConnections] = useState<BankConnection[]>(() => safeParse(STORAGE_KEYS.BANK_CONNECTIONS, []));
   const [investments, setInvestments] = useState<InvestmentAccount[]>(() => safeParse(STORAGE_KEYS.INVESTMENTS, []));
-  const DEFAULT_SAMPLE_EVENTS: BudgetEvent[] = [
-    {
-      id: 'evt-laser-tag-2026',
-      name: 'Laser Tag Project',
-      date: '2026-11-20',
-      projectedBudget: 45000,
-      status: 'active',
-      eventType: 'startup',
-      lastUpdated: new Date().toISOString(),
-      files: [],
-      contactIds: [],
-      memberUsernames: [],
-      ious: [],
-      notes: [
-        {
-          id: 'note-1',
-          text: 'Interactive youth and family recreation entertainment venue featuring laser tag arena, digital scoring systems, and community event space.',
-          timestamp: new Date().toISOString(),
-          authorId: 'system',
-          version: 1
-        }
-      ],
-      items: [
-        { id: 'item-1', description: 'Laser Tag Gear & Phaser Packs', amount: 18000, type: 'expense', category: 'Equipment', date: '2026-09-01' },
-        { id: 'item-2', description: 'Arena Obstacles & Lighting Systems', amount: 12000, type: 'expense', category: 'Infrastructure', date: '2026-09-15' },
-        { id: 'item-3', description: 'Software & Scoring Hub Hardware', amount: 5000, type: 'expense', category: 'Technology', date: '2026-10-01' },
-        { id: 'item-4', description: 'Pre-sale Tournament Registrations', amount: 7500, type: 'income', category: 'Sales', date: '2026-10-15' }
-      ],
-      tasks: [
-        { id: 't1', text: 'Apply for OECS Youth Innovation & Creative Enterprise Grant', completed: false, subTasks: [] },
-        { id: 't2', text: 'Finalize arena safety compliance & layout', completed: false, subTasks: [] },
-        { id: 't3', text: 'Order laser tag phaser packs & calibration system', completed: false, subTasks: [] }
-      ],
-      logs: [
-        { id: 'l1', action: 'Project Initiated', username: 'Vision79', type: 'system', timestamp: new Date().toISOString(), details: 'Created Laser Tag Project for youth recreation and grant matching.' }
-      ]
-    }
-  ];
-
   const [events, setEvents] = useState<BudgetEvent[]>(() => {
     const parsed = safeParse(STORAGE_KEYS.EVENTS, null);
     if (parsed && Array.isArray(parsed) && parsed.length > 0) {
@@ -337,7 +300,7 @@ const App: React.FC = () => {
       }));
       return sanitizeEventLogs(migrated);
     }
-    return DEFAULT_SAMPLE_EVENTS;
+    return [];
   });
   // Read-only mirror of server-shared projects (Planning Hub plans shared with
   // collaborators). EventPlanner keeps its own copy for editing/sync — this
@@ -371,15 +334,9 @@ const App: React.FC = () => {
   const [cashOpeningBalance, setCashOpeningBalance] = useState<number>(() => parseFloat(localStorage.getItem(STORAGE_KEYS.CASH_OPENING) || '0'));
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
   
-  const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([
-    { symbol: 'BTC', price: 64000.00, change24h: 1.2 },
-    { symbol: 'ETH', price: 1820.00, change24h: -0.5 },
-    { symbol: 'SOL', price: 77.00, change24h: 3.4 },
-    { symbol: 'VOO', price: 693.86, change24h: 0.2 },
-    { symbol: 'VOOG', price: 83.31, change24h: 0.1 }
-  ]);
+  const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([]);
   // Market prices are fully real-time and auto-refresh every 30 seconds via the public Kraken/Yahoo endpoint.
-  const [quotaExhausted, setQuotaExhausted] = useState(false);
+  const [quotaExhausted, setQuotaExhausted] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -399,6 +356,13 @@ const App: React.FC = () => {
   const isApplyingRemoteUpdateRef = useRef(false);
   const isSyncingInFlightRef = useRef(false);
   const pushPendingRef = useRef(false);
+  const baseStateRef = useRef<AppState | null>(null);
+  const latestStateRef = useRef<AppState | null>(null);
+  const syncTaskRef = useRef<Promise<void> | null>(null);
+  const conflictRef = useRef(false);
+  const accountRef = useRef<string | null>(null);
+  const [conflictPaths, setConflictPaths] = useState<string[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudLastSyncTime, setCloudLastSyncTime] = useState<string | null>(null);
@@ -534,34 +498,8 @@ const App: React.FC = () => {
     lastUpdated: new Date().toISOString()
   }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance]);
 
-  // Merge helper for seamless conflict resolution without data loss
-  const mergeAppStates = useCallback((local: AppState, remote: AppState): AppState => {
-    const mergeById = <T extends { id?: string }>(l: T[] = [], r: T[] = []): T[] => {
-      const map = new Map<string, T>();
-      r.forEach(item => { if (item?.id) map.set(item.id, item); });
-      l.forEach(item => { if (item?.id) map.set(item.id, item); });
-      return Array.from(map.values());
-    };
-
-    return {
-      transactions: mergeById(local.transactions, remote.transactions),
-      recurringExpenses: mergeById(local.recurringExpenses, remote.recurringExpenses),
-      recurringIncomes: mergeById(local.recurringIncomes, remote.recurringIncomes),
-      savingGoals: mergeById(local.savingGoals, remote.savingGoals),
-      investmentGoals: mergeById(local.investmentGoals, remote.investmentGoals),
-      categoryBudgets: { ...(remote.categoryBudgets || {}), ...(local.categoryBudgets || {}) },
-      bankConnections: mergeById(local.bankConnections, remote.bankConnections),
-      investments: mergeById(local.investments, remote.investments),
-      events: sanitizeEventLogs(mergeById(local.events, remote.events)),
-      calendarItems: mergeById(local.calendarItems, remote.calendarItems),
-      contacts: mergeById(local.contacts, remote.contacts),
-      ideas: mergeById(local.ideas, remote.ideas),
-      financialLogs: mergeById(local.financialLogs, remote.financialLogs),
-      forecastSettings: local.forecastSettings || remote.forecastSettings || { yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 },
-      cashOpeningBalance: local.cashOpeningBalance !== 0 ? local.cashOpeningBalance : (remote.cashOpeningBalance || 0),
-      lastUpdated: new Date().toISOString()
-    };
-  }, []);
+  latestStateRef.current = getFullState();
+  accountRef.current = authUser?.id || null;
 
   // Loads a full AppState (from the cloud or a vault backup) into local state.
   const applyRemoteState = useCallback((state: AppState) => {
@@ -606,10 +544,14 @@ const App: React.FC = () => {
       if (payload?.version && payload.version <= cloudVersionRef.current) {
         return;
       }
+      if (isSyncingInFlightRef.current || !sameState(latestStateRef.current, baseStateRef.current)) return;
+      const account = accountRef.current;
       try {
         const remote = await dataSyncService.fetch();
+        if (account !== accountRef.current || !sameState(latestStateRef.current, baseStateRef.current)) return;
         if (remote.data && remote.version > cloudVersionRef.current) {
           isApplyingRemoteUpdateRef.current = true;
+          baseStateRef.current = remote.data;
           applyRemoteState(remote.data);
           updateCloudVersion(remote.version);
           setCloudLastSyncTime(remote.updatedAt);
@@ -642,151 +584,111 @@ const App: React.FC = () => {
     setCalendarItems([]);
     setContacts([]);
     setIdeas([]);
+    setFinancialLogs([]);
     setForecastSettings({ yearsToProject: 5, monthlyContribution: 500, expectedReturn: 8 });
     setCashOpeningBalance(0);
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   }, []);
 
-  // --- Per-account cloud sync: initial load ---------------------------------
-  // Runs whenever we get a confirmed logged-in user (fresh login, OAuth
-  // redirect, or restored session on page load).
+  // Load the server baseline and any durable unsaved checkpoint for this account.
   useEffect(() => {
     if (!authChecked || !authUser) return;
-
     let cancelled = false;
-
-    (async () => {
-      // If this browser's local cache belongs to a DIFFERENT account (e.g. the
-      // previous user closed the tab instead of logging out), wipe it first —
-      // otherwise we'd either leak their data into this session or upload it
-      // as if it were this account's data.
-      const cachedOwner = localStorage.getItem(STORAGE_KEYS.DATA_OWNER);
-      if (cachedOwner && cachedOwner !== authUser.id) {
-        clearLocalData();
-      }
-      localStorage.setItem(STORAGE_KEYS.DATA_OWNER, authUser.id);
-
-      setCloudError(null);
+    setCloudLoaded(false);baseStateRef.current=null;conflictRef.current=false;setConflictPaths([]);
+    const cachedOwner=localStorage.getItem(STORAGE_KEYS.DATA_OWNER);
+    const legacy = cachedOwner === authUser.id ? getFullState() : null;
+    if(cachedOwner !== authUser.id) clearLocalData();
+    localStorage.setItem(STORAGE_KEYS.DATA_OWNER,authUser.id);
+    (async()=>{
       setCloudSyncing(true);
       try {
-        const remote = await dataSyncService.fetch();
-        if (cancelled) return;
-        if (remote.data) {
-          isApplyingRemoteUpdateRef.current = true;
-          applyRemoteState(remote.data);
-          updateCloudVersion(remote.version);
-          setCloudLastSyncTime(remote.updatedAt);
-          setTimeout(() => { isApplyingRemoteUpdateRef.current = false; }, 600);
-        } else {
-          // Nothing synced yet for this account — treat whatever's in this
-          // (now confirmed same-owner, or freshly cleared) browser as the
-          // starting point and push it up as version 1.
-          const initial = getFullState();
-          const result = await dataSyncService.save(initial, 0);
-          if (cancelled) return;
-          updateCloudVersion(result.version);
-          setCloudLastSyncTime(new Date().toISOString());
+        const saved=await checkpointService.get(authUser.id);
+        const remote=await dataSyncService.fetch();
+        if(cancelled)return;
+        let data=remote.data;
+        if(saved && !sameState(saved.data,saved.base)) {
+          if(remote.data && saved.base) {
+            const merged=mergeStates(saved.base,saved.data,remote.data);data=merged.data;
+            if(merged.conflicts.length){conflictRef.current=true;setConflictPaths(merged.conflicts);setCloudError('Changes need review before saving.');}
+          } else if(!remote.data && saved.version>0) {
+            // An account purge is a deletion, not an invitation to recreate the old data.
+            data=saved.data;conflictRef.current=true;setConflictPaths(['Account data was deleted on another device.']);
+          } else data=saved.data;
         }
-      } catch (err: any) {
-        const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
-        if (isAuthError) {
-          console.warn('Session expired or invalid during initial cloud sync. Resetting session.');
-          if (!cancelled) {
-            setAuthUser(null);
-          }
-        } else {
-          console.error('Initial cloud sync failed:', err);
-          if (!cancelled) setCloudError('Could not reach the cloud. Working locally until reconnected.');
+        if(!data)data=legacy || {transactions:[],events:[],lastUpdated:new Date().toISOString()} as AppState;
+        baseStateRef.current=remote.data || ({...data,transactions:[],events:[]} as AppState);
+        latestStateRef.current=data;applyRemoteState(data);updateCloudVersion(remote.version);
+        setCloudLastSyncTime(remote.updatedAt);setCloudLoaded(true);
+        setHasUnsavedChanges(!sameState(data,remote.data));
+        if(!conflictRef.current)setCloudError(null);
+      } catch(error:any) {
+        if(!cancelled) {
+          setCloudError('Could not load the saved account. Reconnect and reload; your local recovery copy is retained.');
+          const saved=await checkpointService.get(authUser.id).catch(()=>null);
+          if(saved){latestStateRef.current=saved.data;applyRemoteState(saved.data);}
         }
-      } finally {
-        if (!cancelled) {
-          setCloudSyncing(false);
-          setCloudLoaded(true);
-        }
-      }
+      } finally { if(!cancelled)setCloudSyncing(false); }
     })();
+    return()=>{cancelled=true;};
+  },[authChecked,authUser?.id]);
 
-    return () => { cancelled = true; };
-    // Intentionally only re-runs when the authenticated user identity changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, authUser?.id, updateCloudVersion]);
-
-  // --- Per-account cloud sync: debounced autosave with auto-healing ---
-  const pushToCloud = useCallback(async (force: boolean = false) => {
-    if (!cloudLoaded) return;
-    if (isSyncingInFlightRef.current) {
-      // A push is already in flight. Rather than silently dropping this edit,
-      // flag it so the in-flight push retries once with the freshest state
-      // right after it finishes — otherwise an edit that lands mid-request
-      // (e.g. a second quick change while a slow save is still resolving)
-      // would never reach the cloud until some later, unrelated edit happens
-      // to fire the debounce again.
-      pushPendingRef.current = true;
-      return;
-    }
-    isSyncingInFlightRef.current = true;
-    setCloudSyncing(true);
-    try {
-      const currentState = getFullState();
-      const currentVer = cloudVersionRef.current;
-      const result = await dataSyncService.save(currentState, currentVer, force);
-      updateCloudVersion(result.version);
-      setCloudLastSyncTime(new Date().toISOString());
-      setCloudError(null);
-    } catch (err: any) {
-      if (err instanceof SyncConflictError) {
-        // Auto-reconcile & merge smoothly in the background
-        try {
-          const remote = await dataSyncService.fetch();
-          if (remote.data) {
-            isApplyingRemoteUpdateRef.current = true;
-            const merged = mergeAppStates(getFullState(), remote.data);
-            applyRemoteState(merged);
-            updateCloudVersion(remote.version);
-            setCloudLastSyncTime(remote.updatedAt);
-            setTimeout(() => { isApplyingRemoteUpdateRef.current = false; }, 600);
-
-            // Re-save the reconciled state seamlessly
-            const reSave = await dataSyncService.save(merged, remote.version, true);
-            updateCloudVersion(reSave.version);
-            setCloudLastSyncTime(new Date().toISOString());
-            setCloudError(null);
+  const pushToCloud = useCallback(async (): Promise<void> => {
+    if(!cloudLoaded || !accountRef.current) throw new Error('Saved account data has not loaded. Reconnect and reload first.');
+    if(conflictRef.current) throw new Error('Review the conflicting changes before saving.');
+    if(syncTaskRef.current) {pushPendingRef.current=true;return syncTaskRef.current;}
+    const account=accountRef.current;
+    const task=(async()=>{
+      isSyncingInFlightRef.current=true;setCloudSyncing(true);
+      try {
+        do {
+          pushPendingRef.current=false;
+          let data=latestStateRef.current!;
+          let version=cloudVersionRef.current;
+          try {
+            const result=await dataSyncService.save(data,version);
+            if(account!==accountRef.current)return;
+            baseStateRef.current=data;updateCloudVersion(result.version);
+          } catch(error) {
+            if(!(error instanceof SyncConflictError))throw error;
+            const remote=await dataSyncService.fetch();
+            if(account!==accountRef.current)return;
+            if(!remote.data || !baseStateRef.current) {
+              conflictRef.current=true;setConflictPaths(['Account data changed on another device.']);throw new Error('Review the conflicting changes before saving.');
+            }
+            const merged=mergeStates(baseStateRef.current,latestStateRef.current!,remote.data);
+            if(merged.conflicts.length) {
+              conflictRef.current=true;setConflictPaths(merged.conflicts);throw new Error('Changes need review before saving.');
+            }
+            data=merged.data;
+            latestStateRef.current=data;applyRemoteState(data);
+            const result=await dataSyncService.save(data,remote.version);
+            if(account!==accountRef.current)return;
+            baseStateRef.current=data;updateCloudVersion(result.version);
           }
-        } catch (fetchErr) {
-          console.warn('Conflict auto-merge deferred:', fetchErr);
-          if (err.version) {
-            updateCloudVersion(err.version);
-          }
-        }
-      } else {
-        const isAuthError = err?.message?.includes('Not authenticated') || err?.message?.includes('authentication') || err?.message?.includes('unauthorized') || String(err).includes('Not authenticated');
-        if (isAuthError) {
-          console.warn('Session expired during cloud sync.');
-          setAuthUser(null);
-          setCloudLoaded(false);
-          updateCloudVersion(0);
-          setCloudError(null);
-          setCloudLastSyncTime(null);
-        } else {
-          console.warn('Cloud sync error (changes preserved locally):', err?.message || err);
-        }
-      }
-    } finally {
-      isSyncingInFlightRef.current = false;
-      setCloudSyncing(false);
-      if (pushPendingRef.current) {
-        pushPendingRef.current = false;
-        pushToCloud();
-      }
-    }
-  }, [cloudLoaded, getFullState, applyRemoteState, updateCloudVersion, mergeAppStates]);
+          setCloudError(null);setCloudLastSyncTime(new Date().toISOString());
+          await checkpointService.save(account,{data:latestStateRef.current!,base:baseStateRef.current,version:cloudVersionRef.current});
+          setHasUnsavedChanges(!sameState(latestStateRef.current,baseStateRef.current));
+        }while(pushPendingRef.current && account===accountRef.current && !conflictRef.current);
+      } catch(error:any){setCloudError(error.message || 'Save failed. Your local changes are retained.');throw error;}
+      finally{isSyncingInFlightRef.current=false;setCloudSyncing(false);}
+    })();
+    syncTaskRef.current=task;
+    try{await task;}finally{syncTaskRef.current=null;}
+  },[cloudLoaded,applyRemoteState,updateCloudVersion]);
 
-  useEffect(() => {
-    if (!cloudLoaded || isApplyingRemoteUpdateRef.current) return;
-    const timer = setTimeout(() => { pushToCloud(); }, 2500); // 2.5s debounce
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, cloudLoaded]);
+  useEffect(()=>{
+    if(!cloudLoaded || conflictRef.current)return;
+    setHasUnsavedChanges(!sameState(latestStateRef.current,baseStateRef.current));
+    const timer=setTimeout(()=>{if(!sameState(latestStateRef.current,baseStateRef.current) || cloudVersionRef.current===0)pushToCloud().catch(()=>{});},1500);
+    return()=>clearTimeout(timer);
+  },[transactions,recurringExpenses,recurringIncomes,savingGoals,investmentGoals,categoryBudgets,bankConnections,investments,events,calendarItems,contacts,ideas,forecastSettings,financialLogs,cashOpeningBalance,cloudLoaded,pushToCloud]);
+  useEffect(()=>{
+    const retry=()=>{if(cloudLoaded && !conflictRef.current && !sameState(latestStateRef.current,baseStateRef.current))pushToCloud().catch(()=>{});};
+    const timer=setInterval(retry,30000);window.addEventListener('online',retry);
+    const unload=(e:BeforeUnloadEvent)=>{if(!sameState(latestStateRef.current,baseStateRef.current)){e.preventDefault();e.returnValue='';}};
+    window.addEventListener('beforeunload',unload);
+    return()=>{clearInterval(timer);window.removeEventListener('online',retry);window.removeEventListener('beforeunload',unload);};
+  },[cloudLoaded,pushToCloud]);
 
   // Instant Manual Sync Trigger with User Feedback
   const handleManualSync = useCallback(async () => {
@@ -954,22 +856,13 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    localStorage.setItem(STORAGE_KEYS.RECURRING_EXPENSES, JSON.stringify(recurringExpenses));
-    localStorage.setItem(STORAGE_KEYS.RECURRING_INCOMES, JSON.stringify(recurringIncomes));
-    localStorage.setItem(STORAGE_KEYS.SAVINGS_GOALS, JSON.stringify(savingGoals));
-    localStorage.setItem(STORAGE_KEYS.INVESTMENT_GOALS, JSON.stringify(investmentGoals));
-    localStorage.setItem(STORAGE_KEYS.BANK_CONNECTIONS, JSON.stringify(bankConnections));
-    localStorage.setItem(STORAGE_KEYS.INVESTMENTS, JSON.stringify(investments));
-    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
-    localStorage.setItem(STORAGE_KEYS.CALENDAR_ITEMS, JSON.stringify(calendarItems));
-    localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
-    localStorage.setItem(STORAGE_KEYS.IDEAS, JSON.stringify(ideas));
-    localStorage.setItem(STORAGE_KEYS.FORECAST_SETTINGS, JSON.stringify(forecastSettings));
-    localStorage.setItem(STORAGE_KEYS.CATEGORY_LIMITS, JSON.stringify(categoryBudgets));
-    localStorage.setItem(STORAGE_KEYS.FINANCIAL_LOGS, JSON.stringify(financialLogs));
-    localStorage.setItem(STORAGE_KEYS.CASH_OPENING, cashOpeningBalance.toString());
-  }, [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, categoryBudgets, financialLogs, cashOpeningBalance]);
+    if(!authUser || !cloudLoaded)return;
+    const timer=setTimeout(()=>{
+      checkpointService.save(authUser.id,{data:latestStateRef.current!,base:baseStateRef.current,version:cloudVersionRef.current})
+        .catch(()=>setCloudError('Local recovery storage is full or unavailable. Keep this tab open until the cloud save succeeds.'));
+    },300);
+    return()=>clearTimeout(timer);
+  },[authUser?.id,cloudLoaded,transactions,recurringExpenses,recurringIncomes,savingGoals,investmentGoals,bankConnections,investments,events,calendarItems,contacts,ideas,forecastSettings,categoryBudgets,financialLogs,cashOpeningBalance]);
 
   // Market prices are entered/updated manually now (see Settings/Investments)
   // rather than auto-refreshed by an AI call. quotaExhausted is left `true`
@@ -991,16 +884,17 @@ const App: React.FC = () => {
     if (cloudLoaded) {
       try {
         await pushToCloud();
-      } catch (e) { console.warn('Final cloud sync before logout failed.'); }
+      } catch (e:any) { showToast({type:'error',title:'Changes not saved',message:e.message});return; }
     }
     try {
       await authService.logout();
     } catch (e) {
-      console.warn('Logout request failed, clearing local session state anyway.');
+      showToast({type:'error',title:'Sign out failed',message:'Please retry.'});return;
     }
     // Wipe the in-memory + localStorage copy of this account's data. Without
     // this, a second account signing in on the same browser would briefly
     // see (and could even overwrite) the previous account's data.
+    if(authUser && cloudLoaded)await checkpointService.clear(authUser.id);
     clearLocalData();
     badgeService.clearBadge();
     setCloudLoaded(false);
@@ -1071,47 +965,9 @@ const App: React.FC = () => {
   // (against the simulated /api/ai/bank-sync endpoint) but nothing ever
   // called it, so a linked account never actually synced after the initial
   // link. Wired up from a "Sync Now" action in Settings.
-  const handleSyncBank = useCallback(async (institution: string) => {
-    const conn = bankConnections.find(c => c.institution === institution);
-    if (!conn || conn.status === 'syncing') return;
-
-    setBankConnections(prev => prev.map(c => c.institution === institution ? { ...c, status: 'syncing' } : c));
-
-    try {
-      const results = await syncBankData(institution, conn.lastSynced);
-      if (results.length > 0) {
-        const existingKeys = new Set(
-          transactions
-            .filter(t => t.institution === institution)
-            .map(t => `${t.date}|${t.description}|${t.amount}`)
-        );
-        const newTransactions: Transaction[] = results
-          .filter((r: any) => r && typeof r.amount === 'number' && r.description)
-          .filter((r: any) => !existingKeys.has(`${r.date}|${r.description}|${r.amount}`))
-          .map((r: any) => ({
-            id: generateId(),
-            date: r.date || new Date().toISOString().split('T')[0],
-            amount: r.amount,
-            category: r.category || 'Other',
-            description: r.description,
-            type: r.type === 'income' ? 'income' : 'expense',
-            institution,
-          }));
-
-        if (newTransactions.length > 0) {
-          setTransactions(prev => [...newTransactions, ...prev]);
-          logFinancialActivity(
-            `Synced ${newTransactions.length} transaction${newTransactions.length === 1 ? '' : 's'} from ${institution}`,
-            `Bank Sync`
-          );
-        }
-      }
-    } catch (err) {
-      console.warn('Bank sync failed:', err);
-    } finally {
-      setBankConnections(prev => prev.map(c => c.institution === institution ? { ...c, status: 'linked', lastSynced: new Date().toISOString() } : c));
-    }
-  }, [bankConnections, transactions, logFinancialActivity]);
+  const handleSyncBank = useCallback(async (_institution: string) => {
+    showToast({ type:'info', title:'Manual account', message:'Automatic bank sync is not available. Enter verified transactions manually.' });
+  }, [showToast]);
 
   const onUpdateRecurring = (item: RecurringExpense) => {
     setRecurringExpenses(prev => prev.map(e => e.id === item.id ? item : e));
@@ -1206,9 +1062,13 @@ const App: React.FC = () => {
     return bankSum + flow + cashOpeningBalance;
   }, [bankConnections, transactions, cashOpeningBalance]);
 
-  const handleUpdateCalendarItems = (items: CalendarItem[]) => {
+  const handleUpdateCalendarItems = useCallback((items: CalendarItem[]) => {
     setCalendarItems(items);
-  };
+  }, []);
+
+  if(window.location.pathname === '/verify-email') return <EmailVerificationScreen />;
+  if(authChecked && authUser && !cloudLoaded) return <main className="max-w-xl mx-auto p-8"><h1 className="text-xl font-bold">{cloudError ? 'Your saved account could not be loaded' : 'Loading your saved account…'}</h1><p className="my-4" role="status">{cloudError || 'Please wait before editing your records.'}</p>{cloudError && <div className="flex gap-4"><button className="underline" onClick={()=>location.reload()}>Retry</button><button className="underline" onClick={()=>{const blob=new Blob([JSON.stringify(latestStateRef.current,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='ffpro-recovery.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Download recovery copy</button><button className="underline" onClick={handleLogout}>Sign out</button></div>}</main>;
+
 
   if (!authChecked) {
     return (
@@ -1236,6 +1096,21 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen bg-stone-50 flex flex-col ${privacyMode ? 'privacy-mode-enabled' : ''}`}>
+      {authUser && <EmailVerificationNotice user={authUser} />}
+      {authUser && cloudError && <div role="alert" className="bg-amber-50 text-amber-950 p-4 border-b border-amber-200">
+        <p>{cloudError}</p>
+        {conflictPaths.length>0 && <><p className="text-sm">Conflicts: {conflictPaths.slice(0,5).join(', ')}</p><button className="underline font-semibold p-2" onClick={async()=>{
+          const blob=new Blob([JSON.stringify(latestStateRef.current,null,2)],{type:'application/json'});
+          const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='FFPRO2-unsaved-recovery.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+          try {
+            const remote=await dataSyncService.fetch();
+            const data=remote.data || {transactions:[],events:[],lastUpdated:new Date().toISOString()} as AppState;
+            await checkpointService.save(authUser.id,{data,base:remote.data,version:remote.version});
+            baseStateRef.current=remote.data;latestStateRef.current=data;applyRemoteState(data);updateCloudVersion(remote.version);
+            conflictRef.current=false;setConflictPaths([]);setCloudError(null);setHasUnsavedChanges(false);
+          }catch{setCloudError('Could not load the latest copy. Your changes have been downloaded and remain in this tab.');}
+        }}>Download my changes and load the latest saved copy</button></>}
+      </div>}
       {!isAuthenticated ? (
         <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} initialBanner={authBanner} />
       ) : (
@@ -1365,7 +1240,7 @@ const App: React.FC = () => {
                 >
                   <RefreshCw size={12} className={cloudSyncing ? 'animate-spin text-indigo-600' : 'text-stone-400'} />
                   <span className="text-[10px] uppercase tracking-wider font-bold">
-                    {cloudSyncing ? 'Syncing' : cloudError ? 'Offline' : 'Synced'}
+                    {cloudSyncing ? 'Syncing' : cloudError ? 'Save failed' : hasUnsavedChanges ? 'Unsaved' : 'Synced'}
                   </span>
                 </button>
 
@@ -1756,12 +1631,12 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${cloudSyncing ? 'bg-indigo-500 animate-pulse' : cloudError ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                       <span className="text-stone-600 font-medium">
-                        {cloudSyncing ? 'Syncing cloud data...' : cloudError ? 'Sync offline' : 'Cloud synchronized'}
+                        {cloudSyncing ? 'Saving...' : cloudError ? 'Save needs attention' : hasUnsavedChanges ? 'Changes pending' : 'Cloud synchronized'}
                       </span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => { pushToCloud(true); }}
+                      onClick={() => { pushToCloud().catch(()=>{}); }}
                       disabled={cloudSyncing}
                       className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-800 disabled:opacity-50"
                     >
@@ -2017,7 +1892,7 @@ const App: React.FC = () => {
           </AnimatePresence>
 
           {showForm && (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
+            <AccessibleDialog label="Transaction" onClose={()=>{setShowForm(false);setEditingTransaction(null);}}>
               <div className="w-full max-w-xl">
                 <TransactionForm 
                   initialData={editingTransaction || undefined}
@@ -2029,11 +1904,20 @@ const App: React.FC = () => {
                   bankConnections={bankConnections} 
                 />
               </div>
-            </div>
+            </AccessibleDialog>
           )}
 
           {showSettings && (
             <Settings 
+              currentState={getFullState()}
+              onRestoreState={async data => {
+                if(!authUser || !cloudLoaded || conflictRef.current || syncTaskRef.current) throw new Error("Finish saving or resolve the sync error before restoring.");
+                const restored={...data,lastUpdated:new Date().toISOString()};
+                const result=await dataSyncService.save(restored,cloudVersionRef.current);
+                baseStateRef.current=restored;latestStateRef.current=restored;
+                applyRemoteState(restored);updateCloudVersion(result.version);
+                await checkpointService.save(authUser.id,{data:restored,base:restored,version:result.version});
+              }}
               salary={0}
               onUpdateSalary={() => {}}
               targetMargin={0}
@@ -2057,10 +1941,11 @@ const App: React.FC = () => {
               onDeleteInvestmentGoal={(id) => setInvestmentGoals(prev => prev.filter(i => i.id !== id))}
               onExportData={() => {}}
               onResetData={() => {
-                if (!confirm("Purge all data for this account? This clears both this device and your cloud-synced copy, and cannot be undone.")) return;
-                dataSyncService.clear()
-                  .catch((e) => console.warn('Cloud purge failed (continuing with local purge):', e))
-                  .finally(() => { localStorage.clear(); window.location.reload(); });
+                if (!confirm("Reset your personal ledger on this device and in your account? Shared projects and uploaded documents are separate. Export a backup first to keep your records.")) return;
+                dataSyncService.clear(cloudVersionRef.current).then(async()=>{
+                  if(authUser)await checkpointService.clear(authUser.id);
+                  clearLocalData();window.location.reload();
+                }).catch(e=>showToast({type:'error',title:'Reset failed',message:e.message || 'Your local data has been kept.'}));
               }}
               onClose={() => setShowSettings(false)}
               onLogout={handleLogout}
@@ -2082,7 +1967,7 @@ const App: React.FC = () => {
               cloudVersion={cloudVersion}
               realtimeStatus={realtimeStatus}
               onForceSync={() => {
-                pushToCloud(true);
+                pushToCloud().catch(()=>{});
               }}
             />
           )}

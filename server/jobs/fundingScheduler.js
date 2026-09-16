@@ -44,10 +44,10 @@ export function startFundingResearchScheduler() {
   if (!process.env.TAVILY_API_KEY) {
     console.warn('[funding-research] TAVILY_API_KEY not set — scheduler will run but discovery will find nothing until it is configured.');
   }
-  cron.schedule(SCHEDULE, () => {
+  return cron.schedule(SCHEDULE, () => {
     runFullResearchCycle();
   });
-  console.log(`[funding-research] Scheduler started (schedule: "${SCHEDULE}").`);
+
 }
 
 // Exposed for the manual-trigger API endpoint.

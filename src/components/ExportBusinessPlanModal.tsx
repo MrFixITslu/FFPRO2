@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import React, { useState } from 'react';
 import {
   FileText,
@@ -232,7 +233,8 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
     `;
 
     printWindow.document.open();
-    printWindow.document.write(docHtml);
+    printWindow.document.write(DOMPurify.sanitize(docHtml,{WHOLE_DOCUMENT:true,ADD_TAGS:['style']}));
+    printWindow.onload=()=>{printWindow.focus();printWindow.print();};
     printWindow.document.close();
   };
 

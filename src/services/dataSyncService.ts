@@ -43,21 +43,19 @@ export const dataSyncService = {
    * the caller can reload the latest copy instead of silently overwriting it.
    * If force is true, bypasses version check (e.g. for user-triggered Sync Now or auto-reconciliation).
    */
-  async save(data: AppState, expectedVersion: number, force: boolean = false): Promise<{ ok: true; version: number }> {
+  async save(data: AppState, expectedVersion: number): Promise<{ ok: true; version: number }> {
     const res = await fetch(BASE, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ data, expectedVersion, force }),
+      body: JSON.stringify({ data, expectedVersion }),
     });
     return handle(res);
   },
 
   /** Wipes the synced copy for the current account (used by "Purge data"). */
-  async clear(): Promise<void> {
-    await fetch(BASE, { 
-      method: 'DELETE', 
-      credentials: 'include'
-    });
+  async clear(expectedVersion: number): Promise<void> {
+    const response = await fetch(BASE, { method:'DELETE', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({expectedVersion}) });
+    await handle(response);
   },
 };

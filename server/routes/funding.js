@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import rateLimit from 'express-rate-limit';
 import { pool } from '../db.js';
 import { requireAuth } from '../middleware/requireAuth.js';

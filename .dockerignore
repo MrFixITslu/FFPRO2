@@ -6,3 +6,11 @@ dist
 .env.local
 .DS_Store
 data
+
+build
+database.json
+encryption.key
+*.pem
+*.p8
+*.key
+.env*

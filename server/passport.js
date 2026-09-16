@@ -3,27 +3,24 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import AppleStrategy from 'passport-apple';
 import { pool } from './db.js';
+import { getUser, verifyUser } from './securityStore.js';
 import { saveGoogleTokens } from './googleTokens.js';
 
-passport.serializeUser((user, done) => done(null, user.id));
-
-passport.deserializeUser(async (id, done) => {
+passport.serializeUser((user, done) => done(null, { id: user.id, version: user.session_version || 0 }));
+passport.deserializeUser(async (identity, done) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT id, email, username, display_name, avatar_url FROM users WHERE id = $1',
-      [id]
-    );
-    done(null, rows[0] || false);
-  } catch (err) {
-    done(err);
-  }
+    if (!identity || typeof identity !== 'object') return done(null, false);
+    const user = await getUser(identity.id);
+    done(null, user && (user.session_version || 0) === identity.version ? user : false);
+  } catch (err) { done(err); }
 });
 
 /**
  * Finds an existing user for a given OAuth identity, links the identity to an
  * existing account with the same verified email, or creates a brand new user.
  */
-export async function findOrCreateOAuthUser({ provider, providerId, email, displayName, avatarUrl }) {
+export async function findOrCreateOAuthUser({ provider, providerId, email, emailVerified = false, currentUserId, displayName, avatarUrl }) {
+  if (!providerId) throw new Error('Provider identity is missing.');
   const linked = await pool.query(
     `SELECT u.* FROM oauth_accounts oa
      JOIN users u ON u.id = oa.user_id
@@ -31,6 +28,8 @@ export async function findOrCreateOAuthUser({ provider, providerId, email, displ
     [provider, providerId]
   );
   if (linked.rows[0]) {
+    if (currentUserId && currentUserId !== linked.rows[0].id) throw new Error('This Google identity belongs to a different account. Sign out first.');
+    if (emailVerified) await verifyUser(linked.rows[0].id);
     await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [linked.rows[0].id]);
     return linked.rows[0];
   }
@@ -39,6 +38,9 @@ export async function findOrCreateOAuthUser({ provider, providerId, email, displ
   if (email) {
     const byEmail = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.toLowerCase()]);
     user = byEmail.rows[0] || null;
+    if (user && (!emailVerified || currentUserId !== user.id)) {
+      throw new Error('Sign in with your existing password before linking this provider. Use password reset if needed.');
+    }
   }
 
   if (!user) {
@@ -63,7 +65,8 @@ export async function findOrCreateOAuthUser({ provider, providerId, email, displ
     [user.id, provider, providerId]
   );
 
-  return user;
+  if (emailVerified) await verifyUser(user.id);
+  return await getUser(user.id);
 }
 
 // --- Google -------------------------------------------------------------
@@ -76,11 +79,14 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback',
+        state: true, pkce: true, passReqToCallback: true,
       },
-      async (accessToken, refreshToken, profile, done) => {
+      async (req, accessToken, refreshToken, profile, done) => {
         try {
           const user = await findOrCreateOAuthUser({
             provider: 'google',
+            currentUserId: req.user?.id,
+            emailVerified: profile._json?.email_verified === true || profile._json?.verified_email === true,
             providerId: profile.id,
             email: profile.emails?.[0]?.value,
             displayName: profile.displayName,
@@ -113,12 +119,15 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
         clientID: process.env.FACEBOOK_APP_ID,
         clientSecret: process.env.FACEBOOK_APP_SECRET,
         callbackURL: process.env.FACEBOOK_CALLBACK_URL,
+        state: true, passReqToCallback: true,
         profileFields: ['id', 'displayName', 'emails', 'photos'],
       },
-      async (_accessToken, _refreshToken, profile, done) => {
+      async (req, _accessToken, _refreshToken, profile, done) => {
         try {
           const user = await findOrCreateOAuthUser({
             provider: 'facebook',
+            currentUserId: req.user?.id,
+            emailVerified: false,
             providerId: profile.id,
             email: profile.emails?.[0]?.value,
             displayName: profile.displayName,
@@ -139,7 +148,7 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
 // Sign in with Apple only sends the user's name/email on the FIRST authorization
 // (as a JSON string in req.body.user) — after that you only get a stable `sub`.
 // We capture the name on first login; subsequent logins just match on provider id.
-if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID) {
+if (false) {
   passport.use(
     new AppleStrategy(
       {

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 
 const router = Router();
 

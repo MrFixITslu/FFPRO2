@@ -1,164 +1,62 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { uploadGate } from '../middleware/uploadGate.js';
 import { filesDb } from '../filesDb.js';
 
 const router = Router();
-
-// Configure multer for in-memory storage (up to 50MB per file)
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB max per file
-    files: 20 // Up to 20 files per batch
-  }
-});
-
-// Middleware wrapper that intercepts Multer errors gracefully
-const handleUploadMiddleware = (req, res, next) => {
-  upload.any()(req, res, (err) => {
-    if (err) {
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ ok: false, error: 'File too large. Maximum supported file size is 50MB.' });
-        }
-        return res.status(400).json({ ok: false, error: `Upload error: ${err.message}` });
-      }
-      return res.status(400).json({ ok: false, error: err.message || 'File upload parsing failed.' });
-    }
+router.use(requireAuth);
+const limiter = rateLimit({ windowMs: 60000, max: 20, standardHeaders:true, legacyHeaders:false });
+const upload = multer({ storage:multer.memoryStorage(), limits:{fileSize:10*1024*1024, files:1, fields:2, fieldSize:1024, parts:3} });
+function uploadOne(req,res,next) {
+  upload.single('file')(req,res,error=> {
+    if(error) return res.status(error.code==='LIMIT_FILE_SIZE'?413:400).json({error:'Upload one file up to 10 MiB.'});
     next();
   });
-};
-
-/**
- * POST /api/files/upload
- * Accepts multipart/form-data with one or multiple files in field 'files' or 'file'
- * Optional form field 'projectId'
- */
-router.post('/upload', handleUploadMiddleware, async (req, res) => {
-  try {
-    const rawFiles = req.files || [];
-    const projectId = req.body?.projectId || req.query?.projectId || null;
-    const userId = req.user?.id || null;
-
-    if (!rawFiles || rawFiles.length === 0) {
-      // Also check if json payload with base64 was sent
-      const { fileName, fileType, base64Data, fileSize } = req.body || {};
-      if (fileName && base64Data) {
-        const buffer = Buffer.from(base64Data, 'base64');
-        const saved = await filesDb.saveFile({
-          userId,
-          projectId,
-          fileName,
-          fileType: fileType || 'application/octet-stream',
-          fileSize: fileSize || buffer.length,
-          buffer,
-        });
-        return res.status(201).json({ ok: true, files: [saved] });
-      }
-      return res.status(400).json({ ok: false, error: 'No files were provided for upload.' });
-    }
-
-    const savedFiles = [];
-    for (const f of rawFiles) {
-      const saved = await filesDb.saveFile({
-        userId,
-        projectId,
-        fileName: f.originalname || 'document',
-        fileType: f.mimetype || 'application/octet-stream',
-        fileSize: f.size,
-        buffer: f.buffer,
-      });
-      savedFiles.push(saved);
-    }
-
-    res.status(201).json({
-      ok: true,
-      message: `Successfully uploaded and saved ${savedFiles.length} file(s) in system database.`,
-      files: savedFiles,
-    });
-  } catch (err) {
-    console.error('File upload to system database error:', err);
-    res.status(500).json({ ok: false, error: err.message || 'Failed to save file to system database.' });
-  }
+}
+export function safeFileType(name, bytes) {
+  const ext = name.split('.').pop()?.toLowerCase();
+  if (!['pdf','png','jpg','jpeg','gif','webp','txt','csv','json','fdoc','fcel','docx','xlsx','doc','xls'].includes(ext)) throw Object.assign(new Error('Unsupported file type.'),{status:415,publicMessage:'Supported files: PDF, images, text, CSV, JSON and Office documents.'});
+  const header = bytes.subarray(0,12);
+  if (['jpg','jpeg'].includes(ext) && header[0]===255 && header[1]===216 && header[2]===255) return 'image/jpeg';
+  if (ext==='png' && header.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return 'image/png';
+  if (ext==='gif' && /^GIF8[79]a/.test(header.toString())) return 'image/gif';
+  if (ext==='webp' && header.toString('ascii',0,4)==='RIFF' && header.toString('ascii',8,12)==='WEBP') return 'image/webp';
+  if (ext==='pdf' && header.toString('ascii',0,5)==='%PDF-') return 'application/pdf';
+  if (['docx','xlsx'].includes(ext) && header[0]===80 && header[1]===75) return 'application/octet-stream';
+  if (['doc','xls'].includes(ext) && header.subarray(0,8).equals(Buffer.from('d0cf11e0a1b11e1','hex'))) return 'application/octet-stream';
+  if (['txt','csv','json','fdoc','fcel'].includes(ext) && !bytes.includes(0)) return 'text/plain';
+  throw Object.assign(new Error('File contents do not match the file extension.'),{status:415});
+}
+router.post('/upload', limiter, uploadGate, uploadOne, async(req,res)=>{
+  if(!req.file) return res.status(400).json({error:'Choose a file to upload.'});
+  const name = req.file.originalname.replace(/[\x00-\x1f\x7f/\\]/g,'_').slice(0,200);
+  const fileType = safeFileType(name,req.file.buffer);
+  const saved = await filesDb.saveFile({userId:req.user.id, projectId:req.body?.projectId || null,
+    fileName:name, fileType, fileSize:req.file.buffer.length, buffer:req.file.buffer});
+  res.status(201).json({ok:true,files:[saved]});
 });
-
-/**
- * GET /api/files/:id/download
- * Downloads the binary file with Content-Disposition: attachment
- */
-router.get('/:id/download', async (req, res) => {
-  try {
-    const file = await filesDb.getFileById(req.params.id);
-    if (!file || !file.fileData) {
-      return res.status(404).send('File not found in system database.');
-    }
-
-    const rawName = file.fileName || 'file';
-    const asciiName = rawName.replace(/[^\w\.\-\s]/gi, '_');
-    res.setHeader('Content-Type', file.fileType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(rawName)}`);
-    res.setHeader('Content-Length', file.fileSize || file.fileData.length);
-    res.send(file.fileData);
-  } catch (err) {
-    console.error('GET /api/files/:id/download error:', err);
-    res.status(500).send('Failed to retrieve file from system database.');
-  }
+router.get('/project/:projectId',async(req,res)=>{
+  res.json({ok:true,files:await filesDb.listFilesByProject(req.params.projectId,req.user.id)});
 });
-
-/**
- * GET /api/files/:id
- * Views or streams the file inline with Content-Type header
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const file = await filesDb.getFileById(req.params.id);
-    if (!file || !file.fileData) {
-      return res.status(404).send('File not found in system database.');
-    }
-
-    const rawName = file.fileName || 'file';
-    const asciiName = rawName.replace(/[^\w\.\-\s]/gi, '_');
-    res.setHeader('Content-Type', file.fileType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(rawName)}`);
-    res.setHeader('Content-Length', file.fileSize || file.fileData.length);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(file.fileData);
-  } catch (err) {
-    console.error('GET /api/files/:id error:', err);
-    res.status(500).send('Failed to load file.');
-  }
+async function serve(req,res,download) {
+  const file = await filesDb.getFileById(req.params.id,req.user.id);
+  if(!file) return res.status(404).json({error:'File not found.'});
+  const ascii = file.fileName.replace(/[^\w.\- ]/g,'_');
+  const inline = !download && ['image/png','image/jpeg','image/webp','image/gif'].includes(file.fileType);
+  res.setHeader('Content-Type',inline?file.fileType:'application/octet-stream');
+  res.setHeader('Content-Disposition',`${inline?'inline':'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
+  res.setHeader('Cache-Control','private, no-store');
+  res.setHeader('Content-Security-Policy',"sandbox; default-src 'none'; frame-ancestors 'none'");
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('Content-Length',file.fileData.length);
+  res.send(file.fileData);
+}
+router.get('/:id/download',(req,res)=>serve(req,res,true));
+router.get('/:id',(req,res)=>serve(req,res,false));
+router.delete('/:id',limiter,async(req,res)=>{
+  if(!(await filesDb.deleteFile(req.params.id,req.user.id))) return res.status(404).json({error:'File not found.'});
+  res.json({ok:true});
 });
-
-/**
- * GET /api/files/project/:projectId
- * Lists all file metadata records associated with this project in the database
- */
-router.get('/project/:projectId', async (req, res) => {
-  try {
-    const files = await filesDb.listFilesByProject(req.params.projectId);
-    res.json({ ok: true, files });
-  } catch (err) {
-    console.error('GET /api/files/project/:projectId error:', err);
-    res.status(500).json({ error: 'Failed to load project files from system database.' });
-  }
-});
-
-/**
- * DELETE /api/files/:id
- * Deletes the file from system database
- */
-router.delete('/:id', async (req, res) => {
-  try {
-    const success = await filesDb.deleteFile(req.params.id, req.user?.id);
-    if (!success) {
-      return res.status(404).json({ error: 'File not found or already deleted.' });
-    }
-    res.json({ ok: true, message: 'File deleted from system database.' });
-  } catch (err) {
-    console.error('DELETE /api/files/:id error:', err);
-    res.status(500).json({ error: 'Failed to delete file from system database.' });
-  }
-});
-
 export default router;

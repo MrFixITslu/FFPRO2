@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
@@ -8,7 +8,6 @@ import { getValidGoogleAccessToken, clearGoogleTokens } from '../googleTokens.js
 import { getProcessedMessageIds, markMessageProcessed, getAllProcessedMessages } from '../gmailProcessedStore.js';
 
 const router = Router();
-const AUTHORIZED_EMAIL = process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
 
 const gmailRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -27,7 +26,7 @@ router.use(gmailRateLimiter);
  */
 function requireAuthorizedAccount(req, res, next) {
   const userEmail = (req.user?.email || '').trim().toLowerCase();
-  if (userEmail && userEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+  if (userEmail) {
     return next();
   }
   return res.status(403).json({
@@ -190,10 +189,10 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const tokenInfo = await tokenInfoRes.json();
     const tokenEmail = (tokenInfo.email || '').toLowerCase();
 
-    // Verify token identity strictly belongs to vision79slu@gmail.com
-    if (tokenEmail !== AUTHORIZED_EMAIL.toLowerCase()) {
+    // Verify token identity belongs to the signed-in account
+    if (tokenEmail !== String(req.user.email).toLowerCase()) {
       return res.status(403).json({
-        error: `Google token must belong to ${AUTHORIZED_EMAIL}.`,
+        error: `Google token must belong to ${req.user.email}.`,
         code: 'ACCOUNT_MISMATCH',
       });
     }
@@ -473,10 +472,10 @@ router.get('/status', requireAuthorizedAccount, async (req, res) => {
     const accessToken = await getValidGoogleAccessToken(req.user.id);
     return res.json({
       connected: !!accessToken,
-      account: AUTHORIZED_EMAIL,
+      account: req.user.email,
     });
   } catch (err) {
-    return res.json({ connected: false, account: AUTHORIZED_EMAIL });
+    return res.json({ connected: false, account: req.user.email });
   }
 });
 

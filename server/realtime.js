@@ -1,3 +1,4 @@
+import { getUser } from './securityStore.js';
 import { EventEmitter } from 'events';
 import { projectsDb } from './projectsDb.js';
 
@@ -9,13 +10,26 @@ class RealtimeHub extends EventEmitter {
     this.heartbeatInterval = null;
   }
 
+  close() {
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+    this.clients.forEach(clients => clients.forEach(client => client.res.end()));
+    this.clients.clear();
+  }
+
   startHeartbeat() {
     if (this.heartbeatInterval) return;
     this.heartbeatInterval = setInterval(() => {
       this.clients.forEach((clientSet) => {
         clientSet.forEach((client) => {
           try {
-            client.res.write(':keepalive\n\n');
+            client.req.session.reload(async error=>{
+              if(error || !client.req.session.passport?.user){client.res.end();return;}
+              try {
+                const user=await getUser(client.userId);
+                if(!user || (user.session_version || 0)!==client.req.session.passport.user.version){client.res.end();return;}
+                client.res.write(':keepalive\n\n');
+              }catch {client.res.end();}
+            });
           } catch (err) {
             // Socket closed or failed, will be cleaned up on close event
           }
@@ -64,6 +78,7 @@ class RealtimeHub extends EventEmitter {
 
   sendToClient(client, event, data) {
     try {
+      if(client.res.writableLength>65536){client.res.end();return;}
       client.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     } catch (err) {
       console.warn('[realtime] Failed to send to client:', err?.message || err);

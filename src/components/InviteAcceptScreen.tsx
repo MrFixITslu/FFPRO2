@@ -1,3 +1,4 @@
+import { EmailVerificationNotice } from './EmailVerification';
 import React, { useState, useEffect } from 'react';
 import { Users, AlertCircle, Loader2 } from 'lucide-react';
 import Login from './Login';
@@ -100,6 +101,7 @@ const InviteAcceptScreen: React.FC<Props> = ({ token, currentUser, onAuthenticat
           You'll be added as a{preview?.role === 'editor' ? 'n' : ''} <strong className="text-stone-300">{preview?.role}</strong>.
         </p>
         <p className="text-stone-500 text-[10px] mt-3 mb-5">Signed in as {currentUser.email}</p>
+        <EmailVerificationNotice user={currentUser} />
         {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
         <div className="flex flex-col gap-2">
           <button

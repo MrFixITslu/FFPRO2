@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { realtimeHub } from '../realtime.js';
 import { projectsDb } from '../projectsDb.js';
@@ -12,6 +12,7 @@ router.use(requireAuth);
  * Automatically broadcasts personal data changes and shared project edits to active clients.
  */
 router.get('/stream', (req, res) => {
+  if((realtimeHub.clients.get(req.user.id)?.size || 0)>=6 || realtimeHub.clients.size>=500) return res.status(429).json({error:'Too many live connections. Close unused tabs and retry.'});
   // Set headers required for Server-Sent Events
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',

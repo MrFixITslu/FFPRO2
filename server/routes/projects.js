@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { projectsDb } from '../projectsDb.js';
@@ -222,17 +222,6 @@ router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner', 
   try {
     const project = await projectsDb.getProjectById(req.params.id);
     if (!project) return res.status(404).json({ error: 'Project not found.' });
-
-    const existingUser = await projectsDb.findUserByEmail(email);
-    if (existingUser) {
-      const alreadyMember = await projectsDb.getMembership(req.params.id, existingUser.id);
-      if (alreadyMember) {
-        return res.status(409).json({ error: 'That person is already a member of this project.' });
-      }
-      // They already have an account — skip the pending-invite dance and add them directly.
-      await projectsDb.addMember(req.params.id, existingUser.id, role);
-      return res.status(201).json({ ok: true, addedDirectly: true });
-    }
 
     const invite = await projectsDb.createInvite({
       projectId: req.params.id,

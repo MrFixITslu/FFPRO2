@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router } from '../http.js';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { projectsDb } from '../projectsDb.js';
+import { projectsDb, acceptInvitation } from '../projectsDb.js';
 
 const router = Router();
 const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
@@ -11,7 +11,7 @@ const previewLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders
 router.get('/:token', previewLimiter, async (req, res) => {
   try {
     const invite = await projectsDb.getInviteByToken(req.params.token);
-    if (!invite || invite.status !== 'pending') {
+    if (!invite || invite.status !== 'pending' || Date.now() - new Date(invite.createdAt).getTime() > 7 * 86400000) {
       return res.status(404).json({ error: 'This invite is invalid or has already been used.' });
     }
     const project = await projectsDb.getProjectById(invite.projectId);
@@ -33,17 +33,14 @@ router.get('/:token', previewLimiter, async (req, res) => {
 router.post('/:token/accept', requireAuth, async (req, res) => {
   try {
     const invite = await projectsDb.getInviteByToken(req.params.token);
-    if (!invite || invite.status !== 'pending') {
+    if (!invite || invite.status !== 'pending' || Date.now() - new Date(invite.createdAt).getTime() > 7 * 86400000) {
       return res.status(404).json({ error: 'This invite is invalid or has already been used.' });
     }
     if (invite.email.toLowerCase() !== String(req.user.email).toLowerCase()) {
       return res.status(403).json({ error: `This invite was sent to ${invite.email}. Log in with that email address to accept it.` });
     }
-    const existingMembership = await projectsDb.getMembership(invite.projectId, req.user.id);
-    if (!existingMembership) {
-      await projectsDb.addMember(invite.projectId, req.user.id, invite.role);
-    }
-    await projectsDb.markInviteAccepted(invite.id);
+    if (!req.user.email_verified_at) return res.status(403).json({ error: 'Verify your email before accepting an invitation.', code: 'EMAIL_UNVERIFIED' });
+    if(!await acceptInvitation(req.params.token,req.user)) return res.status(409).json({error:'This invitation is no longer available.'});
     const project = await projectsDb.getProjectById(invite.projectId);
     res.json({ ok: true, projectId: invite.projectId, projectName: project?.name });
   } catch (err) {

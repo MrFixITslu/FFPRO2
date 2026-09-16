@@ -1,8 +1,10 @@
-import express from 'express';
+import rateLimit from 'express-rate-limit';
+import { pushConfigured, saveSubscription, removeSubscription } from '../push.js';
+import { Router } from '../http.js';
 import { realtimeHub } from '../realtime.js';
 import { pool } from '../db.js';
 
-const router = express.Router();
+const router = Router();
 
 /**
  * Middleware: Ensure authenticated
@@ -80,4 +82,13 @@ router.post('/sync-count', requireAuth, (req, res) => {
   }
 });
 
+router.get('/push/config', requireAuth, (_req,res)=>res.json({enabled:pushConfigured(),publicKey:pushConfigured()?process.env.VAPID_PUBLIC_KEY:null}));
+const pushLimiter=rateLimit({windowMs:60000,max:10,standardHeaders:true,legacyHeaders:false});
+router.post('/push/subscribe',requireAuth,pushLimiter,async(req,res)=>{
+  if(!pushConfigured())return res.status(503).json({error:'Background notifications are not configured.'});
+  await saveSubscription(req.user.id,req.body.subscription,req.body.timezone);res.json({ok:true});
+});
+router.post('/push/unsubscribe',requireAuth,pushLimiter,async(req,res)=>{
+  await removeSubscription(req.user.id,req.body.endpoint);res.json({ok:true});
+});
 export default router;
