@@ -14,12 +14,12 @@ interface Props {
 }
 
 const OAuthButton: React.FC<{
-  provider: 'google' | 'facebook' | 'apple';
+  provider: 'google';
   label: string;
   icon: string;
   isConfigured: boolean;
   onCustomClick?: () => void;
-  onClickIfNotConfigured: (provider: 'google' | 'facebook' | 'apple') => void;
+  onClickIfNotConfigured: (provider: 'google') => void;
 }> = ({ provider, label, icon, isConfigured, onCustomClick, onClickIfNotConfigured }) => {
   if (isConfigured) {
     return (
@@ -66,7 +66,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   const [resetDone, setResetDone] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [showConfigHelp, setShowConfigHelp] = useState(initialBanner?.type === 'warning' && !!initialBanner?.provider);
-  const [selectedProvider, setSelectedProvider] = useState<'google' | 'facebook' | 'apple' | null>(
+  const [selectedProvider, setSelectedProvider] = useState<'google' | null>(
     (initialBanner?.provider as any) || null
   );
   const [configTab, setConfigTab] = useState<'env' | 'docker'>('env');
@@ -145,7 +145,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
     }
   };
 
-  const handleProviderClick = (provider: 'google' | 'facebook' | 'apple') => {
+  const handleProviderClick = (provider: 'google') => {
     setSelectedProvider(provider);
     setShowConfigHelp(true);
   };
@@ -344,13 +344,6 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               onCustomClick={handleGoogleSignIn}
               onClickIfNotConfigured={handleProviderClick}
             />
-            <OAuthButton
-              provider="facebook"
-              label="Facebook"
-              icon="fab fa-facebook"
-              isConfigured={availableProviders.includes('facebook')}
-              onClickIfNotConfigured={handleProviderClick}
-            />
           </div>
 
           <div className="flex items-center gap-3 text-stone-500 text-[8px] font-bold uppercase tracking-wider">
@@ -472,10 +465,10 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                  <i className={selectedProvider === 'google' ? 'fab fa-google' : selectedProvider === 'facebook' ? 'fab fa-facebook' : 'fab fa-apple'}></i>
+                  <i className="fab fa-google"></i>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white capitalize">{selectedProvider} Integration</h3>
+                  <h3 className="text-sm font-bold text-white capitalize">Google Integration</h3>
                   <p className="text-[9px] font-semibold text-stone-400 uppercase tracking-wider">Self-Hosted Server Guide</p>
                 </div>
               </div>
@@ -522,43 +515,21 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               {configTab === 'env' && (
                 <div className="space-y-3">
                   <p className="text-stone-400 leading-relaxed text-[11px]">
-                    To enable <strong>Continue with {selectedProvider === 'google' ? 'Google' : selectedProvider === 'facebook' ? 'Facebook' : 'Apple'}</strong> on your live deployment, register your application on the developer portal and configure the following environment variables:
+                    To enable <strong>Continue with Google</strong> on your live deployment, register your application on the developer portal and configure the following environment variables:
                   </p>
 
                   <div className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[10px] text-indigo-300 space-y-2 select-all leading-normal">
-                    {selectedProvider === 'google' && (
-                      <>
-                        <div># Google Cloud Console OAuth Client</div>
-                        <div>GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"</div>
-                        <div>GOOGLE_CLIENT_SECRET="your_google_client_secret"</div>
-                        <div>GOOGLE_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/google/callback"</div>
-                      </>
-                    )}
-                    {selectedProvider === 'facebook' && (
-                      <>
-                        <div># Meta Developer Portal Facebook App</div>
-                        <div>FACEBOOK_APP_ID="your_facebook_app_id"</div>
-                        <div>FACEBOOK_APP_SECRET="your_facebook_app_secret"</div>
-                        <div>FACEBOOK_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/facebook/callback"</div>
-                      </>
-                    )}
-                    {selectedProvider === 'apple' && (
-                      <>
-                        <div># Apple Developer Portal Sign In</div>
-                        <div>APPLE_CLIENT_ID="your_services_id"</div>
-                        <div>APPLE_TEAM_ID="your_developer_team_id"</div>
-                        <div>APPLE_KEY_ID="your_private_key_id"</div>
-                        <div>APPLE_PRIVATE_KEY_PATH="/path/to/key.p8"</div>
-                        <div>APPLE_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/apple/callback"</div>
-                      </>
-                    )}
+                    <div># Google Cloud Console OAuth Client</div>
+                    <div>GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"</div>
+                    <div>GOOGLE_CLIENT_SECRET="your_google_client_secret"</div>
+                    <div>GOOGLE_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/google/callback"</div>
                   </div>
 
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3 text-[10px] leading-relaxed text-amber-200">
                     <div className="font-bold uppercase tracking-wider text-[8px] text-amber-400 mb-1">
                       <i className="fas fa-exclamation-triangle mr-1"></i> Developer Portal Settings
                     </div>
-                    Ensure that you add the corresponding Callback URL to your Authorized Redirect URIs in the developer settings portal for {selectedProvider === 'google' ? 'Google Cloud Console' : selectedProvider === 'facebook' ? 'Meta Developers' : 'Apple Developers'}!
+                    Ensure that you add the corresponding Callback URL to your Authorized Redirect URIs in the developer settings portal for Google Cloud Console!
                   </div>
                 </div>
               )}
@@ -595,14 +566,9 @@ services:
       - SESSION_SECRET=your_secure_random_session_secret
       - DATA_ENCRYPTION_KEY=your_32_byte_base64_encryption_key
       - GEMINI_API_KEY=your_gemini_api_key
-      ` + (selectedProvider === 'google' ? `- GOOGLE_CLIENT_ID=your_google_client_id
+      - GOOGLE_CLIENT_ID=your_google_client_id
       - GOOGLE_CLIENT_SECRET=your_google_client_secret
-      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/google/callback` : selectedProvider === 'facebook' ? `- FACEBOOK_APP_ID=your_facebook_app_id
-      - FACEBOOK_APP_SECRET=your_facebook_app_secret
-      - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/facebook/callback` : `- APPLE_CLIENT_ID=your_services_id
-      - APPLE_TEAM_ID=your_developer_team_id
-      - APPLE_KEY_ID=your_private_key_id
-      - APPLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/apple/callback`) + `
+      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/google/callback
       - FRONTEND_URL=https://ffpro.v79sl.com
 
 networks:

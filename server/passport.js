@@ -1,7 +1,5 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { Strategy as FacebookStrategy } from 'passport-facebook';
-import AppleStrategy from 'passport-apple';
 import { pool } from './db.js';
 import { getUser, verifyUser } from './securityStore.js';
 import { saveGoogleTokens } from './googleTokens.js';
@@ -109,89 +107,6 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 } else {
   console.warn('[auth] Google OAuth not configured — GOOGLE_CLIENT_ID/SECRET missing.');
-}
-
-// --- Facebook -------------------------------------------------------------
-if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
-  passport.use(
-    new FacebookStrategy(
-      {
-        clientID: process.env.FACEBOOK_APP_ID,
-        clientSecret: process.env.FACEBOOK_APP_SECRET,
-        callbackURL: process.env.FACEBOOK_CALLBACK_URL,
-        state: true, passReqToCallback: true,
-        profileFields: ['id', 'displayName', 'emails', 'photos'],
-      },
-      async (req, _accessToken, _refreshToken, profile, done) => {
-        try {
-          const user = await findOrCreateOAuthUser({
-            provider: 'facebook',
-            currentUserId: req.user?.id,
-            emailVerified: false,
-            providerId: profile.id,
-            email: profile.emails?.[0]?.value,
-            displayName: profile.displayName,
-            avatarUrl: profile.photos?.[0]?.value,
-          });
-          done(null, user);
-        } catch (err) {
-          done(err);
-        }
-      }
-    )
-  );
-} else {
-  console.warn('[auth] Facebook OAuth not configured — FACEBOOK_APP_ID/SECRET missing.');
-}
-
-// --- Apple ------------------------------------------------------------
-// Sign in with Apple only sends the user's name/email on the FIRST authorization
-// (as a JSON string in req.body.user) — after that you only get a stable `sub`.
-// We capture the name on first login; subsequent logins just match on provider id.
-if (false) {
-  passport.use(
-    new AppleStrategy(
-      {
-        clientID: process.env.APPLE_CLIENT_ID, // Services ID, e.g. com.yourcompany.ffpro.web
-        teamID: process.env.APPLE_TEAM_ID,
-        keyID: process.env.APPLE_KEY_ID,
-        privateKeyLocation: process.env.APPLE_PRIVATE_KEY_PATH, // path to the .p8 key file
-        callbackURL: process.env.APPLE_CALLBACK_URL,
-        scope: ['name', 'email'],
-        passReqToCallback: true,
-      },
-      async (req, _accessToken, _refreshToken, idToken, profile, done) => {
-        try {
-          let displayName;
-          // FIX: Add validation before parsing user data
-          if (req.body?.user && typeof req.body.user === 'string') {
-            try {
-              const parsed = JSON.parse(req.body.user);
-              if (parsed?.name && (typeof parsed.name.firstName === 'string' || typeof parsed.name.lastName === 'string')) {
-                displayName = [parsed.name?.firstName, parsed.name?.lastName].filter(Boolean).join(' ');
-              }
-            } catch {
-              // Apple didn't send a parseable name payload — safe to ignore.
-            }
-          }
-          const email = profile?.email || idToken?.email;
-          const providerId = profile?.id || idToken?.sub;
-          const user = await findOrCreateOAuthUser({
-            provider: 'apple',
-            providerId,
-            email,
-            displayName,
-            avatarUrl: null,
-          });
-          done(null, user);
-        } catch (err) {
-          done(err);
-        }
-      }
-    )
-  );
-} else {
-  console.warn('[auth] Apple Sign In not configured — APPLE_CLIENT_ID/TEAM_ID/KEY_ID missing.');
 }
 
 export default passport;

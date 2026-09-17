@@ -31,7 +31,7 @@ Open the newly created `.env` file and configure the settings:
 *   **`SESSION_SECRET`**: Run `openssl rand -base64 32` to generate a secure random secret key.
 *   **`DATA_ENCRYPTION_KEY`**: Run `openssl rand -base64 32` to generate your 256-bit database encryption key.
 *   **`GEMINI_API_KEY`**: Insert your Google Gemini API Key to enable live budget advice, portfolio analysis, and predictions.
-*   **OAuth (Google & Facebook)**: Input your developer client IDs and secrets. Make sure your developer portals have the matching callback URLs matching your IP/Domain.
+*   **OAuth (Google)**: Input your developer client ID and secret. Make sure your developer portal has the matching callback URL matching your IP/Domain.
 
 ---
 

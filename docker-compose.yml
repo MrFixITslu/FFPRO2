@@ -75,9 +75,6 @@ services:
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-/api/auth/google/callback}
 
       # OAuth - Meta Developer Portal
-      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID}
-      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET}
-      - FACEBOOK_CALLBACK_URL=${FACEBOOK_CALLBACK_URL:-/api/auth/facebook/callback}
 
       # Outgoing Email - project-share invites (optional)
       - SMTP_HOST=${SMTP_HOST}

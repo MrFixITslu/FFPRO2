@@ -68,12 +68,6 @@ function sanitizeDisplayName(name) {
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   AVAILABLE_OAUTH_PROVIDERS.push('google');
 }
-if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
-  AVAILABLE_OAUTH_PROVIDERS.push('facebook');
-}
-if (false) {
-  AVAILABLE_OAUTH_PROVIDERS.push('apple');
-}
 
 function sanitizeUser(user) {
   if (!user) return null;
@@ -340,61 +334,6 @@ router.get(
         if (loginErr) {
           console.error('[auth] Google session login error:', loginErr);
           return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
-        }
-        req.session.save(saveErr => {
-          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
-          res.redirect(`${baseUrl}/?auth=success`);
-        });
-      });
-    })(req, res, next);
-  }
-);
-
-// --- Facebook ----------------------------------------------------------------
-router.get('/facebook', (req, res, next) => ensureOAuthProvider(req, res, next, 'facebook'), passport.authenticate('facebook', { scope: ['email'] }));
-router.get(
-  '/facebook/callback',
-  (req, res, next) => ensureOAuthProvider(req, res, next, 'facebook'),
-  (req, res, next) => {
-    const baseUrl = getFrontendUrl(req);
-    passport.authenticate('facebook', (err, user, info) => {
-      if (err || !user) {
-        const errMsg = err?.message || info?.message || 'Facebook authentication was not completed.';
-        console.warn('[auth] Facebook OAuth error:', errMsg);
-        return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(errMsg)}`);
-      }
-      req.login(user, (loginErr) => {
-        if (loginErr) {
-          console.error('[auth] Facebook session login error:', loginErr);
-          return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
-        }
-        req.session.save(saveErr => {
-          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
-          res.redirect(`${baseUrl}/?auth=success`);
-        });
-      });
-    })(req, res, next);
-  }
-);
-
-// --- Apple ----------------------------------------------------------------
-// Apple's callback arrives as a POST (form_post response mode), not a GET.
-router.get('/apple', (req, res, next) => ensureOAuthProvider(req, res, next, 'apple'), passport.authenticate('apple'));
-router.post(
-  '/apple/callback',
-  (req, res, next) => ensureOAuthProvider(req, res, next, 'apple'),
-  (req, res, next) => {
-    const baseUrl = getFrontendUrl(req);
-    passport.authenticate('apple', (err, user, info) => {
-      if (err || !user) {
-        const errMsg = err?.message || info?.message || 'Apple authentication was not completed.';
-        console.warn('[auth] Apple OAuth error:', errMsg);
-        return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(errMsg)}`);
-      }
-      req.login(user, (loginErr) => {
-        if (loginErr) {
-          console.error('[auth] Apple session login error:', loginErr);
-          return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
         }
         req.session.save(saveErr => {
           if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
