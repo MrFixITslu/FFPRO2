@@ -94,7 +94,7 @@ export const authService = {
   },
 
   /** Full-page redirect URL for a given OAuth provider. Use as a plain <a href>. */
-  oauthUrl(provider: 'google'): string {
+  oauthUrl(provider: 'google' | 'facebook' | 'apple'): string {
     return `${BASE}/${provider}`;
   },
 

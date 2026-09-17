@@ -17,6 +17,7 @@ process.env.FRONTEND_URL='http://localhost:3197';
 process.env.PORT='3197';
 process.env.TAVILY_API_KEY='';process.env.GEMINI_API_KEY='';
 process.env.GOOGLE_CLIENT_ID='';process.env.GOOGLE_CLIENT_SECRET='';
+process.env.FACEBOOK_APP_ID='';process.env.FACEBOOK_APP_SECRET='';
 process.env.SMTP_HOST='';
 await import('../server/config.js');
 const db=await import('../server/db.js');await db.databaseReady;
