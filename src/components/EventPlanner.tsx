@@ -2017,7 +2017,6 @@ const EventPlanner: React.FC<Props> = ({
                    'startup_planner',
                    'team',
                    'contacts',
-                   'log',
                    ...(selectedEvent.eventType === 'trip' ? ['trip_planner'] : []),
                    ...(selectedEvent.isShared ? ['chat'] : []),
                  ].map(tab => {
