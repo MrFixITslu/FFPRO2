@@ -2005,9 +2005,9 @@ const EventPlanner: React.FC<Props> = ({
                </div>
              </div>
 
-             {/* Dedicated Full Navigation Menu Bar - Cleanly wrapped and completely displayed */}
+             {/* Dedicated Full Navigation Menu Bar - Single line display */}
              <div className="relative z-10 w-full pt-1">
-               <nav aria-label="Project Navigation" className="flex flex-wrap items-center gap-1.5 bg-black/25 p-1.5 rounded-xl border border-white/15 backdrop-blur-md shadow-inner">
+               <nav aria-label="Project Navigation" className="flex items-center gap-1 sm:gap-1.5 bg-black/25 p-1 sm:p-1.5 rounded-xl border border-white/15 backdrop-blur-md shadow-inner overflow-x-auto no-scrollbar scroll-smooth">
                  {[
                    'dashboard',
                    'vault',
@@ -2037,7 +2037,7 @@ const EventPlanner: React.FC<Props> = ({
                      <button 
                        key={tab} 
                        onClick={() => setActiveTab(tab as ProjectTab)} 
-                       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                       className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                          activeTab === tab 
                            ? 'bg-white text-stone-900 shadow-md font-extrabold scale-[1.02]' 
                            : 'text-white/80 hover:text-white hover:bg-white/15'
