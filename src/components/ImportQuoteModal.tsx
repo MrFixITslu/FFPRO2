@@ -175,19 +175,23 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
   const handleItemChange = (index: number, field: keyof ExtractedQuoteItem, value: any) => {
     if (!quoteData) return;
     const updatedItems = [...quoteData.items];
-    const item = { ...updatedItems[index], [field]: value };
+    const rawVal = value;
+    const item = { ...updatedItems[index], [field]: rawVal };
     
     // Auto-calculate line total
     if (field === 'quantity' || field === 'unitCost' || field === 'discount' || field === 'shippingCost') {
-      const qty = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
-      const unitCost = field === 'unitCost' ? parseFloat(value) || 0 : item.unitCost;
-      const discount = field === 'discount' ? parseFloat(value) || 0 : (item.discount || 0);
-      item.lineTotal = Math.max(0, qty * unitCost - discount + (item.shippingCost || 0));
+      const qty = Math.max(0, typeof item.quantity === 'number' ? item.quantity : (parseFloat(item.quantity as any) || 0));
+      const unitCost = Math.max(0, typeof item.unitCost === 'number' ? item.unitCost : (parseFloat(item.unitCost as any) || 0));
+      const discount = Math.max(0, typeof item.discount === 'number' ? item.discount : (parseFloat(item.discount as any) || 0));
+      const ship = Math.max(0, typeof item.shippingCost === 'number' ? item.shippingCost : (parseFloat(item.shippingCost as any) || 0));
+      item.lineTotal = Math.max(0, Math.round((qty * unitCost - discount + ship) * 100) / 100);
     }
 
     updatedItems[index] = item;
-    const subtotal = updatedItems.reduce((s, it) => s + (it.lineTotal || 0), 0);
-    const total = subtotal + (quoteData.shippingCosts || 0) - (quoteData.discounts || 0);
+    const subtotal = updatedItems.reduce((s, it) => s + (Number.isFinite(it.lineTotal) ? it.lineTotal : 0), 0);
+    const shipping = Math.max(0, parseFloat(quoteData.shippingCosts as any) || 0);
+    const discount = Math.max(0, parseFloat(quoteData.discounts as any) || 0);
+    const total = Math.max(0, Math.round((subtotal + shipping - discount) * 100) / 100);
 
     setQuoteData({
       ...quoteData,
@@ -200,8 +204,10 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
   const handleRemoveItem = (index: number) => {
     if (!quoteData) return;
     const updatedItems = quoteData.items.filter((_, i) => i !== index);
-    const subtotal = updatedItems.reduce((s, it) => s + (it.lineTotal || 0), 0);
-    const total = subtotal + (quoteData.shippingCosts || 0) - (quoteData.discounts || 0);
+    const subtotal = updatedItems.reduce((s, it) => s + (Number.isFinite(it.lineTotal) ? it.lineTotal : 0), 0);
+    const shipping = Math.max(0, parseFloat(quoteData.shippingCosts as any) || 0);
+    const discount = Math.max(0, parseFloat(quoteData.discounts as any) || 0);
+    const total = Math.max(0, Math.round((subtotal + shipping - discount) * 100) / 100);
 
     setQuoteData({
       ...quoteData,
@@ -230,16 +236,19 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
 
   // Final confirmation: save original quote to documents & populate costing
   const handleConfirm = async () => {
-    if (!quoteData) return;
-    const review = quoteTotals(quoteData);
-    if(review.issues.length){setExtractionError(review.issues.join(' '));return;}
-    const allocatedCosts=allocatedQuoteCosts(quoteData);
+    if (!quoteData || !quoteData.items || quoteData.items.length === 0) return;
+    
+    // Auto-reconcile numbers and normalize quote
+    const cleanQuote = recalculateQuote(quoteData);
+    setQuoteData(cleanQuote);
+    const allocatedCosts = allocatedQuoteCosts(cleanQuote);
     setIsSaving(true);
+    setExtractionError(null);
 
     try {
       // 1. Prepare meaningful file name: e.g. "Netronic Laser Tag - Quote 25-08-2026.pdf"
-      const supplierClean = (quoteData.supplier || 'Supplier').replace(/[/\\?%*:|"<>]/g, '-').trim();
-      const quoteRefClean = (quoteData.quoteNumber || quoteData.quoteDate || 'Quote').replace(/[/\\?%*:|"<>]/g, '-').trim();
+      const supplierClean = (cleanQuote.supplier || 'Supplier').replace(/[/\\?%*:|"<>]/g, '-').trim();
+      const quoteRefClean = (cleanQuote.quoteNumber || cleanQuote.quoteDate || 'Quote').replace(/[/\\?%*:|"<>]/g, '-').trim();
       const originalExt = file?.name?.split('.').pop() || 'pdf';
       const meaningfulFileName = `${supplierClean} - Quote ${quoteRefClean}.${originalExt}`;
 
@@ -283,36 +292,36 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
       }
 
       // 3. Convert quoted items into Interactive Sale Price Costing ProductionItems
-      const costingItems: ProductionItem[] = quoteData.items.map((it, idx) => ({
+      const costingItems: ProductionItem[] = cleanQuote.items.map((it, idx) => ({
         id: `cost_${Date.now()}_${idx}`,
         name: it.item,
         description: it.description || '',
-        quantity: it.quantity || 1,
-        unitCost: it.unitCost || 0,
-        discount: it.discount || 0,
-        shippingCost: it.shippingCost || 0,
-        // The cost field in productionItems is the total cost for this line item
-        cost: allocatedCosts[idx],
-        supplier: quoteData.supplier,
-        sourceQuoteId: quoteData.id
+        quantity: Math.max(1, typeof it.quantity === 'number' ? it.quantity : (parseFloat(it.quantity as any) || 1)),
+        unitCost: Math.max(0, typeof it.unitCost === 'number' ? it.unitCost : (parseFloat(it.unitCost as any) || 0)),
+        discount: Math.max(0, typeof it.discount === 'number' ? it.discount : (parseFloat(it.discount as any) || 0)),
+        shippingCost: Math.max(0, typeof it.shippingCost === 'number' ? it.shippingCost : (parseFloat(it.shippingCost as any) || 0)),
+        // The cost field in productionItems is the pro-rated total cost for this line item
+        cost: allocatedCosts[idx] !== undefined ? allocatedCosts[idx] : it.lineTotal,
+        supplier: cleanQuote.supplier,
+        sourceQuoteId: cleanQuote.id
       }));
 
       // If there are separate shipping/freight costs quoted, include as an allocated cost item
-      if (quoteData.shippingCosts && quoteData.shippingCosts > 0) {
+      if (cleanQuote.shippingCosts && cleanQuote.shippingCosts > 0) {
         costingItems.push({
           id: `cost_ship_${Date.now()}`,
-          name: `Freight & Shipping (${quoteData.supplier})`,
-          description: `Supplier delivery charges for quote ${quoteData.quoteNumber || ''}`,
+          name: `Freight & Shipping (${cleanQuote.supplier})`,
+          description: `Supplier delivery charges for quote ${cleanQuote.quoteNumber || ''}`,
           quantity: 1,
-          unitCost: quoteData.shippingCosts,
-          cost: allocatedCosts[quoteData.items.length],
-          supplier: quoteData.supplier,
-          sourceQuoteId: quoteData.id
+          unitCost: cleanQuote.shippingCosts,
+          cost: allocatedCosts[cleanQuote.items.length] !== undefined ? allocatedCosts[cleanQuote.items.length] : cleanQuote.shippingCosts,
+          supplier: cleanQuote.supplier,
+          sourceQuoteId: cleanQuote.id
         });
       }
 
       const finalQuoteRecord: SupplierQuoteData = {
-        ...quoteData,
+        ...cleanQuote,
         savedFileId: uploadedFileRecord.id,
         savedFileName: uploadedFileRecord.name
       };
@@ -518,10 +527,18 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                   </button>
                 </div>
 
-                {quoteTotals(quoteData).issues.length>0 && <div role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
-                  <p>{quoteTotals(quoteData).issues.join(' ')}</p>
-                  <button type="button" className="mt-2 underline" onClick={()=>setQuoteData(recalculateQuote(quoteData))}>Use totals calculated from the reviewed lines</button>
-                </div>}
+                {quoteTotals(quoteData).issues.length > 0 && (
+                  <div role="alert" className="rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-xs text-amber-900 flex items-center justify-between gap-3">
+                    <p className="font-medium">{quoteTotals(quoteData).issues.join(' ')}</p>
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 bg-amber-200/60 hover:bg-amber-200 rounded font-semibold text-amber-900 shrink-0 transition"
+                      onClick={() => setQuoteData(recalculateQuote(quoteData))}
+                    >
+                      Auto-sync Totals
+                    </button>
+                  </div>
+                )}
                 <p className="text-sm text-stone-600">Verify every line against the original document, including taxes and freight. Add tax as a separate line. Overall discounts are allocated across imported costs.</p>
                 {/* Quote Header Information */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-stone-50 p-3.5 rounded-xl border border-stone-200 text-xs">
@@ -828,8 +845,8 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={isSaving || !quoteData || quoteData.items.length === 0 || quoteTotals(quoteData).issues.length>0}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSaving || !quoteData || (quoteData.items || []).length === 0}
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-98"
             >
               {isSaving ? (
                 <>
