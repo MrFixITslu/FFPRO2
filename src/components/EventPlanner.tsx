@@ -1593,7 +1593,7 @@ const EventPlanner: React.FC<Props> = ({
             projectName: ev.name,
             eventType: ev.eventType || 'event',
             tasks: (ev.tasks || []).map(t => t.title),
-            style: 'modern-abstract'
+            style: ev.eventType === 'trip' ? 'tropical-sunset' : ev.eventType === 'startup' ? 'cyber-synthwave' : 'modern-abstract'
           })
         });
         if (res.ok) {
