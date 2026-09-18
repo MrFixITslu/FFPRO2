@@ -8,7 +8,7 @@ import { filesDb } from '../filesDb.js';
 const router = Router();
 router.use(requireAuth);
 const limiter = rateLimit({ windowMs: 60000, max: 20, standardHeaders:true, legacyHeaders:false });
-const upload = multer({ storage:multer.memoryStorage(), limits:{fileSize:10*1024*1024, files:1, fields:2, fieldSize:1024, parts:3} });
+const upload = multer({ storage:multer.memoryStorage(), limits:{fileSize:10*1024*1024, files:1, fields:5, fieldSize:1024, parts:6} });
 function uploadOne(req,res,next) {
   upload.single('file')(req,res,error=> {
     if(error) return res.status(error.code==='LIMIT_FILE_SIZE'?413:400).json({error:'Upload one file up to 10 MiB.'});
@@ -33,8 +33,15 @@ router.post('/upload', limiter, uploadGate, uploadOne, async(req,res)=>{
   if(!req.file) return res.status(400).json({error:'Choose a file to upload.'});
   const name = req.file.originalname.replace(/[\x00-\x1f\x7f/\\]/g,'_').slice(0,200);
   const fileType = safeFileType(name,req.file.buffer);
-  const saved = await filesDb.saveFile({userId:req.user.id, projectId:req.body?.projectId || null,
-    fileName:name, fileType, fileSize:req.file.buffer.length, buffer:req.file.buffer});
+  const saved = await filesDb.saveFile({
+    id: req.body?.fileId || undefined,
+    userId: req.user.id,
+    projectId: req.body?.projectId || null,
+    fileName: name,
+    fileType,
+    fileSize: req.file.buffer.length,
+    buffer: req.file.buffer
+  });
   res.status(201).json({ok:true,files:[saved]});
 });
 router.get('/project/:projectId',async(req,res)=>{

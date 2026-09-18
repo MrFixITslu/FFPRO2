@@ -726,7 +726,17 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
       {/* RIBBON */}
       <div className="w-full bg-white border-b border-stone-300 shadow-sm shrink-0">
         <div className="px-6 py-2 flex items-center justify-between border-b border-stone-100 bg-stone-50/50">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              title="Back to Documents (or press browser back arrow)"
+              aria-label="Back to documents"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-bold transition shadow-xs border border-stone-200"
+            >
+              <i className="fas fa-arrow-left text-xs"></i>
+              <span className="hidden sm:inline">Back</span>
+            </button>
             <div className="flex items-center gap-2 px-3 py-1 bg-emerald-600 rounded-lg shadow-lg">
               <i className="fas fa-file-excel text-white text-lg"></i>
               <span className="text-[10px] font-black text-white uppercase tracking-widest">Cell Matrix Pro</span>

@@ -8,7 +8,7 @@ export function canonicalOrigin() {
   const raw = process.env.FRONTEND_URL || process.env.APP_URL;
   if (!raw) {
     if (production) throw new Error('FRONTEND_URL must be the canonical HTTPS application origin.');
-    return `http://localhost:${process.env.PORT || 3010}`;
+    return `http://localhost:${process.env.PORT || 3000}`;
   }
   const url = new URL(raw);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash ||

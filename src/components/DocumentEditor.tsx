@@ -185,7 +185,17 @@ const DocumentEditor: React.FC<Props> = ({ initialTitle, initialContent, onSave,
       {/* RIBBON UI */}
       <div className="w-full bg-white border-b border-stone-300 shadow-sm z-30 px-6 pt-2 pb-1 shrink-0 no-print">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              title="Back to Documents (or press browser back arrow)"
+              aria-label="Back to documents"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-bold transition shadow-xs border border-stone-200"
+            >
+              <i className="fas fa-arrow-left text-xs"></i>
+              <span className="hidden sm:inline">Back</span>
+            </button>
             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 rounded-lg border border-indigo-100">
               <i className="fas fa-file-word text-indigo-600 text-lg"></i>
               <span className="text-xs font-black text-indigo-900 uppercase tracking-widest">Document Pro</span>

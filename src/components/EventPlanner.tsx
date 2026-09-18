@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea, BusinessPlanSections, SupplierQuoteData } from '../types';
+import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea, BusinessPlanSections, SupplierQuoteData, ProductionItem } from '../types';
 import { BusinessPlanForm } from './BusinessPlanForm';
 import { ImportQuoteModal } from './ImportQuoteModal';
 import { ExportBusinessPlanModal } from './ExportBusinessPlanModal';
@@ -39,13 +39,14 @@ import {
   MapPin, Clock, ArrowRight, ShieldCheck, Tag, Plus, CheckSquare, 
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
   Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark,
-  Upload, Download, FileSpreadsheet, FileImage, FileArchive, FileCode, Folder, HardDrive, File as FileIcon, UploadCloud
+  Upload, Download, FileSpreadsheet, FileImage, FileArchive, FileCode, Folder, HardDrive, File as FileIcon, UploadCloud,
+  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2
 } from 'lucide-react';
 import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-type ProjectTab = 'dashboard' | 'grants' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
+export type ProjectTab = 'dashboard' | 'grants' | 'ledger' | 'tasks' | 'vault' | 'team' | 'contacts' | 'log' | 'trip_planner' | 'startup_planner' | 'chat';
 
 const getInitialChecklist = (planType: 'event' | 'trip' | 'startup'): ProjectTask[] => {
   if (planType === 'trip') {
@@ -102,6 +103,10 @@ interface Props {
   sharedEvents?: BudgetEvent[];
   onUpdateSharedEvents?: React.Dispatch<React.SetStateAction<BudgetEvent[]>>;
   onRefreshSharedProjects?: () => Promise<void>;
+  selectedEventId?: string | null;
+  onSelectEvent?: (eventId: string | null) => void;
+  projectTab?: ProjectTab;
+  onSelectProjectTab?: (tab: ProjectTab) => void;
 }
 
 const EventPlanner: React.FC<Props> = ({ 
@@ -122,10 +127,41 @@ const EventPlanner: React.FC<Props> = ({
   initialSelectedTaskId,
   sharedEvents: propSharedEvents,
   onUpdateSharedEvents: propSetSharedEvents,
-  onRefreshSharedProjects
+  onRefreshSharedProjects,
+  selectedEventId: propSelectedEventId,
+  onSelectEvent,
+  projectTab: propProjectTab,
+  onSelectProjectTab
 }) => {
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
-  const [activeTab, setActiveTab] = useState<ProjectTab>('ledger');
+  const [internalSelectedEventId, setInternalSelectedEventId] = useState<string | null>(initialSelectedEventId || null);
+  const selectedEventId = propSelectedEventId !== undefined ? propSelectedEventId : internalSelectedEventId;
+
+  const setSelectedEventId = useCallback((id: string | null) => {
+    setInternalSelectedEventId(id);
+    if (onSelectEvent) {
+      onSelectEvent(id);
+    }
+  }, [onSelectEvent]);
+
+  const [internalActiveTab, setInternalActiveTab] = useState<ProjectTab>('dashboard');
+  const activeTab = propProjectTab !== undefined ? propProjectTab : internalActiveTab;
+
+  const setActiveTab = useCallback((tab: ProjectTab) => {
+    setInternalActiveTab(tab);
+    if (onSelectProjectTab) {
+      onSelectProjectTab(tab);
+    }
+  }, [onSelectProjectTab]);
+
+  const handleInAppBack = useCallback(() => {
+    // If the browser has history entries from this app's navigation, trigger back navigation
+    // so popstate fires and smoothly returns to the previous view/page!
+    if (window.history.state && (window.history.state.isAppNav || window.history.state.projectId)) {
+      window.history.back();
+    } else {
+      setSelectedEventId(null);
+    }
+  }, [setSelectedEventId]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [eventPendingDelete, setEventPendingDelete] = useState<BudgetEvent | null>(null);
@@ -217,10 +253,66 @@ const EventPlanner: React.FC<Props> = ({
   const [inviteUsername, setInviteUsername] = useState('');
   const [subTaskInputs, setSubTaskInputs] = useState<Record<string, string>>({});
 
-  // Editor States
+  // Editor States with Browser History Integration
   const [isEditingDoc, setIsEditingDoc] = useState(false);
   const [isEditingSheet, setIsEditingSheet] = useState(false);
   const [currentDoc, setCurrentDoc] = useState<{ id?: string, title: string, content: string } | null>(null);
+
+  const handleOpenDoc = useCallback((doc: { id?: string; title: string; content: string }) => {
+    setCurrentDoc(doc);
+    setIsEditingDoc(true);
+    setIsEditingSheet(false);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set('doc', doc.id || 'draft');
+      params.delete('sheet');
+      window.history.pushState({ ...window.history.state, docId: doc.id || 'draft', isAppNav: true }, document.title, `?${params.toString()}`);
+    } catch (e) {}
+  }, []);
+
+  const handleOpenSheet = useCallback((sheet: { id?: string; title: string; content: string }) => {
+    setCurrentDoc(sheet);
+    setIsEditingSheet(true);
+    setIsEditingDoc(false);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set('sheet', sheet.id || 'draft');
+      params.delete('doc');
+      window.history.pushState({ ...window.history.state, sheetId: sheet.id || 'draft', isAppNav: true }, document.title, `?${params.toString()}`);
+    } catch (e) {}
+  }, []);
+
+  const handleCloseEditor = useCallback(() => {
+    setIsEditingDoc(false);
+    setIsEditingSheet(false);
+    setCurrentDoc(null);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('doc') || params.has('sheet')) {
+        params.delete('doc');
+        params.delete('sheet');
+        const query = params.toString();
+        window.history.replaceState({ ...window.history.state, docId: null, sheetId: null, isAppNav: true }, document.title, query ? `?${query}` : window.location.pathname);
+      }
+    } catch (e) {}
+  }, []);
+
+  // When browser back arrow is clicked while inside document or spreadsheet editor, close the editor safely
+  useEffect(() => {
+    const handleEditorPopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('doc') && isEditingDoc) {
+        setIsEditingDoc(false);
+        setCurrentDoc(null);
+      }
+      if (!params.has('sheet') && isEditingSheet) {
+        setIsEditingSheet(false);
+        setCurrentDoc(null);
+      }
+    };
+    window.addEventListener('popstate', handleEditorPopState);
+    return () => window.removeEventListener('popstate', handleEditorPopState);
+  }, [isEditingDoc, isEditingSheet]);
 
   // Contact States
   const [contactSearch, setContactSearch] = useState('');
@@ -255,6 +347,8 @@ const EventPlanner: React.FC<Props> = ({
   // Sale Price Calculator Local State
   const [calcItemName, setCalcItemName] = useState('');
   const [calcItemCost, setCalcItemCost] = useState('');
+  const [calcItemQuantity, setCalcItemQuantity] = useState('1');
+  const [calcItemIsRecurring, setCalcItemIsRecurring] = useState(false);
 
   // Business Plan Sub-tab & Modals
   const [businessPlanSubTab, setBusinessPlanSubTab] = useState<'plan' | 'costing'>('plan');
@@ -1055,24 +1149,42 @@ const EventPlanner: React.FC<Props> = ({
   const handleSaveDocument = async (title: string, content: string, extension: '.fdoc' | '.fcel' = '.fdoc') => {
     if (!selectedEvent) return;
     
-    const docId = currentDoc?.id || generateId();
     const cleanTitle = title.trim().replace(/[/\\?%*:|"<>]/g, '').replace(/_/g, ' ') || 'Untitled';
     const fileName = `${cleanTitle}${extension}`;
+
+    let updatedFiles = [...(selectedEvent.files || [])];
+    
+    // Find matching existing file: by currentDoc.id OR by matching filename (case-insensitive)
+    const existingFile = currentDoc?.id
+      ? updatedFiles.find(f => f.id === currentDoc.id)
+      : updatedFiles.find(f => {
+          const fn = (f.name || '').toLowerCase();
+          const target = fileName.toLowerCase();
+          const targetBase = cleanTitle.toLowerCase();
+          return fn === target || fn === `${targetBase}.fdoc` || fn === `${targetBase}.fcel`;
+        });
+
+    const docId = existingFile ? existingFile.id : (currentDoc?.id || generateId());
 
     try {
       await saveInternalDoc(docId, content);
 
-      let storageRef = `internal/${docId}`;
-      let storageType: 'database' | 'indexeddb' | 'filesystem' = 'database';
-      let systemFileId: string | undefined;
-      let downloadUrl: string | undefined;
-      let viewUrl: string | undefined;
+      let storageRef = existingFile?.storageRef || `internal/${docId}`;
+      let storageType: 'database' | 'indexeddb' | 'filesystem' = existingFile?.storageType || 'database';
+      let systemFileId: string | undefined = existingFile?.systemFileId;
+      let downloadUrl: string | undefined = existingFile?.downloadUrl;
+      let viewUrl: string | undefined = existingFile?.viewUrl;
 
-      // Save document to system database
+      // Save document to system database (passing existingFileId so it updates in place)
       try {
         const mimeType = extension === '.fdoc' ? 'application/fire-doc' : 'application/fire-cell';
         const docBlob = new Blob([content], { type: mimeType });
-        const savedSysDoc = await uploadFileToSystemDatabase(docBlob, selectedEvent.id, fileName);
+        const savedSysDoc = await uploadFileToSystemDatabase(
+          docBlob,
+          selectedEvent.id,
+          fileName,
+          existingFile?.systemFileId
+        );
         if (savedSysDoc && savedSysDoc.id) {
           systemFileId = savedSysDoc.id;
           storageType = 'database';
@@ -1082,7 +1194,9 @@ const EventPlanner: React.FC<Props> = ({
         }
       } catch (sysErr) {
         console.warn('System database document save fallback to local:', sysErr);
-        storageType = 'indexeddb';
+        if (!existingFile) {
+          storageType = 'indexeddb';
+        }
       }
 
       if (directoryHandle) {
@@ -1095,13 +1209,11 @@ const EventPlanner: React.FC<Props> = ({
         }
       }
 
-      let updatedFiles = [...(selectedEvent.files || [])];
-      const existingFile = updatedFiles.find(f => f.id === docId);
-
       if (existingFile) {
         updatedFiles = updatedFiles.map(f => f.id === docId ? {
           ...f,
           name: fileName,
+          size: content.length,
           timestamp: new Date().toISOString(),
           lastModifiedBy: currentUser,
           version: (f.version || 1) + 1,
@@ -1169,9 +1281,9 @@ const EventPlanner: React.FC<Props> = ({
         }
 
         if (content) {
-          setCurrentDoc({ id: file.id, title: file.name.replace(/\.(fdoc|fcel)$/, '').replace(/_/g, ' '), content });
-          if (isDoc) setIsEditingDoc(true);
-          else setIsEditingSheet(true);
+          const docObj = { id: file.id, title: file.name.replace(/\.(fdoc|fcel)$/, '').replace(/_/g, ' '), content };
+          if (isDoc) handleOpenDoc(docObj);
+          else handleOpenSheet(docObj);
         } else {
           throw new Error("Document content not found.");
         }
@@ -1270,8 +1382,7 @@ const EventPlanner: React.FC<Props> = ({
       </div>
     `;
 
-    setCurrentDoc({ id: generateId(), title: logTitle, content: docContent });
-    setIsEditingDoc(true);
+    handleOpenDoc({ id: generateId(), title: logTitle, content: docContent });
   };
 
   // Sends whatever is queued for `pid` once it's safe to do so. If a save for
@@ -1547,7 +1658,7 @@ const EventPlanner: React.FC<Props> = ({
           initialTitle={currentDoc?.title || "Draft"}
           initialContent={currentDoc?.content || ""}
           onSave={(t, c) => handleSaveDocument(t, c, '.fdoc')}
-          onClose={() => { setIsEditingDoc(false); setCurrentDoc(null); }}
+          onClose={handleCloseEditor}
           isVaultMounted={!!directoryHandle}
           onMountVault={onMountVault}
         />
@@ -1558,7 +1669,7 @@ const EventPlanner: React.FC<Props> = ({
           initialTitle={currentDoc?.title || "Sheet"}
           initialData={currentDoc?.content || ""}
           onSave={(t, d) => handleSaveDocument(t, d, '.fcel')}
-          onClose={() => { setIsEditingSheet(false); setCurrentDoc(null); }}
+          onClose={handleCloseEditor}
           isVaultMounted={!!directoryHandle}
           onMountVault={onMountVault}
         />
@@ -1764,155 +1875,204 @@ const EventPlanner: React.FC<Props> = ({
 
       {selectedEventId && selectedEvent ? (
         <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
-          <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6 p-5 rounded-xl shadow-sm overflow-hidden relative ${
+          <div className={`flex flex-col gap-4 mb-6 p-5 rounded-xl shadow-sm relative ${
             selectedEvent.eventType === 'trip' 
               ? 'bg-gradient-to-r from-sky-600 to-teal-500' 
               : selectedEvent.eventType === 'startup'
               ? 'bg-gradient-to-r from-emerald-600 to-teal-600'
               : 'bg-indigo-600'
           }`}>
-             <div className="flex items-center gap-4 relative z-10">
-               <button onClick={() => setSelectedEventId(null)} className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded hover:bg-white/20 transition-all border border-white/5 shadow-sm"><i className="fas fa-chevron-left text-xs"></i></button>
-               <div>
-                 <div className="flex items-center gap-2 flex-wrap">
-                   {isEditingName && canEdit ? (
-                     <input
-                       autoFocus
-                       type="text"
-                       value={editNameValue}
-                       onChange={(e) => setEditNameValue(e.target.value)}
-                       onBlur={() => { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }}
-                       onKeyDown={(e) => {
-                         if (e.key === 'Enter') { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }
-                         if (e.key === 'Escape') setIsEditingName(false);
-                       }}
-                       className="text-2xl font-bold text-white tracking-tight leading-none bg-white/10 border border-white/30 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 w-full max-w-sm"
-                     />
-                   ) : (
-                     <h2
-                       onClick={() => { if (canEdit) { setEditNameValue(selectedEvent.name); setIsEditingName(true); } }}
-                       title={canEdit ? 'Click to rename' : undefined}
-                       className={`text-2xl font-bold text-white tracking-tight leading-none ${canEdit ? 'cursor-text hover:bg-white/10 rounded px-2 py-0.5 -mx-2 -my-0.5 transition-colors' : ''}`}
-                     >
-                       {selectedEvent.name}
-                     </h2>
-                   )}
-                   <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider border shadow-xs flex items-center gap-1 ${
-                     selectedEvent.status === 'closed'
-                       ? 'bg-stone-900/90 text-stone-200 border-stone-600/70'
-                       : 'bg-emerald-500/25 text-emerald-100 border-emerald-400/40'
-                   }`}>
-                     {selectedEvent.status === 'closed' ? (
-                       <>
-                         <FolderCheck size={10} className="text-amber-300" />
-                         Closed
-                       </>
+             {/* Top Row: Title, Status, and Action Buttons */}
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+               <div className="flex items-center gap-4">
+                 <button 
+                   type="button"
+                   onClick={handleInAppBack} 
+                   title="Go back (or press browser back arrow)"
+                   aria-label="Back to projects"
+                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded hover:bg-white/20 transition-all border border-white/5 shadow-sm shrink-0"
+                 >
+                   <i className="fas fa-chevron-left text-xs"></i>
+                 </button>
+                 <div>
+                   <div className="flex items-center gap-2 flex-wrap">
+                     {isEditingName && canEdit ? (
+                       <input
+                         autoFocus
+                         type="text"
+                         value={editNameValue}
+                         onChange={(e) => setEditNameValue(e.target.value)}
+                         onBlur={() => { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }}
+                         onKeyDown={(e) => {
+                           if (e.key === 'Enter') { commitRename(selectedEvent, editNameValue); setIsEditingName(false); }
+                           if (e.key === 'Escape') setIsEditingName(false);
+                         }}
+                         className="text-2xl font-bold text-white tracking-tight leading-none bg-white/10 border border-white/30 rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-white/50 w-full max-w-sm"
+                       />
                      ) : (
-                       'Active'
+                       <h2
+                         onClick={() => { if (canEdit) { setEditNameValue(selectedEvent.name); setIsEditingName(true); } }}
+                         title={canEdit ? 'Click to rename' : undefined}
+                         className={`text-2xl font-bold text-white tracking-tight leading-none ${canEdit ? 'cursor-text hover:bg-white/10 rounded px-2 py-0.5 -mx-2 -my-0.5 transition-colors' : ''}`}
+                       >
+                         {selectedEvent.name}
+                       </h2>
                      )}
-                   </span>
+                     <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider border shadow-xs flex items-center gap-1 ${
+                       selectedEvent.status === 'closed'
+                         ? 'bg-stone-900/90 text-stone-200 border-stone-600/70'
+                         : 'bg-emerald-500/25 text-emerald-100 border-emerald-400/40'
+                     }`}>
+                       {selectedEvent.status === 'closed' ? (
+                         <>
+                           <FolderCheck size={10} className="text-amber-300" />
+                           Closed
+                         </>
+                       ) : (
+                         'Active'
+                       )}
+                     </span>
+                   </div>
+                   <p className="text-[10px] text-white/70 font-bold uppercase tracking-wider mt-1.5">
+                     {selectedEvent.eventType === 'trip' 
+                       ? `Vacation to ${selectedEvent.tripDetails?.destination || 'Destination'}` 
+                       : selectedEvent.eventType === 'startup'
+                       ? 'Startup Business Suite' 
+                       : 'Event Management Framework'}
+                   </p>
                  </div>
-                 <p className="text-[10px] text-white/70 font-bold uppercase tracking-wider mt-1.5">
-                   {selectedEvent.eventType === 'trip' 
-                     ? `Vacation to ${selectedEvent.tripDetails?.destination || 'Destination'}` 
-                     : selectedEvent.eventType === 'startup'
-                     ? 'Startup Business Suite' 
-                     : 'Event Management Framework'}
-                 </p>
                </div>
-              </div>
-             <div className="relative z-10 overflow-hidden rounded-lg max-w-full">
-               <div
-                 className="flex bg-black/20 p-1 rounded-lg border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-md"
-                 style={{ paddingBottom: '17px', marginBottom: '-17px' }}
-               >
-               {[
-                 'dashboard',
-                 'startup_planner',
-                 'ledger',
-                 'grants',
-                 'tasks',
-                 'vault',
-                 'team',
-                 'contacts',
-                 'log',
-                 ...(selectedEvent.eventType === 'trip' ? ['trip_planner'] : []),
-                 ...(selectedEvent.isShared ? ['chat'] : []),
-               ].map(tab => {
-                 const label = tab === 'dashboard' ? 'Dashboard' : tab === 'grants' ? 'Grants & Funding' : tab === 'chat' ? 'Chat' : tab === 'trip_planner' ? 'Trip Details' : tab === 'startup_planner' ? 'Business Plan' : tab === 'tasks' ? 'Checklist' : tab === 'vault' ? 'Documents' : tab === 'team' ? 'Team' : tab === 'contacts' ? 'Contacts' : tab === 'log' ? 'Logs' : 'Ledger';
-                 return (
-                   <button 
-                     key={tab} 
-                     onClick={() => setActiveTab(tab as ProjectTab)} 
-                     className={`px-3 sm:px-4 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === tab ? 'bg-white text-stone-900 shadow-sm font-extrabold' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+
+               <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                 {canEdit && (
+                   selectedEvent.status === 'closed' ? (
+                     <button
+                       onClick={() => handleReopenProject(selectedEvent)}
+                       title="Reopen project to active status"
+                       className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
+                     >
+                       <RotateCcw className="w-4 h-4 text-amber-300" />
+                       <span className="hidden md:inline">Reopen</span>
+                     </button>
+                   ) : (
+                     <button
+                       onClick={() => handleOpenCloseModal(selectedEvent)}
+                       title="Close this project"
+                       className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
+                     >
+                       <FolderCheck className="w-4 h-4 text-emerald-300" />
+                       <span className="hidden md:inline">Close Project</span>
+                     </button>
+                   )
+                 )}
+                 <button
+                   onClick={() => setShowIdeaBinModal(true)}
+                   title="Open Idea Bin"
+                   className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
+                 >
+                   <Lightbulb className="w-4 h-4 text-amber-300" />
+                   <span className="hidden sm:inline">Idea Bin</span>
+                   {(ideas || []).length > 0 && (
+                     <span className="px-1.5 py-0.5 bg-amber-400 text-stone-950 rounded-full text-[9px] font-extrabold leading-none">
+                       {(ideas || []).length}
+                     </span>
+                   )}
+                 </button>
+                 <button
+                   onClick={() => handleShareClick(selectedEvent)}
+                   disabled={promoting}
+                   title={selectedEvent.isShared ? 'Manage collaborators' : 'Share this plan'}
+                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-white/20 hover:text-white transition-all border border-white/5 shadow-sm disabled:opacity-50"
+                 >
+                   {promoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                 </button>
+                 <button
+                   onClick={() => setCoverModalEvent(selectedEvent)}
+                   title="Customize card cover and colors"
+                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-white/20 hover:text-white transition-all border border-white/5 shadow-sm"
+                 >
+                   <Settings className="w-4 h-4" />
+                 </button>
+                 {(!selectedEvent.isShared && isAdmin) || selectedEvent.role === 'owner' ? (
+                   <button
+                     onClick={() => requestDeleteEvent(selectedEvent)}
+                     title="Delete plan"
+                     className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-red-500/80 hover:text-white transition-all border border-white/5 shadow-sm"
                    >
-                     {tab === 'grants' && <Landmark size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
-                     {tab === 'log' && <Activity size={12} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
-                     <span>{label}</span>
-                     {tab === 'log' && (selectedEvent.logs || []).length > 0 && (
-                       <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
-                         activeTab === tab ? 'bg-indigo-100 text-indigo-800' : 'bg-white/20 text-white'
-                       }`}>
-                         {(selectedEvent.logs || []).length}
-                       </span>
-                     )}
+                     <Trash2 className="w-4 h-4" />
                    </button>
-                 );
-               })}
+                 ) : null}
                </div>
              </div>
-             <div className="flex items-center gap-2 relative z-10 shrink-0">
-               {canEdit && (
-                 selectedEvent.status === 'closed' ? (
-                   <button
-                     onClick={() => handleReopenProject(selectedEvent)}
-                     title="Reopen project to active status"
-                     className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
-                   >
-                     <RotateCcw className="w-4 h-4 text-amber-300" />
-                     <span className="hidden md:inline">Reopen</span>
-                   </button>
-                 ) : (
-                   <button
-                     onClick={() => handleOpenCloseModal(selectedEvent)}
-                     title="Close this project"
-                     className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
-                   >
-                     <FolderCheck className="w-4 h-4 text-emerald-300" />
-                     <span className="hidden md:inline">Close Project</span>
-                   </button>
-                 )
-               )}
-               <button
-                 onClick={() => setShowIdeaBinModal(true)}
-                 title="Open Idea Bin"
-                 className="h-10 px-3 flex items-center gap-1.5 bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10 rounded shadow-sm text-xs font-bold"
-               >
-                 <i className="fas fa-lightbulb text-amber-300 text-xs"></i>
-                 <span className="hidden sm:inline">Idea Bin</span>
-                 {(ideas || []).length > 0 && (
-                   <span className="px-1.5 py-0.5 bg-amber-400 text-stone-950 rounded-full text-[9px] font-extrabold leading-none">
-                     {(ideas || []).length}
-                   </span>
-                 )}
-               </button>
-               <button
-                 onClick={() => handleShareClick(selectedEvent)}
-                 disabled={promoting}
-                 title={selectedEvent.isShared ? 'Manage collaborators' : 'Share this plan'}
-                 className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-white/20 hover:text-white transition-all border border-white/5 shadow-sm disabled:opacity-50"
-               >
-                 {promoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-               </button>
-               {(!selectedEvent.isShared && isAdmin) || selectedEvent.role === 'owner' ? (
-                 <button
-                   onClick={() => requestDeleteEvent(selectedEvent)}
-                   title="Delete plan"
-                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white/80 rounded hover:bg-red-500/80 hover:text-white transition-all border border-white/5 shadow-sm"
-                 >
-                   <Trash2 className="w-4 h-4" />
-                 </button>
-               ) : null}
+
+             {/* Dedicated Full Navigation Menu Bar - Cleanly wrapped and completely displayed */}
+             <div className="relative z-10 w-full pt-1">
+               <nav aria-label="Project Navigation" className="flex flex-wrap items-center gap-1.5 bg-black/25 p-1.5 rounded-xl border border-white/15 backdrop-blur-md shadow-inner">
+                 {[
+                   'dashboard',
+                   'vault',
+                   'ledger',
+                   'grants',
+                   'tasks',
+                   'startup_planner',
+                   'team',
+                   'contacts',
+                   'log',
+                   ...(selectedEvent.eventType === 'trip' ? ['trip_planner'] : []),
+                   ...(selectedEvent.isShared ? ['chat'] : []),
+                 ].map(tab => {
+                   const label = tab === 'dashboard' ? 'Dashboard' 
+                     : tab === 'vault' ? 'Documents'
+                     : tab === 'ledger' ? 'Ledger'
+                     : tab === 'grants' ? 'Grants & Funding' 
+                     : tab === 'tasks' ? 'Checklist' 
+                     : tab === 'startup_planner' ? 'Costing & Business Plan' 
+                     : tab === 'team' ? 'Team' 
+                     : tab === 'contacts' ? 'Contacts' 
+                     : tab === 'log' ? 'Logs'
+                     : tab === 'trip_planner' ? 'Trip Details' 
+                     : 'Chat';
+
+                   return (
+                     <button 
+                       key={tab} 
+                       onClick={() => setActiveTab(tab as ProjectTab)} 
+                       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                         activeTab === tab 
+                           ? 'bg-white text-stone-900 shadow-md font-extrabold scale-[1.02]' 
+                           : 'text-white/80 hover:text-white hover:bg-white/15'
+                       }`}
+                     >
+                       {tab === 'dashboard' && <LayoutDashboard size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'vault' && <FileText size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'ledger' && <DollarSign size={13} className={activeTab === tab ? 'text-emerald-600' : 'text-white/80'} />}
+                       {tab === 'grants' && <Landmark size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'tasks' && <CheckSquare size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'startup_planner' && <Calculator size={13} className={activeTab === tab ? 'text-emerald-600' : 'text-white/80'} />}
+                       {tab === 'team' && <Users size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'contacts' && <Briefcase size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'log' && <Activity size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       {tab === 'trip_planner' && <Compass size={13} className={activeTab === tab ? 'text-sky-600' : 'text-white/80'} />}
+                       {tab === 'chat' && <MessageSquare size={13} className={activeTab === tab ? 'text-indigo-600' : 'text-white/80'} />}
+                       <span>{label}</span>
+                       {tab === 'vault' && (selectedEvent.files || []).length > 0 && (
+                         <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                           activeTab === tab ? 'bg-indigo-100 text-indigo-800' : 'bg-white/20 text-white'
+                         }`}>
+                           {(selectedEvent.files || []).length}
+                         </span>
+                       )}
+                       {tab === 'log' && (selectedEvent.logs || []).length > 0 && (
+                         <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                           activeTab === tab ? 'bg-indigo-100 text-indigo-800' : 'bg-white/20 text-white'
+                         }`}>
+                           {(selectedEvent.logs || []).length}
+                         </span>
+                       )}
+                     </button>
+                   );
+                 })}
+               </nav>
              </div>
           </div>
 
@@ -2603,16 +2763,36 @@ const EventPlanner: React.FC<Props> = ({
 
               const handleAddMaterial = () => {
                 if (!calcItemName.trim()) return;
-                const newItem = {
+                const qty = Math.max(1, parseFloat(calcItemQuantity) || 1);
+                const unit = parseFloat(calcItemCost) || 0;
+                const totalCost = parseFloat((qty * unit).toFixed(2));
+                const newItem: ProductionItem = {
                   id: generateId(),
                   name: calcItemName.trim(),
-                  cost: parseFloat(calcItemCost) || 0
+                  quantity: qty,
+                  unitCost: unit,
+                  cost: totalCost,
+                  isRecurring: calcItemIsRecurring,
+                  costType: calcItemIsRecurring ? 'recurring' : 'one-time'
                 };
                 handleUpdateStartup({ 
                   productionItems: [...productionItems, newItem] 
                 });
                 setCalcItemName('');
                 setCalcItemCost('');
+                setCalcItemQuantity('1');
+                setCalcItemIsRecurring(false);
+              };
+
+              const handleToggleRecurring = (itemId: string) => {
+                const updated = productionItems.map(item => {
+                  if (item.id === itemId) {
+                    const isRec = !item.isRecurring;
+                    return { ...item, isRecurring: isRec, costType: (isRec ? 'recurring' : 'one-time') as 'recurring' | 'one-time' };
+                  }
+                  return item;
+                });
+                handleUpdateStartup({ productionItems: updated });
               };
 
               const handleRemoveMaterial = (itemId: string) => {
@@ -2765,16 +2945,35 @@ const EventPlanner: React.FC<Props> = ({
                         )}
                         
                         {/* Material List Items */}
-                        <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2 max-h-44 overflow-y-auto">
+                        <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2 max-h-52 overflow-y-auto">
                           {productionItems.length === 0 ? (
                             <p className="text-[11px] text-stone-400 text-center py-4">No materials listed yet. Use the fields below to add materials/ingredients.</p>
                           ) : (
                             <div className="divide-y divide-slate-200/60">
                               {productionItems.map((item) => (
-                                <div key={item.id} className="flex justify-between items-center py-1.5 text-xs">
-                                  <span className="text-stone-700 font-medium truncate max-w-[180px]">{item.name}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-stone-900 font-semibold">${item.cost.toFixed(2)}</span>
+                                <div key={item.id} className="flex justify-between items-center py-1.5 text-xs gap-2">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleRecurring(item.id)}
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors shrink-0 ${
+                                        item.isRecurring
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                          : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                                      }`}
+                                      title="Click to toggle between Recurring and One-time"
+                                    >
+                                      {item.isRecurring ? 'Recurring' : 'One-time'}
+                                    </button>
+                                    <span className="text-stone-700 font-medium truncate">{item.name}</span>
+                                    {(item.quantity && item.quantity > 1) && (
+                                      <span className="text-[10px] text-stone-400 font-mono shrink-0">
+                                        ({item.quantity} × ${(item.unitCost ?? (item.cost / item.quantity)).toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-stone-900 font-semibold font-mono">${item.cost.toFixed(2)}</span>
                                     <button 
                                       type="button" 
                                       onClick={() => handleRemoveMaterial(item.id)} 
@@ -2790,33 +2989,67 @@ const EventPlanner: React.FC<Props> = ({
                           )}
                         </div>
 
-                        {/* Add material inputs */}
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            value={calcItemName}
-                            onChange={(e) => setCalcItemName(e.target.value)}
-                            placeholder="e.g. Raw materials, Flour, Packaging" 
-                            className="flex-1 px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white font-medium"
-                          />
-                          <div className="relative w-24">
-                            <span className="absolute left-2.5 top-2.5 text-stone-400 text-xs">$</span>
+                        {/* Add material inputs with quantity and recurring checkbox */}
+                        <div className="space-y-2 bg-stone-100/70 p-2.5 rounded-xl border border-stone-200/80">
+                          <div className="flex flex-wrap sm:flex-nowrap gap-2">
                             <input 
-                              type="number" 
-                              value={calcItemCost}
-                              onChange={(e) => setCalcItemCost(e.target.value)}
-                              placeholder="Cost" 
-                              className="w-full pl-6 pr-2 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white font-medium"
+                              type="text" 
+                              value={calcItemName}
+                              onChange={(e) => setCalcItemName(e.target.value)}
+                              placeholder="Item name (e.g. Raw materials, Hosting, Equipment)" 
+                              className="flex-1 min-w-[160px] px-2.5 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 font-medium"
                             />
+                            <div className="relative w-20">
+                              <span className="absolute left-2 top-1.5 text-stone-400 text-[10px] uppercase font-bold">Qty</span>
+                              <input 
+                                type="number" 
+                                min="1"
+                                step="1"
+                                value={calcItemQuantity}
+                                onChange={(e) => setCalcItemQuantity(e.target.value)}
+                                placeholder="1" 
+                                className="w-full pl-8 pr-1.5 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 font-mono text-right"
+                              />
+                            </div>
+                            <div className="relative w-28">
+                              <span className="absolute left-2.5 top-1.5 text-stone-400 text-xs">$</span>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                min="0"
+                                value={calcItemCost}
+                                onChange={(e) => setCalcItemCost(e.target.value)}
+                                placeholder="Unit Cost" 
+                                className="w-full pl-6 pr-2 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 font-mono"
+                              />
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={handleAddMaterial}
+                              disabled={!calcItemName.trim()}
+                              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3 py-1.5 rounded flex items-center justify-center gap-1 transition-all shadow-sm shrink-0 font-bold text-xs"
+                            >
+                              <Plus size={14} />
+                              <span>Add</span>
+                            </button>
                           </div>
-                          <button 
-                            type="button"
-                            onClick={handleAddMaterial}
-                            disabled={!calcItemName.trim()}
-                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3 py-1.5 rounded flex items-center justify-center transition-all shadow-sm"
-                          >
-                            <Plus size={14} />
-                          </button>
+                          <div className="flex items-center justify-between pt-1">
+                            <label className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={calcItemIsRecurring}
+                                onChange={(e) => setCalcItemIsRecurring(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-stone-300"
+                              />
+                              <span className="font-medium">Recurring Cost</span>
+                              <span className="text-[10px] text-stone-400">({calcItemIsRecurring ? 'Repeats each batch / cycle' : 'One-time initial startup cost'})</span>
+                            </label>
+                            {calcItemName.trim() && (parseFloat(calcItemCost) > 0) && (
+                              <span className="text-[11px] font-mono text-stone-600">
+                                Total: ${(Math.max(1, parseFloat(calcItemQuantity) || 1) * (parseFloat(calcItemCost) || 0)).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -3379,13 +3612,13 @@ const EventPlanner: React.FC<Props> = ({
                         Upload from Hard Drive
                       </button>
                       <button 
-                        onClick={() => { setIsEditingDoc(true); setCurrentDoc(null); }} 
+                        onClick={() => handleOpenDoc({ title: 'New Document', content: '' })} 
                         className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold shadow-sm hover:bg-indigo-500 transition flex items-center gap-1.5"
                       >
                         <FileText className="w-3.5 h-3.5" /> New Doc
                       </button>
                       <button 
-                        onClick={() => { setIsEditingSheet(true); setCurrentDoc(null); }} 
+                        onClick={() => handleOpenSheet({ title: 'New Spreadsheet', content: '' })} 
                         className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold shadow-sm hover:bg-emerald-500 transition flex items-center gap-1.5"
                       >
                         <FileSpreadsheet className="w-3.5 h-3.5" /> New Sheet
@@ -3760,8 +3993,7 @@ const EventPlanner: React.FC<Props> = ({
                 projectName={selectedEvent.name}
                 onUpdateLogs={handleUpdateLogs}
                 onOpenAsDocument={(title, content) => {
-                  setCurrentDoc({ id: generateId(), title, content });
-                  setIsEditingDoc(true);
+                  handleOpenDoc({ id: generateId(), title, content });
                 }}
                 onSaveToVault={async (title, content) => {
                   await handleSaveDocument(title, content, '.fdoc');

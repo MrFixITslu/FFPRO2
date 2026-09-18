@@ -223,15 +223,18 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 export const uploadFileToSystemDatabase = async (
   file: File | Blob,
   projectId?: string,
-  customName?: string
+  customName?: string,
+  existingFileId?: string
 ): Promise<SystemUploadedFile> => {
   const fileName = customName || (file instanceof File ? file.name : 'document.bin');
   const fileType = file.type || 'application/octet-stream';
   const fileSize = file.size;
 
   if(fileSize>10*1024*1024)throw new Error('Choose a file up to 10 MiB.');
-  const formData=new FormData();formData.append('file',file,fileName);
-  if(projectId)formData.append('projectId',projectId);
+  const formData=new FormData();
+  formData.append('file',file,fileName);
+  if(projectId) formData.append('projectId',projectId);
+  if(existingFileId) formData.append('fileId', existingFileId);
   const response=await fetch('/api/files/upload',{method:'POST',body:formData,credentials:'include'});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error || 'Upload failed.');

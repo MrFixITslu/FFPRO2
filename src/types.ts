@@ -252,6 +252,8 @@ export interface ProductionItem {
   shippingCost?: number;
   supplier?: string;
   sourceQuoteId?: string;
+  isRecurring?: boolean;
+  costType?: 'one-time' | 'recurring';
 }
 
 export interface ExtractedQuoteItem {

@@ -74,9 +74,9 @@ async function bootstrap() {
     name: 'ffpro.sid', secret: process.env.SESSION_SECRET!, resave: false, saveUninitialized: false,
     store: realPool ? new PgStore({ pool: realPool, tableName: 'sessions', createTableIfMissing: true }) : undefined,
     cookie: { httpOnly: true, secure: production, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 },
-  }));
-  app.use(passport.initialize());
-  app.use(passport.session());
+  }) as any);
+  app.use(passport.initialize() as any);
+  app.use(passport.session() as any);
   app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.get('/api/auth/csrf', (req, res) => {
     const current = req.session as any;
@@ -116,7 +116,7 @@ async function bootstrap() {
     const status = Number(err.status || err.statusCode) || 500;
     res.status(status >= 400 && status < 600 ? status : 500).json({ error: status < 500 ? (err.publicMessage || 'Invalid request.') : 'Request failed. Please retry.' });
   });
-  const port = Number(process.env.PORT || 3010);
+  const port = 3000;
   const server = app.listen(port, '0.0.0.0', () => console.log(`FFPRO2 running on port ${port}`));
   const pushTimer=startPushScheduler();
   const fundingJob = startFundingResearchScheduler();

@@ -13,6 +13,7 @@ import {
   generateFinancialInsight,
   extractSupplierQuote
 } from '../services/ollamaService.js';
+import { parseQuoteTextDeterministic } from '../services/quoteParser.js';
 import { generateProjectCardImage } from '../services/cardImageGenerator.js';
 
 const router = Router();
@@ -254,10 +255,30 @@ router.post('/ollama/extract-quote', uploadGate, quoteUpload.single('quoteFile')
         try {
           const { PDFParse } = await import('pdf-parse');
           const parser = new PDFParse({ data: buffer });
-          try { const parsed = await parser.getText(); quoteText = parsed?.text || ''; } finally { await parser.destroy(); }
+          try {
+            const parsed = await parser.getText();
+            quoteText = parsed?.text || '';
+          } finally {
+            await parser.destroy();
+          }
         } catch (pdfErr) {
-          console.warn('PDF text extraction error:', pdfErr.message);
-          return res.status(422).json({ ok: false, error: 'The PDF could not be read. Upload a text-based PDF or paste its text.' });
+          console.warn('PDF text extraction error, trying stream fallback:', pdfErr.message);
+          // Try naive string extraction for embedded text objects
+          try {
+            const rawStr = buffer.toString('latin1');
+            const matches = rawStr.match(/\(([^()]+)\)[\s]*Tj/g) || rawStr.match(/\[(.*?)\][\s]*TJ/g);
+            if (matches && matches.length > 0) {
+              quoteText = matches.map(m => m.replace(/[\(\)\[\]TJtj]/g, '').trim()).join(' ');
+            }
+          } catch {
+            // ignore
+          }
+          if (!quoteText || quoteText.trim().length < 5) {
+            return res.status(422).json({
+              ok: false,
+              error: 'The PDF could not be read directly as text. Upload a digital text-based PDF or paste the quote details in the text tab.'
+            });
+          }
         }
       } else {
         quoteText = buffer.toString('utf8');
@@ -270,10 +291,29 @@ router.post('/ollama/extract-quote', uploadGate, quoteUpload.single('quoteFile')
         try {
           const { PDFParse } = await import('pdf-parse');
           const parser = new PDFParse({ data: buffer });
-          try { const parsed = await parser.getText(); quoteText = parsed?.text || ''; } finally { await parser.destroy(); }
+          try {
+            const parsed = await parser.getText();
+            quoteText = parsed?.text || '';
+          } finally {
+            await parser.destroy();
+          }
         } catch (pdfErr) {
-          console.warn('PDF text extraction error:', pdfErr.message);
-          return res.status(422).json({ ok: false, error: 'The PDF could not be read. Upload a text-based PDF or paste its text.' });
+          console.warn('PDF text extraction error, trying stream fallback:', pdfErr.message);
+          try {
+            const rawStr = buffer.toString('latin1');
+            const matches = rawStr.match(/\(([^()]+)\)[\s]*Tj/g) || rawStr.match(/\[(.*?)\][\s]*TJ/g);
+            if (matches && matches.length > 0) {
+              quoteText = matches.map(m => m.replace(/[\(\)\[\]TJtj]/g, '').trim()).join(' ');
+            }
+          } catch {
+            // ignore
+          }
+          if (!quoteText || quoteText.trim().length < 5) {
+            return res.status(422).json({
+              ok: false,
+              error: 'The PDF could not be read directly as text. Upload a digital text-based PDF or paste the quote details in the text tab.'
+            });
+          }
         }
       } else {
         quoteText = buffer.toString('utf8');
@@ -285,40 +325,67 @@ router.post('/ollama/extract-quote', uploadGate, quoteUpload.single('quoteFile')
       return res.status(400).json({ ok: false, error: 'No quote file or quote text was provided.' });
     }
 
-    if (!quoteText || quoteText.trim().length < 5) {
+    if (!quoteText || quoteText.trim().length < 3) {
       return res.status(400).json({
         ok: false,
-        error: 'Unable to extract text from the uploaded quote document. Please ensure the file is not a blank or flattened image scan.'
+        error: 'Unable to extract text from the uploaded quote document. Please ensure the file contains readable text or paste the quote in the text field.'
       });
     }
 
-    // Check Ollama health
-    const health = await checkOllamaHealth(8000);
-    if (!health.online && !health.connected) {
-      return res.status(503).json({
-        ok: false,
-        error: `Local Ollama is currently unreachable at ${health.baseURL}. Please ensure Ollama is running ('ollama serve') with a model installed (e.g. 'ollama run llama3.2').`,
-        health
-      });
+    let extracted = null;
+    let usedFallback = false;
+
+    // Check Ollama health quickly (2 seconds)
+    try {
+      const health = await checkOllamaHealth(2000);
+      if (health.online && health.connected) {
+        try {
+          extracted = await extractSupplierQuote({
+            quoteText,
+            fileName,
+            model: req.body?.model
+          });
+        } catch (ollamaErr) {
+          console.warn('Ollama quote extraction error, falling back to deterministic parser:', ollamaErr.message);
+        }
+      }
+    } catch (healthErr) {
+      console.warn('Ollama health check skipped/failed, using fallback parser:', healthErr.message);
     }
 
-    const extracted = await extractSupplierQuote({
-      quoteText,
-      fileName,
-      model: req.body?.model
-    });
+    // If Ollama extraction was unavailable, timed out, aborted, or returned no items, use deterministic parser
+    if (!extracted || !Array.isArray(extracted.items) || extracted.items.length === 0) {
+      extracted = parseQuoteTextDeterministic(quoteText, fileName);
+      usedFallback = true;
+    }
 
     return res.json({
       ok: true,
       extracted,
       fileName,
+      usedFallback,
       textLength: quoteText.length
     });
   } catch (err) {
     console.error('Error in /ollama/extract-quote:', err);
+    // Even if top-level error happens, attempt deterministic parse of whatever quoteText was received
+    if (quoteText && quoteText.length > 5) {
+      try {
+        const fallbackExtracted = parseQuoteTextDeterministic(quoteText, fileName || 'Quote');
+        return res.json({
+          ok: true,
+          extracted: fallbackExtracted,
+          fileName,
+          usedFallback: true,
+          textLength: quoteText.length
+        });
+      } catch (fbErr) {
+        console.warn('Fallback parser failed:', fbErr.message);
+      }
+    }
     return res.status(err.status || 502).json({
       ok: false,
-      error: err.message || 'Failed to extract quote data via Ollama.'
+      error: err.message || 'Failed to extract quote data. Please verify file format or paste quote text directly.'
     });
   }
 });

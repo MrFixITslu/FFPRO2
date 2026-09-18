@@ -160,7 +160,12 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
       setIsReviewing(true);
     } catch (err: any) {
       console.error('Quote extraction failed:', err);
-      setExtractionError(err.message || 'Ollama extraction failed. Verify Ollama is running.');
+      const isAbort = err?.name === 'AbortError' || (err?.message && err.message.toLowerCase().includes('aborted'));
+      setExtractionError(
+        isAbort
+          ? 'The extraction operation was interrupted or timed out. Please try uploading again or paste the quote details into the text tab.'
+          : (err.message || 'Quote extraction failed. Please verify file format or paste text.')
+      );
     } finally {
       setIsExtracting(false);
     }
@@ -685,7 +690,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                           setQuoteData({
                             ...quoteData,
                             shippingCosts: shipping,
-                            total: (quoteData.subtotal || 0) + shipping - (quoteData.discounts || 0)
+                            total: Math.max(0, Math.round(((quoteData.subtotal || 0) + shipping - (quoteData.discounts || 0)) * 100) / 100)
                           });
                         }}
                         className="w-full px-2 py-1 bg-white border border-stone-200 rounded font-mono text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
@@ -693,7 +698,7 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                     </div>
                     <div>
                       <label className="text-xs font-bold uppercase text-stone-400 block mb-1">
-                        Overall Quote Discount ($)
+                        Overall Discount ($)
                       </label>
                       <input
                         type="number"
@@ -705,11 +710,40 @@ export const ImportQuoteModal: React.FC<ImportQuoteModalProps> = ({
                           setQuoteData({
                             ...quoteData,
                             discounts: disc,
-                            total: (quoteData.subtotal || 0) + (quoteData.shippingCosts || 0) - disc
+                            total: Math.max(0, Math.round(((quoteData.subtotal || 0) + (quoteData.shippingCosts || 0) - disc) * 100) / 100)
                           });
                         }}
                         className="w-full px-2 py-1 bg-white border border-stone-200 rounded font-mono text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase text-stone-400 block mb-1">
+                        Discount Percentage (%)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={
+                            (quoteData.subtotal || 0) > 0
+                              ? parseFloat((((quoteData.discounts || 0) / (quoteData.subtotal || 1)) * 100).toFixed(2))
+                              : 0
+                          }
+                          onChange={(e) => {
+                            const pct = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                            const disc = Math.round(((quoteData.subtotal || 0) * pct / 100) * 100) / 100;
+                            setQuoteData({
+                              ...quoteData,
+                              discounts: disc,
+                              total: Math.max(0, Math.round(((quoteData.subtotal || 0) + (quoteData.shippingCosts || 0) - disc) * 100) / 100)
+                            });
+                          }}
+                          className="w-full pr-6 pl-2 py-1 bg-white border border-stone-200 rounded font-mono text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                        />
+                        <span className="absolute right-2 top-1 text-stone-400 text-xs font-mono">%</span>
+                      </div>
                     </div>
                   </div>
 

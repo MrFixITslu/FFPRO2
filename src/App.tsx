@@ -8,6 +8,7 @@ const FundingFinder = lazy(() => import('./components/FundingFinder').then(modul
 const Settings = lazy(() => import('./components/Settings'));
 import BankSyncModal from './components/BankSyncModal';
 const EventPlanner = lazy(() => import('./components/EventPlanner'));
+import type { ProjectTab } from './components/EventPlanner';
 import InviteAcceptScreen from './components/InviteAcceptScreen';
 const Projections = lazy(() => import('./components/Projections'));
 const Calendar = lazy(() => import('./components/Calendar'));
@@ -158,15 +159,188 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
   );
 };
 
+export type AppTab = 'dashboard' | 'calendar' | 'events' | 'projections' | 'funding';
+
 const App: React.FC = () => {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const isAuthenticated = !!authUser;
   const currentUsername = authUser?.username || authUser?.displayName || (authUser?.email ? authUser.email.split('@')[0] : '');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'events' | 'projections' | 'funding'>('dashboard');
+  
+  // Navigation State with Full Browser History Support
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const validTabs: AppTab[] = ['dashboard', 'calendar', 'events', 'projections', 'funding'];
+      if (tab && validTabs.includes(tab as AppTab)) return tab as AppTab;
+    } catch (e) {}
+    return 'dashboard';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(null);
-  const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(null);
+  const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('project') || null;
+    } catch (e) {}
+    return null;
+  });
+  const [navProjectTab, setNavProjectTab] = useState<ProjectTab>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get('subtab') as ProjectTab) || 'dashboard';
+    } catch (e) {}
+    return 'dashboard';
+  });
+  const [navSelectedTaskId, setNavSelectedTaskId] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('task') || null;
+    } catch (e) {}
+    return null;
+  });
+
+  const isPoppingState = useRef(false);
+
+  const updateBrowserHistory = useCallback((
+    tab: AppTab,
+    projectId?: string | null,
+    subtab?: ProjectTab | string | null,
+    taskId?: string | null,
+    replace: boolean = false
+  ) => {
+    if (isPoppingState.current) return;
+    try {
+      const params = new URLSearchParams();
+      if (tab !== 'dashboard') {
+        params.set('tab', tab);
+      }
+      if (tab === 'events' && projectId) {
+        params.set('project', projectId);
+        if (subtab && subtab !== 'dashboard') {
+          params.set('subtab', subtab);
+        }
+        if (taskId) {
+          params.set('task', taskId);
+        }
+      }
+      const query = params.toString();
+      const newUrl = query ? `?${query}` : window.location.pathname;
+      const currentSearch = window.location.search;
+      const isSameUrl = (query ? `?${query}` : '') === (currentSearch === '?' ? '' : currentSearch);
+
+      const stateObj = {
+        tab,
+        projectId: projectId || null,
+        subtab: subtab || null,
+        taskId: taskId || null,
+        isAppNav: true,
+      };
+
+      if (isSameUrl) {
+        window.history.replaceState(stateObj, document.title, newUrl);
+      } else if (replace) {
+        window.history.replaceState(stateObj, document.title, newUrl);
+      } else {
+        window.history.pushState(stateObj, document.title, newUrl);
+      }
+    } catch (e) {
+      console.warn('Browser history update failed:', e);
+    }
+  }, []);
+
+  const navigateToTab = useCallback((
+    tab: AppTab,
+    options?: {
+      projectId?: string | null;
+      subtab?: ProjectTab | null;
+      taskId?: string | null;
+      replace?: boolean;
+    }
+  ) => {
+    setActiveTab(tab);
+    if (options?.projectId !== undefined) {
+      setNavSelectedEventId(options.projectId);
+    } else if (tab !== 'events') {
+      setNavSelectedEventId(null);
+    }
+    if (options?.subtab !== undefined) {
+      setNavProjectTab(options.subtab || 'dashboard');
+    }
+    if (options?.taskId !== undefined) {
+      setNavSelectedTaskId(options.taskId);
+    }
+
+    updateBrowserHistory(
+      tab,
+      options?.projectId !== undefined ? options.projectId : (tab === 'events' ? navSelectedEventId : null),
+      options?.subtab !== undefined ? options.subtab : (tab === 'events' ? navProjectTab : null),
+      options?.taskId !== undefined ? options.taskId : (tab === 'events' ? navSelectedTaskId : null),
+      options?.replace || false
+    );
+  }, [navSelectedEventId, navProjectTab, navSelectedTaskId, updateBrowserHistory]);
+
+  const handleSelectEvent = useCallback((eventId: string | null) => {
+    setNavSelectedEventId(eventId);
+    if (!eventId) {
+      setNavSelectedTaskId(null);
+    }
+    updateBrowserHistory('events', eventId, eventId ? (navProjectTab || 'dashboard') : null, null, false);
+  }, [navProjectTab, updateBrowserHistory]);
+
+  const handleSelectProjectTab = useCallback((subtab: ProjectTab) => {
+    setNavProjectTab(subtab);
+    updateBrowserHistory('events', navSelectedEventId, subtab, navSelectedTaskId, false);
+  }, [navSelectedEventId, navSelectedTaskId, updateBrowserHistory]);
+
+  // Ensure initial history state is properly tagged so popstate knows this session
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tab = (params.get('tab') as AppTab) || 'dashboard';
+      const project = params.get('project');
+      const subtab = params.get('subtab') as ProjectTab;
+      const task = params.get('task');
+      window.history.replaceState({
+        tab,
+        projectId: project || null,
+        subtab: subtab || null,
+        taskId: task || null,
+        isAppNav: true,
+        isInitial: true
+      }, document.title, window.location.href);
+    } catch (e) {}
+  }, []);
+
+  // Listen for browser Back and Forward arrow events (popstate)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      isPoppingState.current = true;
+      try {
+        const state = event.state;
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab');
+        const validTabs: AppTab[] = ['dashboard', 'calendar', 'events', 'projections', 'funding'];
+
+        const targetTab = state?.tab || (validTabs.includes(urlTab as AppTab) ? (urlTab as AppTab) : 'dashboard');
+        const targetProject = state?.projectId !== undefined ? state.projectId : (params.get('project') || null);
+        const targetSubtab = state?.subtab !== undefined ? (state.subtab as ProjectTab) : ((params.get('subtab') as ProjectTab) || 'dashboard');
+        const targetTask = state?.taskId !== undefined ? state.taskId : (params.get('task') || null);
+
+        setActiveTab(targetTab);
+        setNavSelectedEventId(targetProject);
+        setNavProjectTab(targetSubtab);
+        setNavSelectedTaskId(targetTask);
+      } finally {
+        setTimeout(() => {
+          isPoppingState.current = false;
+        }, 50);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
     return match ? match[1] : null;
@@ -249,7 +423,11 @@ const App: React.FC = () => {
         if (cancelled) return;
         setAuthUser(user);
         if (user) {
-          setActiveTab('dashboard');
+          const params = new URLSearchParams(window.location.search);
+          const tab = params.get('tab');
+          if (tab && ['dashboard', 'calendar', 'events', 'projections', 'funding'].includes(tab)) {
+            setActiveTab(tab as AppTab);
+          }
         }
       })
       .catch(() => { if (!cancelled) setAuthUser(null); })
@@ -738,7 +916,7 @@ const App: React.FC = () => {
       // Number Navigation: Cmd+1 to Cmd+5
       if ((e.metaKey || e.ctrlKey) && ['1', '2', '3', '4', '5'].includes(e.key)) {
         e.preventDefault();
-        const tabMap: Record<string, string> = {
+        const tabMap: Record<string, AppTab> = {
           '1': 'dashboard',
           '2': 'calendar',
           '3': 'events',
@@ -746,7 +924,7 @@ const App: React.FC = () => {
           '5': 'funding',
         };
         if (tabMap[e.key]) {
-          setActiveTab(tabMap[e.key]);
+          navigateToTab(tabMap[e.key]);
         }
         return;
       }
@@ -870,7 +1048,13 @@ const App: React.FC = () => {
 
   const handleAuthenticated = (user: AuthUser) => {
     setAuthUser(user);
-    setActiveTab('dashboard');
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab && ['dashboard', 'calendar', 'events', 'projections', 'funding'].includes(tab)) {
+      navigateToTab(tab as AppTab, { replace: true });
+    } else {
+      navigateToTab('dashboard', { replace: true });
+    }
   };
 
   const handleLogout = async () => {
@@ -1086,7 +1270,7 @@ const App: React.FC = () => {
         onAuthenticated={handleAuthenticated}
         onAccepted={() => {
           clearInviteRoute();
-          setActiveTab('events');
+          navigateToTab('events');
         }}
         onCancel={clearInviteRoute}
         onSwitchAccount={() => { handleLogout(); }}
@@ -1123,7 +1307,7 @@ const App: React.FC = () => {
                 {/* Logo & Brand */}
                 <div 
                   className="flex items-center gap-2 sm:gap-2.5 shrink-0 cursor-pointer group" 
-                  onClick={() => isAdmin && setActiveTab('dashboard')}
+                  onClick={() => isAdmin && navigateToTab('dashboard')}
                   title="Fire Finance Pro"
                 >
                   <img
@@ -1144,7 +1328,7 @@ const App: React.FC = () => {
                 <nav className="hidden md:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60">
                   {isAdmin && (
                     <button 
-                      onClick={() => setActiveTab('dashboard')} 
+                      onClick={() => navigateToTab('dashboard')} 
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                         activeTab === 'dashboard' 
                           ? 'bg-stone-900 text-white shadow-xs' 
@@ -1157,7 +1341,7 @@ const App: React.FC = () => {
                     </button>
                   )}
                   <button 
-                    onClick={() => setActiveTab('calendar')} 
+                    onClick={() => navigateToTab('calendar')} 
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                       activeTab === 'calendar' 
                         ? 'bg-stone-900 text-white shadow-xs' 
@@ -1169,7 +1353,7 @@ const App: React.FC = () => {
                     <span>Calendar</span>
                   </button>
                   <button 
-                    onClick={() => setActiveTab('events')} 
+                    onClick={() => navigateToTab('events')} 
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                       activeTab === 'events' 
                         ? 'bg-stone-900 text-white shadow-xs' 
@@ -1182,7 +1366,7 @@ const App: React.FC = () => {
                   </button>
                   {isAdmin && (
                     <button 
-                      onClick={() => setActiveTab('projections')} 
+                      onClick={() => navigateToTab('projections')} 
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                         activeTab === 'projections' 
                           ? 'bg-stone-900 text-white shadow-xs' 
@@ -1196,7 +1380,7 @@ const App: React.FC = () => {
                   )}
                   {isAdmin && (
                     <button 
-                      onClick={() => setActiveTab('funding')} 
+                      onClick={() => navigateToTab('funding')} 
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                         activeTab === 'funding' 
                           ? 'bg-stone-900 text-white shadow-xs' 
@@ -1397,21 +1581,18 @@ const App: React.FC = () => {
                     setShowForm(true);
                   }}
                   onDeleteFinancialLog={(id) => setFinancialLogs(prev => prev.filter(l => l.id !== id))}
-                  onNavigateToPlannerLogs={() => setActiveTab('events')}
+                  onNavigateToPlannerLogs={() => navigateToTab('events', { subtab: 'log' })}
                   onNavigateToTask={(taskId, projectId) => {
-                    if (projectId) {
-                      setNavSelectedEventId(projectId);
-                    } else {
-                      // Find if a local event contains this taskId
+                    let targetProjId = projectId;
+                    if (!targetProjId) {
                       const found = events.find(ev => ev.id === taskId || (ev.tasks && ev.tasks.some(t => t.id === taskId)));
                       if (found) {
-                        setNavSelectedEventId(found.id);
+                        targetProjId = found.id;
                       }
                     }
-                    setNavSelectedTaskId(taskId);
-                    setActiveTab('events');
+                    navigateToTab('events', { projectId: targetProjId, subtab: 'tasks', taskId });
                   }}
-                  onNavigateToPlanner={() => setActiveTab('events')}
+                  onNavigateToPlanner={() => navigateToTab('events')}
                 />
               </div>
             )}
@@ -1448,6 +1629,10 @@ const App: React.FC = () => {
                 isAdmin={isAdmin}
                 initialSelectedEventId={navSelectedEventId}
                 initialSelectedTaskId={navSelectedTaskId}
+                selectedEventId={navSelectedEventId}
+                onSelectEvent={handleSelectEvent}
+                projectTab={navProjectTab}
+                onSelectProjectTab={handleSelectProjectTab}
                 onAddEvent={(e) => {
                   const newId = e.id || generateId();
                   setEvents(prev => [{
@@ -1496,7 +1681,7 @@ const App: React.FC = () => {
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => setActiveTab('dashboard')}
+                onClick={() => navigateToTab('dashboard')}
                 className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                   activeTab === 'dashboard'
                     ? 'text-stone-900 font-bold'
@@ -1514,7 +1699,7 @@ const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setActiveTab('calendar')}
+              onClick={() => navigateToTab('calendar')}
               className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                 activeTab === 'calendar'
                   ? 'text-stone-900 font-bold'
@@ -1544,7 +1729,7 @@ const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setActiveTab('events')}
+              onClick={() => navigateToTab('events')}
               className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                 activeTab === 'events'
                   ? 'text-stone-900 font-bold'
@@ -1562,7 +1747,7 @@ const App: React.FC = () => {
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => setActiveTab('projections')}
+                onClick={() => navigateToTab('projections')}
                 className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                   activeTab === 'projections'
                     ? 'text-stone-900 font-bold'
@@ -1651,7 +1836,7 @@ const App: React.FC = () => {
                     {isAdmin && (
                       <button
                         type="button"
-                        onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+                        onClick={() => { navigateToTab('dashboard'); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
                           activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                         }`}
@@ -1669,7 +1854,7 @@ const App: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => { setActiveTab('calendar'); setMobileMenuOpen(false); }}
+                      onClick={() => { navigateToTab('calendar'); setMobileMenuOpen(false); }}
                       className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
                         activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                       }`}
@@ -1686,7 +1871,7 @@ const App: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => { setActiveTab('events'); setMobileMenuOpen(false); }}
+                      onClick={() => { navigateToTab('events'); setMobileMenuOpen(false); }}
                       className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
                         activeTab === 'events' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                       }`}
@@ -1704,7 +1889,7 @@ const App: React.FC = () => {
                     {isAdmin && (
                       <button
                         type="button"
-                        onClick={() => { setActiveTab('projections'); setMobileMenuOpen(false); }}
+                        onClick={() => { navigateToTab('projections'); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
                           activeTab === 'projections' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                         }`}
@@ -1723,7 +1908,7 @@ const App: React.FC = () => {
                     {isAdmin && (
                       <button
                         type="button"
-                        onClick={() => { setActiveTab('funding'); setMobileMenuOpen(false); }}
+                        onClick={() => { navigateToTab('funding'); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
                           activeTab === 'funding' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                         }`}
@@ -1996,12 +2181,10 @@ const App: React.FC = () => {
             unreadCount={unreadCount}
             badgeLabel={badgeLabel}
             onNavigateToTask={(taskId, projectId) => {
-              setActiveTab('events');
-              if (projectId) setNavSelectedEventId(projectId);
-              setNavSelectedTaskId(taskId);
+              navigateToTab('events', { projectId, subtab: 'tasks', taskId });
             }}
-            onNavigateToPlanner={() => setActiveTab('events')}
-            onNavigateToCalendar={() => setActiveTab('calendar')}
+            onNavigateToPlanner={() => navigateToTab('events')}
+            onNavigateToCalendar={() => navigateToTab('calendar')}
             onPayRecurring={(item, amount) => {
               const newT: Transaction = {
                 id: generateId(),
@@ -2024,7 +2207,7 @@ const App: React.FC = () => {
             isOpen={showCommandPalette}
             onClose={() => setShowCommandPalette(false)}
             activeTab={activeTab}
-            onSelectTab={(tab) => setActiveTab(tab as any)}
+            onSelectTab={(tab) => navigateToTab(tab as AppTab)}
             onOpenNewTransaction={() => {
               setEditingTransaction(null);
               setShowForm(true);
@@ -2042,8 +2225,7 @@ const App: React.FC = () => {
               setShowForm(true);
             }}
             onSelectEvent={(eventId) => {
-              setNavSelectedEventId(eventId);
-              setActiveTab('events');
+              navigateToTab('events', { projectId: eventId });
             }}
           />
 
