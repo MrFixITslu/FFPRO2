@@ -8,6 +8,10 @@ interface CellFormatting {
   color?: string;
   bgColor?: string;
   wrap?: boolean;
+  fontFamily?: string;
+  fontSize?: string;
+  borderBottom?: string;
+  format?: 'currency' | 'percent' | 'number' | 'text';
 }
 
 interface CellData extends CellFormatting {
@@ -55,7 +59,7 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
   
   const [resizing, setResizing] = useState<{ type: 'col' | 'row', index: number, startPos: number, startSize: number } | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'home' | 'formulas'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'styles' | 'formulas' | 'templates'>('home');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -410,6 +414,180 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
       return { ...cell, computed: cell.value };
     }));
 
+  const formatDisplayValue = (cell: CellData): string => {
+    const raw = cell.computed !== undefined ? cell.computed : cell.value;
+    if (!cell.format || cell.format === 'text' || !raw || raw === '#VALUE!') return raw || '';
+    const num = parseFloat(raw);
+    if (isNaN(num)) return raw;
+    if (cell.format === 'currency') {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(num);
+    }
+    if (cell.format === 'percent') {
+      return (num > 1 ? num : num * 100).toFixed(1) + '%';
+    }
+    if (cell.format === 'number') {
+      return new Intl.NumberFormat('en-US').format(num);
+    }
+    return raw;
+  };
+
+  const loadFinancialStatementTemplate = () => {
+    pushHistory();
+    const rows = 25;
+    const cols = 12;
+    const newGrid: CellData[][] = Array(rows).fill(null).map(() => 
+      Array(cols).fill(null).map(() => ({ value: '' }))
+    );
+
+    // Row 0: Merged Banner Title
+    newGrid[0][0] = {
+      value: 'EXECUTIVE 5-YEAR COMMERCIAL INCOME STATEMENT',
+      bold: true,
+      color: '#ffffff',
+      bgColor: '#0f2942',
+      align: 'center',
+      fontSize: '15px'
+    };
+
+    // Row 1: Headers
+    const headers = ['Financial Line Item', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5'];
+    headers.forEach((h, idx) => {
+      newGrid[1][idx] = {
+        value: h,
+        bold: true,
+        color: '#ffffff',
+        bgColor: '#0d9488',
+        align: idx === 0 ? 'left' : 'right',
+        fontSize: '12px'
+      };
+    });
+
+    // Row 2: Units Sold
+    newGrid[2][0] = { value: 'Annual Units Sold', bold: true, format: 'text' };
+    ['12000', '18000', '25000', '35000', '50000'].forEach((v, idx) => {
+      newGrid[2][idx + 1] = { value: v, format: 'number', align: 'right' };
+    });
+
+    // Row 3: Unit Price
+    newGrid[3][0] = { value: 'Average Retail Unit Price ($)', bold: true, format: 'text' };
+    ['48.00', '48.00', '50.00', '50.00', '52.00'].forEach((v, idx) => {
+      newGrid[3][idx + 1] = { value: v, format: 'currency', align: 'right' };
+    });
+
+    // Row 4: Gross Revenue
+    newGrid[4][0] = { value: 'Gross Revenue', bold: true, bgColor: '#f8fafc', format: 'text' };
+    ['=B3*B4', '=C3*C4', '=D3*D4', '=E3*E4', '=F3*F4'].forEach((v, idx) => {
+      newGrid[4][idx + 1] = { value: v, bold: true, format: 'currency', bgColor: '#f8fafc', align: 'right' };
+    });
+
+    // Row 5: Cost of Goods Sold
+    newGrid[5][0] = { value: 'Cost of Goods Sold (COGS)', format: 'text' };
+    ['=B5*0.42', '=C5*0.40', '=D5*0.38', '=E5*0.36', '=F5*0.35'].forEach((v, idx) => {
+      newGrid[5][idx + 1] = { value: v, format: 'currency', align: 'right' };
+    });
+
+    // Row 6: Gross Profit
+    newGrid[6][0] = { value: 'Gross Operating Profit', bold: true, bgColor: '#f0fdfa', format: 'text' };
+    ['=B5-B6', '=C5-C6', '=D5-D6', '=E5-E6', '=F5-F6'].forEach((v, idx) => {
+      newGrid[6][idx + 1] = { value: v, bold: true, color: '#0f766e', bgColor: '#f0fdfa', format: 'currency', align: 'right' };
+    });
+
+    // Row 7: Fixed OPEX
+    newGrid[7][0] = { value: 'Fixed Operating Overhead (OPEX)', format: 'text' };
+    ['140000', '180000', '230000', '290000', '360000'].forEach((v, idx) => {
+      newGrid[7][idx + 1] = { value: v, format: 'currency', align: 'right' };
+    });
+
+    // Row 8: Net EBIT
+    newGrid[8][0] = { value: 'Net Operating Profit (EBIT)', bold: true, bgColor: '#0f2942', color: '#ffffff', format: 'text' };
+    ['=B7-B8', '=C7-C8', '=D7-D8', '=E7-E8', '=F7-F8'].forEach((v, idx) => {
+      newGrid[8][idx + 1] = { value: v, bold: true, bgColor: '#0f2942', color: '#ffffff', format: 'currency', align: 'right' };
+    });
+
+    const newMerges: MergeRange[] = [{ sr: 0, sc: 0, er: 0, ec: 5 }];
+    const newWidths = [...colWidths];
+    newWidths[0] = 260;
+    for (let c = 1; c <= 5; c++) newWidths[c] = 135;
+
+    setMerges(newMerges);
+    setColWidths(newWidths);
+    setGrid(recomputeAll(newGrid));
+  };
+
+  const loadUnitCostingTemplate = () => {
+    pushHistory();
+    const rows = 20;
+    const cols = 8;
+    const newGrid: CellData[][] = Array(rows).fill(null).map(() => 
+      Array(cols).fill(null).map(() => ({ value: '' }))
+    );
+
+    newGrid[0][0] = {
+      value: 'PRODUCT UNIT ECONOMICS & BILL OF MATERIALS (BOM)',
+      bold: true,
+      color: '#ffffff',
+      bgColor: '#0f2942',
+      align: 'center',
+      fontSize: '15px'
+    };
+
+    const headers = ['Cost Component Item', 'Expense Category', 'Unit Cost ($)', 'Target Share %'];
+    headers.forEach((h, idx) => {
+      newGrid[1][idx] = {
+        value: h,
+        bold: true,
+        color: '#ffffff',
+        bgColor: '#0d9488',
+        align: idx >= 2 ? 'right' : 'left'
+      };
+    });
+
+    const items = [
+      ['Primary Raw Material / Substrate', 'Direct Materials', '8.50', '=C3/C8'],
+      ['Custom Print & Box Packaging', 'Packaging', '2.20', '=C4/C8'],
+      ['Direct Assembly & Finishing Labor', 'Direct Labor', '4.75', '=C5/C8'],
+      ['Freight & Inbound Procurement', 'Logistics', '1.40', '=C6/C8'],
+      ['Batch Quality Assurance & Testing', 'Quality', '0.65', '=C7/C8'],
+    ];
+
+    items.forEach((item, rIdx) => {
+      const r = rIdx + 2;
+      newGrid[r][0] = { value: item[0], format: 'text' };
+      newGrid[r][1] = { value: item[1], format: 'text', color: '#64748b' };
+      newGrid[r][2] = { value: item[2], format: 'currency', align: 'right' };
+      newGrid[r][3] = { value: item[3], format: 'percent', align: 'right' };
+    });
+
+    // Row 7: Total COGS
+    newGrid[7][0] = { value: 'Total Cost of Goods Sold (Unit COGS)', bold: true, bgColor: '#f1f5f9', format: 'text' };
+    newGrid[7][1] = { value: 'Total Direct', bold: true, bgColor: '#f1f5f9', color: '#64748b' };
+    newGrid[7][2] = { value: '=SUM(C3:C7)', bold: true, bgColor: '#f1f5f9', format: 'currency', align: 'right' };
+    newGrid[7][3] = { value: '1.00', bold: true, bgColor: '#f1f5f9', format: 'percent', align: 'right' };
+
+    // Row 8: Selling Price
+    newGrid[8][0] = { value: 'Suggested Commercial Retail Price', bold: true, bgColor: '#f0fdfa', format: 'text' };
+    newGrid[8][1] = { value: 'Commercial Price', color: '#0f766e', bgColor: '#f0fdfa' };
+    newGrid[8][2] = { value: '38.00', bold: true, color: '#0f766e', bgColor: '#f0fdfa', format: 'currency', align: 'right' };
+    newGrid[8][3] = { value: '', bgColor: '#f0fdfa' };
+
+    // Row 9: Gross Margin
+    newGrid[9][0] = { value: 'Gross Profit Margin ($ / Unit)', bold: true, format: 'text' };
+    newGrid[9][1] = { value: 'Margin Per Unit', color: '#64748b' };
+    newGrid[9][2] = { value: '=C9-C8', bold: true, format: 'currency', align: 'right' };
+    newGrid[9][3] = { value: '=C10/C9', bold: true, format: 'percent', align: 'right' };
+
+    const newMerges: MergeRange[] = [{ sr: 0, sc: 0, er: 0, ec: 3 }];
+    const newWidths = [...colWidths];
+    newWidths[0] = 270;
+    newWidths[1] = 160;
+    newWidths[2] = 140;
+    newWidths[3] = 130;
+
+    setMerges(newMerges);
+    setColWidths(newWidths);
+    setGrid(recomputeAll(newGrid));
+  };
+
   const updateGridRange = (updates: Partial<CellData>) => {
     if (!selection) return;
     pushHistory();
@@ -758,6 +936,9 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
             <button onClick={exportCsv} title="Export CSV" className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-white border-stone-200 text-stone-600 hover:bg-stone-50 flex items-center gap-2">
               <i className="fas fa-download"></i> CSV
             </button>
+            <button onClick={() => window.print()} title="Print / PDF Preview" className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-stone-900 border-stone-900 text-white hover:bg-stone-800 flex items-center gap-2 shadow-xs">
+              <i className="fas fa-print"></i> Print / PDF
+            </button>
             <div className="w-px h-8 bg-stone-200"></div>
             <button 
               onClick={handleSave}
@@ -780,59 +961,193 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
           </div>
         </div>
 
-        <div className="flex px-6 border-b border-stone-100 bg-white">
-          {(['home', 'formulas'] as const).map(tab => (
+        <div className="flex px-6 border-b border-stone-150 bg-white">
+          {(['home', 'styles', 'formulas', 'templates'] as const).map(tab => (
             <button 
               key={tab} 
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === tab ? 'border-emerald-500 text-emerald-600 bg-emerald-50/30' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+              className={`px-5 py-2 text-[10px] font-extrabold uppercase tracking-wider border-b-2 transition-all ${activeTab === tab ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40' : 'border-transparent text-stone-400 hover:text-stone-700'}`}
             >
-              {tab}
+              {tab === 'home' ? 'Font & Layout' : tab === 'styles' ? 'Cell Styles & Formats' : tab === 'formulas' ? 'Formulas & Math' : 'Starter Templates'}
             </button>
           ))}
         </div>
 
-        <div className="px-6 py-3 flex items-center gap-8 bg-white/50 h-16">
+        <div className="px-6 py-2.5 flex items-center gap-6 bg-white/70 min-h-14 overflow-x-auto no-scrollbar">
           {activeTab === 'home' && (
-            <div className="flex items-center gap-4">
-              <button onClick={() => updateGridRange({ bold: !activeCell?.bold })} className={`w-10 h-10 rounded flex items-center justify-center border ${activeCell?.bold ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}><i className="fas fa-bold"></i></button>
-              <button onClick={() => updateGridRange({ italic: !activeCell?.italic })} className={`w-10 h-10 rounded flex items-center justify-center border ${activeCell?.italic ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}><i className="fas fa-italic"></i></button>
-              <div className="w-px h-8 bg-stone-200"></div>
-              <button onClick={() => updateGridRange({ align: 'left' })} className={`w-8 h-8 rounded ${activeCell?.align === 'left' ? 'bg-stone-200' : 'hover:bg-stone-100'} text-stone-500`}><i className="fas fa-align-left"></i></button>
-              <button onClick={() => updateGridRange({ align: 'center' })} className={`w-8 h-8 rounded ${activeCell?.align === 'center' ? 'bg-stone-200' : 'hover:bg-stone-100'} text-stone-500`}><i className="fas fa-align-center"></i></button>
-              <button onClick={() => updateGridRange({ align: 'right' })} className={`w-8 h-8 rounded ${activeCell?.align === 'right' ? 'bg-stone-200' : 'hover:bg-stone-100'} text-stone-500`}><i className="fas fa-align-right"></i></button>
-              <div className="w-px h-8 bg-stone-200"></div>
-              <button onClick={() => updateGridRange({ wrap: !activeCell?.wrap })} className={`px-3 py-1.5 rounded flex items-center gap-2 border text-[9px] font-black uppercase tracking-widest ${activeCell?.wrap ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-stone-200 text-stone-600'}`}><i className="fas fa-text-width"></i> Wrap</button>
-              <div className="flex items-center gap-1" title="Text color">
+            <div className="flex items-center gap-3 shrink-0">
+              {/* Font Family Dropdown */}
+              <select
+                value={activeCell?.fontFamily || "'Inter', sans-serif"}
+                onChange={(e) => updateGridRange({ fontFamily: e.target.value })}
+                className="h-8 px-2 bg-stone-50 border border-stone-200 rounded text-xs font-medium text-stone-700 outline-none hover:bg-white"
+                title="Font Family"
+              >
+                <option value="'Inter', sans-serif">Inter (Modern Sans)</option>
+                <option value="Arial, sans-serif">Arial (Corporate)</option>
+                <option value="Georgia, serif">Georgia (Formal Serif)</option>
+                <option value="'JetBrains Mono', monospace">Mono (Financial)</option>
+              </select>
+
+              {/* Font Size Dropdown */}
+              <select
+                value={activeCell?.fontSize || '13px'}
+                onChange={(e) => updateGridRange({ fontSize: e.target.value })}
+                className="h-8 px-2 bg-stone-50 border border-stone-200 rounded text-xs font-medium text-stone-700 outline-none hover:bg-white"
+                title="Font Size"
+              >
+                <option value="11px">11px (Fine)</option>
+                <option value="12px">12px (Small)</option>
+                <option value="13px">13px (Normal)</option>
+                <option value="14px">14px (Medium)</option>
+                <option value="16px">16px (Large)</option>
+                <option value="18px">18px (Title)</option>
+              </select>
+
+              <div className="w-px h-6 bg-stone-200"></div>
+
+              {/* Bold & Italic */}
+              <button onClick={() => updateGridRange({ bold: !activeCell?.bold })} className={`w-8 h-8 rounded flex items-center justify-center border text-xs font-bold ${activeCell?.bold ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`} title="Bold"><i className="fas fa-bold"></i></button>
+              <button onClick={() => updateGridRange({ italic: !activeCell?.italic })} className={`w-8 h-8 rounded flex items-center justify-center border text-xs ${activeCell?.italic ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`} title="Italic"><i className="fas fa-italic"></i></button>
+
+              <div className="w-px h-6 bg-stone-200"></div>
+
+              {/* Alignments */}
+              <button onClick={() => updateGridRange({ align: 'left' })} className={`w-8 h-8 rounded flex items-center justify-center ${activeCell?.align === 'left' ? 'bg-stone-200 text-stone-900 font-bold' : 'hover:bg-stone-100 text-stone-500'}`} title="Align Left"><i className="fas fa-align-left text-xs"></i></button>
+              <button onClick={() => updateGridRange({ align: 'center' })} className={`w-8 h-8 rounded flex items-center justify-center ${activeCell?.align === 'center' ? 'bg-stone-200 text-stone-900 font-bold' : 'hover:bg-stone-100 text-stone-500'}`} title="Align Center"><i className="fas fa-align-center text-xs"></i></button>
+              <button onClick={() => updateGridRange({ align: 'right' })} className={`w-8 h-8 rounded flex items-center justify-center ${activeCell?.align === 'right' ? 'bg-stone-200 text-stone-900 font-bold' : 'hover:bg-stone-100 text-stone-500'}`} title="Align Right"><i className="fas fa-align-right text-xs"></i></button>
+              <button onClick={() => updateGridRange({ wrap: !activeCell?.wrap })} className={`px-2.5 h-8 rounded flex items-center gap-1.5 border text-[10px] font-bold ${activeCell?.wrap ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-stone-200 text-stone-600'}`} title="Wrap Text"><i className="fas fa-text-width text-xs"></i> Wrap</button>
+
+              <div className="w-px h-6 bg-stone-200"></div>
+
+              {/* Text & Fill Colors */}
+              <div className="flex items-center gap-1" title="Text Color">
                 <i className="fas fa-font text-stone-400 text-xs"></i>
                 <input type="color" value={activeCell?.color || '#1e293b'} onChange={(e) => updateGridRange({ color: e.target.value })} className="w-7 h-7 border border-stone-200 rounded cursor-pointer p-0.5" />
               </div>
-              <div className="flex items-center gap-1" title="Fill color">
+              <div className="flex items-center gap-1" title="Fill Color">
                 <i className="fas fa-fill-drip text-stone-400 text-xs"></i>
                 <input type="color" value={activeCell?.bgColor || '#ffffff'} onChange={(e) => updateGridRange({ bgColor: e.target.value })} className="w-7 h-7 border border-stone-200 rounded cursor-pointer p-0.5" />
               </div>
-              <div className="w-px h-8 bg-stone-200"></div>
-              <button onClick={mergeSelection} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-object-group"></i> Merge</button>
-              <button onClick={unmergeSelection} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-object-ungroup"></i> Unmerge</button>
-              <div className="w-px h-8 bg-stone-200"></div>
-              <button onClick={() => insertRow(true)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-up"></i> Row</button>
-              <button onClick={() => insertRow(false)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-down"></i> Row</button>
-              <button onClick={deleteRow} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-50"><i className="fas fa-trash"></i> Row</button>
-              <button onClick={() => insertCol(true)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-left"></i> Col</button>
-              <button onClick={() => insertCol(false)} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-stone-600 text-[9px] font-black uppercase tracking-widest hover:bg-stone-50"><i className="fas fa-arrow-right"></i> Col</button>
-              <button onClick={deleteCol} className="px-3 py-1.5 rounded flex items-center gap-2 border bg-white border-stone-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-50"><i className="fas fa-trash"></i> Col</button>
+
+              <div className="w-px h-6 bg-stone-200"></div>
+
+              {/* Merge & Grid structure */}
+              <button onClick={mergeSelection} className="px-2.5 h-8 rounded flex items-center gap-1.5 border bg-white border-stone-200 text-stone-700 text-[10px] font-bold hover:bg-stone-50"><i className="fas fa-object-group text-xs"></i> Merge</button>
+              <button onClick={unmergeSelection} className="px-2.5 h-8 rounded flex items-center gap-1.5 border bg-white border-stone-200 text-stone-700 text-[10px] font-bold hover:bg-stone-50"><i className="fas fa-object-ungroup text-xs"></i> Unmerge</button>
+
+              <div className="w-px h-6 bg-stone-200"></div>
+
+              {/* Rows & Cols */}
+              <button onClick={() => insertRow(false)} className="px-2 h-8 rounded border bg-white border-stone-200 text-stone-600 text-[10px] font-bold hover:bg-stone-50" title="Insert Row Below">+ Row</button>
+              <button onClick={deleteRow} className="px-2 h-8 rounded border bg-white border-stone-200 text-rose-500 text-[10px] font-bold hover:bg-rose-50" title="Delete Selected Row">- Row</button>
+              <button onClick={() => insertCol(false)} className="px-2 h-8 rounded border bg-white border-stone-200 text-stone-600 text-[10px] font-bold hover:bg-stone-50" title="Insert Column Right">+ Col</button>
+              <button onClick={deleteCol} className="px-2 h-8 rounded border bg-white border-stone-200 text-rose-500 text-[10px] font-bold hover:bg-rose-50" title="Delete Selected Col">- Col</button>
             </div>
           )}
+
+          {activeTab === 'styles' && (
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Presets:</span>
+              <button
+                onClick={() => updateGridRange({ bold: true, bgColor: '#0f2942', color: '#ffffff', align: 'center', fontSize: '13px' })}
+                className="px-3 py-1.5 bg-[#0f2942] text-white rounded text-[10px] font-bold hover:opacity-90 shadow-xs"
+              >
+                Executive Navy Header
+              </button>
+              <button
+                onClick={() => updateGridRange({ bold: true, bgColor: '#0d9488', color: '#ffffff', align: 'center', fontSize: '13px' })}
+                className="px-3 py-1.5 bg-[#0d9488] text-white rounded text-[10px] font-bold hover:opacity-90 shadow-xs"
+              >
+                Teal Accent Header
+              </button>
+              <button
+                onClick={() => updateGridRange({ bold: true, bgColor: '#f1f5f9', color: '#0f172a', borderBottom: '3px double #0f2942' })}
+                className="px-3 py-1.5 bg-stone-100 border border-stone-300 text-stone-800 rounded text-[10px] font-bold hover:bg-stone-200 shadow-xs"
+              >
+                Summary Total Row
+              </button>
+              <button
+                onClick={() => updateGridRange({ bgColor: '#f8fafc' })}
+                className="px-3 py-1.5 bg-stone-50 border border-stone-200 text-stone-600 rounded text-[10px] font-medium hover:bg-stone-100"
+              >
+                Zebra Light Row
+              </button>
+              <button
+                onClick={() => updateGridRange({ bold: false, italic: false, bgColor: '#ffffff', color: '#1e293b', borderBottom: undefined, format: 'text', fontSize: '13px' })}
+                className="px-2.5 py-1.5 bg-white border border-stone-200 text-stone-400 hover:text-rose-500 rounded text-[10px] font-bold"
+              >
+                Clear Styles
+              </button>
+
+              <div className="w-px h-6 bg-stone-200"></div>
+
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Format:</span>
+              <button
+                onClick={() => updateGridRange({ format: 'currency', align: 'right' })}
+                className={`px-3 py-1.5 rounded text-[10px] font-extrabold border ${activeCell?.format === 'currency' ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+              >
+                $ Currency
+              </button>
+              <button
+                onClick={() => updateGridRange({ format: 'percent', align: 'right' })}
+                className={`px-3 py-1.5 rounded text-[10px] font-extrabold border ${activeCell?.format === 'percent' ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+              >
+                % Percent
+              </button>
+              <button
+                onClick={() => updateGridRange({ format: 'number', align: 'right' })}
+                className={`px-3 py-1.5 rounded text-[10px] font-extrabold border ${activeCell?.format === 'number' ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+              >
+                1,234 Number
+              </button>
+              <button
+                onClick={() => updateGridRange({ format: 'text' })}
+                className={`px-2.5 py-1.5 rounded text-[10px] font-medium border ${activeCell?.format === 'text' || !activeCell?.format ? 'bg-stone-100 border-stone-300 text-stone-800' : 'bg-white border-stone-200 text-stone-600'}`}
+              >
+                Plain Text
+              </button>
+            </div>
+          )}
+
           {activeTab === 'formulas' && (
-            <div className="flex items-center gap-3 flex-wrap">
-               <button onClick={() => updateGridRange({ value: '=SUM(A1:A10)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Sum Range</button>
-               <button onClick={() => updateGridRange({ value: '=AVERAGE(A1:A10)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Average Range</button>
-               <button onClick={() => updateGridRange({ value: '=MIN(A1:A10)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Min Range</button>
-               <button onClick={() => updateGridRange({ value: '=MAX(A1:A10)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Max Range</button>
-               <button onClick={() => updateGridRange({ value: '=COUNT(A1:A10)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Count Range</button>
-               <button onClick={() => updateGridRange({ value: '=ROUND(A1,2)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Round</button>
-               <button onClick={() => updateGridRange({ value: '=ABS(A1)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">Abs</button>
-               <button onClick={() => updateGridRange({ value: '=IF(A1>0,1,0)' })} className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-[9px] font-black uppercase border border-emerald-200 hover:bg-emerald-100">If</button>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+               <button onClick={() => updateGridRange({ value: '=SUM(A1:A10)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">SUM</button>
+               <button onClick={() => updateGridRange({ value: '=AVERAGE(A1:A10)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">AVERAGE</button>
+               <button onClick={() => updateGridRange({ value: '=MIN(A1:A10)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">MIN</button>
+               <button onClick={() => updateGridRange({ value: '=MAX(A1:A10)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">MAX</button>
+               <button onClick={() => updateGridRange({ value: '=COUNT(A1:A10)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">COUNT</button>
+               <button onClick={() => updateGridRange({ value: '=ROUND(A1,2)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">ROUND</button>
+               <button onClick={() => updateGridRange({ value: '=ABS(A1)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">ABS</button>
+               <button onClick={() => updateGridRange({ value: '=IF(A1>0,1,0)' })} className="px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded text-[10px] font-bold border border-emerald-200 hover:bg-emerald-100">IF(cond,true,false)</button>
+            </div>
+          )}
+
+          {activeTab === 'templates' && (
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => {
+                  if (confirm('Load 5-Year Executive Financial Statement template into grid?')) {
+                    loadFinancialStatementTemplate();
+                  }
+                }}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-lg text-xs flex items-center gap-2 shadow-xs transition-colors"
+              >
+                <i className="fas fa-chart-line"></i>
+                5-Year Income Statement Model
+              </button>
+
+              <button
+                onClick={() => {
+                  if (confirm('Load Unit Economics & BOM Breakdown template into grid?')) {
+                    loadUnitCostingTemplate();
+                  }
+                }}
+                className="px-4 py-2 bg-teal-700 hover:bg-teal-600 text-white font-bold rounded-lg text-xs flex items-center gap-2 shadow-xs transition-colors"
+              >
+                <i className="fas fa-boxes-stacked"></i>
+                Unit Economics & BOM Model
+              </button>
             </div>
           )}
         </div>
@@ -909,12 +1224,15 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
                         onMouseEnter={() => handleMouseEnter(r, c)}
                         className={`border border-stone-200 relative p-0 overflow-hidden ${isSelected ? 'bg-emerald-50/50' : ''}`}
                         style={{
-                          textAlign: cell.align || 'left',
-                          fontWeight: cell.bold ? '900' : 'normal',
+                          textAlign: cell.align || (cell.format === 'currency' || cell.format === 'percent' || cell.format === 'number' ? 'right' : 'left'),
+                          fontWeight: cell.bold ? '700' : 'normal',
                           fontStyle: cell.italic ? 'italic' : 'normal',
                           backgroundColor: cell.bgColor,
                           color: cell.color,
-                          verticalAlign: 'top'
+                          fontFamily: cell.fontFamily || "'Inter', sans-serif",
+                          fontSize: cell.fontSize || '13px',
+                          borderBottom: cell.borderBottom || undefined,
+                          verticalAlign: 'middle'
                         }}
                       >
                         {isActive ? (
@@ -926,7 +1244,7 @@ const ExcelEditor: React.FC<Props> = ({ initialTitle, initialData, onSave, onClo
                           />
                         ) : (
                           <div className={`w-full h-full p-2 text-[13px] font-medium text-stone-800 ${cell.wrap ? 'whitespace-pre-wrap break-all' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
-                            {cell.computed || cell.value}
+                            {formatDisplayValue(cell)}
                           </div>
                         )}
                         {isSelected && !isActive && <div className="absolute inset-0 ring-1 ring-emerald-500/30 pointer-events-none" />}

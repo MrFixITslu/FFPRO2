@@ -182,24 +182,28 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
 };
 
 // Styling Constants (Corporate Funding Palette)
-const COLOR_PRIMARY = '0F766E';    // Deep Emerald Teal
-const COLOR_SECONDARY = '1E293B';  // Slate Dark
+const COLOR_PRIMARY = '0F2942';    // Deep Corporate Navy
+const COLOR_SECONDARY = '0D9488';  // Executive Deep Teal
+const COLOR_ACCENT = '2563EB';     // Royal Blue Accent
+const COLOR_DARK = '1E293B';       // Slate Dark
 const COLOR_MUTED = '64748B';      // Slate Muted
 const COLOR_BG_HEADER = 'F1F5F9';  // Light Slate Table Header
+const COLOR_BG_ZEBRA = 'F8FAFC';   // Clean Alternating Row Tint
 const COLOR_BORDER = 'CBD5E1';     // Slate 300
+const COLOR_CALLOUT_BG = 'F0FDFA'; // Pale Teal Tint
 
 function createSectionHeading(title: string, sectionNumber?: string): Paragraph {
   const displayText = sectionNumber ? `${sectionNumber}. ${title.toUpperCase()}` : title.toUpperCase();
   return new Paragraph({
     text: displayText,
     heading: HeadingLevel.HEADING_1,
-    spacing: { before: 360, after: 140 },
+    spacing: { before: 400, after: 140 },
     border: {
       bottom: {
-        color: COLOR_PRIMARY,
-        space: 4,
+        color: COLOR_SECONDARY,
+        space: 6,
         style: BorderStyle.SINGLE,
-        size: 12
+        size: 16
       }
     }
   });
@@ -209,14 +213,14 @@ function createSubHeading(title: string): Paragraph {
   return new Paragraph({
     text: title,
     heading: HeadingLevel.HEADING_2,
-    spacing: { before: 240, after: 100 }
+    spacing: { before: 260, after: 120 }
   });
 }
 
 function createParagraph(text: string, options?: { italic?: boolean; bold?: boolean; color?: string; align?: (typeof AlignmentType)[keyof typeof AlignmentType] }): Paragraph {
   return new Paragraph({
     alignment: options?.align || AlignmentType.LEFT,
-    spacing: { after: 140, line: 276 },
+    spacing: { after: 140, line: 280 },
     children: [
       new TextRun({
         text,
@@ -233,27 +237,37 @@ function createTableCell(
   content: string | Paragraph[],
   isHeader = false,
   widthPercent?: number,
-  align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT
+  align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT,
+  options?: { isZebra?: boolean; isHighlight?: boolean; isDoubleBottom?: boolean }
 ): TableCell {
   const children = typeof content === 'string'
     ? [new Paragraph({
         alignment: align,
         children: [new TextRun({
           text: content,
-          bold: isHeader,
+          bold: isHeader || options?.isHighlight,
           size: 20, // 10pt
-          color: isHeader ? COLOR_SECONDARY : '333333'
+          color: isHeader ? COLOR_PRIMARY : (options?.isHighlight ? COLOR_SECONDARY : '333333')
         })]
       })]
     : content;
 
+  let fill: string | undefined = undefined;
+  if (isHeader) fill = COLOR_BG_HEADER;
+  else if (options?.isHighlight) fill = COLOR_CALLOUT_BG;
+  else if (options?.isZebra) fill = COLOR_BG_ZEBRA;
+
   return new TableCell({
     width: widthPercent ? { size: widthPercent, type: WidthType.PERCENTAGE } : undefined,
-    shading: isHeader ? { fill: COLOR_BG_HEADER, type: ShadingType.CLEAR } : undefined,
-    margins: { top: 120, bottom: 120, left: 140, right: 140 },
+    shading: fill ? { fill, type: ShadingType.CLEAR } : undefined,
+    margins: { top: 130, bottom: 130, left: 150, right: 150 },
     borders: {
       top: { style: BorderStyle.SINGLE, size: 4, color: COLOR_BORDER },
-      bottom: { style: BorderStyle.SINGLE, size: 4, color: COLOR_BORDER },
+      bottom: { 
+        style: options?.isDoubleBottom ? BorderStyle.DOUBLE : BorderStyle.SINGLE, 
+        size: options?.isDoubleBottom ? 12 : 4, 
+        color: options?.isDoubleBottom ? COLOR_PRIMARY : COLOR_BORDER 
+      },
       left: { style: BorderStyle.SINGLE, size: 4, color: COLOR_BORDER },
       right: { style: BorderStyle.SINGLE, size: 4, color: COLOR_BORDER }
     },
@@ -410,6 +424,41 @@ export async function generateBusinessPlanDocx(
 
   // 1. Executive Summary
   addSection('Executive Summary', bp.executiveSummary || '');
+
+  // Executive KPI Summary Cards
+  docChildren.push(
+    createSubHeading('Executive Financial Highlights & Target Metrics'),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            createTableCell([
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'RETAIL SALE PRICE', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${calc.finalSuggestedPrice.toFixed(2)}`, size: 28, bold: true, color: COLOR_PRIMARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.markupPercent}% Target Markup`, size: 16, color: COLOR_SECONDARY })] })
+            ], false, 25, AlignmentType.CENTER, { isHighlight: true }),
+            createTableCell([
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'UNIT COGS', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${calc.costOfGoodsSoldUnit.toFixed(2)}`, size: 28, bold: true, color: COLOR_PRIMARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.grossMarginPercent}% Gross Margin`, size: 16, color: COLOR_MUTED })] })
+            ], false, 25, AlignmentType.CENTER),
+            createTableCell([
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'YEAR 1 REVENUE', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${Math.round(calc.y1Rev).toLocaleString()}`, size: 28, bold: true, color: COLOR_PRIMARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${Math.round(calc.monthlyUnits * 12).toLocaleString()} Units/Yr`, size: 16, color: COLOR_MUTED })] })
+            ], false, 25, AlignmentType.CENTER),
+            createTableCell([
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'YEAR 1 NET EBIT', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${Math.round(calc.y1Net).toLocaleString()}`, size: 28, bold: true, color: COLOR_SECONDARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.netMarginPercent}% Net Margin`, size: 16, color: COLOR_SECONDARY, bold: true })] })
+            ], false, 25, AlignmentType.CENTER, { isHighlight: true })
+          ]
+        })
+      ]
+    }),
+    new Paragraph({ spacing: { after: 200 } })
+  );
 
   // 2. Business Description
   addSection('Business Description', bp.businessDescription);
@@ -792,6 +841,36 @@ export async function generateBusinessPlanDocx(
 
   // 24. Conclusion
   addSection('Conclusion & Funding Request Summary', bp.conclusion || `In conclusion, ${companyName} presents a viable, high-yield commercial opportunity with clear unit economics, robust operational safeguards, and scalable market demand. We respectfully submit this business plan for credit committee and grant funding approval.`);
+
+  // Formal Endorsement & Execution Sign-Off Block
+  docChildren.push(
+    createSectionHeading('Commercial Endorsement & Executive Signatures', String(sectionIndex++)),
+    createParagraph('By signing below, the undersigned principals and officers verify that this business plan and associated financial projections represent a true, fair, and rigorously prepared operating forecast:'),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            createTableCell([
+              new Paragraph({ spacing: { before: 200, after: 600 } }),
+              new Paragraph({ border: { top: { style: BorderStyle.SINGLE, size: 6, color: COLOR_BORDER } } }),
+              new Paragraph({ children: [new TextRun({ text: preparedBy || 'Principal Executive', bold: true, size: 20 })] }),
+              new Paragraph({ children: [new TextRun({ text: 'Managing Director / Founder', size: 18, color: COLOR_MUTED })] }),
+              new Paragraph({ children: [new TextRun({ text: `Date: ${prepDate}`, size: 16, color: COLOR_MUTED })] })
+            ], false, 50),
+            createTableCell([
+              new Paragraph({ spacing: { before: 200, after: 600 } }),
+              new Paragraph({ border: { top: { style: BorderStyle.SINGLE, size: 6, color: COLOR_BORDER } } }),
+              new Paragraph({ children: [new TextRun({ text: 'Authorized Financial Officer', bold: true, size: 20 })] }),
+              new Paragraph({ children: [new TextRun({ text: 'Chief Financial Officer / Accountant', size: 18, color: COLOR_MUTED })] }),
+              new Paragraph({ children: [new TextRun({ text: 'Date: ________________________', size: 16, color: COLOR_MUTED })] })
+            ], false, 50)
+          ]
+        })
+      ]
+    }),
+    new Paragraph({ spacing: { after: 300 } })
+  );
 
   // 25. Supporting Documents / Appendices
   const importedQuotes = sd.importedQuotes || [];
