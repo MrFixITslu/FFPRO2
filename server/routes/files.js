@@ -51,11 +51,20 @@ async function serve(req,res,download) {
   const file = await filesDb.getFileById(req.params.id,req.user.id);
   if(!file) return res.status(404).json({error:'File not found.'});
   const ascii = file.fileName.replace(/[^\w.\- ]/g,'_');
-  const inline = !download && ['image/png','image/jpeg','image/webp','image/gif'].includes(file.fileType);
+  const viewableTypes = [
+    'image/png','image/jpeg','image/webp','image/gif','image/svg+xml',
+    'application/pdf',
+    'text/plain','text/csv','application/json'
+  ];
+  const inline = !download && viewableTypes.includes(file.fileType);
   res.setHeader('Content-Type',inline?file.fileType:'application/octet-stream');
   res.setHeader('Content-Disposition',`${inline?'inline':'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
   res.setHeader('Cache-Control','private, no-store');
-  res.setHeader('Content-Security-Policy',"sandbox; default-src 'none'; frame-ancestors 'none'");
+  if (inline && file.fileType === 'application/pdf') {
+    res.setHeader('Content-Security-Policy',"default-src 'self' blob: data:; frame-ancestors 'self'");
+  } else {
+    res.setHeader('Content-Security-Policy',"sandbox; default-src 'none'; frame-ancestors 'none'");
+  }
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Content-Length',file.fileData.length);
   res.send(file.fileData);

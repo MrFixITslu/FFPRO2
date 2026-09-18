@@ -40,9 +40,10 @@ import {
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
   Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark,
   Upload, Download, FileSpreadsheet, FileImage, FileArchive, FileCode, Folder, HardDrive, File as FileIcon, UploadCloud,
-  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2
+  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2, Eye
 } from 'lucide-react';
 import { ProjectGrantMatcher } from './ProjectGrantMatcher';
+import { FileViewerModal } from './FileViewerModal';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -170,6 +171,7 @@ const EventPlanner: React.FC<Props> = ({
   const [projectStatusFilter, setProjectStatusFilter] = useState<'active' | 'closed' | 'all'>('active');
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [viewingFile, setViewingFile] = useState<ProjectFile | null>(null);
   const { showToast } = useToast();
 
   // --- Collaboration: shared projects live server-side; local plans stay in the encrypted blob ---
@@ -1265,6 +1267,69 @@ const EventPlanner: React.FC<Props> = ({
     }
   };
 
+  const handleDownloadFile = async (file: ProjectFile) => {
+    try {
+      // If stored in system database or has systemFileId / downloadUrl
+      if (file.systemFileId || file.storageType === 'database' || file.downloadUrl) {
+        await downloadFileFromSystemDatabase(file.systemFileId || file.id, file.name);
+        showToast({
+          type: 'info',
+          title: 'Download Started',
+          message: 'Downloading ' + file.name + '...'
+        });
+        return;
+      }
+
+      let blob: Blob | null = null;
+      if (directoryHandle && file.storageType === 'filesystem') {
+        try {
+          blob = await getFileFromHardDrive(directoryHandle, file.storageRef);
+        } catch (e) {
+          console.warn('Filesystem read fallback to IndexedDB...');
+        }
+      }
+      if (!blob) {
+        blob = await getFileBlob(file.id);
+      }
+      if (!blob) {
+        const textContent = await getInternalDoc(file.id);
+        if (textContent) {
+          blob = new Blob([textContent], { type: file.type || 'text/plain' });
+        }
+      }
+
+      if (blob) {
+        triggerSecureDownload(blob, file.name);
+        showToast({
+          type: 'info',
+          title: 'Download Started',
+          message: 'Downloading ' + file.name + '...'
+        });
+      } else {
+        // Direct database download fallback
+        await downloadFileFromSystemDatabase(file.id, file.name);
+      }
+    } catch (err: any) {
+      console.error('File download error:', err);
+      showToast({
+        type: 'error',
+        title: 'Download Error',
+        message: err.message || 'Unable to download file.'
+      });
+    }
+  };
+
+  const handleViewFile = (file: ProjectFile) => {
+    const isDoc = file.name.endsWith('.fdoc') || file.type === 'application/fire-doc';
+    const isSheet = file.name.endsWith('.fcel') || file.type === 'application/fire-cell';
+    
+    if (isDoc || isSheet) {
+      handleAssetClick(file);
+    } else {
+      setViewingFile(file);
+    }
+  };
+
   const handleAssetClick = async (file: ProjectFile) => {
     const isDoc = file.name.endsWith('.fdoc') || file.type === 'application/fire-doc';
     const isSheet = file.name.endsWith('.fcel') || file.type === 'application/fire-cell';
@@ -1302,45 +1367,8 @@ const EventPlanner: React.FC<Props> = ({
       return;
     }
 
-    try {
-      // If stored in system database or has systemFileId / downloadUrl
-      if (file.systemFileId || file.storageType === 'database' || file.downloadUrl) {
-        await downloadFileFromSystemDatabase(file.systemFileId || file.id, file.name);
-        return;
-      }
-
-      let blob: Blob | null = null;
-      if (directoryHandle && file.storageType === 'filesystem') {
-        try {
-          blob = await getFileFromHardDrive(directoryHandle, file.storageRef);
-        } catch (e) {
-          console.warn('Filesystem read fallback to IndexedDB...');
-        }
-      }
-      if (!blob) {
-        blob = await getFileBlob(file.id);
-      }
-      if (!blob) {
-        const textContent = await getInternalDoc(file.id);
-        if (textContent) {
-          blob = new Blob([textContent], { type: file.type || 'text/plain' });
-        }
-      }
-
-      if (blob) {
-        triggerSecureDownload(blob, file.name);
-      } else {
-        // Direct database download fallback
-        await downloadFileFromSystemDatabase(file.id, file.name);
-      }
-    } catch (err: any) {
-      console.error('File retrieval error:', err);
-      showToast({
-        type: 'error',
-        title: 'Access Error',
-        message: err.message || 'Unable to access file.'
-      });
-    }
+    // Default to opening viewer for images, pdfs, code, text, spreadsheets, etc.
+    handleViewFile(file);
   };
 
   const handleOpenLogDocument = async () => {
@@ -1672,6 +1700,17 @@ const EventPlanner: React.FC<Props> = ({
           onClose={handleCloseEditor}
           isVaultMounted={!!directoryHandle}
           onMountVault={onMountVault}
+        />
+      )}
+
+      {viewingFile && (
+        <FileViewerModal
+          file={viewingFile}
+          isOpen={!!viewingFile}
+          onClose={() => setViewingFile(null)}
+          onDownload={handleDownloadFile}
+          onOpenInEditor={(f) => handleAssetClick(f)}
+          directoryHandle={directoryHandle}
         />
       )}
 
