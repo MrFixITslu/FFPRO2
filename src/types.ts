@@ -325,6 +325,13 @@ export interface BusinessPlanSections {
   fundingAgencyOrBank?: string;
 }
 
+export interface OperatingExpenseItem {
+  id: string;
+  name: string;
+  amount: number;
+  category?: string;
+}
+
 export interface StartupPlanDetails {
   cogs: number;
   markup: number;
@@ -334,6 +341,7 @@ export interface StartupPlanDetails {
   marketing: number;
   utilities: number;
   otherExpenses: number;
+  customExpenses?: OperatingExpenseItem[];
   growthRateYear3: number;
   growthRateYear5: number;
   

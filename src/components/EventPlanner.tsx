@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, ProjectMember, ProjectRole, Idea, BusinessPlanSections, SupplierQuoteData, ProductionItem } from '../types';
+import { BudgetEvent, EventItem, EVENT_ITEM_CATEGORIES, ProjectTask, ProjectFile, EventLog, Contact, TripPlanDetails, StartupPlanDetails, OperatingExpenseItem, ProjectMember, ProjectRole, Idea, BusinessPlanSections, SupplierQuoteData, ProductionItem } from '../types';
 import { BusinessPlanForm } from './BusinessPlanForm';
 import { ImportQuoteModal } from './ImportQuoteModal';
 import { ExportBusinessPlanModal } from './ExportBusinessPlanModal';
@@ -3396,52 +3396,203 @@ const EventPlanner: React.FC<Props> = ({
 
                     {/* Operating Expenses */}
                     <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm">
-                      <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider mb-4 flex items-center gap-1.5"><TrendingUp size={14} className="text-emerald-500" /> Monthly Fixed Operating Expenses</h4>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <TrendingUp size={14} className="text-emerald-500" /> Monthly Fixed Operating Expenses
+                          </h4>
+                          <p className="text-[10px] text-stone-400 mt-0.5">Define core recurring overheads and add custom monthly expenses.</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-stone-400 font-semibold block">Total OpEx:</span>
+                          <span className="text-sm font-extrabold text-emerald-600">${Math.round(monthlyOpExpenses).toLocaleString()}<span className="text-[10px] text-stone-500 font-normal">/mo</span></span>
+                        </div>
+                      </div>
+
+                      {/* Standard Fixed Expenses */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
                         <div>
                           <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Rent / Workspace</label>
-                          <input 
-                            type="number" 
-                            value={sd.rent || ''} 
-                            onChange={(e) => handleUpdateStartup({ rent: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                          />
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                            <input 
+                              type="number" 
+                              value={sd.rent || ''} 
+                              placeholder="0"
+                              onChange={(e) => handleUpdateStartup({ rent: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Salaries / Payroll</label>
-                          <input 
-                            type="number" 
-                            value={sd.salaries || ''} 
-                            onChange={(e) => handleUpdateStartup({ salaries: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                          />
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                            <input 
+                              type="number" 
+                              value={sd.salaries || ''} 
+                              placeholder="0"
+                              onChange={(e) => handleUpdateStartup({ salaries: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Marketing / Promo</label>
-                          <input 
-                            type="number" 
-                            value={sd.marketing || ''} 
-                            onChange={(e) => handleUpdateStartup({ marketing: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                          />
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                            <input 
+                              type="number" 
+                              value={sd.marketing || ''} 
+                              placeholder="0"
+                              onChange={(e) => handleUpdateStartup({ marketing: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Utilities / Tech</label>
-                          <input 
-                            type="number" 
-                            value={sd.utilities || ''} 
-                            onChange={(e) => handleUpdateStartup({ utilities: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                          />
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                            <input 
+                              type="number" 
+                              value={sd.utilities || ''} 
+                              placeholder="0"
+                              onChange={(e) => handleUpdateStartup({ utilities: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
+                            />
+                          </div>
                         </div>
-                        <div className="col-span-2">
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Other / Miscellaneous Expenses</label>
-                          <input 
-                            type="number" 
-                            value={sd.otherExpenses || ''} 
-                            onChange={(e) => handleUpdateStartup({ otherExpenses: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 text-stone-800 rounded text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                          />
+                        <div>
+                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Other / Miscellaneous</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                            <input 
+                              type="number" 
+                              value={sd.otherExpenses || ''} 
+                              placeholder="0"
+                              onChange={(e) => handleUpdateStartup({ otherExpenses: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Custom Added Operating Expenses Section */}
+                      <div className="border-t border-stone-150 pt-4 mt-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                          <span className="text-[11px] font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <DollarSign size={13} className="text-emerald-500" /> Custom Operating Expenses ({sd.customExpenses?.length || 0})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const existing = sd.customExpenses || [];
+                              const newExp: OperatingExpenseItem = {
+                                id: `opex_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                                name: '',
+                                amount: 0
+                              };
+                              handleUpdateStartup({ customExpenses: [...existing, newExp] });
+                            }}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          >
+                            <Plus size={12} /> Add Expense
+                          </button>
+                        </div>
+
+                        {/* Quick Preset Buttons */}
+                        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                          <span className="text-[10px] text-stone-400 font-medium mr-1">Quick Add:</span>
+                          {['Insurance & Liability', 'Software / SaaS Subscriptions', 'Vehicle / Equipment Lease', 'Accounting & Legal', 'Internet & Telephony', 'Security & Maintenance'].map(preset => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                const existing = sd.customExpenses || [];
+                                const newExp: OperatingExpenseItem = {
+                                  id: `opex_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                                  name: preset,
+                                  amount: 0
+                                };
+                                handleUpdateStartup({ customExpenses: [...existing, newExp] });
+                              }}
+                              className="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded text-[10px] font-medium transition cursor-pointer border border-stone-200/60"
+                            >
+                              + {preset}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Custom Expense Items List */}
+                        {sd.customExpenses && sd.customExpenses.length > 0 ? (
+                          <div className="space-y-2">
+                            {sd.customExpenses.map((exp, idx) => (
+                              <div key={exp.id || idx} className="flex items-center gap-2 bg-stone-50/80 p-2 rounded-xl border border-stone-200/80">
+                                <div className="flex-1">
+                                  <input
+                                    type="text"
+                                    value={exp.name}
+                                    placeholder="Expense description (e.g. Liability Insurance)"
+                                    onChange={(e) => {
+                                      const updated = [...(sd.customExpenses || [])];
+                                      updated[idx] = { ...updated[idx], name: e.target.value };
+                                      handleUpdateStartup({ customExpenses: updated });
+                                    }}
+                                    className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-medium text-stone-800 outline-none focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                </div>
+                                <div className="w-36 relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                                  <input
+                                    type="number"
+                                    value={exp.amount || ''}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const updated = [...(sd.customExpenses || [])];
+                                      updated[idx] = { ...updated[idx], amount: parseFloat(e.target.value) || 0 };
+                                      handleUpdateStartup({ customExpenses: updated });
+                                    }}
+                                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-bold text-stone-800 outline-none focus:ring-1 focus:ring-emerald-500 text-right"
+                                  />
+                                </div>
+                                <span className="text-[10px] text-stone-400 font-medium shrink-0">/mo</span>
+                                <button
+                                  type="button"
+                                  title="Delete Expense"
+                                  onClick={() => {
+                                    const updated = (sd.customExpenses || []).filter((_, i) => i !== idx);
+                                    handleUpdateStartup({ customExpenses: updated });
+                                  }}
+                                  className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer shrink-0"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="bg-stone-50/50 border border-dashed border-stone-200 rounded-xl p-3 text-center">
+                            <p className="text-[11px] text-stone-400">No additional monthly expenses added. Click "+ Add Expense" or a preset above to include itemized overheads.</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* OpEx Summary Banner */}
+                      <div className="mt-4 pt-3 border-t border-stone-150 flex flex-wrap items-center justify-between gap-3 text-xs bg-stone-50 p-3 rounded-xl border border-stone-200">
+                        <div className="flex items-center gap-4 text-[11px]">
+                          <div>
+                            <span className="text-stone-400 block text-[9px] uppercase font-semibold">Standard Fixed:</span>
+                            <span className="font-bold text-stone-700">${((sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0)).toLocaleString()}/mo</span>
+                          </div>
+                          <div>
+                            <span className="text-stone-400 block text-[9px] uppercase font-semibold">Custom Expenses:</span>
+                            <span className="font-bold text-stone-700">${((sd.customExpenses || []).reduce((sum, e) => sum + (e.amount || 0), 0)).toLocaleString()}/mo</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-stone-400 block text-[9px] uppercase font-semibold">Annualized Fixed Overhead:</span>
+                          <span className="font-extrabold text-stone-800">${Math.round(monthlyOpExpenses * 12).toLocaleString()}/yr</span>
                         </div>
                       </div>
                     </div>

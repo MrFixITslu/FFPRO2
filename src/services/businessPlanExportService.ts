@@ -83,7 +83,8 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
   const marketing = sd?.marketing || 0;
   const utilities = sd?.utilities || 0;
   const otherExpenses = sd?.otherExpenses || 0;
-  const monthlyOpExpenses = rent + salaries + marketing + utilities + otherExpenses;
+  const customExpensesTotal = (sd?.customExpenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  const monthlyOpExpenses = rent + salaries + marketing + utilities + otherExpenses + customExpensesTotal;
   const monthlyVolumeUnits = sd?.monthlyVolume || 1;
   const allocatedOverheadPerUnit = (allocateOverhead && monthlyVolumeUnits > 0) ? (monthlyOpExpenses / monthlyVolumeUnits) : 0;
 
@@ -660,7 +661,18 @@ export async function generateBusinessPlanDocx(
     createParagraph('The following schedule outlines recurring fixed overhead expenditures required to maintain business continuity:')
   );
 
-  const monthlyTotalOpEx = (sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0);
+  const customExpenses = sd.customExpenses || [];
+  const customExpensesTotal = customExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  const monthlyTotalOpEx = (sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0) + customExpensesTotal;
+  
+  const customRows = customExpenses.filter(e => (e.name && e.name.trim()) || (e.amount || 0) > 0).map(exp => new TableRow({
+    children: [
+      createTableCell(exp.name || 'Additional Operating Expense'),
+      createTableCell(`$${(exp.amount || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
+      createTableCell(`$${((exp.amount || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+    ]
+  }));
+
   const opexRows: TableRow[] = [
     new TableRow({
       children: [
@@ -704,6 +716,7 @@ export async function generateBusinessPlanDocx(
         createTableCell(`$${((sd.otherExpenses || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
       ]
     }),
+    ...customRows,
     new TableRow({
       children: [
         createTableCell('TOTAL FIXED OPERATING OVERHEAD', true),
