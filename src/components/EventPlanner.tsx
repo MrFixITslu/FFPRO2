@@ -3743,8 +3743,8 @@ const EventPlanner: React.FC<Props> = ({
 
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button 
-                                    onClick={(e) => { e.stopPropagation(); handleAssetClick(file); }}
-                                    title="Download / Open file"
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadFile(file); }}
+                                    title="Download file"
                                     className="p-1 text-stone-500 hover:text-indigo-600 hover:bg-stone-200/60 rounded"
                                   >
                                     <Download className="w-3.5 h-3.5" />
@@ -3778,7 +3778,7 @@ const EventPlanner: React.FC<Props> = ({
                                 {isDatabase ? 'System Database' : isInternal ? 'Encrypted Vault' : 'Mirror Drive'}
                               </span>
                               <span className="text-[10px] text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                                Download <ArrowRight className="w-2.5 h-2.5" />
+                                Open <ArrowRight className="w-2.5 h-2.5" />
                               </span>
                             </div>
                           </div>
