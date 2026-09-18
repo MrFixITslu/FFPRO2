@@ -122,17 +122,29 @@ router.post('/register', async (req, res) => {
   // FIX: Add password strength validation
   const passwordError = validatePasswordStrength(password);
   if (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || passwordError) {
-    return res.status(400).json({ error: passwordError || 'Email is required.' });
+    return res.status(400).json({ error: passwordError || 'Valid email address is required.' });
   }
 
   try {
     // FIX: Ensure case-insensitive email uniqueness
     const existing = await pool.query(
-      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+      'SELECT id, email, email_verified_at FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
     if (existing.rows[0]) {
-      return res.status(409).json({ error: 'An account with that email already exists. Try signing in instead.' });
+      const existingUser = existing.rows[0];
+      if (existingUser.email_verified_at) {
+        return res.status(409).json({ error: 'An account with that email already exists. Try signing in instead.' });
+      }
+      // If user exists but is not verified, resend verification email
+      const verificationToken = await createVerification(existingUser.id);
+      const verificationLink = `${getFrontendUrl(req)}/verify-email?token=${verificationToken}`;
+      await sendVerificationEmail({ toEmail: email, verificationLink });
+      return res.status(200).json({
+        requiresVerification: true,
+        email,
+        message: 'An account with this email is pending verification. A fresh verification email has been sent to confirm your address before granting access to the site.',
+      });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -146,23 +158,20 @@ router.post('/register', async (req, res) => {
       [email, sanitizedUsername, passwordHash, displayName]
     );
 
-    // Regenerate session to protect against session fixation attacks
-    req.session.regenerate((regenErr) => {
-      if (regenErr) {
-        console.error('Session regeneration error on register:', regenErr);
-        return res.status(500).json({ error: 'Failed to initialize session.' });
-      }
+    const newUser = inserted.rows[0];
+    try {
+      const verificationToken = await createVerification(newUser.id);
+      const verificationLink = `${getFrontendUrl(req)}/verify-email?token=${verificationToken}`;
+      await sendVerificationEmail({ toEmail: email, verificationLink });
+    } catch (mailErr) {
+      console.warn('Verification delivery error during registration:', mailErr);
+    }
 
-      req.login(inserted.rows[0], async (err) => {
-        if (err) return res.status(500).json({ error: 'Account created, but failed to start a session. Please log in.' });
-
-        // Mailbox proof is required before invitations can grant access.
-        try {
-          const verificationToken = await createVerification(inserted.rows[0].id);
-          await sendVerificationEmail({ toEmail: email, verificationLink: `${getFrontendUrl(req)}/verify-email?token=${verificationToken}` });
-        } catch { console.warn('Verification delivery unavailable; user may retry from the app.'); }
-        res.status(201).json({ user: sanitizeUser(inserted.rows[0]) });
-      });
+    // Do NOT log the user in immediately. Access to the site requires verifying their email first.
+    return res.status(201).json({
+      requiresVerification: true,
+      email: newUser.email,
+      message: 'Account created! Please check your email and click the verification link to confirm your email address before accessing the site.',
     });
   } catch (err) {
     if (err.code === '23505') {
@@ -194,6 +203,16 @@ router.post('/login', async (req, res) => {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
       return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    // Check if email has been verified before granting access to the site
+    if (!user.email_verified_at) {
+      return res.status(403).json({
+        error: 'Please verify your email address to confirm it is legit before accessing the site.',
+        code: 'EMAIL_NOT_VERIFIED',
+        requiresVerification: true,
+        email: user.email,
+      });
     }
 
     await pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
@@ -405,18 +424,55 @@ router.post(
   }
 );
 
-router.post('/verify-email/send', requireAuth, forgotPasswordLimiter, async (req, res) => {
-  if (req.user.email_verified_at) return res.json({ ok: true });
+router.post('/resend-verification', forgotPasswordLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Valid email address is required.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, email_verified_at FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    const user = rows[0];
+    if (user && !user.email_verified_at) {
+      const token = await createVerification(user.id);
+      const verificationLink = `${getFrontendUrl(req)}/verify-email?token=${token}`;
+      await sendVerificationEmail({ toEmail: user.email, verificationLink });
+    }
+
+    // Always return success to protect privacy
+    return res.json({
+      ok: true,
+      message: 'If an unverified account exists for that email, a fresh verification link has been sent.',
+    });
+  } catch (err) {
+    console.error('Resend verification error:', err);
+    res.status(500).json({ error: 'Failed to process request. Please try again later.' });
+  }
+});
+
+router.post('/verify-email/send', forgotPasswordLimiter, async (req, res) => {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    return res.status(401).json({ error: 'Not authenticated.' });
+  }
+  if (req.user?.email_verified_at) return res.json({ ok: true });
   const token = await createVerification(req.user.id);
   const result = await sendVerificationEmail({ toEmail: req.user.email, verificationLink: `${getFrontendUrl(req)}/verify-email?token=${token}` });
   if (!result.sent) return res.status(503).json({ error: 'Email delivery is not configured or is unavailable. Contact the administrator.' });
-  res.json({ ok: true });
+  res.json({ ok: true, message: 'Verification email sent.' });
 });
+
 router.post('/verify-email', forgotPasswordLimiter, async (req, res) => {
   const token = req.body?.token;
-  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token) || !(await consumeVerification(token))) {
-    return res.status(400).json({ error: 'Verification link is invalid or expired.' });
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
+    return res.status(400).json({ error: 'Verification link is invalid or malformed.' });
   }
-  res.json({ ok: true });
+  const verified = await consumeVerification(token);
+  if (!verified) {
+    return res.status(400).json({ error: 'Verification link is invalid, expired, or has already been used.' });
+  }
+  res.json({ ok: true, message: 'Your email has been successfully verified! You can now log in to access the site.' });
 });
 export default router;

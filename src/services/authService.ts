@@ -7,12 +7,38 @@ export interface AuthUser {
   emailVerified?: boolean;
 }
 
+export interface RegisterResult {
+  requiresVerification: boolean;
+  email: string;
+  message: string;
+  user?: AuthUser;
+}
+
+export class AuthError extends Error {
+  code?: string;
+  requiresVerification?: boolean;
+  email?: string;
+
+  constructor(message: string, code?: string, requiresVerification?: boolean, email?: string) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+    this.requiresVerification = requiresVerification;
+    this.email = email;
+  }
+}
+
 const BASE = '/api/auth';
 
 async function handle(res: Response): Promise<any> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || 'Something went wrong. Please try again.');
+    throw new AuthError(
+      data.error || 'Something went wrong. Please try again.',
+      data.code,
+      data.requiresVerification,
+      data.email
+    );
   }
   return data;
 }
@@ -60,7 +86,7 @@ export const authService = {
     return data.user;
   },
 
-  async register(email: string, username: string, password: string): Promise<AuthUser> {
+  async register(email: string, username: string, password: string): Promise<RegisterResult> {
     const res = await fetch(`${BASE}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -68,7 +94,27 @@ export const authService = {
       body: JSON.stringify({ email, username, password }),
     });
     const data = await handle(res);
-    return data.user;
+    return data;
+  },
+
+  async resendVerification(email: string): Promise<{ ok: boolean; message: string; previewLink?: string }> {
+    const res = await fetch(`${BASE}/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+    return handle(res);
+  },
+
+  async verifyEmail(token: string): Promise<{ ok: boolean; message: string }> {
+    const res = await fetch(`${BASE}/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    });
+    return handle(res);
   },
 
   async logout(): Promise<void> {

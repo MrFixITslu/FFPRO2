@@ -54,12 +54,16 @@ const OAuthButton: React.FC<{
 };
 
 const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, resetToken, onResetHandled, initialBanner }) => {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode || 'login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'resend' | 'verification-pending'>(initialMode || 'login');
   const [email, setEmail] = useState(initialEmail || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(initialBanner?.message || null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null);
   const [forgotSent, setForgotSent] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
@@ -84,16 +88,46 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setUnverifiedEmail(null);
+    setResendSuccess(null);
     setLoading(true);
     try {
-      const user = mode === 'login'
-        ? await authService.login(email, password)
-        : await authService.register(email, username, password);
-      onAuthenticated(user);
+      if (mode === 'login') {
+        const user = await authService.login(email, password);
+        onAuthenticated(user);
+      } else {
+        const result = await authService.register(email, username, password);
+        if (result.requiresVerification) {
+          setUnverifiedEmail(result.email || email);
+          setVerificationNotice(result.message || 'Account created! Please check your email to confirm your address before logging in.');
+          setMode('verification-pending');
+        } else if (result.user) {
+          onAuthenticated(result.user);
+        }
+      }
     } catch (err: any) {
-      setError(err.message || 'Something went wrong.');
+      if (err.code === 'EMAIL_NOT_VERIFIED' || err.requiresVerification) {
+        setUnverifiedEmail(err.email || email);
+        setError(err.message || 'Please verify your email address to confirm it is legit before accessing the site.');
+      } else {
+        setError(err.message || 'Something went wrong.');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendFromAlert = async (targetEmail: string) => {
+    if (!targetEmail) return;
+    setResendLoading(true);
+    setResendSuccess(null);
+    try {
+      const res = await authService.resendVerification(targetEmail);
+      setResendSuccess(res.message || 'A fresh verification email has been sent! Check your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend verification email.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -118,6 +152,21 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
       // The backend always returns a generic success message, but network
       // errors etc. can still throw — show those, not "email doesn't exist".
       setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResendSuccess(null);
+    setLoading(true);
+    try {
+      const res = await authService.resendVerification(email);
+      setResendSuccess(res.message || 'A fresh verification email has been sent if an unverified account exists.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send verification email. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -149,6 +198,163 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
     setSelectedProvider(provider);
     setShowConfigHelp(true);
   };
+
+  // --- Verification-pending screen: shown after registration ---
+  if (mode === 'verification-pending') {
+    return (
+      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+        </div>
+        <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center mb-6">
+            <img
+              src={APP_LOGO}
+              alt="Fire Finance Pro"
+              referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+            />
+            <h1 className="text-xl font-bold text-white tracking-tight">Check Your Email</h1>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Verification Required</p>
+          </div>
+
+          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4 text-center">
+            <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto text-xl border border-indigo-500/30">
+              <i className="fas fa-envelope-open-text"></i>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-stone-300 text-xs leading-relaxed">
+                {verificationNotice || 'We have sent a verification email to confirm that your email address is legit before giving access to the site.'}
+              </p>
+              <div className="py-1.5 px-3 bg-white/5 border border-white/10 rounded text-indigo-300 font-mono text-xs break-all">
+                {unverifiedEmail || email}
+              </div>
+              <p className="text-stone-400 text-[11px] leading-relaxed">
+                Please click the verification link in the email to activate your account.
+              </p>
+            </div>
+
+            {resendSuccess && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed animate-in fade-in">
+                <i className="fas fa-check-circle mr-1.5"></i> {resendSuccess}
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+              </div>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                disabled={resendLoading}
+                onClick={() => handleResendFromAlert(unverifiedEmail || email)}
+                className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider border border-white/10"
+              >
+                {resendLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="fas fa-circle-notch fa-spin text-xs"></i> Resending...
+                  </span>
+                ) : (
+                  'Resend Verification Email'
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(null); setUnverifiedEmail(null); setResendSuccess(null); }}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 text-[10px] uppercase tracking-wider"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Resend verification screen ---
+  if (mode === 'resend') {
+    return (
+      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+        </div>
+        <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center mb-6">
+            <img
+              src={APP_LOGO}
+              alt="Fire Finance Pro"
+              referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+            />
+            <h1 className="text-xl font-bold text-white tracking-tight">Resend Verification</h1>
+            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Security</p>
+          </div>
+
+          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+            {resendSuccess ? (
+              <div className="text-center space-y-4">
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed">
+                  <i className="fas fa-check-circle mr-1.5"></i> {resendSuccess}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setResendSuccess(null); setError(null); }}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 uppercase tracking-wider text-[10px]"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResendSubmit} className="space-y-4">
+                <p className="text-stone-400 text-[11px] leading-relaxed">
+                  Enter your registered email address to receive a fresh verification link.
+                </p>
+                <div>
+                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                {error && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                    <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+                >
+                  {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Send Verification Link <i className="fas fa-chevron-right text-[9px]"></i></>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(null); }}
+                  className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                >
+                  Back to Sign In
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- Reset-password screen: shown when the user arrived via the emailed link ---
   if (resetToken) {
@@ -426,8 +632,27 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {error && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
-                <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-xs space-y-2 animate-in shake duration-300">
+                <div className="flex items-start gap-2">
+                  <i className="fas fa-exclamation-circle text-rose-400 mt-0.5 shrink-0"></i>
+                  <p className="font-semibold leading-tight">{error}</p>
+                </div>
+                {unverifiedEmail && (
+                  <button
+                    type="button"
+                    disabled={resendLoading}
+                    onClick={() => handleResendFromAlert(unverifiedEmail)}
+                    className="w-full mt-1.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 rounded font-bold text-[10px] uppercase tracking-wider transition disabled:opacity-50"
+                  >
+                    {resendLoading ? 'Sending link...' : `Resend verification link to ${unverifiedEmail}`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {resendSuccess && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold text-center leading-relaxed">
+                <i className="fas fa-check-circle mr-1.5"></i> {resendSuccess}
               </div>
             )}
 
@@ -446,13 +671,24 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </button>
           </form>
 
-          <button
-            type="button"
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
-            className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
-          >
-            {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
-          </button>
+          <div className="space-y-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); setUnverifiedEmail(null); setResendSuccess(null); }}
+              className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+            >
+              {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
+            </button>
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={() => { setMode('resend'); setError(null); setResendSuccess(null); }}
+                className="w-full text-center text-[9px] font-medium text-stone-500 hover:text-stone-300 transition"
+              >
+                Didn't receive verification email?
+              </button>
+            )}
+          </div>
         </div>
 
         <p className="mt-6 text-center text-stone-600 text-[8px] font-bold uppercase tracking-wider">
