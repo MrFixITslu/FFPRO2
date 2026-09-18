@@ -40,7 +40,7 @@ import {
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
   Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark,
   Upload, Download, FileSpreadsheet, FileImage, FileArchive, FileCode, Folder, HardDrive, File as FileIcon, UploadCloud,
-  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2, Eye
+  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2, Eye, ChevronLeft
 } from 'lucide-react';
 import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 import { FileViewerModal } from './FileViewerModal';
@@ -155,13 +155,8 @@ const EventPlanner: React.FC<Props> = ({
   }, [onSelectProjectTab]);
 
   const handleInAppBack = useCallback(() => {
-    // If the browser has history entries from this app's navigation, trigger back navigation
-    // so popstate fires and smoothly returns to the previous view/page!
-    if (window.history.state && (window.history.state.isAppNav || window.history.state.projectId)) {
-      window.history.back();
-    } else {
-      setSelectedEventId(null);
-    }
+    // Return directly to the main projects overview / home page
+    setSelectedEventId(null);
   }, [setSelectedEventId]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -1927,11 +1922,11 @@ const EventPlanner: React.FC<Props> = ({
                  <button 
                    type="button"
                    onClick={handleInAppBack} 
-                   title="Go back (or press browser back arrow)"
-                   aria-label="Back to projects"
-                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded hover:bg-white/20 transition-all border border-white/5 shadow-sm shrink-0"
+                   title="Back to Projects Home"
+                   aria-label="Back to projects home"
+                   className="w-10 h-10 flex items-center justify-center bg-white/10 text-white rounded hover:bg-white/20 transition-all border border-white/5 shadow-sm shrink-0 cursor-pointer active:scale-95"
                  >
-                   <i className="fas fa-chevron-left text-xs"></i>
+                   <ChevronLeft size={20} />
                  </button>
                  <div>
                    <div className="flex items-center gap-2 flex-wrap">
