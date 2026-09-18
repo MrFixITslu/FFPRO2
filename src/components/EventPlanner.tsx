@@ -40,7 +40,7 @@ import {
   Square, FileText, Briefcase, TrendingUp, AlertCircle, Info, Archive, Globe, Sparkles,
   Trash2, Percent, Calculator, Settings, Share2, Loader2, Radio, Activity, FolderCheck, RotateCcw, Landmark,
   Upload, Download, FileSpreadsheet, FileImage, FileArchive, FileCode, Folder, HardDrive, File as FileIcon, UploadCloud,
-  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2, Eye, ChevronLeft
+  LayoutDashboard, Users, MessageSquare, Lightbulb, CheckCircle2, Eye, ChevronLeft, ExternalLink
 } from 'lucide-react';
 import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 import { FileViewerModal } from './FileViewerModal';
@@ -1107,9 +1107,25 @@ const EventPlanner: React.FC<Props> = ({
       await deleteInternalDoc(file.id);
 
       const updatedFiles = (selectedEvent.files || []).filter(f => f.id !== file.id && f.systemFileId !== file.id);
+      
+      // Also clean up any linked quotes from startupDetails.importedQuotes
+      let updatedStartupDetails = selectedEvent.startupDetails;
+      if (updatedStartupDetails && updatedStartupDetails.importedQuotes) {
+        const remainingQuotes = updatedStartupDetails.importedQuotes.filter(q => {
+          const matchesId = q.savedFileId === file.id || q.savedFileId === file.systemFileId || q.id === file.id;
+          const matchesName = q.savedFileName && (q.savedFileName === file.name || q.savedFileName.toLowerCase() === file.name.toLowerCase());
+          return !matchesId && !matchesName;
+        });
+        updatedStartupDetails = {
+          ...updatedStartupDetails,
+          importedQuotes: remainingQuotes
+        };
+      }
+
       const updatedEvent = {
         ...selectedEvent,
         files: updatedFiles,
+        ...(updatedStartupDetails ? { startupDetails: updatedStartupDetails } : {}),
         lastUpdated: new Date().toISOString()
       };
 
@@ -2833,7 +2849,16 @@ const EventPlanner: React.FC<Props> = ({
                 handleUpdateStartup({ productionItems: updated });
               };
 
-              const importedQuotesList = sd.importedQuotes || [];
+              const projectFiles = selectedEvent.files || [];
+              const importedQuotesList = (sd.importedQuotes || []).filter(q => {
+                if (q.savedFileId) {
+                  return projectFiles.some(f => f.id === q.savedFileId || f.systemFileId === q.savedFileId);
+                }
+                if (q.savedFileName) {
+                  return projectFiles.some(f => f.name === q.savedFileName || f.name.toLowerCase() === q.savedFileName.toLowerCase());
+                }
+                return projectFiles.some(f => f.id === q.id || (q.supplier && f.name.toLowerCase().includes(q.supplier.toLowerCase())));
+              });
 
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
@@ -2905,6 +2930,19 @@ const EventPlanner: React.FC<Props> = ({
                       onExportClick={() => setShowExportPlanModal(true)}
                       onImportQuoteClick={() => setShowImportQuoteModal(true)}
                       onScrollToCosting={() => setBusinessPlanSubTab('costing')}
+                      onNavigateToDocuments={(fileId) => {
+                        setActiveTab('vault');
+                        if (fileId) {
+                          const targetFile = (selectedEvent.files || []).find(f => f.id === fileId || f.systemFileId === fileId);
+                          if (targetFile) {
+                            handleAssetClick(targetFile);
+                          }
+                        }
+                      }}
+                      onOpenFile={(file) => {
+                        setActiveTab('vault');
+                        handleAssetClick(file);
+                      }}
                     />
                   ) : (
                     <div className="space-y-6">
@@ -2969,11 +3007,31 @@ const EventPlanner: React.FC<Props> = ({
                           <div className="flex flex-wrap items-center gap-1.5 p-2 bg-emerald-50/60 border border-emerald-100 rounded-lg text-[11px] text-emerald-800">
                             <FileText size={12} className="text-emerald-600 shrink-0" />
                             <span className="font-semibold">{importedQuotesList.length} quote{importedQuotesList.length > 1 ? 's' : ''} saved:</span>
-                            {importedQuotesList.map((q, idx) => (
-                              <span key={q.id || idx} className="bg-white/80 border border-emerald-200/80 px-1.5 py-0.5 rounded text-[10px] font-medium text-stone-700">
-                                {q.supplierName || q.supplier || 'Supplier'} ({q.items?.length || 0} items)
-                              </span>
-                            ))}
+                            {importedQuotesList.map((q, idx) => {
+                              const matchingFile = projectFiles.find(f => 
+                                f.id === q.savedFileId || 
+                                f.systemFileId === q.savedFileId || 
+                                (q.savedFileName && (f.name === q.savedFileName || f.name.toLowerCase() === q.savedFileName.toLowerCase())) || 
+                                f.id === q.id
+                              );
+                              return (
+                                <button
+                                  key={q.id || idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab('vault');
+                                    if (matchingFile) {
+                                      handleAssetClick(matchingFile);
+                                    }
+                                  }}
+                                  title={matchingFile ? `Click to view "${matchingFile.name}" in Project Documents` : 'Click to view in Project Documents'}
+                                  className="bg-white/90 hover:bg-white border border-emerald-200/80 hover:border-emerald-400 px-2 py-0.5 rounded text-[10px] font-medium text-stone-700 hover:text-emerald-800 transition-all flex items-center gap-1 cursor-pointer shadow-2xs group"
+                                >
+                                  <span>{q.supplierName || q.supplier || 'Supplier'} ({q.items?.length || 0} items)</span>
+                                  <ExternalLink size={10} className="text-emerald-600 opacity-60 group-hover:opacity-100" />
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                         

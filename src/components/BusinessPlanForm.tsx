@@ -17,7 +17,7 @@ import {
   HelpCircle,
   Clock
 } from 'lucide-react';
-import { BudgetEvent, BusinessPlanSections, SupplierQuoteData } from '../types';
+import { BudgetEvent, BusinessPlanSections, SupplierQuoteData, ProjectFile } from '../types';
 
 interface BusinessPlanFormProps {
   selectedEvent?: BudgetEvent;
@@ -29,6 +29,8 @@ interface BusinessPlanFormProps {
   onScrollToCosting?: () => void;
   onExportClick?: () => void;
   onImportQuoteClick?: () => void;
+  onNavigateToDocuments?: (fileId?: string) => void;
+  onOpenFile?: (file: ProjectFile) => void;
 }
 
 interface SectionFieldDef {
@@ -48,7 +50,9 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
   onOpenExportModal,
   onScrollToCosting,
   onExportClick,
-  onImportQuoteClick
+  onImportQuoteClick,
+  onNavigateToDocuments,
+  onOpenFile
 }) => {
   const openExport = onOpenExportModal || onExportClick || (() => {});
   const openImport = onOpenImportQuote || onImportQuoteClick || (() => {});
@@ -56,7 +60,21 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
 
   const sd = selectedEvent?.startupDetails;
   const currentPlan: BusinessPlanSections = businessPlan || sd?.businessPlan || {};
-  const importedQuotes: SupplierQuoteData[] = sd?.importedQuotes || [];
+  const projectFiles: ProjectFile[] = selectedEvent?.files || [];
+
+  // Filter out deleted files: only show quotes whose associated file still exists in projectFiles
+  const importedQuotes: SupplierQuoteData[] = (sd?.importedQuotes || []).filter(q => {
+    if (q.savedFileId) {
+      return projectFiles.some(f => f.id === q.savedFileId || f.systemFileId === q.savedFileId);
+    }
+    if (q.savedFileName) {
+      return projectFiles.some(f => f.name === q.savedFileName || f.name.toLowerCase() === q.savedFileName.toLowerCase());
+    }
+    return projectFiles.some(f => 
+      f.id === q.id || 
+      (q.supplier && f.name.toLowerCase().includes(q.supplier.toLowerCase()))
+    );
+  });
 
   const [activeTab, setActiveTab] = useState<'exec' | 'market' | 'offering' | 'financials' | 'execution'>('exec');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
@@ -344,37 +362,81 @@ export const BusinessPlanForm: React.FC<BusinessPlanFormProps> = ({
         </div>
       </div>
 
-      {/* Imported Quotes Bar (if any quotes have been imported) */}
+      {/* Imported Quotes Bar (if any non-deleted quotes exist) */}
       {importedQuotes.length > 0 && (
-        <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 space-y-2">
-          <div className="flex items-center justify-between">
+        <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Sparkles size={16} className="text-emerald-700" />
               <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
                 Attached Supplier Quotes ({importedQuotes.length})
               </h4>
             </div>
-            <span className="text-[11px] text-emerald-800">
-              Preserved in <strong className="font-semibold">Project → Documents</strong>
-            </span>
+            <button
+              type="button"
+              onClick={() => onNavigateToDocuments?.()}
+              className="text-[11px] text-emerald-800 hover:text-emerald-950 font-medium flex items-center gap-1 hover:underline cursor-pointer group transition-colors"
+              title="Open Project Documents page"
+            >
+              <span>Preserved in <strong className="font-semibold underline decoration-emerald-500/50">Project → Documents</strong></span>
+              <ExternalLink size={12} className="text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
+            </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
-            {importedQuotes.map((q, i) => (
-              <div
-                key={q.id || i}
-                className="bg-white border border-emerald-200/60 rounded-xl p-2.5 text-xs flex items-center justify-between shadow-2xs"
-              >
-                <div className="space-y-0.5 truncate pr-2">
-                  <p className="font-bold text-stone-900 truncate">{q.supplier}</p>
-                  <p className="text-[10px] text-stone-500 truncate">
-                    Ref: {q.quoteNumber || 'N/A'} • {q.quoteDate || 'Recent'}
-                  </p>
+            {importedQuotes.map((q, i) => {
+              const matchingFile = projectFiles.find(f => 
+                f.id === q.savedFileId || 
+                f.systemFileId === q.savedFileId || 
+                (q.savedFileName && (f.name === q.savedFileName || f.name.toLowerCase() === q.savedFileName.toLowerCase())) || 
+                f.id === q.id
+              );
+
+              return (
+                <div
+                  key={q.id || i}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (matchingFile && onOpenFile) {
+                      onOpenFile(matchingFile);
+                    } else {
+                      onNavigateToDocuments?.(q.savedFileId);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      if (matchingFile && onOpenFile) {
+                        onOpenFile(matchingFile);
+                      } else {
+                        onNavigateToDocuments?.(q.savedFileId);
+                      }
+                    }
+                  }}
+                  title={matchingFile ? `Click to open "${matchingFile.name}" in Project Documents` : 'Click to view in Project Documents'}
+                  className="bg-white hover:bg-emerald-50/40 border border-emerald-200/80 hover:border-emerald-400 rounded-xl p-3 text-xs flex items-center justify-between shadow-2xs hover:shadow-sm cursor-pointer transition-all duration-150 group"
+                >
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                      <FileText size={14} />
+                    </div>
+                    <div className="space-y-0.5 truncate">
+                      <p className="font-bold text-stone-900 group-hover:text-emerald-900 transition-colors truncate">
+                        {q.supplierName || q.supplier}
+                      </p>
+                      <p className="text-[10px] text-stone-500 truncate">
+                        Ref: {q.quoteNumber || 'N/A'} • {q.quoteDate || 'Recent'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    <span className="font-mono font-bold text-emerald-800 text-xs">
+                      ${(q.total || 0).toFixed(2)}
+                    </span>
+                    <ExternalLink size={12} className="text-stone-400 group-hover:text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
                 </div>
-                <div className="text-right shrink-0 font-mono font-bold text-emerald-800">
-                  ${(q.total || 0).toFixed(2)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
