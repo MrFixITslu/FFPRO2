@@ -302,7 +302,7 @@ const Settings: React.FC<Props> = ({
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="w-10 h-10 rounded-xl object-cover shadow-xs ring-1 ring-slate-900/10 shrink-0"
+              className="h-8 w-auto max-w-[160px] object-contain shrink-0"
             />
             <div>
               <h2 className="text-sm font-bold text-stone-900 leading-tight">Vault Settings</h2>

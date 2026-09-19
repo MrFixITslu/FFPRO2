@@ -1,292 +1,415 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Package } from 'lucide-react';
-import { GoodsProduct, GoodsSubType, RawMaterialLine } from '../../types';
-import { calculateGoodsUnitCost, calculateGoodsMonthlyResult } from '../../services/startupFinancialsService';
+import {
+  Package,
+  Plus,
+  Trash2,
+  TrendingUp,
+  DollarSign,
+  Layers,
+  Sparkles,
+  HelpCircle,
+  Hammer,
+  ShoppingBag,
+  ArrowRight,
+  Info
+} from 'lucide-react';
+import { GoodsProduct, GoodsBusinessType, StartupCostItem, StartupPlanDetails } from '../../types';
+import { SharedCostItemList } from './SharedCostItemList';
+import { SharedCostItemForm } from './SharedCostItemForm';
+import { roundCurrency } from '../../services/startupFinancialsService';
 
-interface Props {
-  goodsSubType: GoodsSubType;
+interface GoodsWorkflowPanelProps {
+  goodsType: GoodsBusinessType;
   products: GoodsProduct[];
-  onChange: (products: GoodsProduct[]) => void;
+  costItems: StartupCostItem[];
+  startingCash?: number;
+  onUpdateProducts: (products: GoodsProduct[]) => void;
+  onUpdateCostItems: (items: StartupCostItem[]) => void;
+  onUpdateStartingCash: (cash: number) => void;
+  onUpdateGoodsType: (type: GoodsBusinessType) => void;
 }
 
-const newProduct = (sourcing: 'manufactured' | 'resale'): GoodsProduct => ({
-  id: `prod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-  name: '',
-  sourcing,
-  sellingPrice: 0,
-  expectedMonthlyUnits: 0
-});
+export const GoodsWorkflowPanel: React.FC<GoodsWorkflowPanelProps> = ({
+  goodsType,
+  products,
+  costItems,
+  startingCash = 10000,
+  onUpdateProducts,
+  onUpdateCostItems,
+  onUpdateStartingCash,
+  onUpdateGoodsType
+}) => {
+  const [editingItem, setEditingItem] = useState<StartupCostItem | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
 
-const inputCls =
-  'w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white';
-const labelCls = 'text-[9px] font-bold text-stone-400 uppercase block mb-1';
+  // New product form inline state
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState('25.00');
+  const [newProdVolume, setNewProdVolume] = useState('500');
+  const [newProdGrowth, setNewProdGrowth] = useState('2.0');
+  const [showAddProduct, setShowAddProduct] = useState(false);
 
-const NumberField: React.FC<{ label: string; value: number | undefined; onChange: (v: number) => void; prefix?: string; suffix?: string }> = ({
-  label,
-  value,
-  onChange,
-  prefix,
-  suffix
-}) => (
-  <div>
-    <label className={labelCls}>{label}</label>
-    <div className="relative">
-      {prefix && <span className="absolute left-2.5 top-1.5 text-stone-400 text-xs">{prefix}</span>}
-      <input
-        type="number"
-        value={value ?? ''}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        placeholder="0"
-        className={`${inputCls} ${prefix ? 'pl-6' : ''} ${suffix ? 'pr-6' : ''}`}
-      />
-      {suffix && <span className="absolute right-2.5 top-1.5 text-stone-400 text-xs">{suffix}</span>}
-    </div>
-  </div>
-);
+  const handleAddProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim()) return;
 
-export const GoodsWorkflowPanel: React.FC<Props> = ({ goodsSubType, products, onChange }) => {
-  const [expandedId, setExpandedId] = useState<string | null>(products[0]?.id || null);
+    const newProduct: GoodsProduct = {
+      id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: newProdName.trim(),
+      sellingPrice: Math.max(0.01, parseFloat(newProdPrice) || 25),
+      monthlySalesVolume: Math.max(1, parseInt(newProdVolume) || 100),
+      monthlyGrowthRatePercent: parseFloat(newProdGrowth) || 0,
+      annualGrowthRatePercent: 15
+    };
 
-  const update = (id: string, patch: Partial<GoodsProduct>) => {
-    onChange(products.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    onUpdateProducts([...products, newProduct]);
+    setNewProdName('');
+    setNewProdPrice('25.00');
+    setNewProdVolume('500');
+    setShowAddProduct(false);
   };
 
-  const remove = (id: string) => {
-    onChange(products.filter((p) => p.id !== id));
-    if (expandedId === id) setExpandedId(null);
+  const handleRemoveProduct = (id: string) => {
+    onUpdateProducts(products.filter((p) => p.id !== id));
   };
 
-  const addProduct = (sourcing: 'manufactured' | 'resale') => {
-    const p = newProduct(sourcing);
-    onChange([...products, p]);
-    setExpandedId(p.id);
+  const handleUpdateProductField = (id: string, field: keyof GoodsProduct, value: any) => {
+    const updated = products.map((p) => {
+      if (p.id === id) {
+        return { ...p, [field]: value };
+      }
+      return p;
+    });
+    onUpdateProducts(updated);
   };
 
-  const allowManufactured = goodsSubType === 'manufacturing' || goodsSubType === 'both';
-  const allowResale = goodsSubType === 'resale' || goodsSubType === 'both';
-
-  const updateMaterial = (product: GoodsProduct, materialId: string, patch: Partial<RawMaterialLine>) => {
-    const materials = (product.rawMaterials || []).map((m) => (m.id === materialId ? { ...m, ...patch } : m));
-    update(product.id, { rawMaterials: materials });
+  // Cost items handlers
+  const handleSaveCostItem = (item: StartupCostItem) => {
+    const exists = costItems.some((i) => i.id === item.id);
+    if (exists) {
+      onUpdateCostItems(costItems.map((i) => (i.id === item.id ? item : i)));
+    } else {
+      onUpdateCostItems([...costItems, item]);
+    }
+    setEditingItem(null);
+    setIsAddingItem(false);
   };
 
-  const addMaterial = (product: GoodsProduct) => {
-    const materials = [
-      ...(product.rawMaterials || []),
-      { id: `mat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, name: '', quantityPerUnit: 1, costPerUnit: 0 }
-    ];
-    update(product.id, { rawMaterials: materials });
+  const handleDeleteCostItem = (itemId: string) => {
+    onUpdateCostItems(costItems.filter((i) => i.id !== itemId));
   };
 
-  const removeMaterial = (product: GoodsProduct, materialId: string) => {
-    update(product.id, { rawMaterials: (product.rawMaterials || []).filter((m) => m.id !== materialId) });
-  };
+  // Unit economics aggregation
+  const stockItems = costItems.filter((i) => i.classification === 'stock');
+  const directItems = costItems.filter((i) => i.classification === 'direct');
+  const equipmentItems = costItems.filter((i) => i.classification === 'equipment');
 
-  const summary = calculateGoodsMonthlyResult(products);
+  const totalMonthlySalesUnits = products.reduce((sum, p) => sum + p.monthlySalesVolume, 0);
+  const totalMonthlyProductRevenue = products.reduce(
+    (sum, p) => sum + p.monthlySalesVolume * p.sellingPrice,
+    0
+  );
+
+  const avgSellingPrice =
+    totalMonthlySalesUnits > 0 ? totalMonthlyProductRevenue / totalMonthlySalesUnits : 25;
+
+  const stockUnitCostEst =
+    stockItems.length > 0
+      ? stockItems.reduce((sum, s) => sum + (s.stockUnitCost || 0), 0) / stockItems.length
+      : 0;
+
+  const directUnitCostEst = directItems.reduce(
+    (sum, d) => sum + (d.directCostPerUnitOrJob || 0),
+    0
+  );
+
+  const totalUnitCostEst = roundCurrency(stockUnitCostEst + directUnitCostEst);
+  const unitGrossMarginDollars = roundCurrency(avgSellingPrice - totalUnitCostEst);
+  const unitGrossMarginPercent =
+    avgSellingPrice > 0 ? roundCurrency((unitGrossMarginDollars / avgSellingPrice) * 100) : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
-          <Package className="w-4 h-4 text-emerald-600" /> Products
-        </h3>
-        <div className="flex gap-2">
-          {allowResale && (
+    <div className="space-y-6">
+      {/* Workflow Strategy Selector */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/70">
+              Goods Operational Engine
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-stone-900">
+            {goodsType === 'make' ? 'Make & Manufacturing Setup' : 'Resale & Merchandise Trading Setup'}
+          </h3>
+          <p className="text-xs text-stone-500">
+            Configure product catalog, unit pricing, sales volume trajectories, and production cost items.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200/60">
             <button
               type="button"
-              onClick={() => addProduct('resale')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-[10px] font-bold transition-colors"
+              onClick={() => onUpdateGoodsType('make')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                goodsType === 'make'
+                  ? 'bg-white text-emerald-800 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
             >
-              <Plus className="w-3 h-3" /> Resale Product
+              <Hammer size={13} />
+              <span>Make / Assembly</span>
             </button>
-          )}
-          {allowManufactured && (
             <button
               type="button"
-              onClick={() => addProduct('manufactured')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition-colors"
+              onClick={() => onUpdateGoodsType('resell')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                goodsType === 'resell'
+                  ? 'bg-white text-emerald-800 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
             >
-              <Plus className="w-3 h-3" /> Manufactured Product
+              <ShoppingBag size={13} />
+              <span>Resell / Retail</span>
             </button>
-          )}
+          </div>
         </div>
       </div>
 
-      {products.length === 0 && (
-        <div className="text-center py-8 text-stone-400 text-xs border border-dashed border-stone-200 rounded-xl">
-          No products yet — add one above to start building your costing model.
+      {/* Starting Cash Balance Input */}
+      <div className="bg-emerald-900 text-white rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+            Initial Capitalization & Liquidity
+          </div>
+          <div className="text-sm font-semibold text-emerald-50">
+            Starting Cash in Bank (Month 1 Reserve)
+          </div>
+          <div className="text-[11px] text-emerald-200/80">
+            This starting balance funds initial equipment purchases and pre-launch setup expenses before revenue arrives.
+          </div>
         </div>
-      )}
 
-      {products.map((product) => {
-        const breakdown = calculateGoodsUnitCost(product);
-        const isOpen = expandedId === product.id;
-        return (
-          <div key={product.id} className="border border-stone-150 rounded-xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setExpandedId(isOpen ? null : product.id)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-stone-50 hover:bg-stone-100 transition-colors"
-            >
-              <div className="text-left">
-                <div className="text-xs font-bold text-stone-800">{product.name || 'Untitled product'}</div>
-                <div className="text-[10px] text-stone-400">
-                  {product.sourcing === 'manufactured' ? 'Manufactured' : 'Resale'} · Unit cost ${breakdown.unitCost.toFixed(2)} ·
-                  Margin {breakdown.grossMarginPercent}%
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-xs text-stone-400 font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={startingCash}
+              onChange={(e) => onUpdateStartingCash(Math.max(0, parseFloat(e.target.value) || 0))}
+              className="w-36 pl-7 pr-3 py-1.5 text-xs font-bold bg-white text-stone-900 rounded-xl border border-emerald-300/40 focus:ring-2 focus:ring-emerald-400 focus:outline-hidden"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Product Catalog & Volume Drivers */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-150 pb-3">
+          <div>
+            <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+              <Package size={16} className="text-emerald-700" />
+              <span>Product Line & Sales Targets</span>
+            </h4>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Specify selling price, expected initial monthly unit sales, and month-over-month growth rate for Year 1.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddProduct(!showAddProduct)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors self-start sm:self-auto"
+          >
+            <Plus size={13} />
+            <span>Add Product</span>
+          </button>
+        </div>
+
+        {/* Add Product Inline Form */}
+        {showAddProduct && (
+          <form onSubmit={handleAddProduct} className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-150">
+            <div className="text-xs font-bold text-stone-900">Add New Product to Lineup</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Product Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Standard 500g Sourdough Loaf"
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Selling Price ($)</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={newProdPrice}
+                    onChange={(e) => setNewProdPrice(e.target.value)}
+                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                  />
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Initial Monthly Volume (Units)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newProdVolume}
+                  onChange={(e) => setNewProdVolume(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">MoM Growth Rate (%)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={newProdGrowth}
+                    onChange={(e) => setNewProdGrowth(e.target.value)}
+                    className="w-full px-3 pr-6 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                  />
+                  <span className="absolute right-2 top-1.5 text-xs text-stone-400">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(product.id);
-                }}
-                className="p-1.5 rounded hover:bg-red-50 text-stone-400 hover:text-red-500 transition-colors"
+                onClick={() => setShowAddProduct(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-stone-500 hover:bg-stone-200"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                Cancel
               </button>
-            </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800"
+              >
+                Save Product
+              </button>
+            </div>
+          </form>
+        )}
 
-            {isOpen && (
-              <div className="p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className={labelCls}>Product Name</label>
+        {/* Product Cards Table */}
+        <div className="space-y-2.5">
+          {products.map((product) => {
+            const monthlyRev = product.sellingPrice * product.monthlySalesVolume;
+            return (
+              <div
+                key={product.id}
+                className="bg-stone-50/70 border border-stone-200/90 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-stone-900">{product.name}</span>
+                    <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">
+                      ${product.sellingPrice.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-stone-500 flex items-center gap-3">
+                    <span>Target Volume: <strong>{product.monthlySalesVolume.toLocaleString()} units/mo</strong></span>
+                    <span>•</span>
+                    <span>Monthly Revenue: <strong>${monthlyRev.toLocaleString()}</strong></span>
+                    <span>•</span>
+                    <span>Growth: <strong>+{product.monthlyGrowthRatePercent || 0}% / mo</strong></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Vol/mo:</label>
                     <input
-                      type="text"
-                      value={product.name}
-                      onChange={(e) => update(product.id, { name: e.target.value })}
-                      className={inputCls}
-                      placeholder="e.g. Coconut Body Butter 250ml"
+                      type="number"
+                      min="1"
+                      value={product.monthlySalesVolume}
+                      onChange={(e) =>
+                        handleUpdateProductField(product.id, 'monthlySalesVolume', parseInt(e.target.value) || 1)
+                      }
+                      className="w-20 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
                     />
                   </div>
-                  <NumberField label="Selling Price" prefix="$" value={product.sellingPrice} onChange={(v) => update(product.id, { sellingPrice: v })} />
-                  <NumberField
-                    label="Expected Monthly Units"
-                    value={product.expectedMonthlyUnits}
-                    onChange={(v) => update(product.id, { expectedMonthlyUnits: v })}
-                  />
-                  <NumberField
-                    label="Monthly Sales Growth"
-                    suffix="%"
-                    value={product.monthlySalesGrowthPercent}
-                    onChange={(v) => update(product.id, { monthlySalesGrowthPercent: v })}
-                  />
-                  <NumberField
-                    label="Returns / Warranty Allowance"
-                    suffix="%"
-                    value={product.returnsWarrantyAllowancePercent}
-                    onChange={(v) => update(product.id, { returnsWarrantyAllowancePercent: v })}
-                  />
-                </div>
 
-                {product.sourcing === 'resale' ? (
-                  <div className="border-t border-stone-100 pt-3 space-y-3">
-                    <label className="text-[10px] font-bold text-stone-400 uppercase">Resale Costs</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <NumberField label="Purchase Cost / Unit" prefix="$" value={product.purchaseCostPerUnit} onChange={(v) => update(product.id, { purchaseCostPerUnit: v })} />
-                      <NumberField label="Freight / Import Cost / Unit" prefix="$" value={product.freightImportCostPerUnit} onChange={(v) => update(product.id, { freightImportCostPerUnit: v })} />
-                      <NumberField label="Minimum Order Quantity" value={product.minimumOrderQuantity} onChange={(v) => update(product.id, { minimumOrderQuantity: v })} />
-                      <NumberField label="Lead Time" suffix="days" value={product.leadTimeDays} onChange={(v) => update(product.id, { leadTimeDays: v })} />
-                    </div>
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Price:</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={product.sellingPrice}
+                      onChange={(e) =>
+                        handleUpdateProductField(product.id, 'sellingPrice', parseFloat(e.target.value) || 0)
+                      }
+                      className="w-18 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                    />
                   </div>
-                ) : (
-                  <div className="border-t border-stone-100 pt-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-stone-400 uppercase">Raw Materials</label>
-                      <button
-                        type="button"
-                        onClick={() => addMaterial(product)}
-                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-                      >
-                        <Plus className="w-3 h-3" /> Add Material
-                      </button>
-                    </div>
-                    {(product.rawMaterials || []).map((m) => (
-                      <div key={m.id} className="grid grid-cols-[1fr,80px,90px,28px] gap-2 items-end">
-                        <div>
-                          <label className={labelCls}>Material</label>
-                          <input type="text" value={m.name} onChange={(e) => updateMaterial(product, m.id, { name: e.target.value })} className={inputCls} placeholder="e.g. Shea butter" />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Qty/Unit</label>
-                          <input type="number" value={m.quantityPerUnit} onChange={(e) => updateMaterial(product, m.id, { quantityPerUnit: parseFloat(e.target.value) || 0 })} className={inputCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>Cost/Qty</label>
-                          <input type="number" value={m.costPerUnit} onChange={(e) => updateMaterial(product, m.id, { costPerUnit: parseFloat(e.target.value) || 0 })} className={inputCls} />
-                        </div>
-                        <button type="button" onClick={() => removeMaterial(product, m.id)} className="p-1.5 rounded hover:bg-red-50 text-stone-400 hover:text-red-500">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
 
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <NumberField label="Direct Production Labour / Unit" prefix="$" value={product.directProductionLabourPerUnit} onChange={(v) => update(product.id, { directProductionLabourPerUnit: v })} />
-                      <NumberField label="Allocated Production Overhead / Unit" prefix="$" value={product.productionOverheadPerUnit} onChange={(v) => update(product.id, { productionOverheadPerUnit: v })} />
-                      <NumberField label="Waste / Scrap" suffix="%" value={product.wasteScrapPercent} onChange={(v) => update(product.id, { wasteScrapPercent: v })} />
-                      <NumberField label="Production Capacity" suffix="units/mo" value={product.productionCapacityUnitsPerMonth} onChange={(v) => update(product.id, { productionCapacityUnitsPerMonth: v })} />
-                    </div>
-                  </div>
-                )}
-
-                <div className="border-t border-stone-100 pt-3 grid grid-cols-2 gap-3">
-                  <NumberField label="Packaging Cost / Unit" prefix="$" value={product.packagingCostPerUnit} onChange={(v) => update(product.id, { packagingCostPerUnit: v })} />
-                  <NumberField label="Distribution Cost / Unit" prefix="$" value={product.distributionCostPerUnit} onChange={(v) => update(product.id, { distributionCostPerUnit: v })} />
-                  <NumberField label="Duties / Taxes" suffix="%" value={product.dutiesTaxesPercent} onChange={(v) => update(product.id, { dutiesTaxesPercent: v })} />
-                  <div>
-                    <label className={labelCls}>Supplier / Manufacturer</label>
-                    <input type="text" value={product.supplier || ''} onChange={(e) => update(product.id, { supplier: e.target.value })} className={inputCls} />
-                  </div>
-                </div>
-
-                <div className="bg-stone-50 rounded-xl p-3 grid grid-cols-4 gap-3 text-center">
-                  <div>
-                    <div className="text-[9px] text-stone-400 uppercase font-bold">Unit Cost</div>
-                    <div className="text-sm font-bold text-stone-800">${breakdown.unitCost.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] text-stone-400 uppercase font-bold">Selling Price</div>
-                    <div className="text-sm font-bold text-stone-800">${breakdown.sellingPrice.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] text-stone-400 uppercase font-bold">Gross Profit/Unit</div>
-                    <div className="text-sm font-bold text-emerald-600">${breakdown.grossProfitPerUnit.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] text-stone-400 uppercase font-bold">Gross Margin</div>
-                    <div className="text-sm font-bold text-emerald-600">{breakdown.grossMarginPercent}%</div>
-                  </div>
+                  {products.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProduct(product.id)}
+                      className="p-1 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-stone-100 transition-colors"
+                      title="Remove product"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
 
-      {products.length > 0 && (
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 grid grid-cols-4 gap-3 text-center">
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Monthly Revenue</div>
-            <div className="text-sm font-bold text-emerald-800">${summary.monthlyRevenue.toFixed(2)}</div>
+        {/* Unit Economics Snapshot */}
+        <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={16} className="text-emerald-700" />
+            <span className="font-bold text-stone-900">Unit Economics & Gross Margin Profile:</span>
           </div>
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Monthly COGS</div>
-            <div className="text-sm font-bold text-emerald-800">${summary.monthlyCOGS.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Gross Profit</div>
-            <div className="text-sm font-bold text-emerald-800">${summary.monthlyGrossProfit.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Gross Margin</div>
-            <div className="text-sm font-bold text-emerald-800">{summary.grossMarginPercent}%</div>
+          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+            <span>Avg Price: <strong>${avgSellingPrice.toFixed(2)}</strong></span>
+            <span className="text-stone-300">|</span>
+            <span>Direct Cost: <strong>${totalUnitCostEst.toFixed(2)}</strong></span>
+            <span className="text-stone-300">|</span>
+            <span>Gross Margin: <strong>${unitGrossMarginDollars.toFixed(2)} ({unitGrossMarginPercent}%)</strong></span>
           </div>
         </div>
+      </div>
+
+      {/* Embedded Cost Items Ledger & Form Modal */}
+      {isAddingItem || editingItem ? (
+        <SharedCostItemForm
+          initialItem={editingItem || undefined}
+          availableEquipmentList={equipmentItems}
+          onSave={handleSaveCostItem}
+          onCancel={() => {
+            setIsAddingItem(false);
+            setEditingItem(null);
+          }}
+        />
+      ) : (
+        <SharedCostItemList
+          items={costItems}
+          onAddItem={() => setIsAddingItem(true)}
+          onEditItem={(item) => setEditingItem(item)}
+          onDeleteItem={handleDeleteCostItem}
+          title="Production Cost Structure & Assets"
+          subtitle="Manage equipment assets, raw materials / stock items, packaging, and facility overheads"
+        />
       )}
     </div>
   );
 };
-
-export default GoodsWorkflowPanel;

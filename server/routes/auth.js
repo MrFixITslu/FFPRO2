@@ -167,11 +167,25 @@ router.post('/register', async (req, res) => {
       console.warn('Verification delivery error during registration:', mailErr);
     }
 
-    // Do NOT log the user in immediately. Access to the site requires verifying their email first.
-    return res.status(201).json({
-      requiresVerification: true,
-      email: newUser.email,
-      message: 'Account created! Please check your email and click the verification link to confirm your email address before accessing the site.',
+    // Initialize session for the newly registered user
+    req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regeneration error on register:', regenErr);
+        return res.status(500).json({ error: 'Failed to initialize session.' });
+      }
+
+      req.login(newUser, (loginErr) => {
+        if (loginErr) {
+          console.error('Login error on register:', loginErr);
+          return res.status(500).json({ error: 'Registration succeeded but session initialization failed.' });
+        }
+        return res.status(201).json({
+          user: sanitizeUser(newUser),
+          requiresVerification: true,
+          email: newUser.email,
+          message: 'Account created! Please check your email to confirm your email address.',
+        });
+      });
     });
   } catch (err) {
     if (err.code === '23505') {

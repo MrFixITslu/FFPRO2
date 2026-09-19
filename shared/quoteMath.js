@@ -37,6 +37,18 @@ export function quoteTotals(quote) {
   const discount = Math.max(0, toNum(quote.discounts, 0));
   const total = money(Math.max(0, subtotal + shipping - discount));
 
+  if (discount > money(subtotal + shipping)) {
+    issues.push(`Overall discount (${discount}) exceeds gross quote total (${money(subtotal + shipping)}).`);
+  }
+
+  if (quote.subtotal !== undefined && quote.subtotal !== null && money(quote.subtotal) !== subtotal) {
+    issues.push(`Quoted subtotal (${money(quote.subtotal)}) does not match calculated subtotal (${subtotal}).`);
+  }
+
+  if (quote.total !== undefined && quote.total !== null && money(quote.total) !== total) {
+    issues.push(`Quoted total (${money(quote.total)}) does not match calculated total (${total}).`);
+  }
+
   return { lines, subtotal, total, issues };
 }
 
@@ -70,6 +82,10 @@ export function recalculateQuote(quote) {
 
 // Allocate overall quote discounts across items proportionally so cost sum matches total quoted
 export function allocatedQuoteCosts(quote) {
+  const initialTotals = quoteTotals(quote);
+  if (initialTotals.issues && initialTotals.issues.length > 0) {
+    throw new Error(`Invalid quote data: ${initialTotals.issues.join('; ')}`);
+  }
   const cleanQuote = recalculateQuote(quote);
   const totals = quoteTotals(cleanQuote);
   const items = cleanQuote.items || [];

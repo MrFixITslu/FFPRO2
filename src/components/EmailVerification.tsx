@@ -108,7 +108,7 @@ export function EmailVerificationScreen() {
             src={APP_LOGO}
             alt="Fire Finance Pro"
             referrerPolicy="no-referrer"
-            className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+            className="h-14 w-auto max-w-[260px] mx-auto mb-3 object-contain filter drop-shadow-md"
           />
           <h1 className="text-xl font-bold text-white tracking-tight">Email Verification</h1>
           <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Activation</p>

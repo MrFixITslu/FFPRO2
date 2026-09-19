@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { authService, AuthUser } from '../services/authService';
 
-import { APP_LOGO } from '../assets/logo';
+import { APP_LOGO, APP_LOGO_ICON } from '../assets/logo';
 
 interface Props {
   onAuthenticated: (user: AuthUser) => void;
@@ -209,13 +209,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
+            <h1 className="text-xl font-bold text-white tracking-tight">Check Your Email</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
             />
-            <h1 className="text-xl font-bold text-white tracking-tight">Check Your Email</h1>
             <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Verification Required</p>
           </div>
 
@@ -288,13 +288,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
+            <h1 className="text-xl font-bold text-white tracking-tight">Resend Verification</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
             />
-            <h1 className="text-xl font-bold text-white tracking-tight">Resend Verification</h1>
             <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Security</p>
           </div>
 
@@ -366,13 +366,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
+            <h1 className="text-xl font-bold text-white tracking-tight">Reset Your Password</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
             />
-            <h1 className="text-xl font-bold text-white tracking-tight">Reset Your Password</h1>
             <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
           </div>
 
@@ -455,13 +455,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
+            <h1 className="text-xl font-bold text-white tracking-tight">Forgot Password</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="w-16 h-16 rounded-xl mx-auto mb-3 shadow-lg ring-2 ring-white/20 object-cover"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
             />
-            <h1 className="text-xl font-bold text-white tracking-tight">Forgot Password</h1>
             <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
           </div>
 
@@ -534,7 +534,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="w-20 h-20 rounded-2xl mx-auto mb-3 shadow-xl ring-2 ring-white/20 object-cover"
+              className="h-16 sm:h-20 w-auto max-w-[320px] mx-auto mb-3 object-contain filter drop-shadow-lg"
             />
             <h1 className="text-xl font-bold text-white tracking-tight">Fire Finance Pro</h1>
             <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">FIRE FINANCE PRO SECURE GATEWAY</p>

@@ -56,8 +56,8 @@ async function serve(req,res,download) {
     'application/pdf',
     'text/plain','text/csv','application/json'
   ];
-  const inline = !download && viewableTypes.includes(file.fileType);
-  res.setHeader('Content-Type',inline?file.fileType:'application/octet-stream');
+  const inline = req.query.inline === 'true' && !download && viewableTypes.includes(file.fileType);
+  res.setHeader('Content-Type',inline?file.fileType:(file.fileType || 'application/octet-stream'));
   res.setHeader('Content-Disposition',`${inline?'inline':'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
   res.setHeader('Cache-Control','private, no-store');
   if (inline && file.fileType === 'application/pdf') {

@@ -449,18 +449,18 @@ export const pool = {
       return { rows: [] };
     }
 
-    // 3. SELECT id FROM users WHERE LOWER(email) = LOWER($1)
-    if (cleanSql.includes('SELECT id FROM users WHERE LOWER(email) = LOWER(')) {
+    // 3. SELECT ... FROM users WHERE LOWER(email) = LOWER($1)
+    if (cleanSql.includes('FROM users WHERE LOWER(email) = LOWER(')) {
       const email = params[0];
       const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      return { rows: user ? [{ id: user.id }] : [] };
-    }
-
-    // 4. SELECT * FROM users WHERE LOWER(email) = LOWER($1)
-    if (cleanSql.includes('SELECT * FROM users WHERE LOWER(email) = LOWER(')) {
-      const email = params[0];
-      const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      return { rows: user ? [user] : [] };
+      if (!user) return { rows: [] };
+      if (cleanSql.includes('SELECT id FROM users')) {
+        return { rows: [{ id: user.id }] };
+      }
+      if (cleanSql.includes('SELECT id, email, email_verified_at FROM users')) {
+        return { rows: [{ id: user.id, email: user.email, email_verified_at: user.email_verified_at || null }] };
+      }
+      return { rows: [user] };
     }
 
     // 5. INSERT INTO users (email, username, password_hash, display_name, last_login_at) VALUES (LOWER($1), $2, $3, $4, now()) RETURNING *
@@ -473,7 +473,8 @@ export const pool = {
         display_name: params[3],
         avatar_url: null,
         created_at: new Date().toISOString(),
-        last_login_at: new Date().toISOString()
+        last_login_at: new Date().toISOString(),
+        email_verified_at: null
       };
       db.users.push(newUser);
       writeDB(db);

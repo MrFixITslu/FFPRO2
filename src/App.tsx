@@ -1314,14 +1314,8 @@ const App: React.FC = () => {
                     src={APP_LOGO}
                     alt="Fire Finance Pro Logo"
                     referrerPolicy="no-referrer"
-                    className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-xs ring-1 ring-slate-900/10 group-hover:scale-105 transition-transform"
+                    className="h-8 sm:h-9 w-auto max-w-[180px] sm:max-w-[220px] object-contain shrink-0 group-hover:scale-102 transition-transform"
                   />
-                  <div>
-                    <h1 className="text-sm sm:text-base font-display font-semibold tracking-tight text-stone-900 whitespace-nowrap leading-none">
-                      FFPRO <span className="font-sans font-bold text-indigo-600 text-[10px] uppercase tracking-wider ml-0.5">V1</span>
-                    </h1>
-                    <p className="text-[9px] font-medium text-stone-400 tracking-wider uppercase leading-none mt-1 hidden xs:block">Fire Finance Pro</p>
-                  </div>
                 </div>
 
                 {/* Main Menu Tabs (Desktop / Tablet) */}

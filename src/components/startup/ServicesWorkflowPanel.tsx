@@ -1,301 +1,566 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Briefcase, Users, AlertTriangle } from 'lucide-react';
-import { ServiceOffering, ServiceRevenueModel, ServiceCapacityPlan, ServiceDirectCosts } from '../../types';
 import {
-  calculateServiceOfferingRevenue,
-  calculateServicesMonthlyResult
-} from '../../services/startupFinancialsService';
+  Briefcase,
+  Plus,
+  Trash2,
+  TrendingUp,
+  Clock,
+  Users,
+  Wrench,
+  DollarSign,
+  HelpCircle,
+  Sparkles,
+  Repeat,
+  Check
+} from 'lucide-react';
+import {
+  ServiceOffering,
+  ServiceCapacityPlan,
+  ServiceRevenueModel,
+  StartupCostItem
+} from '../../types';
+import { SharedCostItemList } from './SharedCostItemList';
+import { SharedCostItemForm } from './SharedCostItemForm';
+import { calculateServiceCapacity, roundCurrency } from '../../services/startupFinancialsService';
 
-interface Props {
-  allowedRevenueModels: ServiceRevenueModel[];
-  offerings: ServiceOffering[];
-  onOfferingsChange: (offerings: ServiceOffering[]) => void;
-  capacity: ServiceCapacityPlan | undefined;
-  onCapacityChange: (capacity: ServiceCapacityPlan) => void;
-  directCosts: ServiceDirectCosts | undefined;
-  onDirectCostsChange: (costs: ServiceDirectCosts) => void;
+interface ServicesWorkflowPanelProps {
+  services: ServiceOffering[];
+  capacityPlan?: ServiceCapacityPlan;
+  costItems: StartupCostItem[];
+  startingCash?: number;
+  onUpdateServices: (services: ServiceOffering[]) => void;
+  onUpdateCapacityPlan: (plan: ServiceCapacityPlan) => void;
+  onUpdateCostItems: (items: StartupCostItem[]) => void;
+  onUpdateStartingCash: (cash: number) => void;
 }
 
-const REVENUE_MODEL_LABELS: Record<ServiceRevenueModel, string> = {
-  hourly: 'Hourly / Daily',
-  fixed_project: 'Fixed-price Project',
-  package: 'Package',
-  retainer: 'Retainer',
-  subscription: 'Subscription',
-  per_transaction: 'Per Transaction',
-  other: 'Other'
-};
-
-const inputCls =
-  'w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white';
-const labelCls = 'text-[9px] font-bold text-stone-400 uppercase block mb-1';
-
-const NumberField: React.FC<{ label: string; value: number | undefined; onChange: (v: number) => void; prefix?: string; suffix?: string }> = ({
-  label,
-  value,
-  onChange,
-  prefix,
-  suffix
-}) => (
-  <div>
-    <label className={labelCls}>{label}</label>
-    <div className="relative">
-      {prefix && <span className="absolute left-2.5 top-1.5 text-stone-400 text-xs">{prefix}</span>}
-      <input
-        type="number"
-        value={value ?? ''}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        placeholder="0"
-        className={`${inputCls} ${prefix ? 'pl-6' : ''} ${suffix ? 'pr-6' : ''}`}
-      />
-      {suffix && <span className="absolute right-2.5 top-1.5 text-stone-400 text-xs">{suffix}</span>}
-    </div>
-  </div>
-);
-
-const newOffering = (models: ServiceRevenueModel[]): ServiceOffering => ({
-  id: `svc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-  name: '',
-  revenueModels: models.length === 1 ? [models[0]] : [],
-  isRecurringRevenue: models.some((m) => m === 'retainer' || m === 'subscription')
-});
-
-export const ServicesWorkflowPanel: React.FC<Props> = ({
-  allowedRevenueModels,
-  offerings,
-  onOfferingsChange,
-  capacity,
-  onCapacityChange,
-  directCosts,
-  onDirectCostsChange
+export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
+  services,
+  capacityPlan: initialCapacityPlan,
+  costItems,
+  startingCash = 10000,
+  onUpdateServices,
+  onUpdateCapacityPlan,
+  onUpdateCostItems,
+  onUpdateStartingCash
 }) => {
-  const [expandedId, setExpandedId] = useState<string | null>(offerings[0]?.id || null);
+  const capacityPlan: ServiceCapacityPlan = initialCapacityPlan || {
+    resourceType: 'staff',
+    resourceCount: 2,
+    availableTimePerResource: 160,
+    targetUtilisationPercent: 75,
+    hourlyOrDailyRate: 75
+  };
+  const [editingItem, setEditingItem] = useState<StartupCostItem | null>(null);
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [showAddService, setShowAddService] = useState(false);
 
-  const update = (id: string, patch: Partial<ServiceOffering>) => {
-    onOfferingsChange(offerings.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  // New service form state
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newRevenueModel, setNewRevenueModel] = useState<ServiceRevenueModel>('project');
+  const [newRate, setNewRate] = useState('250.00');
+  const [newVolume, setNewVolume] = useState('15');
+  const [newDirectCost, setNewDirectCost] = useState('25.00');
+  const [newGrowth, setNewGrowth] = useState('2.0');
+
+  const capacityCalc = calculateServiceCapacity(capacityPlan);
+
+  const handleAddService = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newServiceName.trim()) return;
+
+    const newService: ServiceOffering = {
+      id: `service-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: newServiceName.trim(),
+      revenueModel: newRevenueModel,
+      rate: Math.max(0.01, parseFloat(newRate) || 100),
+      expectedVolume: Math.max(1, parseInt(newVolume) || 10),
+      directCostPerUnitOrJob: Math.max(0, parseFloat(newDirectCost) || 0),
+      monthlyGrowthRatePercent: parseFloat(newGrowth) || 0,
+      annualGrowthRatePercent: 15
+    };
+
+    onUpdateServices([...services, newService]);
+    setNewServiceName('');
+    setNewRate('250.00');
+    setNewVolume('15');
+    setNewDirectCost('25.00');
+    setShowAddService(false);
   };
 
-  const toggleModel = (offering: ServiceOffering, model: ServiceRevenueModel) => {
-    const has = offering.revenueModels.includes(model);
-    update(offering.id, {
-      revenueModels: has ? offering.revenueModels.filter((m) => m !== model) : [...offering.revenueModels, model]
+  const handleRemoveService = (id: string) => {
+    onUpdateServices(services.filter((s) => s.id !== id));
+  };
+
+  const handleUpdateServiceField = (id: string, field: keyof ServiceOffering, value: any) => {
+    const updated = services.map((s) => {
+      if (s.id === id) {
+        return { ...s, [field]: value };
+      }
+      return s;
     });
+    onUpdateServices(updated);
   };
 
-  const remove = (id: string) => {
-    onOfferingsChange(offerings.filter((o) => o.id !== id));
-    if (expandedId === id) setExpandedId(null);
+  // Cost items handlers
+  const handleSaveCostItem = (item: StartupCostItem) => {
+    const exists = costItems.some((i) => i.id === item.id);
+    if (exists) {
+      onUpdateCostItems(costItems.map((i) => (i.id === item.id ? item : i)));
+    } else {
+      onUpdateCostItems([...costItems, item]);
+    }
+    setEditingItem(null);
+    setIsAddingItem(false);
   };
 
-  const addOffering = () => {
-    const o = newOffering(allowedRevenueModels);
-    onOfferingsChange([...offerings, o]);
-    setExpandedId(o.id);
+  const handleDeleteCostItem = (itemId: string) => {
+    onUpdateCostItems(costItems.filter((i) => i.id !== itemId));
   };
 
-  const summary = calculateServicesMonthlyResult(offerings, directCosts, capacity);
-  const usesHourly = allowedRevenueModels.includes('hourly');
+  const equipmentItems = costItems.filter((i) => i.classification === 'equipment');
+
+  // Total projected monthly services revenue
+  const totalMonthlyServiceRevenue = services.reduce(
+    (sum, s) => sum + (s.expectedVolume || 1) * s.rate,
+    0
+  );
+
+  const getModelLabel = (model: ServiceRevenueModel) => {
+    switch (model) {
+      case 'hourly':
+        return 'Hourly Billing';
+      case 'project':
+        return 'Fixed Project Fee';
+      case 'retainer':
+        return 'Monthly Retainer';
+      case 'subscription':
+        return 'Recurring Subscription';
+      case 'rental':
+        return 'Equipment / Facility Rental';
+      case 'commission':
+        return 'Commission / Success Fee';
+    }
+  };
+
+  const getUnitName = (model: ServiceRevenueModel) => {
+    switch (model) {
+      case 'hourly':
+        return 'hours';
+      case 'project':
+        return 'projects';
+      case 'retainer':
+        return 'retainers';
+      case 'subscription':
+        return 'subscribers';
+      case 'rental':
+        return 'rental days';
+      case 'commission':
+        return 'deals';
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
-          <Briefcase className="w-4 h-4 text-emerald-600" /> Services Offered
-        </h3>
-        <button
-          type="button"
-          onClick={addOffering}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition-colors"
-        >
-          <Plus className="w-3 h-3" /> Add Service
-        </button>
+    <div className="space-y-6">
+      {/* Starting Cash Balance Banner */}
+      <div className="bg-emerald-900 text-white rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+            Initial Capitalization & Liquidity
+          </div>
+          <div className="text-sm font-semibold text-emerald-50">
+            Starting Cash in Bank (Month 1 Reserve)
+          </div>
+          <div className="text-[11px] text-emerald-200/80">
+            Available working capital to fund software, tooling, setup deposits, and initial operations.
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-xs text-stone-400 font-bold">$</span>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={startingCash}
+              onChange={(e) => onUpdateStartingCash(Math.max(0, parseFloat(e.target.value) || 0))}
+              className="w-36 pl-7 pr-3 py-1.5 text-xs font-bold bg-white text-stone-900 rounded-xl border border-emerald-300/40 focus:ring-2 focus:ring-emerald-400 focus:outline-hidden"
+            />
+          </div>
+        </div>
       </div>
 
-      {offerings.length === 0 && (
-        <div className="text-center py-8 text-stone-400 text-xs border border-dashed border-stone-200 rounded-xl">
-          No services yet — add one above to start building your revenue model.
-        </div>
-      )}
+      {/* Decision 2: Generalised Capacity Planner (Staff or Equipment) */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-150 pb-3">
+          <div>
+            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200/70">
+              Capacity Engine (Decision 2)
+            </span>
+            <h4 className="text-sm font-bold text-stone-900 mt-1 flex items-center gap-2">
+              <Clock size={16} className="text-blue-700" />
+              <span>Service Delivery Capacity & Resource Plan</span>
+            </h4>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Generalised resource model for billable staff or rental equipment assets.
+            </p>
+          </div>
 
-      {offerings.map((offering) => {
-        const revLine = calculateServiceOfferingRevenue(offering);
-        const isOpen = expandedId === offering.id;
-        return (
-          <div key={offering.id} className="border border-stone-150 rounded-xl overflow-hidden">
+          {/* Resource Type Switcher */}
+          <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200/60 self-start sm:self-auto">
             <button
               type="button"
-              onClick={() => setExpandedId(isOpen ? null : offering.id)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-stone-50 hover:bg-stone-100 transition-colors"
+              onClick={() => onUpdateCapacityPlan({ ...capacityPlan, resourceType: 'staff' })}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                capacityPlan.resourceType === 'staff'
+                  ? 'bg-white text-blue-800 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
             >
-              <div className="text-left">
-                <div className="text-xs font-bold text-stone-800">{offering.name || 'Untitled service'}</div>
-                <div className="text-[10px] text-stone-400">
-                  {offering.revenueModels.map((m) => REVENUE_MODEL_LABELS[m]).join(', ') || 'No revenue model selected'} · Est. $
-                  {revLine.monthlyRevenue.toFixed(2)}/mo
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(offering.id);
-                }}
-                className="p-1.5 rounded hover:bg-red-50 text-stone-400 hover:text-red-500 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              <Users size={13} />
+              <span>Staff / Billable Team</span>
             </button>
+            <button
+              type="button"
+              onClick={() => onUpdateCapacityPlan({ ...capacityPlan, resourceType: 'equipment' })}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                capacityPlan.resourceType === 'equipment'
+                  ? 'bg-white text-blue-800 shadow-2xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <Wrench size={13} />
+              <span>Equipment / Fleet Assets</span>
+            </button>
+          </div>
+        </div>
 
-            {isOpen && (
-              <div className="p-4 space-y-4">
-                <div>
-                  <label className={labelCls}>Service Name</label>
+        {/* Capacity Inputs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-stone-700">
+              {capacityPlan.resourceType === 'staff' ? 'Billable Staff Members' : 'Active Equipment Units'}
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={capacityPlan.resourceCount}
+              onChange={(e) =>
+                onUpdateCapacityPlan({ ...capacityPlan, resourceCount: Math.max(1, parseInt(e.target.value) || 1) })
+              }
+              className="w-full px-3 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50 focus:bg-white"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-stone-700">
+              {capacityPlan.resourceType === 'staff' ? 'Available Hours / Staff / Mo' : 'Available Days / Unit / Mo'}
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={capacityPlan.availableTimePerResource}
+              onChange={(e) =>
+                onUpdateCapacityPlan({
+                  ...capacityPlan,
+                  availableTimePerResource: Math.max(1, parseInt(e.target.value) || 1)
+                })
+              }
+              className="w-full px-3 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50 focus:bg-white"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-stone-700">
+              Target Utilisation Rate (%)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={capacityPlan.targetUtilisationPercent}
+                onChange={(e) =>
+                  onUpdateCapacityPlan({
+                    ...capacityPlan,
+                    targetUtilisationPercent: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))
+                  })
+                }
+                className="w-full px-3 pr-7 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50 focus:bg-white"
+              />
+              <span className="absolute right-2.5 top-1.5 text-xs text-stone-400">%</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-stone-700">
+              Benchmark Hourly / Daily Rate ($)
+            </label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={capacityPlan.hourlyOrDailyRate || 75}
+                onChange={(e) =>
+                  onUpdateCapacityPlan({
+                    ...capacityPlan,
+                    hourlyOrDailyRate: Math.max(0, parseFloat(e.target.value) || 0)
+                  })
+                }
+                className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50 focus:bg-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Live Capacity Output Strip */}
+        <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={15} className="text-blue-700" />
+            <span className="font-bold text-stone-900">Calculated Capacity Benchmark:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+            <span>
+              Total Available: <strong>{capacityCalc.totalCapacityUnits} {capacityPlan.resourceType === 'staff' ? 'hrs' : 'days'}/mo</strong>
+            </span>
+            <span className="text-stone-300">|</span>
+            <span className="text-blue-900">
+              Effective Billable: <strong>{capacityCalc.effectiveCapacityUnits} {capacityPlan.resourceType === 'staff' ? 'hrs' : 'days'}/mo</strong>
+            </span>
+            <span className="text-stone-300">|</span>
+            <span className="text-emerald-800">
+              Max Potential: <strong>${capacityCalc.monthlyRevenuePotential.toLocaleString()}/mo</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Service Offerings Catalog */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-150 pb-3">
+          <div>
+            <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+              <Briefcase size={16} className="text-emerald-700" />
+              <span>Service Offerings & Revenue Models</span>
+            </h4>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Define your client engagement models: hourly contracts, project milestones, retainers, subscriptions, or rentals.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddService(!showAddService)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors self-start sm:self-auto"
+          >
+            <Plus size={13} />
+            <span>Add Service</span>
+          </button>
+        </div>
+
+        {/* Add Service Inline Form */}
+        {showAddService && (
+          <form onSubmit={handleAddService} className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-150">
+            <div className="text-xs font-bold text-stone-900">Add New Service Offering</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Service Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Monthly Marketing Retainer"
+                  value={newServiceName}
+                  onChange={(e) => setNewServiceName(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Commercial Revenue Model</label>
+                <select
+                  value={newRevenueModel}
+                  onChange={(e) => setNewRevenueModel(e.target.value as ServiceRevenueModel)}
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                >
+                  <option value="project">Fixed Project Fee</option>
+                  <option value="hourly">Hourly Billing</option>
+                  <option value="retainer">Monthly Retainer</option>
+                  <option value="subscription">Recurring Subscription</option>
+                  <option value="rental">Equipment / Space Rental</option>
+                  <option value="commission">Commission Fee</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Billing Rate / Price ($)</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
                   <input
-                    type="text"
-                    value={offering.name}
-                    onChange={(e) => update(offering.id, { name: e.target.value })}
-                    className={inputCls}
-                    placeholder="e.g. Managed IT Support"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={newRate}
+                    onChange={(e) => setNewRate(e.target.value)}
+                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className={labelCls}>Revenue Model(s)</label>
-                  <div className="flex flex-wrap gap-2">
-                    {allowedRevenueModels.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => toggleModel(offering, m)}
-                        className={`px-2.5 py-1 rounded-full border text-[10px] font-semibold transition-colors ${
-                          offering.revenueModels.includes(m)
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                            : 'border-stone-200 text-stone-600 hover:border-stone-300'
-                        }`}
-                      >
-                        {REVENUE_MODEL_LABELS[m]}
-                      </button>
-                    ))}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">
+                  Initial Monthly Volume ({getUnitName(newRevenueModel)})
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newVolume}
+                  onChange={(e) => setNewVolume(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Direct Cost per Job/Unit ($)</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newDirectCost}
+                    onChange={(e) => setNewDirectCost(e.target.value)}
+                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">MoM Growth Rate (%)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={newGrowth}
+                    onChange={(e) => setNewGrowth(e.target.value)}
+                    className="w-full px-3 pr-6 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                  />
+                  <span className="absolute right-2 top-1.5 text-xs text-stone-400">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAddService(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-stone-500 hover:bg-stone-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800"
+              >
+                Save Service Offering
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Service Offerings List */}
+        <div className="space-y-2.5">
+          {services.map((service) => {
+            const monthlyRev = service.rate * (service.expectedVolume || 1);
+            return (
+              <div
+                key={service.id}
+                className="bg-stone-50/70 border border-stone-200/90 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-stone-900">{service.name}</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.2 rounded bg-stone-200/80 text-stone-700">
+                      {getModelLabel(service.revenueModel)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-stone-500 flex items-center gap-3">
+                    <span>Rate: <strong>${service.rate.toFixed(2)}</strong></span>
+                    <span>•</span>
+                    <span>Volume: <strong>{service.expectedVolume || 1} {getUnitName(service.revenueModel)}/mo</strong></span>
+                    <span>•</span>
+                    <span>Monthly Revenue: <strong>${monthlyRev.toLocaleString()}</strong></span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {offering.revenueModels.includes('hourly') && (
-                    <>
-                      <NumberField label="Hourly / Daily Rate" prefix="$" value={offering.hourlyRate} onChange={(v) => update(offering.id, { hourlyRate: v })} />
-                      <NumberField label="Expected Billable Hours / Month" value={offering.expectedBillableHoursPerMonth} onChange={(v) => update(offering.id, { expectedBillableHoursPerMonth: v })} />
-                    </>
-                  )}
-                  {offering.revenueModels.includes('fixed_project') && (
-                    <>
-                      <NumberField label="Average Project Fee" prefix="$" value={offering.averageProjectFee} onChange={(v) => update(offering.id, { averageProjectFee: v })} />
-                      <NumberField label="Expected Projects / Month" value={offering.expectedProjectsPerMonth} onChange={(v) => update(offering.id, { expectedProjectsPerMonth: v })} />
-                    </>
-                  )}
-                  {offering.revenueModels.includes('package') && (
-                    <>
-                      <NumberField label="Package Price" prefix="$" value={offering.packagePrice} onChange={(v) => update(offering.id, { packagePrice: v })} />
-                      <NumberField label="Expected Packages / Month" value={offering.expectedPackagesPerMonth} onChange={(v) => update(offering.id, { expectedPackagesPerMonth: v })} />
-                    </>
-                  )}
-                  {offering.revenueModels.includes('retainer') && (
-                    <>
-                      <NumberField label="Monthly Retainer Fee" prefix="$" value={offering.monthlyRetainerFee} onChange={(v) => update(offering.id, { monthlyRetainerFee: v })} />
-                      <NumberField label="Expected Retainer Clients" value={offering.expectedRetainerClients} onChange={(v) => update(offering.id, { expectedRetainerClients: v })} />
-                    </>
-                  )}
-                  {offering.revenueModels.includes('subscription') && (
-                    <>
-                      <NumberField label="Subscription Price" prefix="$" value={offering.subscriptionPrice} onChange={(v) => update(offering.id, { subscriptionPrice: v })} />
-                      <NumberField label="Expected Subscribers" value={offering.expectedSubscribers} onChange={(v) => update(offering.id, { expectedSubscribers: v })} />
-                    </>
-                  )}
-                  {offering.revenueModels.includes('per_transaction') && (
-                    <>
-                      <NumberField label="Avg Revenue / Transaction" prefix="$" value={offering.averageRevenuePerTransaction} onChange={(v) => update(offering.id, { averageRevenuePerTransaction: v })} />
-                      <NumberField label="Expected Transactions / Month" value={offering.expectedTransactionsPerMonth} onChange={(v) => update(offering.id, { expectedTransactionsPerMonth: v })} />
-                    </>
-                  )}
-                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Vol/mo:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={service.expectedVolume || 1}
+                      onChange={(e) =>
+                        handleUpdateServiceField(service.id, 'expectedVolume', parseInt(e.target.value) || 1)
+                      }
+                      className="w-18 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                    />
+                  </div>
 
-                <div className="bg-stone-50 rounded-xl p-3 text-center">
-                  <div className="text-[9px] text-stone-400 uppercase font-bold">Estimated Monthly Revenue</div>
-                  <div className="text-sm font-bold text-stone-800">${revLine.monthlyRevenue.toFixed(2)}</div>
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Rate:</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={service.rate}
+                      onChange={(e) =>
+                        handleUpdateServiceField(service.id, 'rate', parseFloat(e.target.value) || 0)
+                      }
+                      className="w-20 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                    />
+                  </div>
+
+                  {services.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveService(service.id)}
+                      className="p-1 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-stone-100 transition-colors"
+                      title="Remove service"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-        );
-      })}
-
-      {usesHourly && (
-        <div className="border-t border-stone-100 pt-4 space-y-3">
-          <h4 className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-emerald-600" /> Capacity Planning
-          </h4>
-          <div className="grid grid-cols-2 gap-3">
-            <NumberField label="Staff / Contractors" value={capacity?.staffCount} onChange={(v) => onCapacityChange({ ...capacity, staffCount: v })} />
-            <NumberField label="Available Hours / Staff / Week" value={capacity?.availableHoursPerStaffPerWeek} onChange={(v) => onCapacityChange({ ...capacity, availableHoursPerStaffPerWeek: v })} />
-            <NumberField label="Utilisation" suffix="%" value={capacity?.utilisationPercent} onChange={(v) => onCapacityChange({ ...capacity, utilisationPercent: v })} />
-            <NumberField label="Cost / Staff (salary or contractor)" prefix="$" value={capacity?.salaryOrContractorCostPerStaff} onChange={(v) => onCapacityChange({ ...capacity, salaryOrContractorCostPerStaff: v })} />
-          </div>
-          <div className="bg-stone-50 rounded-xl p-3 grid grid-cols-2 gap-3 text-center">
-            <div>
-              <div className="text-[9px] text-stone-400 uppercase font-bold">Billable Capacity</div>
-              <div className="text-sm font-bold text-stone-800">{summary.capacity.billableCapacityHoursPerMonth.toFixed(0)} hrs/mo</div>
-            </div>
-            <div>
-              <div className="text-[9px] text-stone-400 uppercase font-bold">Hours Demanded by Forecast</div>
-              <div className="text-sm font-bold text-stone-800">{summary.capacity.billableHoursDemanded.toFixed(0)} hrs/mo</div>
-            </div>
-          </div>
-          {summary.capacity.isOverCapacity && (
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] rounded-lg px-3 py-2">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              Your forecast demands more billable hours than your current staff can deliver. Increase staff/hours or
-              reduce the forecast to keep this achievable.
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="border-t border-stone-100 pt-4 space-y-3">
-        <h4 className="text-xs font-bold text-stone-700">Direct Service Delivery Costs</h4>
-        <p className="text-[10px] text-stone-400">
-          Costs directly tied to delivering the service — kept separate from general operating expenses.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Direct Employee Labour" prefix="$" value={directCosts?.directEmployeeLabour} onChange={(v) => onDirectCostsChange({ ...directCosts, directEmployeeLabour: v })} />
-          <NumberField label="Contractors / Subcontractors" prefix="$" value={directCosts?.contractorSubcontractorCosts} onChange={(v) => onDirectCostsChange({ ...directCosts, contractorSubcontractorCosts: v })} />
-          <NumberField label="Travel" prefix="$" value={directCosts?.travel} onChange={(v) => onDirectCostsChange({ ...directCosts, travel: v })} />
-          <NumberField label="Project-specific Materials" prefix="$" value={directCosts?.projectSpecificMaterials} onChange={(v) => onDirectCostsChange({ ...directCosts, projectSpecificMaterials: v })} />
-          <NumberField label="Service Delivery Software" prefix="$" value={directCosts?.serviceDeliverySoftware} onChange={(v) => onDirectCostsChange({ ...directCosts, serviceDeliverySoftware: v })} />
-          <NumberField label="Payment Processing" suffix="% of revenue" value={directCosts?.paymentProcessingPercent} onChange={(v) => onDirectCostsChange({ ...directCosts, paymentProcessingPercent: v })} />
+            );
+          })}
         </div>
       </div>
 
-      {offerings.length > 0 && (
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 grid grid-cols-4 gap-3 text-center">
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Service Revenue</div>
-            <div className="text-sm font-bold text-emerald-800">${summary.monthlyRevenue.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Direct Service Cost</div>
-            <div className="text-sm font-bold text-emerald-800">${summary.monthlyDirectCost.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Gross Profit</div>
-            <div className="text-sm font-bold text-emerald-800">${summary.monthlyGrossProfit.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] text-emerald-700/70 uppercase font-bold">Gross Margin</div>
-            <div className="text-sm font-bold text-emerald-800">{summary.grossMarginPercent}%</div>
-          </div>
-        </div>
+      {/* Embedded Cost Items Ledger & Form Modal */}
+      {isAddingItem || editingItem ? (
+        <SharedCostItemForm
+          initialItem={editingItem || undefined}
+          availableEquipmentList={equipmentItems}
+          onSave={handleSaveCostItem}
+          onCancel={() => {
+            setIsAddingItem(false);
+            setEditingItem(null);
+          }}
+        />
+      ) : (
+        <SharedCostItemList
+          items={costItems}
+          onAddItem={() => setIsAddingItem(true)}
+          onEditItem={(item) => setEditingItem(item)}
+          onDeleteItem={handleDeleteCostItem}
+          title="Service Operations Cost Structure & Equipment"
+          subtitle="Manage equipment assets (including rental equipment), direct delivery costs, software, and overheads"
+        />
       )}
     </div>
   );
 };
-
-export default ServicesWorkflowPanel;

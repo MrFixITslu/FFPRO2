@@ -332,6 +332,158 @@ export interface OperatingExpenseItem {
   category?: string;
 }
 
+export type BusinessModelType = 'goods' | 'services' | 'both';
+export type GoodsBusinessType = 'make' | 'resell';
+export type ServiceRevenueModel = 'hourly' | 'project' | 'retainer' | 'subscription' | 'commission' | 'rental';
+
+export type CostItemClassification = 
+  | 'equipment'   // Reusable Equipment (Cash on purchase, straight-line depreciation over useful life)
+  | 'stock'       // Stock / Raw Materials (Cash on purchase, COGS upon sale, carries inventory)
+  | 'direct'      // Cost per Sale / Service (Direct variable cost at time of sale/job)
+  | 'operating'   // Recurring Operating Expense (Rent, utilities, subscriptions, insurance)
+  | 'setup';      // One-Time Setup Expense (Deposits, licenses, launch branding)
+
+export interface StartupCostItem {
+  id: string;
+  name: string;
+  classification: CostItemClassification;
+  category?: string;
+  notes?: string;
+
+  // Reusable Equipment fields
+  purchaseCost?: number;
+  residualValue?: number;
+  usefulLifeYears?: number;
+  purchaseMonth?: number; // 1-12 in Year 1 (default 1)
+  
+  // Equipment Rental Revenue Generator (Decision 2)
+  isRentalRevenueGenerator?: boolean;
+  rentalUnitsOwned?: number;
+  rentalAvailableTimePerUnit?: number; // e.g. 30 days or 160 hours per month
+  rentalUtilisationPercent?: number;  // e.g. 60%
+  rentalRatePerUnit?: number;         // e.g. $150/day or $45/hour
+  rentalTimeUnit?: 'days' | 'hours';
+
+  // Stock / Raw Materials fields
+  stockQuantity?: number;
+  stockUnitCost?: number;
+  stockReorderPoint?: number;
+  initialStockUnits?: number;
+  monthlyRestockUnits?: number;
+  unitsConsumedPerProduct?: number; // units needed per finished goods sale
+
+  // Cost per Sale / Service (Direct variable cost)
+  directCostPerUnitOrJob?: number;
+
+  // Recurring Operating Expense fields
+  monthlyExpenseAmount?: number;
+  isMaintenanceForEquipmentId?: string;
+
+  // One-Time Setup Expense fields
+  setupExpenseAmount?: number;
+  setupMonth?: number; // 1-12 in Year 1 (default 1)
+
+  // Legacy / generic compatibility
+  amount?: number;
+  quantity?: number;
+  unitCost?: number;
+  isRecurring?: boolean;
+}
+
+export interface GoodsProduct {
+  id: string;
+  name: string;
+  sellingPrice: number;
+  monthlySalesVolume: number;
+  monthlyGrowthRatePercent?: number; // month-over-month growth % in Year 1
+  annualGrowthRatePercent?: number;  // annual growth % for Years 2-5
+  unitCost?: number;
+  costItems?: StartupCostItem[];
+  // legacy compatibility
+  cogs?: number;
+  rawMaterials?: any[];
+}
+
+export interface ServiceOffering {
+  id: string;
+  name: string;
+  revenueModel: ServiceRevenueModel;
+  rate: number; // hourly rate, project fee, monthly retainer, subscription fee, rental daily/hourly rate
+  monthlyCapacityUnits?: number; // hours, projects, clients, subscribers, rental days
+  expectedVolume?: number; // expected monthly units/hours/clients
+  utilisationPercent?: number; // %
+  monthlyGrowthRatePercent?: number; // month-over-month growth % in Year 1
+  annualGrowthRatePercent?: number;  // annual growth % for Years 2-5
+  directCostPerUnitOrJob?: number;
+  costItems?: StartupCostItem[];
+}
+
+export interface ServiceCapacityPlan {
+  resourceType: 'staff' | 'equipment';
+  resourceCount: number; // staff members or equipment units
+  availableTimePerResource: number; // hours per month or days per month
+  targetUtilisationPercent: number; // e.g. 75%
+  hourlyOrDailyRate?: number;
+}
+
+export interface MonthlyForecastMonth {
+  month: number; // 1 to 12
+  monthName: string;
+  revenue: number;
+  goodsRevenue: number;
+  servicesRevenue: number;
+  rentalRevenue: number;
+  cogs: number; // direct cost of sales / goods / services
+  grossProfit: number;
+  grossMarginPercent: number;
+  operatingExpenses: number; // recurring op-ex + this month's one-time setup expenses
+  recurringExpenses: number;
+  setupExpenses: number;
+  depreciation: number;
+  netProfit: number;
+  netMarginPercent: number;
+  // Cash Flow
+  cashInflow: number;
+  cashOutflow: number;
+  cashPurchasesEquipment: number;
+  cashPurchasesStock: number;
+  cashDirectCosts: number;
+  cashOperatingExpenses: number;
+  cashFlow: number; // net cash change for month
+  endingCashBalance: number;
+  endingInventoryValue: number;
+  endingInventoryUnits: number;
+  // Breakdown by items
+  salesVolumeUnits: number;
+  billableHoursOrJobs: number;
+}
+
+export interface YearlyForecastSummary {
+  year: number; // 1 to 5
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPercent: number;
+  operatingExpenses: number;
+  depreciation: number;
+  netProfit: number;
+  netMarginPercent: number;
+  cashFlow: number;
+  endingCashBalance: number;
+}
+
+export interface BreakEvenResult {
+  monthlyFixedCosts: number;
+  averageContributionMarginPercent: number;
+  breakEvenRevenueMonthly: number;
+  breakEvenUnitsMonthly: number;
+  breakEvenMetricLabel: string; // e.g. "units", "billable hours", "projects", "clients", "subscribers", "rental days"
+  unitPrice: number;
+  unitVariableCost: number;
+  unitContributionMargin: number;
+  safetyMarginPercent: number;
+}
+
 export interface StartupPlanDetails {
   cogs: number;
   markup: number;
@@ -361,160 +513,14 @@ export interface StartupPlanDetails {
   businessPlan?: BusinessPlanSections;
   importedQuotes?: SupplierQuoteData[];
 
-  // --- Business Model Classification (new, additive, optional) ---------
-  // Existing projects will not have this set. When undefined, the UI must
-  // prompt the user to classify the project (see BusinessModelClassifier)
-  // rather than assuming a default — this is the migration gate referenced
-  // throughout this section.
-  businessModelType?: StartupBusinessModelType;
-  goodsSubType?: GoodsSubType;
-  serviceRevenueModels?: ServiceRevenueModel[];
-
-  // --- Goods workflow data ------------------------------------------------
+  // Additive Item-Driven Business Model fields
+  businessModelType?: BusinessModelType;
+  goodsType?: GoodsBusinessType;
   goodsProducts?: GoodsProduct[];
-  goodsInventory?: GoodsInventorySnapshot;
-
-  // --- Services workflow data ----------------------------------------------
   serviceOfferings?: ServiceOffering[];
-  serviceCapacity?: ServiceCapacityPlan;
-  serviceDirectCosts?: ServiceDirectCosts;
-
-  // --- Expense classification (used by both goods & services workflows) ---
-  // Replaces the flat rent/salaries/marketing/utilities/otherExpenses split
-  // with an explicit one-time / recurring / periodic classification so Year 1
-  // investment is derived from real data instead of being hard-coded.
-  classifiedExpenses?: ClassifiedExpenseItem[];
-}
-
-export type StartupBusinessModelType = 'goods' | 'services' | 'hybrid';
-
-export type GoodsSubType = 'manufacturing' | 'resale' | 'both';
-
-export type ServiceRevenueModel =
-  | 'hourly'
-  | 'fixed_project'
-  | 'package'
-  | 'retainer'
-  | 'subscription'
-  | 'per_transaction'
-  | 'other';
-
-export type ExpenseClassification = 'one_time' | 'recurring' | 'periodic';
-
-export interface ClassifiedExpenseItem {
-  id: string;
-  name: string;
-  amount: number;
-  classification: ExpenseClassification;
-  /** For 'periodic' items: how often the cost recurs, e.g. "Every 3 years". */
-  periodicityNote?: string;
-  category?: string;
-}
-
-export interface RawMaterialLine {
-  id: string;
-  name: string;
-  quantityPerUnit: number;
-  costPerUnit: number;
-}
-
-/**
- * A single product within a Goods business. Manufacturing- and resale-
- * specific fields are both optional on the same shape — which fields are
- * populated (and which are shown to the user) is driven by the product's
- * own `sourcing` value, so a hybrid "both manufacturing and resale" business
- * can mix product types within one list without forcing irrelevant fields.
- */
-export interface GoodsProduct {
-  id: string;
-  name: string;
-  description?: string;
-  sourcing: 'manufactured' | 'resale';
-
-  sellingPrice: number;
-  expectedMonthlyUnits: number;
-  monthlySalesGrowthPercent?: number;
-  seasonalDemandNote?: string;
-
-  supplier?: string;
-  leadTimeDays?: number;
-  minimumOrderQuantity?: number;
-  importShippingCostPerUnit?: number;
-  dutiesTaxesPercent?: number;
-  packagingCostPerUnit?: number;
-  distributionCostPerUnit?: number;
-  returnsWarrantyAllowancePercent?: number;
-
-  // Resale-specific
-  purchaseCostPerUnit?: number;
-  freightImportCostPerUnit?: number;
-
-  // Manufacturing-specific
-  rawMaterials?: RawMaterialLine[];
-  directProductionLabourPerUnit?: number;
-  productionOverheadPerUnit?: number;
-  wasteScrapPercent?: number;
-  productionCapacityUnitsPerMonth?: number;
-  productionLeadTimeDays?: number;
-}
-
-export interface GoodsInventorySnapshot {
-  beginningInventoryValue?: number;
-  purchasesOrProductionCostThisPeriod?: number;
-  endingInventoryValue?: number;
-  safetyStockUnits?: number;
-  reorderPointUnits?: number;
-  reorderQuantityUnits?: number;
-  supplierPaymentTermsDays?: number;
-  expectedInventoryTurnsPerYear?: number;
-  damagedLostObsoleteAllowancePercent?: number;
-}
-
-export interface ServiceOffering {
-  id: string;
-  name: string;
-  description?: string;
-  revenueModels: ServiceRevenueModel[];
-
-  // Populated depending on which revenue model(s) are selected above.
-  hourlyRate?: number;
-  expectedBillableHoursPerMonth?: number;
-
-  averageProjectFee?: number;
-  expectedProjectsPerMonth?: number;
-
-  packagePrice?: number;
-  expectedPackagesPerMonth?: number;
-
-  monthlyRetainerFee?: number;
-  expectedRetainerClients?: number;
-
-  subscriptionPrice?: number;
-  expectedSubscribers?: number;
-
-  averageRevenuePerTransaction?: number;
-  expectedTransactionsPerMonth?: number;
-
-  contractDurationMonths?: number;
-  isRecurringRevenue?: boolean;
-}
-
-export interface ServiceCapacityPlan {
-  staffCount?: number;
-  availableHoursPerStaffPerWeek?: number;
-  utilisationPercent?: number;
-  expectedHiringDates?: string;
-  salaryOrContractorCostPerStaff?: number;
-}
-
-export interface ServiceDirectCosts {
-  directEmployeeLabour?: number;
-  contractorSubcontractorCosts?: number;
-  travel?: number;
-  projectSpecificMaterials?: number;
-  serviceDeliverySoftware?: number;
-  paymentProcessingPercent?: number;
-  otherDirectCosts?: number;
+  serviceCapacityPlan?: ServiceCapacityPlan;
+  costItems?: StartupCostItem[];
+  startingCash?: number;
 }
 
 export type ProjectRole = 'owner' | 'editor' | 'viewer';

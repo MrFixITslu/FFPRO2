@@ -1,170 +1,211 @@
-import React, { useState } from 'react';
-import { Package, Briefcase, Layers, ArrowRight } from 'lucide-react';
-import { GoodsSubType, ServiceRevenueModel, StartupBusinessModelType } from '../../types';
+import React from 'react';
+import { Package, Briefcase, Layers, Hammer, ShoppingBag, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { BusinessModelType, GoodsBusinessType } from '../../types';
 
-interface Props {
-  /** True when this is shown as a one-time migration prompt for a pre-existing project. */
-  isMigration?: boolean;
-  onComplete: (result: {
-    businessModelType: StartupBusinessModelType;
-    goodsSubType?: GoodsSubType;
-    serviceRevenueModels?: ServiceRevenueModel[];
-  }) => void;
+interface BusinessModelClassifierProps {
+  currentModel?: BusinessModelType;
+  currentGoodsType?: GoodsBusinessType;
+  onSelectModel: (model: BusinessModelType, goodsType?: GoodsBusinessType) => void;
+  isMigrationPrompt?: boolean;
 }
 
-const SERVICE_REVENUE_MODEL_OPTIONS: Array<{ value: ServiceRevenueModel; label: string }> = [
-  { value: 'hourly', label: 'Hourly / Daily' },
-  { value: 'fixed_project', label: 'Fixed-price Project' },
-  { value: 'package', label: 'Package' },
-  { value: 'retainer', label: 'Monthly / Annual Retainer' },
-  { value: 'subscription', label: 'Subscription' },
-  { value: 'per_transaction', label: 'Per Customer / Transaction' },
-  { value: 'other', label: 'Other' }
-];
+export const BusinessModelClassifier: React.FC<BusinessModelClassifierProps> = ({
+  currentModel,
+  currentGoodsType,
+  onSelectModel,
+  isMigrationPrompt = false
+}) => {
+  const [selectedType, setSelectedType] = React.useState<BusinessModelType>(currentModel || 'goods');
+  const [selectedGoodsSubtype, setSelectedGoodsSubtype] = React.useState<GoodsBusinessType>(currentGoodsType || 'make');
 
-/**
- * Entry-point gate for the Startup workflow. Shown either when a new
- * Startup project is created, or as a one-time migration prompt when an
- * existing project has no businessModelType yet (see
- * needsBusinessModelClassification in startupFinancialsService.ts).
- */
-export const BusinessModelClassifier: React.FC<Props> = ({ isMigration, onComplete }) => {
-  const [model, setModel] = useState<StartupBusinessModelType | null>(null);
-  const [goodsSubType, setGoodsSubType] = useState<GoodsSubType | null>(null);
-  const [serviceModels, setServiceModels] = useState<ServiceRevenueModel[]>([]);
-
-  const toggleServiceModel = (value: ServiceRevenueModel) => {
-    setServiceModels((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
-  };
-
-  const needsGoodsSubType = model === 'goods' || model === 'hybrid';
-  const needsServiceModels = model === 'services' || model === 'hybrid';
-
-  const canContinue =
-    !!model &&
-    (!needsGoodsSubType || !!goodsSubType) &&
-    (!needsServiceModels || serviceModels.length > 0);
-
-  const handleContinue = () => {
-    if (!model || !canContinue) return;
-    onComplete({
-      businessModelType: model,
-      goodsSubType: needsGoodsSubType ? goodsSubType || undefined : undefined,
-      serviceRevenueModels: needsServiceModels ? serviceModels : undefined
-    });
+  const handleConfirm = () => {
+    onSelectModel(selectedType, selectedType === 'goods' || selectedType === 'both' ? selectedGoodsSubtype : undefined);
   };
 
   return (
-    <div className="space-y-5 bg-white border border-stone-150 rounded-2xl p-5">
-      {isMigration && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] rounded-lg px-3 py-2">
-          This project was created before business-model-specific planning was added. Classify it once below —
-          your existing figures are kept and mapped in automatically.
+    <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs space-y-6">
+      <div className="border-b border-stone-150 pb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/70">
+            {isMigrationPrompt ? 'Project Upgrade Required' : 'Step 1: Business Model Architecture'}
+          </span>
         </div>
-      )}
-
-      <div>
-        <h3 className="text-sm font-bold text-stone-800">What does this business primarily do?</h3>
-        <p className="text-[11px] text-stone-400 mt-0.5">
-          This determines which questions, calculations and forecasts you'll see next.
+        <h3 className="text-base font-bold text-stone-900 mt-2">
+          What type of business are you planning?
+        </h3>
+        <p className="text-xs text-stone-500 mt-1">
+          Select your core commercial model. This customises your questions, unit economics, and capacity planning.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {(
-          [
-            { value: 'goods', label: 'Goods', desc: 'Sells physical products', icon: Package },
-            { value: 'services', label: 'Services', desc: 'Sells time, expertise or labour', icon: Briefcase },
-            { value: 'hybrid', label: 'Goods + Services', desc: 'Does both', icon: Layers }
-          ] as const
-        ).map((opt) => {
-          const Icon = opt.icon;
-          const active = model === opt.value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setModel(opt.value)}
-              className={`text-left p-3.5 rounded-xl border transition-all ${
-                active
-                  ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
-                  : 'border-stone-200 hover:border-stone-300 bg-stone-50'
-              }`}
-            >
-              <Icon className={`w-4 h-4 mb-1.5 ${active ? 'text-emerald-600' : 'text-stone-400'}`} />
-              <div className="text-xs font-bold text-stone-800">{opt.label}</div>
-              <div className="text-[10px] text-stone-400 mt-0.5">{opt.desc}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {needsGoodsSubType && (
-        <div className="pt-3 border-t border-stone-100 space-y-2">
-          <label className="text-[10px] font-bold text-stone-400 uppercase block">
-            How do you get your goods?
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {(
-              [
-                { value: 'manufacturing', label: 'We manufacture / produce them' },
-                { value: 'resale', label: 'We buy finished goods for resale' },
-                { value: 'both', label: 'Both manufacturing and resale' }
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setGoodsSubType(opt.value)}
-                className={`text-left px-3 py-2 rounded-lg border text-[11px] font-semibold transition-all ${
-                  goodsSubType === opt.value
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-stone-200 text-stone-600 hover:border-stone-300'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {needsServiceModels && (
-        <div className="pt-3 border-t border-stone-100 space-y-2">
-          <label className="text-[10px] font-bold text-stone-400 uppercase block">
-            How are your services sold? (select all that apply)
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {SERVICE_REVENUE_MODEL_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => toggleServiceModel(opt.value)}
-                className={`px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all ${
-                  serviceModels.includes(opt.value)
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-stone-200 text-stone-600 hover:border-stone-300'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="pt-2 flex justify-end">
+      {/* 3 Main Business Models */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Goods */}
         <button
           type="button"
-          disabled={!canContinue}
-          onClick={handleContinue}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
+          onClick={() => setSelectedType('goods')}
+          className={`p-4 rounded-xl text-left border transition-all flex flex-col justify-between relative group ${
+            selectedType === 'goods'
+              ? 'border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-600/20 shadow-xs'
+              : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/60'
+          }`}
         >
-          Continue <ArrowRight className="w-3.5 h-3.5" />
+          <div className="space-y-2.5">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              selectedType === 'goods' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-700 group-hover:bg-stone-200'
+            }`}>
+              <Package size={18} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-stone-900">Goods / Physical Products</h4>
+                {selectedType === 'goods' && <CheckCircle2 size={16} className="text-emerald-600" />}
+              </div>
+              <p className="text-xs text-stone-500 mt-1">
+                Selling physical inventory, manufactured items, food & beverages, retail merchandise, or crafted goods.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-stone-150/70 text-[11px] font-semibold text-stone-600">
+            Includes stock carrying, raw materials & equipment
+          </div>
+        </button>
+
+        {/* Services */}
+        <button
+          type="button"
+          onClick={() => setSelectedType('services')}
+          className={`p-4 rounded-xl text-left border transition-all flex flex-col justify-between relative group ${
+            selectedType === 'services'
+              ? 'border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-600/20 shadow-xs'
+              : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/60'
+          }`}
+        >
+          <div className="space-y-2.5">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              selectedType === 'services' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-700 group-hover:bg-stone-200'
+            }`}>
+              <Briefcase size={18} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-stone-900">Services & Rentals</h4>
+                {selectedType === 'services' && <CheckCircle2 size={16} className="text-emerald-600" />}
+              </div>
+              <p className="text-xs text-stone-500 mt-1">
+                Professional services, consulting, subscriptions, retainers, hourly contracting, or equipment rental operations.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-stone-150/70 text-[11px] font-semibold text-stone-600">
+            Capacity-driven: billable hours, projects or rental days
+          </div>
+        </button>
+
+        {/* Hybrid / Both */}
+        <button
+          type="button"
+          onClick={() => setSelectedType('both')}
+          className={`p-4 rounded-xl text-left border transition-all flex flex-col justify-between relative group ${
+            selectedType === 'both'
+              ? 'border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-600/20 shadow-xs'
+              : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/60'
+          }`}
+        >
+          <div className="space-y-2.5">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              selectedType === 'both' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-700 group-hover:bg-stone-200'
+            }`}>
+              <Layers size={18} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-stone-900">Hybrid (Goods & Services)</h4>
+                {selectedType === 'both' && <CheckCircle2 size={16} className="text-emerald-600" />}
+              </div>
+              <p className="text-xs text-stone-500 mt-1">
+                Combined model (e.g. salon selling hair products, catering events with food & service, tech hardware + service plans).
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-stone-150/70 text-[11px] font-semibold text-stone-600">
+            Full dual-stream revenue & unified cost engine
+          </div>
+        </button>
+      </div>
+
+      {/* Sub-Classification for Goods: Make vs Resell */}
+      {(selectedType === 'goods' || selectedType === 'both') && (
+        <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-stone-800">
+              Goods Operational Workflow:
+            </label>
+            <span className="text-[10px] text-stone-400 font-medium">Production vs. Trading</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedGoodsSubtype('make')}
+              className={`p-3 rounded-lg border text-left flex items-start gap-3 transition-all ${
+                selectedGoodsSubtype === 'make'
+                  ? 'border-emerald-600 bg-white ring-1 ring-emerald-500 shadow-2xs'
+                  : 'border-stone-200 bg-white/70 hover:bg-white'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
+                selectedGoodsSubtype === 'make' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'
+              }`}>
+                <Hammer size={16} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-stone-900">Make / Manufacture</div>
+                <div className="text-[11px] text-stone-500 mt-0.5">
+                  You purchase raw materials and assemble or cook finished products.
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedGoodsSubtype('resell')}
+              className={`p-3 rounded-lg border text-left flex items-start gap-3 transition-all ${
+                selectedGoodsSubtype === 'resell'
+                  ? 'border-emerald-600 bg-white ring-1 ring-emerald-500 shadow-2xs'
+                  : 'border-stone-200 bg-white/70 hover:bg-white'
+              }`}
+            >
+              <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
+                selectedGoodsSubtype === 'resell' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'
+              }`}>
+                <ShoppingBag size={16} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-stone-900">Resell / Wholesale / Retail</div>
+                <div className="text-[11px] text-stone-500 mt-0.5">
+                  You purchase ready-made inventory from suppliers and resell with a markup.
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm & Proceed Button */}
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          onClick={handleConfirm}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors"
+        >
+          <span>Confirm Business Model & Configure Plan</span>
+          <ArrowRight size={14} />
         </button>
       </div>
     </div>
   );
 };
-
-export default BusinessModelClassifier;

@@ -49,6 +49,11 @@ import {
 } from 'lucide-react';
 import { ProjectGrantMatcher } from './ProjectGrantMatcher';
 import { FileViewerModal } from './FileViewerModal';
+import { BusinessModelClassifier } from './startup/BusinessModelClassifier';
+import { GoodsWorkflowPanel } from './startup/GoodsWorkflowPanel';
+import { ServicesWorkflowPanel } from './startup/ServicesWorkflowPanel';
+import { StartupFinancialSummary } from './startup/StartupFinancialSummary';
+import { extractUnifiedCostItems, needsBusinessModelClassification } from '../services/startupFinancialsService';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -353,7 +358,8 @@ const EventPlanner: React.FC<Props> = ({
   const [calcItemIsRecurring, setCalcItemIsRecurring] = useState(false);
 
   // Business Plan Sub-tab & Modals
-  const [businessPlanSubTab, setBusinessPlanSubTab] = useState<'plan' | 'costing'>('plan');
+  const [businessPlanSubTab, setBusinessPlanSubTab] = useState<'plan' | 'costing' | 'forecast'>('plan');
+  const [startupBothActiveTab, setStartupBothActiveTab] = useState<'goods' | 'services'>('goods');
   const [showImportQuoteModal, setShowImportQuoteModal] = useState(false);
   const [showExportPlanModal, setShowExportPlanModal] = useState(false);
 
@@ -1734,7 +1740,7 @@ const EventPlanner: React.FC<Props> = ({
         <h2 className="text-2xl font-light tracking-tight text-stone-800">Projects</h2>
         {isAdmin && !selectedEventId && (
           <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-indigo-600 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-500 transition-all">
-            {showAddForm ? 'Cancel' : 'Initiate Framework'}
+            {showAddForm ? 'Cancel' : 'Start New Project'}
           </button>
         )}
       </div>
@@ -2933,35 +2939,49 @@ const EventPlanner: React.FC<Props> = ({
 
                   {/* Top Mode Switcher & Funding Action Bar */}
                   <div className="bg-white border border-stone-200 p-3.5 rounded-2xl shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex bg-stone-100/90 p-1 rounded-xl w-full md:w-auto border border-stone-200/50">
+                    <div className="flex bg-stone-100/90 p-1 rounded-xl w-full md:w-auto border border-stone-200/50 flex-wrap sm:flex-nowrap">
                       <button
                         type="button"
                         onClick={() => setBusinessPlanSubTab('plan')}
-                        className={`flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        className={`flex-1 md:flex-initial px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                           businessPlanSubTab === 'plan'
                             ? 'bg-white text-emerald-800 shadow-xs'
                             : 'text-stone-600 hover:text-stone-900'
                         }`}
                       >
                         <FileText size={14} className={businessPlanSubTab === 'plan' ? 'text-emerald-600' : 'text-stone-400'} />
-                        <span>Business Plan Narrative</span>
+                        <span>1. Business Plan Narrative</span>
                       </button>
+
                       <button
                         type="button"
                         onClick={() => setBusinessPlanSubTab('costing')}
-                        className={`flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        className={`flex-1 md:flex-initial px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                           businessPlanSubTab === 'costing'
                             ? 'bg-white text-emerald-800 shadow-xs'
                             : 'text-stone-600 hover:text-stone-900'
                         }`}
                       >
                         <Calculator size={14} className={businessPlanSubTab === 'costing' ? 'text-emerald-600' : 'text-stone-400'} />
-                        <span>Interactive Costing & Financials</span>
-                        {productionItems.length > 0 && (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
-                            {productionItems.length}
+                        <span>2. Cost & Commercial Model</span>
+                        {sd.businessModelType && (
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full uppercase">
+                            {sd.businessModelType}
                           </span>
                         )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBusinessPlanSubTab('forecast')}
+                        className={`flex-1 md:flex-initial px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                          businessPlanSubTab === 'forecast'
+                            ? 'bg-white text-emerald-800 shadow-xs'
+                            : 'text-stone-600 hover:text-stone-900'
+                        }`}
+                      >
+                        <TrendingUp size={14} className={businessPlanSubTab === 'forecast' ? 'text-emerald-600' : 'text-stone-400'} />
+                        <span>3. 12-Month & 5-Year Forecasts</span>
                       </button>
                     </div>
 
@@ -2988,7 +3008,7 @@ const EventPlanner: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {businessPlanSubTab === 'plan' ? (
+                  {businessPlanSubTab === 'plan' && (
                     <BusinessPlanForm
                       selectedEvent={selectedEvent}
                       businessPlan={sd.businessPlan || {}}
@@ -3013,888 +3033,149 @@ const EventPlanner: React.FC<Props> = ({
                         handleAssetClick(file);
                       }}
                     />
-                  ) : (
+                  )}
+
+                  {businessPlanSubTab === 'costing' && (
                     <div className="space-y-6">
-                      {/* Financial projections banner */}
-                      <div className="bg-stone-900 border border-stone-850 p-6 rounded-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
-                    <div>
-                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest block mb-1">Caribbean Commercial Standard</span>
-                      <h3 className="text-xl font-light">Startup: <span className="font-semibold text-emerald-300">{selectedEvent.name}</span></h3>
-                      <p className="text-xs text-stone-400 mt-1 leading-normal">Interactive price models & multi-year commercial lending statements.</p>
-                    </div>
-                    <div className="flex gap-4">
-                      <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-center">
-                        <span className="text-[8px] font-bold text-stone-400 uppercase block">Year 1 Net (Proj)</span>
-                        <span className={`text-sm font-bold ${y1Net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>${Math.round(y1Net).toLocaleString()}</span>
-                      </div>
-                      <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-center">
-                        <span className="text-[8px] font-bold text-stone-400 uppercase block">Year 5 Net (Proj)</span>
-                        <span className={`text-sm font-bold ${y5Net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>${Math.round(y5Net).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pricing and operating expenses calculator */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Unit Pricing & Sale Price Calculator */}
-                    <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm space-y-5">
-                      <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-                        <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-                          <Calculator size={14} className="text-emerald-500" /> 
-                          Interactive Sale Price Costing
-                        </h4>
-                        {hasDynamicCosting ? (
-                          <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Sparkles size={10} /> Live-Linked
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
-                            Manual mode
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Section 1: Raw Materials / Ingredients */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <label className="text-[9px] font-bold text-stone-400 uppercase block">1. Production Items / Materials List</label>
-                            <button
-                              type="button"
-                              onClick={() => setShowImportQuoteModal(true)}
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md transition-colors"
-                              title="Import items directly from supplier quotes using local Ollama AI"
-                            >
-                              <Sparkles size={11} className="text-emerald-600" />
-                              Import Quote (Ollama)
-                            </button>
-                          </div>
-                          <span className="text-[10px] text-stone-600 font-bold">Total Batch Cost: ${totalMaterialsCost.toFixed(2)}</span>
-                        </div>
-
-                        {importedQuotesList.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5 p-2 bg-emerald-50/60 border border-emerald-100 rounded-lg text-[11px] text-emerald-800">
-                            <FileText size={12} className="text-emerald-600 shrink-0" />
-                            <span className="font-semibold">{importedQuotesList.length} quote{importedQuotesList.length > 1 ? 's' : ''} saved:</span>
-                            {importedQuotesList.map((q, idx) => {
-                              const matchingFile = projectFiles.find(f => 
-                                f.id === q.savedFileId || 
-                                f.systemFileId === q.savedFileId || 
-                                (q.savedFileName && (f.name === q.savedFileName || f.name.toLowerCase() === q.savedFileName.toLowerCase())) || 
-                                f.id === q.id
-                              );
-                              return (
-                                <button
-                                  key={q.id || idx}
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveTab('vault');
-                                    if (matchingFile) {
-                                      handleAssetClick(matchingFile);
-                                    }
-                                  }}
-                                  title={matchingFile ? `Click to view "${matchingFile.name}" in Project Documents` : 'Click to view in Project Documents'}
-                                  className="bg-white/90 hover:bg-white border border-emerald-200/80 hover:border-emerald-400 px-2 py-0.5 rounded text-[10px] font-medium text-stone-700 hover:text-emerald-800 transition-all flex items-center gap-1 cursor-pointer shadow-2xs group"
-                                >
-                                  <span>{q.supplierName || q.supplier || 'Supplier'} ({q.items?.length || 0} items)</span>
-                                  <ExternalLink size={10} className="text-emerald-600 opacity-60 group-hover:opacity-100" />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                        
-                        {/* Material List Items */}
-                        <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2 max-h-52 overflow-y-auto">
-                          {productionItems.length === 0 ? (
-                            <p className="text-[11px] text-stone-400 text-center py-4">No materials listed yet. Use the fields below to add materials/ingredients.</p>
-                          ) : (
-                            <div className="divide-y divide-slate-200/60">
-                              {productionItems.map((item) => (
-                                <div key={item.id} className="flex justify-between items-center py-1.5 text-xs gap-2">
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleRecurring(item.id)}
-                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors shrink-0 ${
-                                        item.isRecurring
-                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                                          : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
-                                      }`}
-                                      title="Click to toggle between Recurring and One-time"
-                                    >
-                                      {item.isRecurring ? 'Recurring' : 'One-time'}
-                                    </button>
-                                    <span className="text-stone-700 font-medium truncate">{item.name}</span>
-                                    {(item.quantity && item.quantity > 1) && (
-                                      <span className="text-[10px] text-stone-400 font-mono shrink-0">
-                                        ({item.quantity} × ${(item.unitCost ?? (item.cost / item.quantity)).toFixed(2)})
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-stone-900 font-semibold font-mono">${item.cost.toFixed(2)}</span>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => handleRemoveMaterial(item.id)} 
-                                      className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition-colors"
-                                      title="Remove item"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Add material inputs with quantity and recurring checkbox */}
-                        <div className="space-y-2 bg-stone-100/70 p-2.5 rounded-xl border border-stone-200/80">
-                          <div className="flex flex-wrap sm:flex-nowrap gap-2">
-                            <input 
-                              type="text" 
-                              value={calcItemName}
-                              onChange={(e) => setCalcItemName(e.target.value)}
-                              placeholder="Item name (e.g. Raw materials, Hosting, Equipment)" 
-                              className="flex-1 min-w-[160px] px-2.5 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 font-medium"
-                            />
-                            <div className="relative w-20">
-                              <span className="absolute left-2 top-1.5 text-stone-400 text-[10px] uppercase font-bold">Qty</span>
-                              <input 
-                                type="number" 
-                                min="1"
-                                step="1"
-                                value={calcItemQuantity}
-                                onChange={(e) => setCalcItemQuantity(e.target.value)}
-                                placeholder="1" 
-                                className="w-full pl-8 pr-1.5 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 font-mono text-right"
-                              />
-                            </div>
-                            <div className="relative w-28">
-                              <span className="absolute left-2.5 top-1.5 text-stone-400 text-xs">$</span>
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                min="0"
-                                value={calcItemCost}
-                                onChange={(e) => setCalcItemCost(e.target.value)}
-                                placeholder="Unit Cost" 
-                                className="w-full pl-6 pr-2 py-1.5 bg-white border border-stone-200 text-stone-800 rounded outline-none text-xs focus:ring-1 focus:ring-emerald-500 font-mono"
-                              />
-                            </div>
-                            <button 
-                              type="button"
-                              onClick={handleAddMaterial}
-                              disabled={!calcItemName.trim()}
-                              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3 py-1.5 rounded flex items-center justify-center gap-1 transition-all shadow-sm shrink-0 font-bold text-xs"
-                            >
-                              <Plus size={14} />
-                              <span>Add</span>
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={calcItemIsRecurring}
-                                onChange={(e) => setCalcItemIsRecurring(e.target.checked)}
-                                className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-stone-300"
-                              />
-                              <span className="font-medium">Recurring Cost</span>
-                              <span className="text-[10px] text-stone-400">({calcItemIsRecurring ? 'Repeats each batch / cycle' : 'One-time initial startup cost'})</span>
-                            </label>
-                            {calcItemName.trim() && (parseFloat(calcItemCost) > 0) && (
-                              <span className="text-[11px] font-mono text-stone-600">
-                                Total: ${(Math.max(1, parseFloat(calcItemQuantity) || 1) * (parseFloat(calcItemCost) || 0)).toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 2: Yield & Contingency */}
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-100">
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">2. Batch Yield (Units Derived)</label>
-                          <input 
-                            type="number" 
-                            min="1"
-                            value={derivedUnits} 
-                            onChange={(e) => handleUpdateStartup({ derivedUnits: Math.max(1, parseInt(e.target.value) || 1) })}
-                            placeholder="e.g. 1" 
-                            className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Contingency / Waste (%)</label>
-                          <div className="relative">
-                            <input 
-                              type="number" 
-                              min="0"
-                              max="100"
-                              value={contingencyPercent} 
-                              onChange={(e) => handleUpdateStartup({ contingencyPercent: Math.max(0, parseFloat(e.target.value) || 0) })}
-                              placeholder="e.g. 5" 
-                              className="w-full pr-6 pl-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
-                            />
-                            <span className="absolute right-2.5 top-2 text-stone-400 text-xs">%</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 3: Labor Input */}
-                      <div className="space-y-2 pt-2 border-t border-stone-100">
-                        <label className="text-[9px] font-bold text-stone-400 uppercase block">3. Labor Cost (To Produce Batch)</label>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <span className="text-[8px] font-bold text-stone-400 uppercase block mb-1">Hourly Labor Rate ($/hr)</span>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>
-                              <input 
-                                type="number" 
-                                min="0"
-                                value={hourlyRate} 
-                                onChange={(e) => handleUpdateStartup({ hourlyRate: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                className="w-full pl-6 pr-2 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-[8px] font-bold text-stone-400 uppercase block mb-1">Total Labor Hours (hrs)</span>
-                            <input 
-                              type="number" 
-                              min="0"
-                              step="0.1"
-                              value={laborHours} 
-                              onChange={(e) => handleUpdateStartup({ laborHours: Math.max(0, parseFloat(e.target.value) || 0) })}
-                              placeholder="Hours" 
-                              className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 4: Desired Profit & Overheads */}
-                      <div className="space-y-3 pt-2 border-t border-stone-100">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block">4. Desired Profit Target</label>
-                          <div className="flex gap-1 bg-stone-100 p-0.5 rounded text-[9px] font-bold">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateStartup({ desiredProfitType: 'percentage' })}
-                              className={`px-1.5 py-0.5 rounded ${desiredProfitType === 'percentage' ? 'bg-white shadow text-stone-800' : 'text-stone-400'}`}
-                            >
-                              Markup %
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateStartup({ desiredProfitType: 'fixed' })}
-                              className={`px-1.5 py-0.5 rounded ${desiredProfitType === 'fixed' ? 'bg-white shadow text-stone-800' : 'text-stone-400'}`}
-                            >
-                              Fixed $
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <span className="text-[8px] font-bold text-stone-400 uppercase block mb-1">
-                              {desiredProfitType === 'percentage' ? 'Profit Markup (%)' : 'Desired Unit Profit ($)'}
-                            </span>
-                            <div className="relative">
-                              {desiredProfitType === 'fixed' && <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>}
-                              <input 
-                                type="number" 
-                                min="0"
-                                value={desiredProfitValue} 
-                                onChange={(e) => handleUpdateStartup({ desiredProfitValue: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                className={`w-full py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white ${desiredProfitType === 'fixed' ? 'pl-6 pr-2' : 'px-2.5'}`} 
-                              />
-                              {desiredProfitType === 'percentage' && <span className="absolute right-2.5 top-2 text-stone-400 text-xs">%</span>}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col justify-end">
-                            <label className="flex items-center gap-2 cursor-pointer py-1">
-                              <input 
-                                type="checkbox"
-                                checked={allocateOverhead}
-                                onChange={(e) => handleUpdateStartup({ allocateOverhead: e.target.checked })}
-                                className="w-3.5 h-3.5 text-emerald-600 border-stone-300 rounded focus:ring-emerald-500"
-                              />
-                              <div>
-                                <span className="text-[10px] font-bold text-stone-600 block">Allocate Overheads</span>
-                                <span className="text-[8px] text-stone-400 leading-none">Share fixed monthly costs</span>
-                              </div>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 5: Taxes & Levies */}
-                      <div className="space-y-2 pt-2 border-t border-stone-100">
-                        <label className="text-[9px] font-bold text-stone-400 uppercase block">5. Taxes & Legal Levies</label>
-                        <div className="grid grid-cols-2 gap-4 bg-stone-50 p-2.5 rounded-xl border border-stone-150">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input 
-                              type="checkbox"
-                              checked={includeVat}
-                              onChange={(e) => handleUpdateStartup({ includeVat: e.target.checked })}
-                              className="w-3.5 h-3.5 text-emerald-600 border-stone-300 rounded focus:ring-emerald-500"
-                            />
-                            <div>
-                              <span className="text-[10px] font-bold text-stone-700 block">VAT (12.5%)</span>
-                              <span className="text-[8px] text-stone-400 leading-none">Standard indirect tax</span>
-                            </div>
-                          </label>
-
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input 
-                              type="checkbox"
-                              checked={includeLevy}
-                              onChange={(e) => handleUpdateStartup({ includeLevy: e.target.checked })}
-                              className="w-3.5 h-3.5 text-emerald-600 border-stone-300 rounded focus:ring-emerald-500"
-                            />
-                            <div>
-                              <span className="text-[10px] font-bold text-stone-700 block">Health & Safety Levy (2.5%)</span>
-                              <span className="text-[8px] text-stone-400 leading-none">Local safety surcharge</span>
-                            </div>
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Section 6: Receipt Breakdown */}
-                      <div className="bg-stone-900 text-stone-100 p-4 rounded-xl space-y-3 font-mono shadow-inner border border-stone-800">
-                        <div className="text-center pb-2 border-b border-dashed border-stone-700">
-                          <p className="text-[10px] uppercase font-bold tracking-widest text-emerald-400">Unit Pricing Receipt</p>
-                          <p className="text-[8px] text-stone-400">Caribbean Commercial Standards</p>
-                        </div>
-                        
-                        <div className="space-y-1.5 text-[10px]">
-                          <div className="flex justify-between">
-                            <span className="text-stone-400">Raw Material / Unit:</span>
-                            <span>${materialsCostPerUnit.toFixed(2)}</span>
-                          </div>
-                          
-                          {contingencyPercent > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Contingency ({contingencyPercent}%):</span>
-                              <span>+${contingencyCostPerUnit.toFixed(2)}</span>
-                            </div>
-                          )}
-
-                          <div className="flex justify-between">
-                            <span className="text-stone-400">Direct Labor / Unit:</span>
-                            <span>+${laborCostPerUnit.toFixed(2)}</span>
-                          </div>
-
-                          {allocateOverhead && (
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Allocated Overhead:</span>
-                              <span>+${allocatedOverheadPerUnit.toFixed(2)}</span>
-                            </div>
-                          )}
-
-                          <div className="flex justify-between font-bold text-emerald-300 pt-1 border-t border-stone-800 text-xs">
-                            <span>Cost of Goods (COGS):</span>
-                            <span>${calculatedCogs.toFixed(2)}</span>
-                          </div>
-
-                          <div className="flex justify-between text-stone-300 pt-1">
-                            <span>Desired Profit:</span>
-                            <span>+${calculatedProfitPerUnit.toFixed(2)} ({desiredProfitType === 'percentage' ? `${desiredProfitValue}%` : `$${desiredProfitValue} unit`})</span>
-                          </div>
-
-                          <div className="flex justify-between font-bold text-white pt-1 border-t border-stone-800">
-                            <span>Pre-Tax Selling Price:</span>
-                            <span>${preTaxSellingPrice.toFixed(2)}</span>
-                          </div>
-
-                          {includeLevy && (
-                            <div className="flex justify-between text-rose-300">
-                              <span>Health & Safety (2.5%):</span>
-                              <span>+${levyCost.toFixed(2)}</span>
-                            </div>
-                          )}
-
-                          {includeVat && (
-                            <div className="flex justify-between text-rose-300">
-                              <span>VAT (12.5%):</span>
-                              <span>+${vatCost.toFixed(2)}</span>
-                            </div>
-                          )}
-
-                          <div className="flex justify-between font-bold text-emerald-400 pt-2 border-t border-dashed border-stone-700 text-sm">
-                            <span>FINAL SALE PRICE:</span>
-                            <span className="text-base font-black">${finalSuggestedPrice.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Manual configuration override */}
-                      {hasDynamicCosting && (
-                        <div className="text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm("Reset pricing calculator and switch back to manual entry mode?")) {
-                                handleUpdateStartup({
-                                  productionItems: [],
-                                  laborHours: 0,
-                                  allocateOverhead: false,
-                                  includeVat: false,
-                                  includeLevy: false
-                                });
-                              }
-                            }}
-                            className="text-[10px] font-bold text-stone-400 hover:text-stone-600 transition-colors"
-                          >
-                            Reset Pricing Builder & Use Manual Entry
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Fallback Manual input fields if they are not using dynamic costing */}
-                      {!hasDynamicCosting && (
-                        <div className="border-t border-stone-100 pt-4 space-y-4">
-                          <p className="text-[10px] text-stone-400 italic">No materials or labor logged. Using standard manual pricing fields below:</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Manual Production Cost (COGS) ($)</label>
-                              <div className="relative">
-                                <span className="absolute left-2.5 top-2 text-stone-400 text-xs">$</span>
-                                <input 
-                                  type="number" 
-                                  value={sd.cogs || ''} 
-                                  onChange={(e) => handleUpdateStartup({ cogs: parseFloat(e.target.value) || 0 })}
-                                  placeholder="0.00" 
-                                  className="w-full pl-6 pr-2 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Manual Markup (%)</label>
-                              <div className="relative">
-                                <input 
-                                  type="number" 
-                                  value={sd.markup || ''} 
-                                  onChange={(e) => handleUpdateStartup({ markup: parseFloat(e.target.value) || 0 })}
-                                  placeholder="e.g. 50" 
-                                  className="w-full pr-6 pl-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
-                                />
-                                <span className="absolute right-2.5 top-2 text-stone-400 text-xs">%</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="pt-2 border-t border-stone-100">
-                        <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Target Monthly Volume (Units)</label>
-                        <input 
-                          type="number" 
-                          value={sd.monthlyVolume || ''} 
-                          onChange={(e) => handleUpdateStartup({ monthlyVolume: parseInt(e.target.value) || 0 })}
-                          placeholder="e.g. 500" 
-                          className="w-full px-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded outline-none font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white" 
+                      {!sd.businessModelType ? (
+                        <BusinessModelClassifier
+                          currentType={sd.businessModelType}
+                          onSelectModel={(model) => handleUpdateStartup({ businessModelType: model })}
                         />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 text-xs bg-stone-50 p-3 rounded-xl border border-stone-150">
-                        <div>
-                          <p className="text-stone-400 font-medium text-[10px]">Monthly Revenue:</p>
-                          <p className="font-bold text-stone-800">${Math.round(monthlyRevenue).toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-stone-400 font-medium text-[10px]">Gross Margin %:</p>
-                          <p className="font-bold text-stone-800">{grossMarginPercent}%</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Operating Expenses */}
-                    <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <TrendingUp size={14} className="text-emerald-500" /> Monthly Fixed Operating Expenses
-                          </h4>
-                          <p className="text-[10px] text-stone-400 mt-0.5">Define core recurring overheads and add custom monthly expenses.</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-stone-400 font-semibold block">Total OpEx:</span>
-                          <span className="text-sm font-extrabold text-emerald-600">${Math.round(monthlyOpExpenses).toLocaleString()}<span className="text-[10px] text-stone-500 font-normal">/mo</span></span>
-                        </div>
-                      </div>
-
-                      {/* Standard Fixed Expenses */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Rent / Workspace</label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
-                            <input 
-                              type="number" 
-                              value={sd.rent || ''} 
-                              placeholder="0"
-                              onChange={(e) => handleUpdateStartup({ rent: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Salaries / Payroll</label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
-                            <input 
-                              type="number" 
-                              value={sd.salaries || ''} 
-                              placeholder="0"
-                              onChange={(e) => handleUpdateStartup({ salaries: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Marketing / Promo</label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
-                            <input 
-                              type="number" 
-                              value={sd.marketing || ''} 
-                              placeholder="0"
-                              onChange={(e) => handleUpdateStartup({ marketing: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Utilities / Tech</label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
-                            <input 
-                              type="number" 
-                              value={sd.utilities || ''} 
-                              placeholder="0"
-                              onChange={(e) => handleUpdateStartup({ utilities: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Other / Miscellaneous</label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
-                            <input 
-                              type="number" 
-                              value={sd.otherExpenses || ''} 
-                              placeholder="0"
-                              onChange={(e) => handleUpdateStartup({ otherExpenses: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 text-stone-800 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-medium" 
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Custom Added Operating Expenses Section */}
-                      <div className="border-t border-stone-150 pt-4 mt-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                          <span className="text-[11px] font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <DollarSign size={13} className="text-emerald-500" /> Custom Operating Expenses ({sd.customExpenses?.length || 0})
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const existing = sd.customExpenses || [];
-                              const newExp: OperatingExpenseItem = {
-                                id: `opex_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-                                name: '',
-                                amount: 0
-                              };
-                              handleUpdateStartup({ customExpenses: [...existing, newExp] });
-                            }}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow-xs cursor-pointer"
-                          >
-                            <Plus size={12} /> Add Expense
-                          </button>
-                        </div>
-
-                        {/* Quick Preset Buttons */}
-                        <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                          <span className="text-[10px] text-stone-400 font-medium mr-1">Quick Add:</span>
-                          {['Insurance & Liability', 'Software / SaaS Subscriptions', 'Vehicle / Equipment Lease', 'Accounting & Legal', 'Internet & Telephony', 'Security & Maintenance'].map(preset => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => {
-                                const existing = sd.customExpenses || [];
-                                const newExp: OperatingExpenseItem = {
-                                  id: `opex_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-                                  name: preset,
-                                  amount: 0
-                                };
-                                handleUpdateStartup({ customExpenses: [...existing, newExp] });
-                              }}
-                              className="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded text-[10px] font-medium transition cursor-pointer border border-stone-200/60"
-                            >
-                              + {preset}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Custom Expense Items List */}
-                        {sd.customExpenses && sd.customExpenses.length > 0 ? (
-                          <div className="space-y-2">
-                            {sd.customExpenses.map((exp, idx) => (
-                              <div key={exp.id || idx} className="flex items-center gap-2 bg-stone-50/80 p-2 rounded-xl border border-stone-200/80">
-                                <div className="flex-1">
-                                  <input
-                                    type="text"
-                                    value={exp.name}
-                                    placeholder="Expense description (e.g. Liability Insurance)"
-                                    onChange={(e) => {
-                                      const updated = [...(sd.customExpenses || [])];
-                                      updated[idx] = { ...updated[idx], name: e.target.value };
-                                      handleUpdateStartup({ customExpenses: updated });
-                                    }}
-                                    className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-medium text-stone-800 outline-none focus:ring-1 focus:ring-emerald-500"
-                                  />
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Active Model Control Bar */}
+                          <div className="bg-stone-900 text-white p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2.5 rounded-xl bg-white/10 text-emerald-400">
+                                <Calculator size={20} />
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase font-extrabold text-emerald-400 tracking-wider">
+                                  Commercial Model Configuration
                                 </div>
-                                <div className="w-36 relative">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs font-semibold">$</span>
+                                <h3 className="text-base font-bold text-white capitalize">
+                                  {sd.businessModelType === 'both' ? 'Hybrid (Goods & Manufacturing + Services & Projects)' : `${sd.businessModelType} Business Architecture`}
+                                </h3>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                              <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs">
+                                <span className="text-[10px] uppercase font-bold text-stone-400">Starting Cash:</span>
+                                <div className="flex items-center text-white font-bold font-mono">
+                                  <span>$</span>
                                   <input
                                     type="number"
-                                    value={exp.amount || ''}
-                                    placeholder="0"
-                                    onChange={(e) => {
-                                      const updated = [...(sd.customExpenses || [])];
-                                      updated[idx] = { ...updated[idx], amount: parseFloat(e.target.value) || 0 };
-                                      handleUpdateStartup({ customExpenses: updated });
-                                    }}
-                                    className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-bold text-stone-800 outline-none focus:ring-1 focus:ring-emerald-500 text-right"
+                                    min="0"
+                                    value={sd.startingCash ?? 0}
+                                    onChange={(e) => handleUpdateStartup({ startingCash: parseFloat(e.target.value) || 0 })}
+                                    className="w-24 bg-transparent outline-none text-right text-emerald-300 font-mono"
                                   />
                                 </div>
-                                <span className="text-[10px] text-stone-400 font-medium shrink-0">/mo</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateStartup({ businessModelType: undefined })}
+                                className="text-xs font-bold text-stone-300 hover:text-white px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+                              >
+                                Change Model
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Render Model Workflows */}
+                          {sd.businessModelType === 'goods' && (
+                            <GoodsWorkflowPanel
+                              goodsType={sd.goodsType || 'direct'}
+                              products={sd.goodsProducts || []}
+                              costItems={sd.costItems || []}
+                              startingCash={sd.startingCash ?? 10000}
+                              onUpdateProducts={(goodsProducts) => handleUpdateStartup({ goodsProducts })}
+                              onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
+                              onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
+                              onUpdateGoodsType={(goodsType) => handleUpdateStartup({ goodsType })}
+                            />
+                          )}
+
+                          {sd.businessModelType === 'services' && (
+                            <ServicesWorkflowPanel
+                              services={sd.serviceOfferings || []}
+                              capacityPlan={sd.serviceCapacityPlan}
+                              costItems={sd.costItems || []}
+                              startingCash={sd.startingCash ?? 10000}
+                              onUpdateServices={(serviceOfferings) => handleUpdateStartup({ serviceOfferings })}
+                              onUpdateCapacityPlan={(serviceCapacityPlan) => handleUpdateStartup({ serviceCapacityPlan })}
+                              onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
+                              onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
+                            />
+                          )}
+
+                          {sd.businessModelType === 'both' && (
+                            <div className="space-y-6">
+                              <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200/80 max-w-md">
                                 <button
                                   type="button"
-                                  title="Delete Expense"
-                                  onClick={() => {
-                                    const updated = (sd.customExpenses || []).filter((_, i) => i !== idx);
-                                    handleUpdateStartup({ customExpenses: updated });
-                                  }}
-                                  className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer shrink-0"
+                                  onClick={() => setStartupBothActiveTab('goods')}
+                                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                                    startupBothActiveTab === 'goods'
+                                      ? 'bg-white text-emerald-800 shadow-2xs'
+                                      : 'text-stone-600 hover:text-stone-900'
+                                  }`}
                                 >
-                                  <Trash2 size={13} />
+                                  1. Goods & Physical Products
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStartupBothActiveTab('services')}
+                                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                                    startupBothActiveTab === 'services'
+                                      ? 'bg-white text-emerald-800 shadow-2xs'
+                                      : 'text-stone-600 hover:text-stone-900'
+                                  }`}
+                                >
+                                  2. Services & Project Offerings
                                 </button>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="bg-stone-50/50 border border-dashed border-stone-200 rounded-xl p-3 text-center">
-                            <p className="text-[11px] text-stone-400">No additional monthly expenses added. Click "+ Add Expense" or a preset above to include itemized overheads.</p>
-                          </div>
-                        )}
-                      </div>
 
-                      {/* OpEx Summary Banner */}
-                      <div className="mt-4 pt-3 border-t border-stone-150 flex flex-wrap items-center justify-between gap-3 text-xs bg-stone-50 p-3 rounded-xl border border-stone-200">
-                        <div className="flex items-center gap-4 text-[11px]">
-                          <div>
-                            <span className="text-stone-400 block text-[9px] uppercase font-semibold">Standard Fixed:</span>
-                            <span className="font-bold text-stone-700">${((sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0)).toLocaleString()}/mo</span>
-                          </div>
-                          <div>
-                            <span className="text-stone-400 block text-[9px] uppercase font-semibold">Custom Expenses:</span>
-                            <span className="font-bold text-stone-700">${((sd.customExpenses || []).reduce((sum, e) => sum + (e.amount || 0), 0)).toLocaleString()}/mo</span>
-                          </div>
+                              {startupBothActiveTab === 'goods' ? (
+                                <GoodsWorkflowPanel
+                                  goodsType={sd.goodsType || 'direct'}
+                                  products={sd.goodsProducts || []}
+                                  costItems={sd.costItems || []}
+                                  startingCash={sd.startingCash ?? 10000}
+                                  onUpdateProducts={(goodsProducts) => handleUpdateStartup({ goodsProducts })}
+                                  onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
+                                  onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
+                                  onUpdateGoodsType={(goodsType) => handleUpdateStartup({ goodsType })}
+                                />
+                              ) : (
+                                <ServicesWorkflowPanel
+                                  services={sd.serviceOfferings || []}
+                                  capacityPlan={sd.serviceCapacityPlan}
+                                  costItems={sd.costItems || []}
+                                  startingCash={sd.startingCash ?? 10000}
+                                  onUpdateServices={(serviceOfferings) => handleUpdateStartup({ serviceOfferings })}
+                                  onUpdateCapacityPlan={(serviceCapacityPlan) => handleUpdateStartup({ serviceCapacityPlan })}
+                                  onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
+                                  onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
+                                />
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-right">
-                          <span className="text-stone-400 block text-[9px] uppercase font-semibold">Annualized Fixed Overhead:</span>
-                          <span className="font-extrabold text-stone-800">${Math.round(monthlyOpExpenses * 12).toLocaleString()}/yr</span>
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  </div>
+                  )}
 
-                  {/* 1, 3, and 5 Year P&L Statement */}
-                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                      <div>
-                        <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5"><FileText size={14} className="text-emerald-500" /> Multi-Year Profit & Loss Projections</h4>
-                        <p className="text-[10px] text-stone-400 leading-normal mt-0.5">Compliant presentation for Commercial Banks, Credit Unions, or Caribbean Export Development Agency grants.</p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowExportPlanModal(true)}
-                          className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-sm flex items-center gap-1.5 transition-all shrink-0"
-                          title="Generate complete funding-ready Word document"
-                        >
-                          <Download size={12} />
-                          Export Business Plan (.docx)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                          const docContent = `
-                            <h2>Commercial Loan Proposal - Startup Projections</h2>
-                            <h3>Plan Name: ${selectedEvent.name}</h3>
-                            <p>Prepared for Commercial Credit Committee Evaluation</p>
-                            <hr />
-                            <h3>Pricing Strategy & Product Model</h3>
-                            <ul>
-                              <li><strong>Cost of Goods (per unit):</strong> $${costOfGoodsSoldUnit.toFixed(2)}</li>
-                              <li><strong>Determined Retail Price:</strong> $${sellingPrice.toFixed(2)} (Markup: ${markupPercent}%)</li>
-                              <li><strong>Target Monthly Volume:</strong> ${monthlyUnits} units</li>
-                              <li><strong>Monthly Gross Margin:</strong> ${grossMarginPercent}%</li>
-                            </ul>
-                            <h3>Multi-Year Projections</h3>
-                            <table border="1" cellpadding="6" style="border-collapse: collapse; width: 100%; border: 1px solid #ddd; font-family: sans-serif; font-size: 13px;">
-                              <thead>
-                                <tr style="background: #f5f5f5;">
-                                  <th>Revenue Line Statement</th>
-                                  <th>Year 1</th>
-                                  <th>Year 3 (x${g3} Vol)</th>
-                                  <th>Year 5 (x${g5} Vol)</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr>
-                                  <td><strong>Gross revenue (Units x Price)</strong></td>
-                                  <td>$${Math.round(y1Rev).toLocaleString()}</td>
-                                  <td>$${Math.round(y3Rev).toLocaleString()}</td>
-                                  <td>$${Math.round(y5Rev).toLocaleString()}</td>
-                                </tr>
-                                <tr>
-                                  <td>Cost of Goods Sold (COGS)</td>
-                                  <td>$${Math.round(y1COGS).toLocaleString()}</td>
-                                  <td>$${Math.round(y3COGS).toLocaleString()}</td>
-                                  <td>$${Math.round(y5COGS).toLocaleString()}</td>
-                                </tr>
-                                <tr style="font-weight: bold; background: #eefdf5;">
-                                  <td>Gross Profit Margin</td>
-                                  <td>$${Math.round(y1Gross).toLocaleString()}</td>
-                                  <td>$${Math.round(y3Gross).toLocaleString()}</td>
-                                  <td>$${Math.round(y5Gross).toLocaleString()}</td>
-                                </tr>
-                                <tr>
-                                  <td>Operating Expenses (Fixed & Variable)</td>
-                                  <td>$${Math.round(y1OpEx).toLocaleString()}</td>
-                                  <td>$${Math.round(y3OpEx).toLocaleString()}</td>
-                                  <td>$${Math.round(y5OpEx).toLocaleString()}</td>
-                                </tr>
-                                <tr style="font-weight: bold; background: #e3faf0; border-top: 2px solid #000;">
-                                  <td>Net Operating Profit (EBIT)</td>
-                                  <td>$${Math.round(y1Net).toLocaleString()}</td>
-                                  <td>$${Math.round(y3Net).toLocaleString()}</td>
-                                  <td>$${Math.round(y5Net).toLocaleString()}</td>
-                                </tr>
-                                <tr style="font-size: 11px; color: #555;">
-                                  <td>Operating Net Margin %</td>
-                                  <td>${netMarginPercent}%</td>
-                                  <td>${Math.round((y3Net / y3Rev) * 100)}%</td>
-                                  <td>${Math.round((y5Net / y5Rev) * 100)}%</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                            <p style="font-size: 10px; color: #999; margin-top: 15px;">Statement is mathematically generated using interactive pricing parameters.</p>
-                          `;
-                          
-                          try {
-                            await handleSaveDocument(`${selectedEvent.name} Loan Projections`, docContent, '.fdoc');
-                            alert("Loan Projections exported to Documents! You can open it in the Vault/Documents tab.");
-                          } catch (err) {
-                            alert("Failed to export projections.");
-                          }
-                        }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-sm flex items-center gap-1.5 transition-all shrink-0"
-                      >
-                        <Sparkles size={12} />
-                        Export P&L to Documents
-                      </button>
-                    </div>
-                  </div>
 
-                    <div className="overflow-x-auto no-scrollbar">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="border-b border-stone-200 text-stone-400 font-bold uppercase tracking-wider text-[9px] bg-stone-50">
-                            <th className="py-3 px-4">Revenue Statement Item</th>
-                            <th className="py-3 px-4">Year 1</th>
-                            <th className="py-3 px-4">Year 3 (+{sd.growthRateYear3}% vol)</th>
-                            <th className="py-3 px-4">Year 5 (+{sd.growthRateYear5}% vol)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="border-b border-stone-100 hover:bg-stone-50/50">
-                            <td className="py-3 px-4 font-semibold text-stone-800">Gross revenue</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y1Rev).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y3Rev).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y5Rev).toLocaleString()}</td>
-                          </tr>
-                          <tr className="border-b border-stone-100 hover:bg-stone-50/50">
-                            <td className="py-3 px-4 text-stone-500">Cost of Goods Sold (COGS)</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y1COGS).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y3COGS).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y5COGS).toLocaleString()}</td>
-                          </tr>
-                          <tr className="border-b border-stone-150 font-bold bg-emerald-50/20 text-emerald-900">
-                            <td className="py-3 px-4 text-emerald-800">Gross Profit Margin</td>
-                            <td className="py-3 px-4">${Math.round(y1Gross).toLocaleString()}</td>
-                            <td className="py-3 px-4">${Math.round(y3Gross).toLocaleString()}</td>
-                            <td className="py-3 px-4">${Math.round(y5Gross).toLocaleString()}</td>
-                          </tr>
-                          <tr className="border-b border-stone-100 hover:bg-stone-50/50">
-                            <td className="py-3 px-4 text-stone-500">Operating Expenses</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y1OpEx).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y3OpEx).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-stone-700">${Math.round(y5OpEx).toLocaleString()}</td>
-                          </tr>
-                          <tr className="font-extrabold bg-emerald-100/30 text-emerald-950 text-sm border-b border-emerald-200">
-                            <td className="py-4 px-4 text-emerald-900">Net Operating Profit</td>
-                            <td className="py-4 px-4">${Math.round(y1Net).toLocaleString()}</td>
-                            <td className="py-4 px-4">${Math.round(y3Net).toLocaleString()}</td>
-                            <td className="py-4 px-4">${Math.round(y5Net).toLocaleString()}</td>
-                          </tr>
-                          <tr className="text-[10px] text-stone-400 bg-stone-50">
-                            <td className="py-2.5 px-4">EBIT Margin %</td>
-                            <td className="py-2.5 px-4">{netMarginPercent}%</td>
-                            <td className="py-2.5 px-4">{y3Rev > 0 ? Math.round((y3Net / y3Rev) * 100) : 0}%</td>
-                            <td className="py-2.5 px-4">{y5Rev > 0 ? Math.round((y5Net / y5Rev) * 100) : 0}%</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
 
-                    {/* Projections controls */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-stone-150 text-xs">
-                      <div>
-                        <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Year 3 Growth Estimate (+%)</label>
-                        <input 
-                          type="number" 
-                          value={sd.growthRateYear3 || ''} 
-                          onChange={(e) => handleUpdateStartup({ growthRateYear3: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 rounded outline-none focus:ring-1 focus:ring-emerald-500" 
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-stone-400 uppercase block mb-1">Year 5 Growth Estimate (+%)</label>
-                        <input 
-                          type="number" 
-                          value={sd.growthRateYear5 || ''} 
-                          onChange={(e) => handleUpdateStartup({ growthRateYear5: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-2.5 py-1 bg-stone-50 border border-stone-200 rounded outline-none focus:ring-1 focus:ring-emerald-500" 
-                        />
-                      </div>
+                  {businessPlanSubTab === 'forecast' && (
+                    <div className="space-y-6">
+                      <StartupFinancialSummary startupDetails={sd} />
                     </div>
-                  </div>
-                </div>
-              )}
+                  )}
             </div>
           );
         })()}
@@ -4352,7 +3633,7 @@ const EventPlanner: React.FC<Props> = ({
                     className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
                   >
                     <Plus size={12} />
-                    <span>Initiate Framework</span>
+                    <span>Start New Project</span>
                   </button>
                 </div>
               </div>
@@ -4363,7 +3644,7 @@ const EventPlanner: React.FC<Props> = ({
                   <p className="text-stone-500 text-xs max-w-sm mx-auto mb-4">Start a new project plan, event framework, or budget roadmap.</p>
                   <button onClick={() => setShowAddForm(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg shadow-xs transition-colors inline-flex items-center gap-1.5">
                     <Plus size={12} />
-                    <span>Initiate Framework</span>
+                    <span>Start New Project</span>
                   </button>
                 </div>
               ) : (
