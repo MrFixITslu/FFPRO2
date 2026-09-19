@@ -5,11 +5,6 @@ import { BusinessPlanForm } from './BusinessPlanForm';
 import { ImportQuoteModal } from './ImportQuoteModal';
 import { ExportBusinessPlanModal } from './ExportBusinessPlanModal';
 import { BusinessPlanCalculations, computeStartupCalculations } from '../services/businessPlanExportService';
-import { needsBusinessModelClassification } from '../services/startupFinancialsService';
-import { BusinessModelClassifier } from './startup/BusinessModelClassifier';
-import { GoodsWorkflowPanel } from './startup/GoodsWorkflowPanel';
-import { ServicesWorkflowPanel } from './startup/ServicesWorkflowPanel';
-import { StartupFinancialSummary } from './startup/StartupFinancialSummary';
 import { 
   saveFileToHardDrive, 
   getFileFromHardDrive, 
@@ -358,7 +353,7 @@ const EventPlanner: React.FC<Props> = ({
   const [calcItemIsRecurring, setCalcItemIsRecurring] = useState(false);
 
   // Business Plan Sub-tab & Modals
-  const [businessPlanSubTab, setBusinessPlanSubTab] = useState<'plan' | 'costing' | 'forecast'>('plan');
+  const [businessPlanSubTab, setBusinessPlanSubTab] = useState<'costing' | 'plan' | 'forecast'>('costing');
   const [startupBothActiveTab, setStartupBothActiveTab] = useState<'goods' | 'services'>('goods');
   const [showImportQuoteModal, setShowImportQuoteModal] = useState(false);
   const [showExportPlanModal, setShowExportPlanModal] = useState(false);
@@ -2873,174 +2868,155 @@ const EventPlanner: React.FC<Props> = ({
 
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
-                  {/* --- Business Model Classification & Differentiated Workflow (new) --- */}
-                  {needsBusinessModelClassification(sd.businessModelType) ? (
-                    <BusinessModelClassifier
-                      isMigration={!!selectedEvent.startupDetails}
-                      onComplete={(result) => handleUpdateStartup(result)}
-                    />
-                  ) : (
-                    <div className="bg-gradient-to-br from-emerald-50/60 to-white border border-emerald-100 rounded-2xl p-5 space-y-5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">
-                            {sd.businessModelType === 'goods'
-                              ? 'Goods Business'
-                              : sd.businessModelType === 'services'
-                              ? 'Services Business'
-                              : 'Hybrid Business (Goods + Services)'}
+                  {/* Guided Workflow Stepper Header */}
+                  <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-stone-150 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/70">
+                            Guided Workflow
                           </span>
-                          <h2 className="text-sm font-bold text-stone-800 mt-0.5">Business-Model Planning Workflow</h2>
+                          <span className="text-xs text-stone-400">•</span>
+                          <span className="text-xs font-semibold text-stone-600">
+                            {businessPlanSubTab === 'costing'
+                              ? 'Step 1 of 3: Commercial Model & Pricing'
+                              : businessPlanSubTab === 'plan'
+                              ? 'Step 2 of 3: Plan Narrative & Strategy'
+                              : 'Step 3 of 3: Financial Projections & Export'}
+                          </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStartup({ businessModelType: undefined, goodsSubType: undefined, serviceRevenueModels: undefined })}
-                          className="text-[10px] text-stone-400 hover:text-stone-600 underline"
-                        >
-                          Change business model
-                        </button>
+                        <h2 className="text-base font-bold text-stone-900 mt-1">
+                          {businessPlanSubTab === 'costing'
+                            ? 'Step 1: Set Up Commercial Model & Unit Economics'
+                            : businessPlanSubTab === 'plan'
+                            ? 'Step 2: Draft Your Business Plan Narrative'
+                            : 'Step 3: Review Financial Forecasts & Export Document'}
+                        </h2>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          {businessPlanSubTab === 'costing'
+                            ? 'Choose whether you sell physical goods, professional services, or both. Define prices, direct costs, and capital items.'
+                            : businessPlanSubTab === 'plan'
+                            ? 'Fill out standard sections for lenders, investors, and grant committees with built-in section guidance and AI suggestions.'
+                            : 'Inspect auto-calculated 12-month cash flows, break-even metrics, and generate your funding-ready Word (.docx) package.'}
+                        </p>
                       </div>
 
-                      {(sd.businessModelType === 'goods' || sd.businessModelType === 'hybrid') && sd.goodsSubType && (
-                        <GoodsWorkflowPanel
-                          goodsSubType={sd.goodsSubType}
-                          products={sd.goodsProducts || []}
-                          onChange={(goodsProducts) => handleUpdateStartup({ goodsProducts })}
-                        />
-                      )}
+                      {/* Top Action Buttons: Import Quote & Export Plan */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowImportQuoteModal(true)}
+                          className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                          title="Extract quote items from PDF or text file using local Ollama AI"
+                        >
+                          <Sparkles size={14} className="text-emerald-600" />
+                          <span>Import Quote (AI)</span>
+                        </button>
 
-                      {(sd.businessModelType === 'services' || sd.businessModelType === 'hybrid') && sd.serviceRevenueModels && (
-                        <ServicesWorkflowPanel
-                          allowedRevenueModels={sd.serviceRevenueModels}
-                          offerings={sd.serviceOfferings || []}
-                          onOfferingsChange={(serviceOfferings) => handleUpdateStartup({ serviceOfferings })}
-                          capacity={sd.serviceCapacity}
-                          onCapacityChange={(serviceCapacity) => handleUpdateStartup({ serviceCapacity })}
-                          directCosts={sd.serviceDirectCosts}
-                          onDirectCostsChange={(serviceDirectCosts) => handleUpdateStartup({ serviceDirectCosts })}
-                        />
-                      )}
-
-                      <StartupFinancialSummary
-                        businessModelType={sd.businessModelType}
-                        products={sd.goodsProducts || []}
-                        offerings={sd.serviceOfferings || []}
-                        capacity={sd.serviceCapacity}
-                        directCosts={sd.serviceDirectCosts}
-                        monthlyFixedCosts={(sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0)}
-                      />
-
-                      <p className="text-[10px] text-stone-400 border-t border-emerald-100/70 pt-3">
-                        The legacy pricing calculator below still works and is kept for backward compatibility, but the
-                        summary above is now the model-accurate figure for a {sd.businessModelType} business.
-                      </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowExportPlanModal(true)}
+                          className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                          title="Export funding-ready business plan document in Word (.docx) format"
+                        >
+                          <Download size={14} className="text-white/80" />
+                          <span>Export .docx</span>
+                        </button>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Top Mode Switcher & Funding Action Bar */}
-                  <div className="bg-white border border-stone-200 p-3.5 rounded-2xl shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex bg-stone-100/90 p-1 rounded-xl w-full md:w-auto border border-stone-200/50 flex-wrap sm:flex-nowrap">
+                    {/* Interactive Stepper Navigation Bar */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button
                         type="button"
-                        onClick={() => setBusinessPlanSubTab('plan')}
-                        className={`flex-1 md:flex-initial px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                          businessPlanSubTab === 'plan'
-                            ? 'bg-white text-emerald-800 shadow-xs'
-                            : 'text-stone-600 hover:text-stone-900'
+                        onClick={() => setBusinessPlanSubTab('costing')}
+                        className={`p-3 rounded-xl border text-left transition-all relative cursor-pointer ${
+                          businessPlanSubTab === 'costing'
+                            ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-600/20 shadow-xs'
+                            : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/60'
                         }`}
                       >
-                        <FileText size={14} className={businessPlanSubTab === 'plan' ? 'text-emerald-600' : 'text-stone-400'} />
-                        <span>1. Business Plan Narrative</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                              businessPlanSubTab === 'costing' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              1
+                            </div>
+                            <span className="text-xs font-bold text-stone-900">Commercial Model</span>
+                          </div>
+                          {sd.businessModelType && (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full capitalize">
+                              {sd.businessModelType}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-stone-500 mt-1 pl-8">
+                          Products, pricing &amp; cost structure
+                        </p>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => setBusinessPlanSubTab('costing')}
-                        className={`flex-1 md:flex-initial px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                          businessPlanSubTab === 'costing'
-                            ? 'bg-white text-emerald-800 shadow-xs'
-                            : 'text-stone-600 hover:text-stone-900'
+                        onClick={() => setBusinessPlanSubTab('plan')}
+                        className={`p-3 rounded-xl border text-left transition-all relative cursor-pointer ${
+                          businessPlanSubTab === 'plan'
+                            ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-600/20 shadow-xs'
+                            : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/60'
                         }`}
                       >
-                        <Calculator size={14} className={businessPlanSubTab === 'costing' ? 'text-emerald-600' : 'text-stone-400'} />
-                        <span>2. Cost & Commercial Model</span>
-                        {sd.businessModelType && (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full uppercase">
-                            {sd.businessModelType}
-                          </span>
-                        )}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                              businessPlanSubTab === 'plan' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              2
+                            </div>
+                            <span className="text-xs font-bold text-stone-900">Plan Narrative</span>
+                          </div>
+                          <FileText size={14} className={businessPlanSubTab === 'plan' ? 'text-emerald-600' : 'text-stone-400'} />
+                        </div>
+                        <p className="text-[11px] text-stone-500 mt-1 pl-8">
+                          Strategy, market &amp; operations
+                        </p>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setBusinessPlanSubTab('forecast')}
-                        className={`flex-1 md:flex-initial px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        className={`p-3 rounded-xl border text-left transition-all relative cursor-pointer ${
                           businessPlanSubTab === 'forecast'
-                            ? 'bg-white text-emerald-800 shadow-xs'
-                            : 'text-stone-600 hover:text-stone-900'
+                            ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-600/20 shadow-xs'
+                            : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/60'
                         }`}
                       >
-                        <TrendingUp size={14} className={businessPlanSubTab === 'forecast' ? 'text-emerald-600' : 'text-stone-400'} />
-                        <span>3. 12-Month & 5-Year Forecasts</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                      <button
-                        type="button"
-                        onClick={() => setShowImportQuoteModal(true)}
-                        className="flex-1 md:flex-initial px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
-                        title="Extract quote items from PDF or text file using local Ollama AI"
-                      >
-                        <Sparkles size={14} className="text-emerald-600" />
-                        <span>Import Supplier Quote (Ollama)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowExportPlanModal(true)}
-                        className="flex-1 md:flex-initial px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
-                        title="Export funding-ready business plan document in Word (.docx) format"
-                      >
-                        <Download size={14} className="text-white/80" />
-                        <span>Export Business Plan (.docx)</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                              businessPlanSubTab === 'forecast' ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              3
+                            </div>
+                            <span className="text-xs font-bold text-stone-900">Forecasts &amp; Export</span>
+                          </div>
+                          <TrendingUp size={14} className={businessPlanSubTab === 'forecast' ? 'text-emerald-600' : 'text-stone-400'} />
+                        </div>
+                        <p className="text-[11px] text-stone-500 mt-1 pl-8">
+                          12-mo cash flow, break-even &amp; .docx
+                        </p>
                       </button>
                     </div>
                   </div>
 
-                  {businessPlanSubTab === 'plan' && (
-                    <BusinessPlanForm
-                      selectedEvent={selectedEvent}
-                      businessPlan={sd.businessPlan || {}}
-                      onUpdateBusinessPlan={handleUpdateBusinessPlan}
-                      eventName={selectedEvent.name}
-                      onOpenExportModal={() => setShowExportPlanModal(true)}
-                      onOpenImportQuote={() => setShowImportQuoteModal(true)}
-                      onExportClick={() => setShowExportPlanModal(true)}
-                      onImportQuoteClick={() => setShowImportQuoteModal(true)}
-                      onScrollToCosting={() => setBusinessPlanSubTab('costing')}
-                      onNavigateToDocuments={(fileId) => {
-                        setActiveTab('vault');
-                        if (fileId) {
-                          const targetFile = (selectedEvent.files || []).find(f => f.id === fileId || f.systemFileId === fileId);
-                          if (targetFile) {
-                            handleAssetClick(targetFile);
-                          }
-                        }
-                      }}
-                      onOpenFile={(file) => {
-                        setActiveTab('vault');
-                        handleAssetClick(file);
-                      }}
-                    />
-                  )}
-
+                  {/* Step 1: Commercial Model & Pricing */}
                   {businessPlanSubTab === 'costing' && (
                     <div className="space-y-6">
                       {!sd.businessModelType ? (
                         <BusinessModelClassifier
-                          currentType={sd.businessModelType}
-                          onSelectModel={(model) => handleUpdateStartup({ businessModelType: model })}
+                          currentModel={sd.businessModelType}
+                          currentGoodsType={sd.goodsType}
+                          onSelectModel={(model, goodsType) => handleUpdateStartup({ businessModelType: model, goodsType: goodsType || 'make' })}
+                          isMigrationPrompt={false}
                         />
                       ) : (
                         <div className="space-y-6">
@@ -3088,7 +3064,7 @@ const EventPlanner: React.FC<Props> = ({
                           {/* Render Model Workflows */}
                           {sd.businessModelType === 'goods' && (
                             <GoodsWorkflowPanel
-                              goodsType={sd.goodsType || 'direct'}
+                              goodsType={sd.goodsType || 'make'}
                               products={sd.goodsProducts || []}
                               costItems={sd.costItems || []}
                               startingCash={sd.startingCash ?? 10000}
@@ -3118,30 +3094,30 @@ const EventPlanner: React.FC<Props> = ({
                                 <button
                                   type="button"
                                   onClick={() => setStartupBothActiveTab('goods')}
-                                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                     startupBothActiveTab === 'goods'
                                       ? 'bg-white text-emerald-800 shadow-2xs'
                                       : 'text-stone-600 hover:text-stone-900'
                                   }`}
                                 >
-                                  1. Goods & Physical Products
+                                  1. Goods &amp; Physical Products
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setStartupBothActiveTab('services')}
-                                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                     startupBothActiveTab === 'services'
                                       ? 'bg-white text-emerald-800 shadow-2xs'
                                       : 'text-stone-600 hover:text-stone-900'
                                   }`}
                                 >
-                                  2. Services & Project Offerings
+                                  2. Services &amp; Project Offerings
                                 </button>
                               </div>
 
                               {startupBothActiveTab === 'goods' ? (
                                 <GoodsWorkflowPanel
-                                  goodsType={sd.goodsType || 'direct'}
+                                  goodsType={sd.goodsType || 'make'}
                                   products={sd.goodsProducts || []}
                                   costItems={sd.costItems || []}
                                   startingCash={sd.startingCash ?? 10000}
@@ -3164,16 +3140,101 @@ const EventPlanner: React.FC<Props> = ({
                               )}
                             </div>
                           )}
+
+                          {/* Step 1 Footer Navigation */}
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                            <div>
+                              <p className="text-xs font-bold text-stone-800">Commercial model ready?</p>
+                              <p className="text-[11px] text-stone-500">Your unit economics and pricing are saved. Proceed to document your business strategy narrative.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setBusinessPlanSubTab('plan')}
+                              className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                              <span>Continue to Step 2: Plan Narrative</span>
+                              <ArrowRight size={14} />
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
 
+                  {/* Step 2: Business Plan Narrative */}
+                  {businessPlanSubTab === 'plan' && (
+                    <div className="space-y-6">
+                      <BusinessPlanForm
+                        selectedEvent={selectedEvent}
+                        businessPlan={sd.businessPlan || {}}
+                        onUpdateBusinessPlan={handleUpdateBusinessPlan}
+                        eventName={selectedEvent.name}
+                        onOpenExportModal={() => setShowExportPlanModal(true)}
+                        onOpenImportQuote={() => setShowImportQuoteModal(true)}
+                        onExportClick={() => setShowExportPlanModal(true)}
+                        onImportQuoteClick={() => setShowImportQuoteModal(true)}
+                        onScrollToCosting={() => setBusinessPlanSubTab('costing')}
+                        onNavigateToDocuments={(fileId) => {
+                          setActiveTab('vault');
+                          if (fileId) {
+                            const targetFile = (selectedEvent.files || []).find(f => f.id === fileId || f.systemFileId === fileId);
+                            if (targetFile) {
+                              handleAssetClick(targetFile);
+                            }
+                          }
+                        }}
+                        onOpenFile={(file) => {
+                          setActiveTab('vault');
+                          handleAssetClick(file);
+                        }}
+                      />
 
+                      {/* Step 2 Footer Navigation */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                        <button
+                          type="button"
+                          onClick={() => setBusinessPlanSubTab('costing')}
+                          className="w-full sm:w-auto px-4 py-2 bg-white border border-stone-200 hover:bg-stone-100 text-stone-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <ChevronLeft size={14} />
+                          <span>Back to Step 1: Commercial Model</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBusinessPlanSubTab('forecast')}
+                          className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>Continue to Step 3: View Forecasts &amp; Export</span>
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
+                  {/* Step 3: 12-Month & 5-Year Financial Forecasts */}
                   {businessPlanSubTab === 'forecast' && (
                     <div className="space-y-6">
                       <StartupFinancialSummary startupDetails={sd} />
+
+                      {/* Step 3 Footer Navigation */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                        <button
+                          type="button"
+                          onClick={() => setBusinessPlanSubTab('plan')}
+                          className="w-full sm:w-auto px-4 py-2 bg-white border border-stone-200 hover:bg-stone-100 text-stone-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <ChevronLeft size={14} />
+                          <span>Back to Step 2: Edit Plan Narrative</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowExportPlanModal(true)}
+                          className="w-full sm:w-auto px-6 py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Download size={14} />
+                          <span>Export Complete Business Plan (.docx)</span>
+                        </button>
+                      </div>
                     </div>
                   )}
             </div>
