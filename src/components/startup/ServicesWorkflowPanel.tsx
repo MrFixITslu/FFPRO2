@@ -14,7 +14,9 @@ import {
   Check,
   Info,
   Layers,
-  ArrowRight
+  ArrowRight,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import {
   ServiceOffering,
@@ -47,17 +49,64 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   onUpdateCostItems,
   onUpdateStartingCash
 }) => {
-  const capacityPlan: ServiceCapacityPlan = initialCapacityPlan || {
-    resourceType: 'staff',
-    resourceCount: 2,
-    availableTimePerResource: 160,
-    targetUtilisationPercent: 75,
-    hourlyOrDailyRate: 75
-  };
   const [editingItem, setEditingItem] = useState<StartupCostItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
   const [hoveredGuide, setHoveredGuide] = useState<string | null>(null);
+
+  // Initialize independent staff and equipment plans
+  const staffPlan = initialCapacityPlan?.staff || {
+    enabled: initialCapacityPlan?.resourceType === 'staff' || !initialCapacityPlan?.resourceType || initialCapacityPlan?.resourceType === 'both',
+    resourceCount: initialCapacityPlan?.resourceType === 'staff' ? (initialCapacityPlan.resourceCount || 2) : 2,
+    availableHoursPerStaff: initialCapacityPlan?.resourceType === 'staff' ? (initialCapacityPlan.availableTimePerResource || 160) : 160,
+    targetUtilisationPercent: initialCapacityPlan?.resourceType === 'staff' ? (initialCapacityPlan.targetUtilisationPercent ?? 75) : 75,
+    hourlyRate: initialCapacityPlan?.resourceType === 'staff' ? (initialCapacityPlan.hourlyOrDailyRate || 75) : 75
+  };
+
+  const equipmentPlan = initialCapacityPlan?.equipment || {
+    enabled: initialCapacityPlan?.resourceType === 'equipment' || initialCapacityPlan?.resourceType === 'both',
+    resourceCount: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.resourceCount || 12) : 12,
+    availableDaysPerUnit: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.availableTimePerResource || 25) : 25,
+    targetUtilisationPercent: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.targetUtilisationPercent ?? 50) : 50,
+    dailyRate: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.hourlyOrDailyRate || 500) : 500
+  };
+
+  const currentPlan: ServiceCapacityPlan = {
+    ...initialCapacityPlan,
+    resourceType: staffPlan.enabled && equipmentPlan.enabled ? 'both' : (staffPlan.enabled ? 'staff' : 'equipment'),
+    staff: staffPlan,
+    equipment: equipmentPlan
+  };
+
+  const capacityCalc = calculateServiceCapacity(currentPlan);
+
+  const handleUpdateStaffPlan = (updates: Partial<typeof staffPlan>) => {
+    const updatedStaff = { ...staffPlan, ...updates };
+    onUpdateCapacityPlan({
+      ...currentPlan,
+      staff: updatedStaff,
+      resourceType: updatedStaff.enabled && equipmentPlan.enabled ? 'both' : (updatedStaff.enabled ? 'staff' : 'equipment'),
+      resourceCount: updatedStaff.resourceCount,
+      availableTimePerResource: updatedStaff.availableHoursPerStaff,
+      targetUtilisationPercent: updatedStaff.targetUtilisationPercent,
+      hourlyOrDailyRate: updatedStaff.hourlyRate
+    });
+  };
+
+  const handleUpdateEquipmentPlan = (updates: Partial<typeof equipmentPlan>) => {
+    const updatedEquip = { ...equipmentPlan, ...updates };
+    onUpdateCapacityPlan({
+      ...currentPlan,
+      equipment: updatedEquip,
+      resourceType: staffPlan.enabled && updatedEquip.enabled ? 'both' : (staffPlan.enabled ? 'staff' : 'equipment'),
+      ...(staffPlan.enabled ? {} : {
+        resourceCount: updatedEquip.resourceCount,
+        availableTimePerResource: updatedEquip.availableDaysPerUnit,
+        targetUtilisationPercent: updatedEquip.targetUtilisationPercent,
+        hourlyOrDailyRate: updatedEquip.dailyRate
+      })
+    });
+  };
 
   // New service form state
   const [newServiceName, setNewServiceName] = useState('');
@@ -66,10 +115,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   const [newVolume, setNewVolume] = useState('15');
   const [newDirectCost, setNewDirectCost] = useState('25.00');
   const [newGrowth, setNewGrowth] = useState('2.0');
-
-  const capacityCalc = calculateServiceCapacity(capacityPlan);
-
-  const isStaffMode = capacityPlan.resourceType === 'staff';
 
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,14 +148,10 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       if (s.id === id) {
         return { ...s, [field]: value };
       }
-      return pOrS(s, field, value);
+      return { ...s, [field]: value };
     });
     onUpdateServices(updated);
   };
-
-  function pOrS(item: ServiceOffering, field: keyof ServiceOffering, value: any) {
-    return { ...item, [field]: value };
-  }
 
   // Cost items handlers
   const handleSaveCostItem = (item: StartupCostItem) => {
@@ -170,7 +211,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       <div className="bg-emerald-900 text-white rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-            Initial Capitalization & Liquidity
+            Initial Capitalization &amp; Liquidity
           </div>
           <div className="text-sm font-semibold text-emerald-50">
             Starting Cash in Bank (Month 1 Reserve)
@@ -195,8 +236,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         </div>
       </div>
 
-      {/* Decision 2: Generalised Capacity Planner (Staff or Equipment) */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
+      {/* Decision 2: Generalised Capacity Planner (Independent Staff & Equipment Models) */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-5">
+        {/* Header with Title & Guide Popover */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-150 pb-3">
           <div>
             <div className="flex items-center gap-2">
@@ -213,35 +255,38 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   className="text-stone-400 hover:text-blue-700 transition cursor-help flex items-center gap-1"
                 >
                   <Info size={14} />
-                  <span className="text-[11px] text-blue-700 font-bold underline decoration-dotted">Guide &amp; Tips</span>
+                  <span className="text-[11px] text-blue-700 font-bold underline decoration-dotted">Dual Engine Guide &amp; Tips</span>
                 </button>
                 {/* Floating Guide Popup */}
                 <div 
-                  className={`absolute left-0 top-full mt-1.5 w-80 sm:w-[420px] max-w-[90vw] bg-stone-950/95 text-white rounded-2xl p-4 shadow-2xl border border-blue-500/40 text-xs space-y-2.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
+                  className={`absolute left-0 top-full mt-1.5 w-80 sm:w-[440px] max-w-[90vw] bg-stone-950/95 text-white rounded-2xl p-4 shadow-2xl border border-blue-500/40 text-xs space-y-2.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
                     hoveredGuide === 'capacity-header' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
                   }`}
                 >
                   <div className="flex items-center justify-between border-b border-stone-800 pb-2">
                     <div className="flex items-center gap-1.5">
                       <Clock size={14} className="text-blue-400" />
-                      <h5 className="font-bold text-white text-xs">Service &amp; Resource Capacity Engine</h5>
+                      <h5 className="font-bold text-white text-xs">Independent Capacity Engines</h5>
                     </div>
                     <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                      Overview
+                      Dual Model
                     </span>
                   </div>
                   <div className="space-y-1.5 bg-stone-900/90 rounded-xl p-2.5 border border-stone-800/80 text-[11.5px] leading-relaxed text-stone-200">
                     <p>
-                      <strong>What is this for?</strong> It models how much revenue your business can generate per month based on your physical delivery constraints:
+                      <strong>How do they work together?</strong> A company can have both staff and equipment operating simultaneously:
                     </p>
                     <ul className="list-disc list-inside space-y-1 text-stone-300 pl-1">
                       <li>
-                        <strong className="text-blue-300">Staff / Billable Team:</strong> If you deliver work through human hours (consulting, development, design, legal, trades, coaching).
+                        <strong className="text-blue-300">Staff / Billable Team:</strong> Models labor hours billed to clients (e.g., consultants, engineers, operators, technicians).
                       </li>
                       <li>
-                        <strong className="text-blue-300">Equipment / Fleet Assets:</strong> If you rent out physical machines, vehicles, cameras, sound systems, trailers, or event booths by the day.
+                        <strong className="text-amber-300">Equipment / Fleet Assets:</strong> Models physical rental days or machine hire (e.g., excavators, drones, cameras, event gear, sound systems).
                       </li>
                     </ul>
+                    <p className="text-[10.5px] text-emerald-300 pt-1">
+                      Both engines calculate capacity independently, and their monthly revenue potential combines automatically.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -251,319 +296,503 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               <span>Service Delivery Capacity &amp; Resource Plan</span>
             </h4>
             <p className="text-xs text-stone-500 mt-0.5">
-              Choose whether your operational capacity is bounded by <strong className="text-stone-700">Team Billable Hours</strong> or <strong className="text-stone-700">Rental Equipment Days</strong>.
+              Staff and Equipment operate as <strong className="text-stone-700">independent capacity engines</strong>. Enable and customize one or both below.
             </p>
           </div>
 
-          {/* Resource Type Switcher with Mouse-roll Guides */}
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200/60">
-              {/* Staff Switcher Button */}
+            <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200 text-xs">
+              <span className="text-[11px] font-semibold text-stone-600">Active Engines:</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${staffPlan.enabled ? 'bg-blue-100 text-blue-800' : 'bg-stone-200 text-stone-500'}`}>
+                Staff {staffPlan.enabled ? '✓' : 'Off'}
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${equipmentPlan.enabled ? 'bg-amber-100 text-amber-800' : 'bg-stone-200 text-stone-500'}`}>
+                Equipment {equipmentPlan.enabled ? '✓' : 'Off'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dual Independent Capacity Sections (Staff & Equipment) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* ============================================================ */}
+          {/* SECTION 1: STAFF & BILLABLE TEAM CAPACITY                   */}
+          {/* ============================================================ */}
+          <div className={`rounded-2xl p-4 border transition-all duration-200 space-y-3.5 ${
+            staffPlan.enabled 
+              ? 'bg-blue-50/40 border-blue-200 shadow-2xs' 
+              : 'bg-stone-50/70 border-stone-200/80 opacity-75'
+          }`}>
+            {/* Staff Header with Toggle */}
+            <div className="flex items-center justify-between border-b border-blue-200/50 pb-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStaffPlan({ enabled: !staffPlan.enabled })}
+                  className="flex items-center gap-1.5 text-xs font-bold text-stone-900 hover:text-blue-700 cursor-pointer"
+                >
+                  {staffPlan.enabled ? (
+                    <CheckSquare size={16} className="text-blue-700 shrink-0" />
+                  ) : (
+                    <Square size={16} className="text-stone-400 shrink-0" />
+                  )}
+                  <Users size={15} className="text-blue-700" />
+                  <span>1. Staff &amp; Billable Team</span>
+                </button>
+              </div>
+
               <div 
-                className="relative"
-                onMouseEnter={() => setHoveredGuide('staff-tab')}
+                className="relative inline-block"
+                onMouseEnter={() => setHoveredGuide('guide-staff-card')}
                 onMouseLeave={() => setHoveredGuide(null)}
               >
                 <button
                   type="button"
-                  onClick={() => onUpdateCapacityPlan({ 
-                    ...capacityPlan, 
-                    resourceType: 'staff',
-                    availableTimePerResource: capacityPlan.availableTimePerResource > 31 ? capacityPlan.availableTimePerResource : 160,
-                    hourlyOrDailyRate: capacityPlan.hourlyOrDailyRate > 300 ? 75 : (capacityPlan.hourlyOrDailyRate || 75)
-                  })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    isStaffMode
-                      ? 'bg-white text-blue-800 shadow-2xs'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
+                  className="text-stone-400 hover:text-blue-700 transition cursor-help flex items-center gap-1 text-[11px]"
                 >
-                  <Users size={13} />
-                  <span>Staff / Billable Team</span>
+                  <Info size={13} />
+                  <span className="underline decoration-dotted">Staff Info</span>
                 </button>
-
-                {/* Staff Mouse-roll Tooltip */}
+                {/* Staff Floating Tooltip */}
                 <div 
-                  className={`absolute right-0 sm:left-0 top-full mt-1.5 w-72 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
-                    hoveredGuide === 'staff-tab' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                  className={`absolute right-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
+                    hoveredGuide === 'guide-staff-card' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
                   }`}
                 >
                   <div className="font-bold text-blue-300 flex items-center gap-1">
-                    <Users size={12} /> Staff / Billable Team Mode
+                    <Users size={12} /> Staff Billable Labor Model
                   </div>
                   <p className="text-[11px] text-stone-300 leading-relaxed">
-                    Select this if your services are delivered by people (e.g. software developers, designers, lawyers, consultants, technicians, cleaners). Capacity is calculated in <strong>billable hours/month</strong> at an <strong>hourly rate ($/hr)</strong>.
+                    Calculates billable hours generated by human team members (consultants, developers, designers, technicians, mechanics). Revenue is determined by <strong>billable hours × hourly rate ($/hr)</strong>.
                   </p>
                 </div>
               </div>
+            </div>
 
-              {/* Equipment Switcher Button */}
+            {staffPlan.enabled ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Staff Field 1: Count */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-staff-count')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 select-none">
+                        <span>Billable Staff Count</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-blue-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">people</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      value={staffPlan.resourceCount}
+                      onChange={(e) => handleUpdateStaffPlan({ resourceCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-500">e.g. 2 full-time consultants</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-staff-count' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Total number of team members whose working hours are billed directly to paying clients.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Staff Field 2: Monthly Hours */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-staff-hours')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 select-none">
+                        <span>Monthly Hours (per Staff)</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-blue-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">hrs/person/mo</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="300"
+                      value={staffPlan.availableHoursPerStaff}
+                      onChange={(e) => handleUpdateStaffPlan({ availableHoursPerStaff: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-500">e.g. 160 hrs (40 hrs/wk × 4)</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-staff-hours' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Total work hours in 1 month for 1 employee. Standard full-time (40 hrs/wk) is <strong>160 hrs/mo</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Staff Field 3: Utilisation Rate */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-staff-util')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 select-none">
+                        <span>Staff Utilisation Rate (%)</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-blue-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">efficiency %</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={staffPlan.targetUtilisationPercent}
+                        onChange={(e) => handleUpdateStaffPlan({ targetUtilisationPercent: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                        className="w-full px-3 pr-7 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
+                      />
+                      <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500">e.g. 75% billable client work</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-staff-util' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Percentage of working time dedicated to billable client contracts (excluding admin, sales, breaks).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Staff Field 4: Hourly Rate */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-staff-rate')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 select-none">
+                        <span>Benchmark Rate ($/hr)</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-blue-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">$/hr</span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={staffPlan.hourlyRate}
+                        onChange={(e) => handleUpdateStaffPlan({ hourlyRate: Math.max(0, parseFloat(e.target.value) || 0) })}
+                        className="w-full pl-6 pr-12 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
+                      />
+                      <span className="absolute right-2 top-1.5 text-[10px] text-stone-400 font-bold">/ hr</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500">e.g. $75 / billable hour</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-staff-rate' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Average hourly billing fee charged to clients for team labor.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Staff Subtotal Strip */}
+                <div className="bg-white border border-blue-200/80 rounded-xl p-2.5 text-[11px] flex flex-wrap items-center justify-between gap-2 text-stone-700">
+                  <div className="flex items-center gap-2">
+                    <span>Avail: <strong>{capacityCalc.staff.totalHours} hrs/mo</strong></span>
+                    <span className="text-stone-300">•</span>
+                    <span>Billable: <strong className="text-blue-900">{capacityCalc.staff.effectiveHours} hrs/mo</strong></span>
+                  </div>
+                  <div className="font-bold text-blue-900">
+                    Staff Revenue: <span>${capacityCalc.staff.monthlyRevenue.toLocaleString()}/mo</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs text-stone-400">
+                Staff capacity engine disabled. Click the checkbox to activate staff &amp; billable labor modeling.
+              </div>
+            )}
+          </div>
+
+          {/* ============================================================ */}
+          {/* SECTION 2: EQUIPMENT & RENTAL FLEET CAPACITY                 */}
+          {/* ============================================================ */}
+          <div className={`rounded-2xl p-4 border transition-all duration-200 space-y-3.5 ${
+            equipmentPlan.enabled 
+              ? 'bg-amber-50/40 border-amber-200 shadow-2xs' 
+              : 'bg-stone-50/70 border-stone-200/80 opacity-75'
+          }`}>
+            {/* Equipment Header with Toggle */}
+            <div className="flex items-center justify-between border-b border-amber-200/50 pb-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateEquipmentPlan({ enabled: !equipmentPlan.enabled })}
+                  className="flex items-center gap-1.5 text-xs font-bold text-stone-900 hover:text-amber-800 cursor-pointer"
+                >
+                  {equipmentPlan.enabled ? (
+                    <CheckSquare size={16} className="text-amber-700 shrink-0" />
+                  ) : (
+                    <Square size={16} className="text-stone-400 shrink-0" />
+                  )}
+                  <Wrench size={15} className="text-amber-700" />
+                  <span>2. Equipment &amp; Rental Fleet Assets</span>
+                </button>
+              </div>
+
               <div 
-                className="relative"
-                onMouseEnter={() => setHoveredGuide('equipment-tab')}
+                className="relative inline-block"
+                onMouseEnter={() => setHoveredGuide('guide-equip-card')}
                 onMouseLeave={() => setHoveredGuide(null)}
               >
                 <button
                   type="button"
-                  onClick={() => onUpdateCapacityPlan({ 
-                    ...capacityPlan, 
-                    resourceType: 'equipment',
-                    availableTimePerResource: capacityPlan.availableTimePerResource > 31 ? 25 : capacityPlan.availableTimePerResource,
-                    hourlyOrDailyRate: capacityPlan.hourlyOrDailyRate <= 150 ? 500 : capacityPlan.hourlyOrDailyRate
-                  })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    !isStaffMode
-                      ? 'bg-white text-blue-800 shadow-2xs'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
+                  className="text-stone-400 hover:text-amber-800 transition cursor-help flex items-center gap-1 text-[11px]"
                 >
-                  <Wrench size={13} />
-                  <span>Equipment / Fleet Assets</span>
+                  <Info size={13} />
+                  <span className="underline decoration-dotted">Equipment Info</span>
                 </button>
-
-                {/* Equipment Mouse-roll Tooltip */}
+                {/* Equipment Floating Tooltip */}
                 <div 
-                  className={`absolute right-0 top-full mt-1.5 w-72 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
-                    hoveredGuide === 'equipment-tab' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                  className={`absolute right-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-amber-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
+                    hoveredGuide === 'guide-equip-card' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
                   }`}
                 >
                   <div className="font-bold text-amber-300 flex items-center gap-1">
-                    <Wrench size={12} /> Equipment / Fleet Assets Mode
+                    <Wrench size={12} /> Equipment Rental / Asset Hire Model
                   </div>
                   <p className="text-[11px] text-stone-300 leading-relaxed">
-                    Select this if you generate revenue by renting or hiring out equipment (e.g. plant machinery, vehicles, photo booths, cameras, party gear, trailers). Capacity is calculated in <strong>rental days/month</strong> at a <strong>daily rental rate ($/day)</strong>.
+                    Calculates rental days generated by physical inventory or machinery assets (vehicles, cameras, plant equipment, event booths, tools). Revenue is determined by <strong>booked rental days × daily rental rate ($/day)</strong>.
                   </p>
                 </div>
               </div>
             </div>
+
+            {equipmentPlan.enabled ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Equipment Field 1: Count */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-equip-count')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-amber-800 select-none">
+                        <span>Active Equipment Units</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-amber-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">units</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      value={equipmentPlan.resourceCount}
+                      onChange={(e) => handleUpdateEquipmentPlan({ resourceCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-500">e.g. 12 rental fleet items</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-equip-count' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Total quantity of physical machines, vehicles, or gear units in inventory available for customer hire.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Equipment Field 2: Rental Days per Unit */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-equip-days')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-amber-800 select-none">
+                        <span>Monthly Rental Days (per Unit)</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-amber-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">days/unit/mo</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={equipmentPlan.availableDaysPerUnit}
+                      onChange={(e) => handleUpdateEquipmentPlan({ availableDaysPerUnit: Math.max(1, Math.min(31, parseInt(e.target.value) || 1)) })}
+                      className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                    />
+                    <p className="text-[10px] text-stone-500">e.g. 25 days/mo (max 31)</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-equip-days' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Total calendar days in 1 month that ONE unit is operational and ready to be rented (usually 20 to 30 days).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Equipment Field 3: Utilisation Rate */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-equip-util')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-amber-800 select-none">
+                        <span>Equipment Occupancy Rate (%)</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-amber-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">occupancy %</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={equipmentPlan.targetUtilisationPercent}
+                        onChange={(e) => handleUpdateEquipmentPlan({ targetUtilisationPercent: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                        className="w-full px-3 pr-7 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                      />
+                      <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500">e.g. 50% fleet booked/rented</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-equip-util' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Expected percentage of rental availability that is actively booked and generating rental fees.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Equipment Field 4: Daily Rental Rate */}
+                  <div 
+                    className="space-y-1 relative group/field"
+                    onMouseEnter={() => setHoveredGuide('guide-equip-rate')}
+                    onMouseLeave={() => setHoveredGuide(null)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-amber-800 select-none">
+                        <span>Benchmark Daily Rate ($/day)</span>
+                        <Info size={11} className="text-stone-400 group-hover/field:text-amber-600" />
+                      </label>
+                      <span className="text-[10px] text-stone-400">$/day</span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={equipmentPlan.dailyRate}
+                        onChange={(e) => handleUpdateEquipmentPlan({ dailyRate: Math.max(0, parseFloat(e.target.value) || 0) })}
+                        className="w-full pl-6 pr-12 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                      />
+                      <span className="absolute right-2 top-1.5 text-[10px] text-stone-400 font-bold">/ day</span>
+                    </div>
+                    <p className="text-[10px] text-stone-500">e.g. $1,440 / rental day</p>
+
+                    {/* Hover Guide */}
+                    <div 
+                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
+                        hoveredGuide === 'guide-equip-rate' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
+                      }`}
+                    >
+                      <p className="text-[11px] text-stone-300">
+                        Average rental fee charged to clients for 1 full day of equipment hire.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Equipment Subtotal Strip */}
+                <div className="bg-white border border-amber-200/80 rounded-xl p-2.5 text-[11px] flex flex-wrap items-center justify-between gap-2 text-stone-700">
+                  <div className="flex items-center gap-2">
+                    <span>Avail: <strong>{capacityCalc.equipment.totalDays} unit-days/mo</strong></span>
+                    <span className="text-stone-300">•</span>
+                    <span>Booked: <strong className="text-amber-900">{capacityCalc.equipment.effectiveDays} days/mo</strong></span>
+                  </div>
+                  <div className="font-bold text-amber-900">
+                    Equipment Revenue: <span>${capacityCalc.equipment.monthlyRevenue.toLocaleString()}/mo</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs text-stone-400">
+                Equipment capacity engine disabled. Click the checkbox to activate equipment &amp; fleet rental modeling.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Capacity Inputs with Direct, Crystal Clear Labels and Mouse-roll Guidance */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Input 1: Resource Count */}
-          <div 
-            className="space-y-1 relative group/field"
-            onMouseEnter={() => setHoveredGuide('guide-field-1')}
-            onMouseLeave={() => setHoveredGuide(null)}
-          >
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 transition-colors select-none">
-                <span>{isStaffMode ? '1. Billable Staff Members' : '1. Active Equipment Units'}</span>
-                <Info size={12} className="text-stone-400 group-hover/field:text-blue-600 transition-colors shrink-0" />
-              </label>
-              <span className="text-[10px] text-stone-400 font-medium">{isStaffMode ? 'people' : 'units'}</span>
-            </div>
-            <input
-              type="number"
-              min="1"
-              value={capacityPlan.resourceCount}
-              onChange={(e) =>
-                onUpdateCapacityPlan({ ...capacityPlan, resourceCount: Math.max(1, parseInt(e.target.value) || 1) })
-              }
-              className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
-            />
-            <p className="text-[10px] text-stone-500">
-              {isStaffMode ? 'e.g. 2 full-time specialists' : 'e.g. 12 rental fleet items'}
-            </p>
-
-            {/* Mouse-roll Tooltip Field 1 */}
-            <div 
-              className={`absolute left-0 top-full mt-1.5 w-72 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
-                hoveredGuide === 'guide-field-1' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-              }`}
-            >
-              <div className="font-bold text-blue-300 flex items-center gap-1">
-                <Info size={12} /> {isStaffMode ? 'Billable Staff Members' : 'Active Equipment Units'}
-              </div>
-              <p className="text-[11px] text-stone-300 leading-relaxed">
-                {isStaffMode
-                  ? 'Total count of team members (including founders) whose time is billed out to paying clients. Do not include pure non-billable overhead staff.'
-                  : 'Total physical machines, vehicles, or gear units in your inventory that are available for client rental/hire.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Input 2: Available Time per Resource per Month */}
-          <div 
-            className="space-y-1 relative group/field"
-            onMouseEnter={() => setHoveredGuide('guide-field-2')}
-            onMouseLeave={() => setHoveredGuide(null)}
-          >
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 transition-colors select-none">
-                <span>{isStaffMode ? '2. Monthly Hours (per Staff)' : '2. Monthly Rental Days (per Unit)'}</span>
-                <Info size={12} className="text-stone-400 group-hover/field:text-blue-600 transition-colors shrink-0" />
-              </label>
-              <span className="text-[10px] text-stone-400 font-medium">{isStaffMode ? 'hrs/person/mo' : 'days/unit/mo'}</span>
-            </div>
-            <input
-              type="number"
-              min="1"
-              max={isStaffMode ? 300 : 31}
-              value={capacityPlan.availableTimePerResource}
-              onChange={(e) =>
-                onUpdateCapacityPlan({
-                  ...capacityPlan,
-                  availableTimePerResource: Math.max(1, parseInt(e.target.value) || 1)
-                })
-              }
-              className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
-            />
-            <p className="text-[10px] text-stone-500">
-              {isStaffMode ? 'e.g. 160 hrs (40 hrs/wk × 4 wks)' : 'e.g. 20–30 days in a month (max 31)'}
-            </p>
-
-            {/* Mouse-roll Tooltip Field 2 */}
-            <div 
-              className={`absolute left-0 top-full mt-1.5 w-76 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
-                hoveredGuide === 'guide-field-2' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-              }`}
-            >
-              <div className="font-bold text-blue-300 flex items-center gap-1">
-                <Clock size={12} /> {isStaffMode ? 'Monthly Working Hours per Person' : 'Monthly Available Rental Days per Machine'}
-              </div>
-              <p className="text-[11px] text-stone-300 leading-relaxed">
-                {isStaffMode
-                  ? 'The total working hours available in 1 month for ONE employee. A standard full-time person working 40 hours per week has 160 hours/month (40 × 4).'
-                  : 'The total calendar days in 1 month that ONE equipment unit is available to be rented. Since there are 28–31 days in a month, enter between 20 (business days only) and 30 (7-days/week).'}
-              </p>
-              <div className="p-1.5 bg-stone-900 rounded text-[10.5px] text-amber-300 font-mono">
-                {isStaffMode ? 'Formula: 40 hrs/wk × 4 wks = 160 hrs/mo' : 'Formula: Max calendar days = 30-31 days/mo'}
-              </div>
-            </div>
-          </div>
-
-          {/* Input 3: Target Utilisation Rate (%) */}
-          <div 
-            className="space-y-1 relative group/field"
-            onMouseEnter={() => setHoveredGuide('guide-field-3')}
-            onMouseLeave={() => setHoveredGuide(null)}
-          >
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 transition-colors select-none">
-                <span>3. Target Utilisation Rate (%)</span>
-                <Info size={12} className="text-stone-400 group-hover/field:text-blue-600 transition-colors shrink-0" />
-              </label>
-              <span className="text-[10px] text-stone-400 font-medium">efficiency %</span>
-            </div>
-            <div className="relative">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={capacityPlan.targetUtilisationPercent}
-                onChange={(e) =>
-                  onUpdateCapacityPlan({
-                    ...capacityPlan,
-                    targetUtilisationPercent: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0))
-                  })
-                }
-                className="w-full px-3 pr-7 py-1.5 text-xs font-semibold border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
-              />
-              <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
-            </div>
-            <p className="text-[10px] text-stone-500">
-              {isStaffMode ? 'e.g. 75% billable client work' : 'e.g. 50% fleet booked/rented'}
-            </p>
-
-            {/* Mouse-roll Tooltip Field 3 */}
-            <div 
-              className={`absolute left-0 top-full mt-1.5 w-76 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
-                hoveredGuide === 'guide-field-3' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-              }`}
-            >
-              <div className="font-bold text-blue-300 flex items-center gap-1">
-                <TrendingUp size={12} /> Target Utilisation Rate (%)
-              </div>
-              <p className="text-[11px] text-stone-300 leading-relaxed">
-                {isStaffMode
-                  ? 'The percentage of available staff hours spent on paid client projects (versus non-billable meetings, admin, marketing, or downtime). Industry standard is 65% to 80%.'
-                  : 'The expected booking/rental occupancy rate. If your equipment is rented half the days in any given month, enter 50%.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Input 4: Benchmark Rate (Hourly in Staff mode, Daily in Equipment mode) */}
-          <div 
-            className="space-y-1 relative group/field"
-            onMouseEnter={() => setHoveredGuide('guide-field-4')}
-            onMouseLeave={() => setHoveredGuide(null)}
-          >
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 transition-colors select-none">
-                <span>{isStaffMode ? '4. Benchmark Hourly Rate ($/hr)' : '4. Benchmark Daily Rental Rate ($/day)'}</span>
-                <Info size={12} className="text-stone-400 group-hover/field:text-blue-600 transition-colors shrink-0" />
-              </label>
-              <span className="text-[10px] text-stone-400 font-medium">{isStaffMode ? '$/hr' : '$/day'}</span>
-            </div>
-            <div className="relative">
-              <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold">$</span>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={capacityPlan.hourlyOrDailyRate || (isStaffMode ? 75 : 500)}
-                onChange={(e) =>
-                  onUpdateCapacityPlan({
-                    ...capacityPlan,
-                    hourlyOrDailyRate: Math.max(0, parseFloat(e.target.value) || 0)
-                  })
-                }
-                className="w-full pl-6 pr-12 py-1.5 text-xs font-semibold border border-stone-200 rounded-lg bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
-              />
-              <span className="absolute right-2.5 top-1.5 text-[10px] text-stone-400 font-bold">
-                {isStaffMode ? '/ hour' : '/ day'}
-              </span>
-            </div>
-            <p className="text-[10px] text-stone-500">
-              {isStaffMode ? 'e.g. $75 / billable hour' : 'e.g. $1,440 / rental day'}
-            </p>
-
-            {/* Mouse-roll Tooltip Field 4 */}
-            <div 
-              className={`absolute right-0 sm:left-0 top-full mt-1.5 w-76 bg-stone-950/95 text-white rounded-xl p-3 shadow-2xl border border-blue-500/40 text-xs space-y-1.5 z-50 backdrop-blur-md pointer-events-none transition-all duration-200 ${
-                hoveredGuide === 'guide-field-4' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-              }`}
-            >
-              <div className="font-bold text-blue-300 flex items-center gap-1">
-                <DollarSign size={12} /> {isStaffMode ? 'Hourly Rate ($/hr)' : 'Daily Rental Rate ($/day)'}
-              </div>
-              <p className="text-[11px] text-stone-300 leading-relaxed">
-                {isStaffMode
-                  ? 'The benchmark fee charged to clients for 1 billable hour of team labor. This is multiplied by your effective billable hours to calculate monthly capacity revenue potential.'
-                  : 'The benchmark rental/hire fee charged to clients for 1 full day of equipment usage. This is multiplied by your effective rental days to calculate monthly potential revenue.'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Live Capacity Output Strip with Crystal Clear Math */}
-        <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-3.5 space-y-2 text-xs">
+        {/* Combined Dual-Capacity Summary Banner */}
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-emerald-50 border border-blue-200/80 rounded-2xl p-4 space-y-2 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <TrendingUp size={15} className="text-blue-700 shrink-0" />
-              <span className="font-bold text-stone-900">
-                Calculated Monthly Capacity Benchmark ({isStaffMode ? 'Staff Labor Hours' : 'Rental Fleet Days'}):
+              <TrendingUp size={16} className="text-blue-700 shrink-0" />
+              <span className="font-bold text-stone-900 text-sm">
+                Total Combined Operational Capacity Potential:
               </span>
             </div>
-            <span className="text-[11px] text-stone-500">
-              Math: {capacityPlan.resourceCount} {isStaffMode ? 'staff' : 'units'} × {capacityPlan.availableTimePerResource} {isStaffMode ? 'hrs' : 'days'} = {capacityCalc.totalCapacityUnits} total {isStaffMode ? 'hrs' : 'unit-days'} @ {capacityPlan.targetUtilisationPercent}% utilisation
-            </span>
+            <div className="flex items-center gap-3 text-xs font-bold text-emerald-800 bg-white/80 px-3 py-1 rounded-xl border border-emerald-300/60 shadow-2xs">
+              <span className="text-stone-500 font-normal">Combined Max Revenue:</span>
+              <span className="text-sm font-extrabold text-emerald-700">
+                ${capacityCalc.totalMonthlyRevenuePotential.toLocaleString()} / mo
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold pt-1 border-t border-blue-200/60">
-            <span>
-              Total Available Capacity: <strong>{capacityCalc.totalCapacityUnits} {isStaffMode ? 'hours' : 'rental days'}/mo</strong>
-            </span>
-            <span className="text-stone-300">|</span>
-            <span className="text-blue-900">
-              Effective Billable / Booked: <strong>{capacityCalc.effectiveCapacityUnits} {isStaffMode ? 'hours' : 'days'}/mo</strong>
-            </span>
-            <span className="text-stone-300">|</span>
-            <span className="text-emerald-800 font-bold">
-              Max Revenue Potential: <strong>${capacityCalc.monthlyRevenuePotential.toLocaleString()}/mo</strong>
-            </span>
+          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold pt-1.5 border-t border-blue-200/60 text-stone-700">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
+              <span>
+                Staff Labor Capacity: <strong>{staffPlan.enabled ? `${capacityCalc.staff.effectiveHours} billable hrs/mo ($${capacityCalc.staff.monthlyRevenue.toLocaleString()})` : 'Disabled'}</strong>
+              </span>
+            </div>
+            <span className="text-stone-300 hidden sm:inline">|</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+              <span>
+                Equipment Rental Capacity: <strong>{equipmentPlan.enabled ? `${capacityCalc.equipment.effectiveDays} booked days/mo ($${capacityCalc.equipment.monthlyRevenue.toLocaleString()})` : 'Disabled'}</strong>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -787,7 +1016,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
           onAddItem={() => setIsAddingItem(true)}
           onEditItem={(item) => setEditingItem(item)}
           onDeleteItem={handleDeleteCostItem}
-          title="Service Operations Cost Structure & Equipment"
+          title="Service Operations Cost Structure &amp; Equipment"
           subtitle="Manage equipment assets (including rental equipment), direct delivery costs, software, and overheads"
         />
       )}

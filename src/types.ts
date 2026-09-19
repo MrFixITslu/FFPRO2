@@ -418,11 +418,32 @@ export interface ServiceOffering {
   costItems?: StartupCostItem[];
 }
 
-export interface ServiceCapacityPlan {
-  resourceType: 'staff' | 'equipment';
-  resourceCount: number; // staff members or equipment units
-  availableTimePerResource: number; // hours per month or days per month
+export interface StaffCapacityDetails {
+  enabled: boolean;
+  resourceCount: number; // Billable staff members count
+  availableHoursPerStaff: number; // Monthly hours per staff (e.g. 160)
   targetUtilisationPercent: number; // e.g. 75%
+  hourlyRate: number; // $/hr
+}
+
+export interface EquipmentCapacityDetails {
+  enabled: boolean;
+  resourceCount: number; // Active equipment / fleet units count
+  availableDaysPerUnit: number; // Monthly rental days per unit (e.g. 25)
+  targetUtilisationPercent: number; // e.g. 50%
+  dailyRate: number; // $/day
+}
+
+export interface ServiceCapacityPlan {
+  // Independent capacity modules
+  staff?: StaffCapacityDetails;
+  equipment?: EquipmentCapacityDetails;
+
+  // Legacy fallback fields for backward compatibility
+  resourceType?: 'staff' | 'equipment' | 'both';
+  resourceCount?: number; // staff members or equipment units
+  availableTimePerResource?: number; // hours per month or days per month
+  targetUtilisationPercent?: number; // e.g. 75%
   hourlyOrDailyRate?: number;
 }
 

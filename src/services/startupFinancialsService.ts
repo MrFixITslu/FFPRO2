@@ -104,31 +104,84 @@ export function calculateEquipmentRentalRevenue(item: StartupCostItem): {
   };
 }
 
-/**
- * Generalised service capacity calculator for staff or equipment resources (Decision 2)
- */
-export function calculateServiceCapacity(plan?: ServiceCapacityPlan): {
+export interface ServiceCapacityCalculationResult {
+  staff: {
+    enabled: boolean;
+    resourceCount: number;
+    availableHoursPerStaff: number;
+    targetUtilisationPercent: number;
+    hourlyRate: number;
+    totalHours: number;
+    effectiveHours: number;
+    monthlyRevenue: number;
+  };
+  equipment: {
+    enabled: boolean;
+    resourceCount: number;
+    availableDaysPerUnit: number;
+    targetUtilisationPercent: number;
+    dailyRate: number;
+    totalDays: number;
+    effectiveDays: number;
+    monthlyRevenue: number;
+  };
+  totalMonthlyRevenuePotential: number;
+  // Legacy fields for backward compatibility
   totalCapacityUnits: number;
   effectiveCapacityUnits: number;
   monthlyRevenuePotential: number;
-} {
-  if (!plan) {
-    return { totalCapacityUnits: 0, effectiveCapacityUnits: 0, monthlyRevenuePotential: 0 };
-  }
+}
 
-  const count = Math.max(1, plan.resourceCount || 1);
-  const timePerResource = Math.max(1, plan.availableTimePerResource || (plan.resourceType === 'staff' ? 160 : 30));
-  const utilisation = Math.max(0, Math.min(100, plan.targetUtilisationPercent || 75));
-  const rate = Math.max(0, plan.hourlyOrDailyRate || 0);
+/**
+ * Generalised service capacity calculator for independent staff and equipment resources (Decision 2)
+ */
+export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCapacityCalculationResult {
+  const defaultStaff = {
+    enabled: plan?.staff?.enabled ?? (plan?.resourceType === 'staff' || !plan?.resourceType || plan?.resourceType === 'both'),
+    resourceCount: plan?.staff?.resourceCount ?? (plan?.resourceType === 'staff' ? (plan.resourceCount || 2) : 2),
+    availableHoursPerStaff: plan?.staff?.availableHoursPerStaff ?? (plan?.resourceType === 'staff' ? (plan.availableTimePerResource || 160) : 160),
+    targetUtilisationPercent: plan?.staff?.targetUtilisationPercent ?? (plan?.resourceType === 'staff' ? (plan.targetUtilisationPercent ?? 75) : 75),
+    hourlyRate: plan?.staff?.hourlyRate ?? (plan?.resourceType === 'staff' ? (plan.hourlyOrDailyRate || 75) : 75)
+  };
 
-  const totalCapacityUnits = count * timePerResource;
-  const effectiveCapacityUnits = roundCurrency(totalCapacityUnits * (utilisation / 100));
-  const monthlyRevenuePotential = roundCurrency(effectiveCapacityUnits * rate);
+  const defaultEquipment = {
+    enabled: plan?.equipment?.enabled ?? (plan?.resourceType === 'equipment' || plan?.resourceType === 'both'),
+    resourceCount: plan?.equipment?.resourceCount ?? (plan?.resourceType === 'equipment' ? (plan.resourceCount || 12) : 12),
+    availableDaysPerUnit: plan?.equipment?.availableDaysPerUnit ?? (plan?.resourceType === 'equipment' ? (plan.availableTimePerResource || 25) : 25),
+    targetUtilisationPercent: plan?.equipment?.targetUtilisationPercent ?? (plan?.resourceType === 'equipment' ? (plan.targetUtilisationPercent ?? 50) : 50),
+    dailyRate: plan?.equipment?.dailyRate ?? (plan?.resourceType === 'equipment' ? (plan.hourlyOrDailyRate || 500) : 500)
+  };
+
+  // Calculate Staff Capacity
+  const staffTotalHours = defaultStaff.resourceCount * defaultStaff.availableHoursPerStaff;
+  const staffEffectiveHours = roundCurrency(staffTotalHours * (defaultStaff.targetUtilisationPercent / 100));
+  const staffMonthlyRevenue = defaultStaff.enabled ? roundCurrency(staffEffectiveHours * defaultStaff.hourlyRate) : 0;
+
+  // Calculate Equipment Capacity
+  const equipTotalDays = defaultEquipment.resourceCount * defaultEquipment.availableDaysPerUnit;
+  const equipEffectiveDays = roundCurrency(equipTotalDays * (defaultEquipment.targetUtilisationPercent / 100));
+  const equipMonthlyRevenue = defaultEquipment.enabled ? roundCurrency(equipEffectiveDays * defaultEquipment.dailyRate) : 0;
+
+  const totalMonthlyRevenue = roundCurrency(staffMonthlyRevenue + equipMonthlyRevenue);
 
   return {
-    totalCapacityUnits,
-    effectiveCapacityUnits,
-    monthlyRevenuePotential
+    staff: {
+      ...defaultStaff,
+      totalHours: staffTotalHours,
+      effectiveHours: staffEffectiveHours,
+      monthlyRevenue: staffMonthlyRevenue
+    },
+    equipment: {
+      ...defaultEquipment,
+      totalDays: equipTotalDays,
+      effectiveDays: equipEffectiveDays,
+      monthlyRevenue: equipMonthlyRevenue
+    },
+    totalMonthlyRevenuePotential: totalMonthlyRevenue,
+    // Legacy mapping
+    totalCapacityUnits: (defaultStaff.enabled ? staffTotalHours : 0) + (defaultEquipment.enabled ? equipTotalDays : 0),
+    effectiveCapacityUnits: (defaultStaff.enabled ? staffEffectiveHours : 0) + (defaultEquipment.enabled ? equipEffectiveDays : 0),
+    monthlyRevenuePotential: totalMonthlyRevenue
   };
 }
 
