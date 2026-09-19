@@ -43,6 +43,7 @@ import { vaultService, AppState } from './services/vaultService';
 import { authService, AuthUser } from './services/authService';
 import { checkpointService } from './services/checkpointService';
 import { mergeStates, sameState } from './utils/stateMerge';
+import { deduplicateCalendarItems } from './utils/calendarUtils';
 import { EmailVerificationNotice, EmailVerificationScreen } from './components/EmailVerification';
 import { dataSyncService, SyncConflictError } from './services/dataSyncService';
 import { realtimeService } from './services/realtimeService';
@@ -485,7 +486,10 @@ const App: React.FC = () => {
   // one exists purely so the Dashboard and Calendar summaries reflect ALL of
   // a user's projects, not just the ones stored in local browser storage.
   const [sharedProjectsMirror, setSharedProjectsMirror] = useState<BudgetEvent[]>([]);
-  const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []));
+  const [calendarItems, setCalendarItems] = useState<CalendarItem[]>(() => {
+    const raw = safeParse(STORAGE_KEYS.CALENDAR_ITEMS, []);
+    return deduplicateCalendarItems(raw);
+  });
   const [contacts, setContacts] = useState<Contact[]>(() => safeParse(STORAGE_KEYS.CONTACTS, []));
   const [ideas, setIdeas] = useState<Idea[]>(() => safeParse(STORAGE_KEYS.IDEAS, []));
   const [forecastSettings, setForecastSettings] = useState<ForecastSettings>(() => safeParse(STORAGE_KEYS.FORECAST_SETTINGS, {
@@ -690,7 +694,7 @@ const App: React.FC = () => {
     setBankConnections(state.bankConnections || []);
     setInvestments(state.investments || []);
     setEvents(sanitizeEventLogs(state.events || []));
-    setCalendarItems(state.calendarItems || []);
+    setCalendarItems(deduplicateCalendarItems(state.calendarItems || []));
     setContacts(state.contacts || []);
     setIdeas(state.ideas || []);
     if (state.financialLogs) {
@@ -974,7 +978,7 @@ const App: React.FC = () => {
             setBankConnections(savedState.bankConnections || []);
             setInvestments(savedState.investments || []);
             setEvents(sanitizeEventLogs(savedState.events || []));
-            setCalendarItems(savedState.calendarItems || []);
+            setCalendarItems(deduplicateCalendarItems(savedState.calendarItems || []));
             setContacts(savedState.contacts || []);
             setIdeas(savedState.ideas || []);
             if (savedState.financialLogs) {
@@ -1247,7 +1251,7 @@ const App: React.FC = () => {
   }, [bankConnections, transactions, cashOpeningBalance]);
 
   const handleUpdateCalendarItems = useCallback((items: CalendarItem[]) => {
-    setCalendarItems(items);
+    setCalendarItems(deduplicateCalendarItems(items));
   }, []);
 
   if(window.location.pathname === '/verify-email') return <EmailVerificationScreen />;

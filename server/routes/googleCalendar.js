@@ -145,12 +145,33 @@ router.get('/events', requireAuthorizedAccount, async (req, res) => {
 
     const rawItems = await calendarPages(calUrl, accessToken);
 
-    // 3. Transform Google Calendar items into app-compatible CalendarItem schema
+    // 3. Deduplicate and transform Google Calendar items into app-compatible CalendarItem schema
     const now = Date.now();
     const todayYMD = new Date().toISOString().split('T')[0];
 
-    const formattedEvents = rawItems
-      .filter(item => item.status !== 'cancelled' && (item.start?.dateTime || item.start?.date))
+    const seenIds = new Set();
+    const seenSigs = new Set();
+    const uniqueRawItems = [];
+
+    for (const item of rawItems) {
+      if (!item || item.status === 'cancelled' || (!item.start?.dateTime && !item.start?.date)) {
+        continue;
+      }
+      if (item.id && seenIds.has(item.id)) {
+        continue;
+      }
+      if (item.id) {
+        seenIds.add(item.id);
+      }
+      const sig = `${(item.summary || '').trim().toLowerCase()}|${item.start?.dateTime || item.start?.date}|${item.end?.dateTime || item.end?.date || ''}`;
+      if (seenSigs.has(sig)) {
+        continue;
+      }
+      seenSigs.add(sig);
+      uniqueRawItems.push(item);
+    }
+
+    const formattedEvents = uniqueRawItems
       .map(item => {
         const isAllDay = !!item.start.date && !item.start.dateTime;
         let dateStr = '';
@@ -251,8 +272,29 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
     const now = Date.now();
     const todayYMD = new Date().toISOString().split('T')[0];
 
-    const upcomingEvents = rawItems
-      .filter(item => item.status !== 'cancelled' && (item.start?.dateTime || item.start?.date))
+    const seenNotifIds = new Set();
+    const seenNotifSigs = new Set();
+    const uniqueNotifItems = [];
+
+    for (const item of rawItems) {
+      if (!item || item.status === 'cancelled' || (!item.start?.dateTime && !item.start?.date)) {
+        continue;
+      }
+      if (item.id && seenNotifIds.has(item.id)) {
+        continue;
+      }
+      if (item.id) {
+        seenNotifIds.add(item.id);
+      }
+      const sig = `${(item.summary || '').trim().toLowerCase()}|${item.start?.dateTime || item.start?.date}|${item.end?.dateTime || item.end?.date || ''}`;
+      if (seenNotifSigs.has(sig)) {
+        continue;
+      }
+      seenNotifSigs.add(sig);
+      uniqueNotifItems.push(item);
+    }
+
+    const upcomingEvents = uniqueNotifItems
       .map(item => {
         const isAllDay = !!item.start.date && !item.start.dateTime;
         let dateStr = '';

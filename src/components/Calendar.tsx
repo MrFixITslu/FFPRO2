@@ -2,9 +2,14 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BudgetEvent, Transaction, RecurringExpense, RecurringIncome, ProjectTask, CalendarItem } from '../types';
 import { googleCalendarService, GoogleCalendarStatus } from '../services/googleCalendarService';
 import { 
+  mergeAndDeduplicateCalendarItems, 
+  deduplicateCalendarItems, 
+  expandRecurringCalendarItems 
+} from '../utils/calendarUtils';
+import { 
   Calendar as CalendarIcon, Clock, MapPin, Video, ExternalLink, Copy, Check, 
   Trash2, Plus, ChevronLeft, ChevronRight, RefreshCw, AlertCircle, CheckCircle2,
-  Share2, Sparkles, User, Info, ShieldCheck, Link2
+  Share2, Sparkles, User, Info, ShieldCheck, Link2, Edit3, X, CheckSquare, Square
 } from 'lucide-react';
 
 interface Props {
@@ -33,6 +38,9 @@ const Calendar: React.FC<Props> = ({
   const [showEditor, setShowEditor] = useState(false);
   const [editingItem, setEditingItem] = useState<CalendarItem | null>(null);
   const [selectedEventModal, setSelectedEventModal] = useState<CalendarItem | null>(null);
+  const [selectedDayModal, setSelectedDayModal] = useState<Date | null>(null);
+  const [selectedProjectModal, setSelectedProjectModal] = useState<BudgetEvent | null>(null);
+  const [selectedTaskModal, setSelectedTaskModal] = useState<{ task: ProjectTask; eventName: string; eventId: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [creatingInGoogle, setCreatingInGoogle] = useState(false);
 
@@ -98,13 +106,9 @@ const Calendar: React.FC<Props> = ({
       const res = await googleCalendarService.fetchEvents();
       if (res && Array.isArray(res.events)) {
         const incomingGcalEvents = res.events;
-        const incomingIds = new Set(incomingGcalEvents.map(e => e.googleEventId || e.id));
-
-        // Preserve all manual app calendar items, and replace previous Google events with latest data
-        const manualAppItems = calendarItems.filter(item => !item.isGoogleCalendar && !incomingIds.has(item.googleEventId || ''));
         
-        // Merge into the app schedule
-        const mergedCalendarItems = [...manualAppItems, ...incomingGcalEvents];
+        // Cleanly merge and deduplicate without retaining stale Google events or duplicating items
+        const mergedCalendarItems = mergeAndDeduplicateCalendarItems(calendarItems, incomingGcalEvents);
         onUpdateItems(mergedCalendarItems);
 
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -135,39 +139,9 @@ const Calendar: React.FC<Props> = ({
     }
   }, [calendarItems, onUpdateItems]);
 
-  // Virtual Recurring Logic: Expand items into specific month occurrences
+  // Virtual Recurring Logic: Expand items deterministically into specific month occurrences
   const expandedCalendarItems = useMemo(() => {
-    const items: (CalendarItem & { isVirtual?: boolean })[] = [];
-    
-    calendarItems.forEach(item => {
-      if (item.recurring === 'none') {
-        items.push(item);
-        return;
-      }
-
-      // Calculate occurrences for this month
-      const start = new Date(item.date);
-      for (let d = 1; d <= daysInMonth; d++) {
-        const current = new Date(year, month, d);
-        if (current < start) continue;
-
-        let match = false;
-        if (item.recurring === 'daily') match = true;
-        if (item.recurring === 'weekly' && current.getDay() === start.getDay()) match = true;
-        if (item.recurring === 'monthly' && current.getDate() === start.getDate()) match = true;
-
-        if (match) {
-          items.push({
-            ...item,
-            id: `${item.id}-${d}`,
-            date: current.toISOString().split('T')[0],
-            isVirtual: current.toISOString().split('T')[0] !== item.date
-          });
-        }
-      }
-    });
-
-    return items;
+    return expandRecurringCalendarItems(calendarItems, year, month, daysInMonth);
   }, [calendarItems, year, month, daysInMonth]);
 
   const activeEvents = useMemo(() => events.filter(e => e.status !== 'closed'), [events]);
@@ -274,16 +248,20 @@ const Calendar: React.FC<Props> = ({
     };
 
     if (editingItem) {
-      onUpdateItems(calendarItems.map(item => item.id === editingItem.id ? newItem : item));
+      onUpdateItems(deduplicateCalendarItems(calendarItems.map(item => item.id === editingItem.id ? newItem : item)));
     } else {
-      onUpdateItems([...calendarItems, newItem]);
+      onUpdateItems(deduplicateCalendarItems([...calendarItems, newItem]));
     }
     setShowEditor(false);
     setEditingItem(null);
   };
 
+  const getBaseId = (id: string) => {
+    return id.includes('-rec-') ? id.split('-rec-')[0] : id;
+  };
+
   const handleDeleteItem = async (id: string, googleEventId?: string) => {
-    const originalId = id.split('-')[0];
+    const originalId = getBaseId(id);
     if (googleEventId) {
       try {
         await googleCalendarService.deleteEvent(googleEventId);
@@ -291,22 +269,25 @@ const Calendar: React.FC<Props> = ({
         console.warn('Could not delete from Google Calendar server-side:', e);
       }
     }
-    onUpdateItems(calendarItems.filter(item => item.id !== originalId));
-    if (selectedEventModal?.id === id || selectedEventModal?.id === originalId) {
+    onUpdateItems(calendarItems.filter(item => item.id !== id && item.id !== originalId && (!googleEventId || item.googleEventId !== googleEventId)));
+    if (selectedEventModal?.id === id || selectedEventModal?.id === originalId || (googleEventId && selectedEventModal?.googleEventId === googleEventId)) {
       setSelectedEventModal(null);
     }
   };
 
   const toggleComplete = (id: string) => {
-    const originalId = id.split('-')[0];
+    const originalId = getBaseId(id);
     onUpdateItems(calendarItems.map(item => item.id === originalId ? { ...item, completed: !item.completed } : item));
   };
 
   const startEdit = (item: CalendarItem) => {
-    const originalId = item.id.split('-')[0];
-    const original = calendarItems.find(i => i.id === originalId);
+    const originalId = getBaseId(item.id);
+    const original = calendarItems.find(i => i.id === originalId || (item.googleEventId && i.googleEventId === item.googleEventId));
     if (original) {
       setEditingItem(original);
+      setShowEditor(true);
+    } else {
+      setEditingItem(item);
       setShowEditor(true);
     }
   };
@@ -450,64 +431,132 @@ const Calendar: React.FC<Props> = ({
                     </span>
                   </div>
                   
-                  <div className="space-y-1 max-h-[88px] overflow-y-auto no-scrollbar">
-                    {dayCalendarItems.map(ci => {
-                      const hasMeet = !!ci.hangoutLink;
+                  {/* Day Content Badges */}
+                  <div className="space-y-1 overflow-hidden">
+                    {(() => {
+                      const allDayElements = [
+                        ...dayCalendarItems.map(ci => ({ type: 'calendarItem' as const, item: ci })),
+                        ...dayProjects.map(p => ({ type: 'project' as const, item: p })),
+                        ...dayTasks.map(t => ({ type: 'task' as const, item: t })),
+                        ...dayRecurringEx.map(re => ({ type: 'bill' as const, item: re })),
+                      ];
+                      
+                      const visibleElements = allDayElements.slice(0, 2);
+                      const overflowCount = allDayElements.length - visibleElements.length;
+
                       return (
-                        <div 
-                          key={ci.id} 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedDay(new Date(year, month, day));
-                            setSelectedEventModal(ci);
-                          }}
-                          title={ci.hangoutLink ? `Click to open Google Meet: ${ci.title}` : ci.title}
-                          className={`px-1.5 py-0.5 text-[9px] font-medium rounded truncate border flex items-center justify-between gap-1 transition-all hover:scale-[1.02] cursor-pointer ${
-                            ci.isGoogleCalendar 
-                              ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' 
-                              : ci.type === 'meeting' 
-                              ? 'bg-stone-900 text-white border-stone-800 hover:bg-stone-800' 
-                              : ci.type === 'reminder' 
-                              ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' 
-                              : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
-                          } ${ci.completed ? 'opacity-40 grayscale line-through' : ''}`}
-                        >
-                          <div className="flex items-center gap-1 truncate">
-                            {hasMeet ? (
-                              <Video className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                            ) : ci.isGoogleCalendar ? (
-                              <CalendarIcon className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-                            ) : null}
-                            {ci.startTime && <span className="opacity-75 text-[8px]">{ci.startTime}</span>}
-                            <span className="truncate">{ci.title}</span>
-                          </div>
-                          {hasMeet && (
+                        <>
+                          {visibleElements.map((el, i) => {
+                            if (el.type === 'calendarItem') {
+                              const ci = el.item;
+                              const hasMeet = !!ci.hangoutLink;
+                              return (
+                                <div 
+                                  key={ci.id || i} 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDay(new Date(year, month, day));
+                                    setSelectedEventModal(ci);
+                                  }}
+                                  title={ci.hangoutLink ? `Google Meet: ${ci.title}` : ci.title}
+                                  className={`px-1.5 py-0.5 text-[9px] font-medium rounded truncate border flex items-center justify-between gap-1 transition-all hover:scale-[1.01] cursor-pointer ${
+                                    ci.isGoogleCalendar 
+                                      ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' 
+                                      : ci.type === 'meeting' 
+                                      ? 'bg-stone-900 text-white border-stone-800 hover:bg-stone-800' 
+                                      : ci.type === 'reminder' 
+                                      ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' 
+                                      : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                                  } ${ci.completed ? 'opacity-40 grayscale line-through' : ''}`}
+                                >
+                                  <div className="flex items-center gap-1 truncate">
+                                    {hasMeet ? (
+                                      <Video className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                    ) : ci.isGoogleCalendar ? (
+                                      <CalendarIcon className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+                                    ) : null}
+                                    {ci.startTime && <span className="opacity-75 text-[8px]">{ci.startTime}</span>}
+                                    <span className="truncate">{ci.title}</span>
+                                  </div>
+                                  {hasMeet && (
+                                    <button
+                                      onClick={(e) => handleOpenEventLink(ci, e)}
+                                      className="p-0.5 hover:bg-emerald-200 rounded text-emerald-700"
+                                      title="Join Google Meet directly"
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            } else if (el.type === 'project') {
+                              const p = el.item;
+                              return (
+                                <div 
+                                  key={p.id} 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDay(new Date(year, month, day));
+                                    setSelectedProjectModal(p);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-medium rounded truncate cursor-pointer transition"
+                                  title={`Project: ${p.name}`}
+                                >
+                                  Proj: {p.name}
+                                </div>
+                              );
+                            } else if (el.type === 'task') {
+                              const t = el.item;
+                              return (
+                                <div 
+                                  key={t.task.id} 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDay(new Date(year, month, day));
+                                    setSelectedTaskModal(t);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-[9px] font-medium rounded truncate cursor-pointer transition"
+                                  title={`Task: ${t.task.text} (${t.eventName})`}
+                                >
+                                  Task: {t.task.text}
+                                </div>
+                              );
+                            } else {
+                              const re = el.item;
+                              return (
+                                <div 
+                                  key={re.id} 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDay(new Date(year, month, day));
+                                    setSelectedDayModal(new Date(year, month, day));
+                                  }}
+                                  className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-medium rounded truncate cursor-pointer transition"
+                                  title={`Bill: ${re.description} ($${re.amount})`}
+                                >
+                                  Bill: {re.description}
+                                </div>
+                              );
+                            }
+                          })}
+
+                          {overflowCount > 0 && (
                             <button
-                              onClick={(e) => handleOpenEventLink(ci, e)}
-                              className="p-0.5 hover:bg-emerald-200 rounded text-emerald-700"
-                              title="Join Google Meet directly"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDay(new Date(year, month, day));
+                                setSelectedDayModal(new Date(year, month, day));
+                              }}
+                              className="w-full text-left px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[9px] font-semibold rounded transition flex items-center justify-between"
                             >
-                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>+{overflowCount} more</span>
+                              <span className="text-[8px] opacity-60">View</span>
                             </button>
                           )}
-                        </div>
+                        </>
                       );
-                    })}
-                    {dayProjects.map(e => (
-                      <div key={e.id} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-medium rounded truncate">
-                        Proj: {e.name}
-                      </div>
-                    ))}
-                    {dayTasks.map(t => (
-                      <div key={t.task.id} className="px-1.5 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 text-[9px] font-medium rounded truncate">
-                        Task: {t.task.text}
-                      </div>
-                    ))}
-                    {dayRecurringEx.map(re => (
-                      <div key={re.id} className="px-1.5 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 text-[9px] font-medium rounded truncate">
-                        Bill: {re.description}
-                      </div>
-                    ))}
+                    })()}
                   </div>
                 </div>
               );
@@ -743,97 +792,130 @@ const Calendar: React.FC<Props> = ({
 
       {/* Event Details / Meeting Modal */}
       {selectedEventModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-2xl border border-stone-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                    selectedEventModal.isGoogleCalendar ? 'bg-blue-100 text-blue-800' : 'bg-stone-100 text-stone-800'
-                  }`}>
-                    {selectedEventModal.isGoogleCalendar ? 'Google Calendar' : selectedEventModal.type}
+        <div 
+          onClick={() => setSelectedEventModal(null)}
+          className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-lg rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(90vh,620px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-start gap-3 bg-white shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
+                  selectedEventModal.isGoogleCalendar ? 'bg-blue-100 text-blue-800' : 'bg-stone-100 text-stone-800'
+                }`}>
+                  {selectedEventModal.isGoogleCalendar ? 'Google Calendar' : selectedEventModal.type}
+                </span>
+                {selectedEventModal.hangoutLink && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                    <Video className="w-3 h-3" /> Google Meet
                   </span>
-                  {selectedEventModal.hangoutLink && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                      <Video className="w-3 h-3" /> Google Meet
-                    </span>
-                  )}
-                </div>
-                <button 
-                  onClick={() => setSelectedEventModal(null)} 
-                  className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center cursor-pointer transition"
-                >
-                  ✕
-                </button>
+                )}
+                {selectedEventModal.recurring && selectedEventModal.recurring !== 'none' && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                    ↻ {selectedEventModal.recurring}
+                  </span>
+                )}
               </div>
+              <button 
+                onClick={() => setSelectedEventModal(null)} 
+                className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                ✕
+              </button>
+            </div>
 
-              <h3 className="text-xl font-bold text-stone-900 mb-3">{selectedEventModal.title}</h3>
+            {/* Scrollable Modal Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+              <h3 className="text-xl font-bold text-stone-900 leading-snug">{selectedEventModal.title}</h3>
 
               <div className="space-y-3 py-3 border-y border-stone-150 text-xs text-stone-600">
                 <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-stone-400" />
-                  <span className="font-semibold text-stone-800">{new Date(selectedEventModal.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                  {selectedEventModal.startTime && <span className="text-stone-500">at {selectedEventModal.startTime}</span>}
+                  <CalendarIcon className="w-4 h-4 text-stone-400 shrink-0" />
+                  <span className="font-semibold text-stone-800">
+                    {new Date(selectedEventModal.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </span>
+                  {selectedEventModal.startTime && <span className="text-stone-500 font-medium">at {selectedEventModal.startTime}</span>}
                 </div>
 
                 {selectedEventModal.location && (
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-rose-500" />
-                    <span>{selectedEventModal.location}</span>
+                    <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span className="text-stone-700 font-medium">{selectedEventModal.location}</span>
+                  </div>
+                )}
+
+                {selectedEventModal.hangoutLink && (
+                  <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 truncate">
+                      <Video className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs font-medium text-emerald-900 truncate">
+                        Google Meet Ready
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => copyMeetingLink(selectedEventModal.hangoutLink!)}
+                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-semibold border border-emerald-200 transition cursor-pointer flex items-center gap-1"
+                      >
+                        {copiedLink ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        {copiedLink ? 'Copied' : 'Copy'}
+                      </button>
+                      <a
+                        href={selectedEventModal.hangoutLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-semibold transition flex items-center gap-1"
+                      >
+                        Join <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 )}
 
                 {selectedEventModal.description && (
                   <div className="pt-2">
-                    <p className="text-xs font-semibold text-stone-700 mb-1">Description</p>
-                    <p className="text-stone-600 whitespace-pre-wrap bg-stone-50 p-3 rounded-lg border border-stone-200 leading-relaxed">
+                    <p className="text-xs font-semibold text-stone-700 mb-1">Details & Agenda</p>
+                    <p className="text-stone-600 whitespace-pre-wrap bg-stone-50 p-3 rounded-xl border border-stone-200 leading-relaxed text-xs">
                       {selectedEventModal.description}
                     </p>
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* Action Buttons */}
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                {selectedEventModal.hangoutLink ? (
-                  <a
-                    href={selectedEventModal.hangoutLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition"
-                  >
-                    <Video className="w-4 h-4" /> Join Google Meet
-                  </a>
-                ) : null}
-
-                {selectedEventModal.htmlLink && (
-                  <a
-                    href={selectedEventModal.htmlLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="py-2.5 px-4 bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> View in Google
-                  </a>
-                )}
-
-                {selectedEventModal.hangoutLink && (
-                  <button
-                    onClick={() => copyMeetingLink(selectedEventModal.hangoutLink!)}
-                    className="py-2.5 px-4 bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                  >
-                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copiedLink ? 'Copied!' : 'Copy Link'}
-                  </button>
-                )}
-
-                <button
-                  onClick={() => handleDeleteItem(selectedEventModal.id, selectedEventModal.googleEventId)}
-                  className="py-2.5 px-4 text-rose-600 hover:bg-rose-50 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+            {/* Modal Action Footer - Always visible */}
+            <div className="p-3.5 sm:p-4 bg-stone-50 border-t border-stone-150 flex flex-wrap gap-2 items-center justify-end shrink-0">
+              {selectedEventModal.htmlLink && (
+                <a
+                  href={selectedEventModal.htmlLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2 px-3 bg-white hover:bg-stone-100 text-stone-700 font-semibold rounded-xl text-xs border border-stone-200 flex items-center gap-1.5 transition"
                 >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </button>
-              </div>
+                  <ExternalLink className="w-3.5 h-3.5" /> View in Google
+                </a>
+              )}
+
+              <button
+                onClick={() => {
+                  const toEdit = selectedEventModal;
+                  setSelectedEventModal(null);
+                  startEdit(toEdit);
+                }}
+                className="py-2 px-3.5 bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5" /> Edit
+              </button>
+
+              <button
+                onClick={() => handleDeleteItem(selectedEventModal.id, selectedEventModal.googleEventId)}
+                className="py-2 px-3.5 text-rose-600 hover:bg-rose-50 font-semibold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
             </div>
           </div>
         </div>
@@ -841,25 +923,34 @@ const Calendar: React.FC<Props> = ({
 
       {/* Schedule Directive Editor Modal */}
       {showEditor && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl border border-stone-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
+        <div 
+          onClick={() => { setShowEditor(false); setEditingItem(null); }}
+          className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-md rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(90vh,640px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            <form onSubmit={handleSaveItem} className="flex flex-col flex-1 overflow-hidden min-h-0">
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-center shrink-0 bg-white">
                 <div>
-                  <h3 className="text-lg font-bold text-stone-900 tracking-tight">
+                  <h3 className="text-base sm:text-lg font-bold text-stone-900 tracking-tight">
                     {editingItem ? 'Edit Calendar Directive' : 'Schedule Event / Meeting'}
                   </h3>
                   <p className="text-xs text-stone-500 mt-0.5">Add to app schedule or synchronize directly with Google</p>
                 </div>
                 <button 
+                  type="button"
                   onClick={() => { setShowEditor(false); setEditingItem(null); }} 
-                  className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center text-stone-500 hover:text-stone-900 transition-all cursor-pointer"
+                  className="w-8 h-8 bg-stone-100 hover:bg-stone-200 rounded-lg flex items-center justify-center text-stone-500 hover:text-stone-900 transition-all cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleSaveItem} className="space-y-4">
+              {/* Scrollable Form Fields */}
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-left">
                 <div>
                   <label className="text-xs font-semibold text-stone-700 block mb-1">Title / Subject</label>
                   <input 
@@ -878,7 +969,7 @@ const Calendar: React.FC<Props> = ({
                       type="date" 
                       name="date" 
                       required 
-                      defaultValue={editingItem?.date || selectedDay?.toISOString().split('T')[0]} 
+                      defaultValue={editingItem?.date || (selectedDay ? selectedDay.toISOString().split('T')[0] : new Date().toISOString().split('T')[0])} 
                       className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs font-medium text-stone-900 outline-none focus:ring-1 focus:ring-indigo-500" 
                     />
                   </div>
@@ -956,15 +1047,25 @@ const Calendar: React.FC<Props> = ({
                     </label>
                   </div>
                 )}
+              </div>
 
+              {/* Fixed Footer with Cancel and Submit buttons - ALWAYS VISIBLE */}
+              <div className="p-3.5 sm:p-4 bg-stone-50 border-t border-stone-150 flex items-center justify-end gap-2 shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => { setShowEditor(false); setEditingItem(null); }}
+                  className="px-4 py-2 bg-stone-150 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
                 <button 
                   type="submit" 
                   disabled={creatingInGoogle}
-                  className="w-full py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded-xl shadow-xs transition-all text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded-xl text-xs flex items-center gap-2 shadow-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   {creatingInGoogle ? (
                     <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving to Google Calendar...
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
                     </>
                   ) : editingItem ? (
                     'Update Directive'
@@ -972,7 +1073,328 @@ const Calendar: React.FC<Props> = ({
                     'Schedule Event'
                   )}
                 </button>
-              </form>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Day Schedule & Details Popup Modal */}
+      {selectedDayModal && (
+        <div 
+          onClick={() => setSelectedDayModal(null)}
+          className="fixed inset-0 z-[240] flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-lg rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(88vh,600px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-start gap-3 bg-white shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-stone-900">
+                  {selectedDayModal.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </h3>
+                <p className="text-xs text-stone-500">Day Schedule Overview</p>
+              </div>
+              <button 
+                onClick={() => setSelectedDayModal(null)} 
+                className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+              {(() => {
+                const dayNum = selectedDayModal.getDate();
+                const dayDetails = getDayDetails(dayNum);
+                const hasAny = dayDetails.dayCalendarItems.length > 0 || 
+                               dayDetails.dayProjects.length > 0 || 
+                               dayDetails.dayTasks.length > 0 || 
+                               dayDetails.dayRecurringEx.length > 0;
+
+                if (!hasAny) {
+                  return (
+                    <div className="py-8 text-center text-stone-400 text-xs">
+                      No events, projects, or tasks scheduled for this date.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {/* Events & Meetings */}
+                    {dayDetails.dayCalendarItems.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Events & Meetings</h4>
+                        <div className="space-y-1.5">
+                          {dayDetails.dayCalendarItems.map(ci => (
+                            <div 
+                              key={ci.id}
+                              onClick={() => {
+                                setSelectedDayModal(null);
+                                setSelectedEventModal(ci);
+                              }}
+                              className="p-2.5 rounded-xl border border-stone-200 hover:border-stone-300 bg-stone-50 hover:bg-stone-100 flex items-center justify-between gap-3 cursor-pointer transition"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                {ci.hangoutLink ? (
+                                  <Video className="w-4 h-4 text-emerald-600 shrink-0" />
+                                ) : ci.isGoogleCalendar ? (
+                                  <CalendarIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                                ) : (
+                                  <Clock className="w-4 h-4 text-stone-400 shrink-0" />
+                                )}
+                                <span className="text-xs font-semibold text-stone-900 truncate">{ci.title}</span>
+                                {ci.startTime && <span className="text-[11px] text-stone-500 font-medium">({ci.startTime})</span>}
+                              </div>
+                              <span className="text-[10px] text-indigo-600 font-semibold shrink-0">View Details →</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Projects */}
+                    {dayDetails.dayProjects.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Projects</h4>
+                        <div className="space-y-1.5">
+                          {dayDetails.dayProjects.map(p => (
+                            <div 
+                              key={p.id}
+                              onClick={() => {
+                                setSelectedDayModal(null);
+                                setSelectedProjectModal(p);
+                              }}
+                              className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 flex items-center justify-between gap-3 cursor-pointer transition"
+                            >
+                              <div className="truncate">
+                                <p className="text-xs font-semibold text-emerald-950 truncate">{p.name}</p>
+                                <p className="text-[10px] text-emerald-700 font-medium">Budget: ${p.totalBudget?.toLocaleString() || 0} • {p.category}</p>
+                              </div>
+                              <span className="text-[10px] text-emerald-800 font-semibold shrink-0">View Project →</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tasks */}
+                    {dayDetails.dayTasks.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Tasks Due</h4>
+                        <div className="space-y-1.5">
+                          {dayDetails.dayTasks.map(t => (
+                            <div 
+                              key={t.task.id}
+                              className="p-2.5 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-between gap-3 transition"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <button
+                                  type="button"
+                                  onClick={() => onToggleTaskCompletion && onToggleTaskCompletion(t.eventId, t.task.id)}
+                                  className="text-stone-400 hover:text-indigo-600 shrink-0 cursor-pointer"
+                                >
+                                  {t.task.status === 'done' ? (
+                                    <CheckSquare className="w-4 h-4 text-emerald-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4" />
+                                  )}
+                                </button>
+                                <span className={`text-xs font-medium truncate ${t.task.status === 'done' ? 'line-through text-stone-400' : 'text-stone-800'}`}>
+                                  {t.task.text}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-stone-400 shrink-0 font-medium">{t.eventName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recurring Bills */}
+                    {dayDetails.dayRecurringEx.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Recurring Bills</h4>
+                        <div className="space-y-1.5">
+                          {dayDetails.dayRecurringEx.map(re => (
+                            <div 
+                              key={re.id}
+                              className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/50 flex items-center justify-between gap-3"
+                            >
+                              <span className="text-xs font-semibold text-amber-950 truncate">{re.description}</span>
+                              <span className="text-xs font-bold text-amber-900 shrink-0">${re.amount.toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 sm:p-4 bg-stone-50 border-t border-stone-150 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDay(selectedDayModal);
+                  setSelectedDayModal(null);
+                  setEditingItem(null);
+                  setShowEditor(true);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Directive
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDayModal(null)}
+                className="px-4 py-2 bg-stone-150 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project Details Modal */}
+      {selectedProjectModal && (
+        <div 
+          onClick={() => setSelectedProjectModal(null)}
+          className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-md rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(88vh,560px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-start gap-3 bg-white shrink-0">
+              <div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                  Project
+                </span>
+                <h3 className="text-lg font-bold text-stone-900 mt-1">{selectedProjectModal.name}</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedProjectModal(null)} 
+                className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
+                <div>
+                  <span className="text-stone-400 block text-[10px] font-semibold uppercase">Category</span>
+                  <span className="font-semibold text-stone-800">{selectedProjectModal.category}</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block text-[10px] font-semibold uppercase">Total Budget</span>
+                  <span className="font-semibold text-emerald-600">${selectedProjectModal.totalBudget?.toLocaleString() || 0}</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block text-[10px] font-semibold uppercase">Target Date</span>
+                  <span className="font-semibold text-stone-800">{selectedProjectModal.date}</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block text-[10px] font-semibold uppercase">Status</span>
+                  <span className="font-semibold capitalize text-stone-800">{selectedProjectModal.status}</span>
+                </div>
+              </div>
+              {selectedProjectModal.tasks && selectedProjectModal.tasks.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Project Tasks</h4>
+                  <div className="space-y-1.5">
+                    {selectedProjectModal.tasks.map(t => (
+                      <div key={t.id} className="p-2 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-between text-xs">
+                        <span className={`truncate ${t.status === 'done' ? 'line-through text-stone-400' : 'text-stone-700'}`}>{t.text}</span>
+                        <span className="text-[10px] font-semibold text-stone-400 capitalize shrink-0">{t.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-3.5 sm:p-4 bg-stone-50 border-t border-stone-150 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedProjectModal(null)}
+                className="px-4 py-2 bg-stone-150 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Details Modal */}
+      {selectedTaskModal && (
+        <div 
+          onClick={() => setSelectedTaskModal(null)}
+          className="fixed inset-0 z-[250] flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-md rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(88vh,480px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
+          >
+            <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-start gap-3 bg-white shrink-0">
+              <div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-rose-100 text-rose-800">
+                  Project Task
+                </span>
+                <h3 className="text-base font-bold text-stone-900 mt-1">{selectedTaskModal.task.text}</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedTaskModal(null)} 
+                className="w-8 h-8 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3 text-xs">
+              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-stone-400 font-medium">Project:</span>
+                  <span className="font-semibold text-stone-800">{selectedTaskModal.eventName}</span>
+                </div>
+                {selectedTaskModal.task.dueDate && (
+                  <div className="flex justify-between">
+                    <span className="text-stone-400 font-medium">Due Date:</span>
+                    <span className="font-semibold text-stone-800">{selectedTaskModal.task.dueDate}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-stone-400 font-medium">Status:</span>
+                  <span className="font-semibold capitalize text-stone-800">{selectedTaskModal.task.status}</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-3.5 sm:p-4 bg-stone-50 border-t border-stone-150 flex items-center justify-between shrink-0">
+              {onToggleTaskCompletion && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleTaskCompletion(selectedTaskModal.eventId, selectedTaskModal.task.id);
+                    setSelectedTaskModal(null);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" /> Toggle Done
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedTaskModal(null)}
+                className="px-4 py-2 bg-stone-150 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

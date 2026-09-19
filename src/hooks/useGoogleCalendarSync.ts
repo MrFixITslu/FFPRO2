@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { googleCalendarService } from '../services/googleCalendarService';
 import { CalendarItem } from '../types';
+import { mergeAndDeduplicateCalendarItems } from '../utils/calendarUtils';
 
 const LAST_SYNC_KEY = 'last_gcal_sync_timestamp';
 const LAST_6AM_SYNC_DATE_KEY = 'last_gcal_6am_sync_date';
@@ -22,10 +23,7 @@ export function useGoogleCalendarSync(
   // Helper to merge fetched Google Calendar events with local non-Google directives
   const mergeGoogleEvents = useCallback((gcalEvents: CalendarItem[]) => {
     const current = calendarItemsRef.current || [];
-    // Keep local custom directives (isGoogleCalendar !== true)
-    const localItems = current.filter(item => !item.isGoogleCalendar);
-    // Combine local items with fresh Google items
-    const merged = [...localItems, ...gcalEvents];
+    const merged = mergeAndDeduplicateCalendarItems(current, gcalEvents);
     onUpdateCalendarItems(merged);
   }, [onUpdateCalendarItems]);
 
