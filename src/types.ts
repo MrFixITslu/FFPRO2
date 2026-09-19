@@ -360,6 +360,161 @@ export interface StartupPlanDetails {
   // Comprehensive Funding-Ready Business Plan
   businessPlan?: BusinessPlanSections;
   importedQuotes?: SupplierQuoteData[];
+
+  // --- Business Model Classification (new, additive, optional) ---------
+  // Existing projects will not have this set. When undefined, the UI must
+  // prompt the user to classify the project (see BusinessModelClassifier)
+  // rather than assuming a default — this is the migration gate referenced
+  // throughout this section.
+  businessModelType?: StartupBusinessModelType;
+  goodsSubType?: GoodsSubType;
+  serviceRevenueModels?: ServiceRevenueModel[];
+
+  // --- Goods workflow data ------------------------------------------------
+  goodsProducts?: GoodsProduct[];
+  goodsInventory?: GoodsInventorySnapshot;
+
+  // --- Services workflow data ----------------------------------------------
+  serviceOfferings?: ServiceOffering[];
+  serviceCapacity?: ServiceCapacityPlan;
+  serviceDirectCosts?: ServiceDirectCosts;
+
+  // --- Expense classification (used by both goods & services workflows) ---
+  // Replaces the flat rent/salaries/marketing/utilities/otherExpenses split
+  // with an explicit one-time / recurring / periodic classification so Year 1
+  // investment is derived from real data instead of being hard-coded.
+  classifiedExpenses?: ClassifiedExpenseItem[];
+}
+
+export type StartupBusinessModelType = 'goods' | 'services' | 'hybrid';
+
+export type GoodsSubType = 'manufacturing' | 'resale' | 'both';
+
+export type ServiceRevenueModel =
+  | 'hourly'
+  | 'fixed_project'
+  | 'package'
+  | 'retainer'
+  | 'subscription'
+  | 'per_transaction'
+  | 'other';
+
+export type ExpenseClassification = 'one_time' | 'recurring' | 'periodic';
+
+export interface ClassifiedExpenseItem {
+  id: string;
+  name: string;
+  amount: number;
+  classification: ExpenseClassification;
+  /** For 'periodic' items: how often the cost recurs, e.g. "Every 3 years". */
+  periodicityNote?: string;
+  category?: string;
+}
+
+export interface RawMaterialLine {
+  id: string;
+  name: string;
+  quantityPerUnit: number;
+  costPerUnit: number;
+}
+
+/**
+ * A single product within a Goods business. Manufacturing- and resale-
+ * specific fields are both optional on the same shape — which fields are
+ * populated (and which are shown to the user) is driven by the product's
+ * own `sourcing` value, so a hybrid "both manufacturing and resale" business
+ * can mix product types within one list without forcing irrelevant fields.
+ */
+export interface GoodsProduct {
+  id: string;
+  name: string;
+  description?: string;
+  sourcing: 'manufactured' | 'resale';
+
+  sellingPrice: number;
+  expectedMonthlyUnits: number;
+  monthlySalesGrowthPercent?: number;
+  seasonalDemandNote?: string;
+
+  supplier?: string;
+  leadTimeDays?: number;
+  minimumOrderQuantity?: number;
+  importShippingCostPerUnit?: number;
+  dutiesTaxesPercent?: number;
+  packagingCostPerUnit?: number;
+  distributionCostPerUnit?: number;
+  returnsWarrantyAllowancePercent?: number;
+
+  // Resale-specific
+  purchaseCostPerUnit?: number;
+  freightImportCostPerUnit?: number;
+
+  // Manufacturing-specific
+  rawMaterials?: RawMaterialLine[];
+  directProductionLabourPerUnit?: number;
+  productionOverheadPerUnit?: number;
+  wasteScrapPercent?: number;
+  productionCapacityUnitsPerMonth?: number;
+  productionLeadTimeDays?: number;
+}
+
+export interface GoodsInventorySnapshot {
+  beginningInventoryValue?: number;
+  purchasesOrProductionCostThisPeriod?: number;
+  endingInventoryValue?: number;
+  safetyStockUnits?: number;
+  reorderPointUnits?: number;
+  reorderQuantityUnits?: number;
+  supplierPaymentTermsDays?: number;
+  expectedInventoryTurnsPerYear?: number;
+  damagedLostObsoleteAllowancePercent?: number;
+}
+
+export interface ServiceOffering {
+  id: string;
+  name: string;
+  description?: string;
+  revenueModels: ServiceRevenueModel[];
+
+  // Populated depending on which revenue model(s) are selected above.
+  hourlyRate?: number;
+  expectedBillableHoursPerMonth?: number;
+
+  averageProjectFee?: number;
+  expectedProjectsPerMonth?: number;
+
+  packagePrice?: number;
+  expectedPackagesPerMonth?: number;
+
+  monthlyRetainerFee?: number;
+  expectedRetainerClients?: number;
+
+  subscriptionPrice?: number;
+  expectedSubscribers?: number;
+
+  averageRevenuePerTransaction?: number;
+  expectedTransactionsPerMonth?: number;
+
+  contractDurationMonths?: number;
+  isRecurringRevenue?: boolean;
+}
+
+export interface ServiceCapacityPlan {
+  staffCount?: number;
+  availableHoursPerStaffPerWeek?: number;
+  utilisationPercent?: number;
+  expectedHiringDates?: string;
+  salaryOrContractorCostPerStaff?: number;
+}
+
+export interface ServiceDirectCosts {
+  directEmployeeLabour?: number;
+  contractorSubcontractorCosts?: number;
+  travel?: number;
+  projectSpecificMaterials?: number;
+  serviceDeliverySoftware?: number;
+  paymentProcessingPercent?: number;
+  otherDirectCosts?: number;
 }
 
 export type ProjectRole = 'owner' | 'editor' | 'viewer';

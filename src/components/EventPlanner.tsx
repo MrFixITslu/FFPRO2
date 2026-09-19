@@ -5,6 +5,11 @@ import { BusinessPlanForm } from './BusinessPlanForm';
 import { ImportQuoteModal } from './ImportQuoteModal';
 import { ExportBusinessPlanModal } from './ExportBusinessPlanModal';
 import { BusinessPlanCalculations, computeStartupCalculations } from '../services/businessPlanExportService';
+import { needsBusinessModelClassification } from '../services/startupFinancialsService';
+import { BusinessModelClassifier } from './startup/BusinessModelClassifier';
+import { GoodsWorkflowPanel } from './startup/GoodsWorkflowPanel';
+import { ServicesWorkflowPanel } from './startup/ServicesWorkflowPanel';
+import { StartupFinancialSummary } from './startup/StartupFinancialSummary';
 import { 
   saveFileToHardDrive, 
   getFileFromHardDrive, 
@@ -2862,6 +2867,70 @@ const EventPlanner: React.FC<Props> = ({
 
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
+                  {/* --- Business Model Classification & Differentiated Workflow (new) --- */}
+                  {needsBusinessModelClassification(sd.businessModelType) ? (
+                    <BusinessModelClassifier
+                      isMigration={!!selectedEvent.startupDetails}
+                      onComplete={(result) => handleUpdateStartup(result)}
+                    />
+                  ) : (
+                    <div className="bg-gradient-to-br from-emerald-50/60 to-white border border-emerald-100 rounded-2xl p-5 space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">
+                            {sd.businessModelType === 'goods'
+                              ? 'Goods Business'
+                              : sd.businessModelType === 'services'
+                              ? 'Services Business'
+                              : 'Hybrid Business (Goods + Services)'}
+                          </span>
+                          <h2 className="text-sm font-bold text-stone-800 mt-0.5">Business-Model Planning Workflow</h2>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStartup({ businessModelType: undefined, goodsSubType: undefined, serviceRevenueModels: undefined })}
+                          className="text-[10px] text-stone-400 hover:text-stone-600 underline"
+                        >
+                          Change business model
+                        </button>
+                      </div>
+
+                      {(sd.businessModelType === 'goods' || sd.businessModelType === 'hybrid') && sd.goodsSubType && (
+                        <GoodsWorkflowPanel
+                          goodsSubType={sd.goodsSubType}
+                          products={sd.goodsProducts || []}
+                          onChange={(goodsProducts) => handleUpdateStartup({ goodsProducts })}
+                        />
+                      )}
+
+                      {(sd.businessModelType === 'services' || sd.businessModelType === 'hybrid') && sd.serviceRevenueModels && (
+                        <ServicesWorkflowPanel
+                          allowedRevenueModels={sd.serviceRevenueModels}
+                          offerings={sd.serviceOfferings || []}
+                          onOfferingsChange={(serviceOfferings) => handleUpdateStartup({ serviceOfferings })}
+                          capacity={sd.serviceCapacity}
+                          onCapacityChange={(serviceCapacity) => handleUpdateStartup({ serviceCapacity })}
+                          directCosts={sd.serviceDirectCosts}
+                          onDirectCostsChange={(serviceDirectCosts) => handleUpdateStartup({ serviceDirectCosts })}
+                        />
+                      )}
+
+                      <StartupFinancialSummary
+                        businessModelType={sd.businessModelType}
+                        products={sd.goodsProducts || []}
+                        offerings={sd.serviceOfferings || []}
+                        capacity={sd.serviceCapacity}
+                        directCosts={sd.serviceDirectCosts}
+                        monthlyFixedCosts={(sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0)}
+                      />
+
+                      <p className="text-[10px] text-stone-400 border-t border-emerald-100/70 pt-3">
+                        The legacy pricing calculator below still works and is kept for backward compatibility, but the
+                        summary above is now the model-accurate figure for a {sd.businessModelType} business.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Top Mode Switcher & Funding Action Bar */}
                   <div className="bg-white border border-stone-200 p-3.5 rounded-2xl shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex bg-stone-100/90 p-1 rounded-xl w-full md:w-auto border border-stone-200/50">
