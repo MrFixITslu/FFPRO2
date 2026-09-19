@@ -12,21 +12,68 @@ let newsCache = {
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
- * Strip HTML tags and decode common XML entities
+ * Decode HTML entities recursively
+ */
+function decodeHtmlEntities(str = '') {
+  if (!str) return '';
+  let prev = '';
+  let curr = str;
+  for (let i = 0; i < 4 && curr !== prev; i++) {
+    prev = curr;
+    curr = curr
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&apos;/gi, "'")
+      .replace(/&#x2F;/gi, '/')
+      .replace(/&#x27;/gi, "'")
+      .replace(/&#x60;/gi, '`')
+      .replace(/&#(\d+);/g, (_, code) => {
+        try {
+          return String.fromCharCode(Number(code));
+        } catch {
+          return '';
+        }
+      })
+      .replace(/&nbsp;/gi, ' ');
+  }
+  return curr;
+}
+
+/**
+ * Strip HTML tags and decode common XML/HTML entities into clean plain text
  */
 function cleanText(text = '') {
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/https?:\/\/\S+/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  if (!text) return '';
+  
+  // 1. Unwrap CDATA blocks
+  let result = text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1');
+  
+  // 2. Decode entities first so encoded tags like &lt;a href...&gt; become real HTML tags
+  result = decodeHtmlEntities(result);
+  
+  // 3. Remove script and style elements
+  result = result.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ');
+  result = result.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ');
+  
+  // 4. Strip all HTML tags
+  result = result.replace(/<[^>]+>/g, ' ');
+  
+  // 5. Decode entities again in case text had nested entities
+  result = decodeHtmlEntities(result);
+  
+  // 6. Clean residual HTML artifacts (e.g. font tags or escaped fragments)
+  result = result.replace(/<\/?(?:font|a|b|i|span|p|div|br)[^>]*>/gi, ' ');
+  
+  // 7. Remove standalone web links inside snippet text
+  result = result.replace(/https?:\/\/\S+/gi, '');
+  
+  // 8. Normalize whitespace and trim
+  result = result.replace(/\s+/g, ' ').trim();
+  
+  return result;
 }
 
 /**
@@ -133,6 +180,11 @@ function parseRssItems(xmlText = '', defaultSource = 'News') {
 
     if (rawTitle && rawLink) {
       const dateStr = pubDateMatch ? cleanText(pubDateMatch[1]) : new Date().toISOString();
+      let snippet = rawDesc;
+      if (!snippet || snippet.toLowerCase() === rawTitle.toLowerCase() || snippet.length < 15 || snippet.toLowerCase().startsWith(rawTitle.toLowerCase())) {
+        snippet = `Industry coverage and updates on ${rawTitle} reported by ${source || defaultSource}.`;
+      }
+
       items.push({
         id: `rss-${Buffer.from(rawLink).toString('base64').slice(0, 24)}`,
         title: rawTitle,
@@ -140,9 +192,9 @@ function parseRssItems(xmlText = '', defaultSource = 'News') {
         source: source || defaultSource,
         publishedAt: dateStr,
         timeAgo: formatTimeAgo(dateStr),
-        snippet: rawDesc.slice(0, 220),
-        player: detectPlayer(rawTitle, rawDesc),
-        category: detectCategory(rawTitle, rawDesc),
+        snippet: snippet.slice(0, 240),
+        player: detectPlayer(rawTitle, snippet),
+        category: detectCategory(rawTitle, snippet),
       });
     }
   }

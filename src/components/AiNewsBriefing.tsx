@@ -43,6 +43,33 @@ export interface AiBriefingResponse {
   fetchedAt: string;
 }
 
+/**
+ * Ensures any residual HTML tags or escaped entities are cleanly converted to pure plain text
+ */
+function cleanPlainText(input: string = ''): string {
+  if (!input) return '';
+  let str = input;
+  // Decode common HTML entities
+  for (let i = 0; i < 3; i++) {
+    str = str
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&apos;/gi, "'")
+      .replace(/&#x2F;/gi, '/')
+      .replace(/&#x27;/gi, "'")
+      .replace(/&nbsp;/gi, ' ');
+  }
+  // Strip all HTML/XML tags
+  str = str.replace(/<[^>]+>/g, ' ');
+  // Remove standalone URLs in text
+  str = str.replace(/https?:\/\/\S+/gi, '');
+  // Normalize extra spaces
+  return str.replace(/\s+/g, ' ').trim();
+}
+
 export const AiNewsBriefing: React.FC = () => {
   const [data, setData] = useState<AiBriefingResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -199,7 +226,7 @@ export const AiNewsBriefing: React.FC = () => {
             </div>
 
             <p className="text-xs sm:text-[13px] text-stone-200 leading-relaxed font-normal mb-3.5 break-words [overflow-wrap:anywhere]">
-              {data.briefing.summary}
+              {cleanPlainText(data.briefing.summary)}
             </p>
 
             {data.briefing.takeaways && data.briefing.takeaways.length > 0 && (
@@ -208,7 +235,7 @@ export const AiNewsBriefing: React.FC = () => {
                   <div key={idx} className="flex items-start gap-2 bg-white/5 p-2.5 rounded-lg border border-white/5">
                     <Zap size={13} className="text-amber-400 shrink-0 mt-0.5" />
                     <p className="text-[11px] text-stone-300 leading-snug break-words [overflow-wrap:anywhere]">
-                      {takeaway}
+                      {cleanPlainText(takeaway)}
                     </p>
                   </div>
                 ))}
@@ -257,6 +284,9 @@ export const AiNewsBriefing: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {filteredArticles.map((article) => {
                 const badge = playerBadges[article.player] || playerBadges['Industry & Research'];
+                const cleanTitle = cleanPlainText(article.title);
+                const cleanSnippet = cleanPlainText(article.snippet);
+                const cleanSource = cleanPlainText(article.source);
 
                 return (
                   <a
@@ -284,13 +314,13 @@ export const AiNewsBriefing: React.FC = () => {
 
                       {/* Title */}
                       <h4 className="text-xs font-bold text-stone-900 group-hover:text-indigo-950 transition leading-snug break-words [overflow-wrap:anywhere] mb-1.5">
-                        {article.title}
+                        {cleanTitle}
                       </h4>
 
                       {/* Snippet */}
-                      {article.snippet && (
-                        <p className="text-[11px] text-stone-500 line-clamp-2 leading-relaxed break-words [overflow-wrap:anywhere]">
-                          {article.snippet}
+                      {cleanSnippet && (
+                        <p className="text-[11px] text-stone-600 line-clamp-2 leading-relaxed break-words [overflow-wrap:anywhere]">
+                          {cleanSnippet}
                         </p>
                       )}
                     </div>
@@ -299,7 +329,7 @@ export const AiNewsBriefing: React.FC = () => {
                     <div className="pt-2 border-t border-stone-150 flex items-center justify-between text-[11px] text-stone-500">
                       <div className="flex items-center gap-1.5 font-medium truncate">
                         <Newspaper size={12} className="text-stone-400 shrink-0" />
-                        <span className="truncate">{article.source}</span>
+                        <span className="truncate">{cleanSource}</span>
                       </div>
                       <span className="inline-flex items-center gap-1 font-semibold text-indigo-600 group-hover:text-indigo-700 shrink-0">
                         Read Story <ArrowUpRight size={12} />
