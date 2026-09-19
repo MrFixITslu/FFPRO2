@@ -660,19 +660,19 @@ const Calendar: React.FC<Props> = ({
                               </div>
                             </div>
 
-                            <p className={`text-xs font-semibold ${ci.completed ? 'line-through text-stone-500' : 'text-stone-100'}`}>
+                            <p className={`text-xs font-semibold break-words [overflow-wrap:anywhere] ${ci.completed ? 'line-through text-stone-500' : 'text-stone-100'}`}>
                               {ci.title}
                             </p>
                             
                             {ci.description && (
-                              <p className="text-[11px] text-stone-400 font-normal mt-1 line-clamp-2 leading-relaxed">
+                              <p className="text-[11px] text-stone-400 font-normal mt-1 line-clamp-3 leading-relaxed break-words [overflow-wrap:anywhere]">
                                 {ci.description}
                               </p>
                             )}
 
                             {ci.location && (
-                              <p className="text-[10px] text-stone-400 mt-1.5 flex items-center gap-1">
-                                <MapPin className="w-3 h-3 text-rose-400" /> {ci.location}
+                              <p className="text-[10px] text-stone-400 mt-1.5 flex items-center gap-1 break-words [overflow-wrap:anywhere]">
+                                <MapPin className="w-3 h-3 text-rose-400 shrink-0" /> {ci.location}
                               </p>
                             )}
 
@@ -712,7 +712,7 @@ const Calendar: React.FC<Props> = ({
                         <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Active Projects</p>
                         {selectedDayData.dayProjects.map(e => (
                           <div key={e.id} className="p-3 bg-white/5 border border-white/10 rounded-lg">
-                            <p className="text-xs font-semibold text-white">{e.name}</p>
+                            <p className="text-xs font-semibold text-white break-words [overflow-wrap:anywhere]">{e.name}</p>
                             <p className="text-[10px] text-stone-400 mt-0.5">Status: {e.status}</p>
                           </div>
                         ))}
@@ -723,16 +723,16 @@ const Calendar: React.FC<Props> = ({
                       <div className="space-y-1.5">
                         <p className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Project Deadlines</p>
                         {selectedDayData.dayTasks.map(t => (
-                          <div key={t.task.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex justify-between items-center">
-                            <div>
-                              <p className={`text-xs font-semibold ${t.task.completed ? 'text-stone-400 line-through' : 'text-white'}`}>{t.task.text}</p>
-                              <p className="text-[10px] text-stone-400 mt-0.5">Project: {t.eventName}</p>
+                          <div key={t.task.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex justify-between items-center gap-2">
+                            <div className="min-w-0">
+                              <p className={`text-xs font-semibold break-words [overflow-wrap:anywhere] ${t.task.completed ? 'text-stone-400 line-through' : 'text-white'}`}>{t.task.text}</p>
+                              <p className="text-[10px] text-stone-400 mt-0.5 break-words [overflow-wrap:anywhere]">Project: {t.eventName}</p>
                             </div>
                             <button
                               type="button"
                               onClick={() => onToggleTaskCompletion && onToggleTaskCompletion(t.eventId, t.task.id)}
                               title={t.task.completed ? 'Mark incomplete' : 'Mark completed'}
-                              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition cursor-pointer ${
+                              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition cursor-pointer shrink-0 ${
                                 t.task.completed ? 'bg-emerald-500 text-white' : 'bg-white/5 text-stone-400 border border-white/10 hover:border-emerald-400 hover:text-emerald-400'
                               }`}
                             >
@@ -747,21 +747,21 @@ const Calendar: React.FC<Props> = ({
                       <div className="space-y-1.5">
                         <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Financial Obligations</p>
                         {selectedDayData.dayRecurringEx.map(re => (
-                          <div key={re.id} className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg flex justify-between items-center">
-                            <div>
-                              <p className="text-xs font-semibold text-rose-400">{re.description}</p>
+                          <div key={re.id} className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg flex justify-between items-center gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-rose-400 break-words [overflow-wrap:anywhere]">{re.description}</p>
                               <p className="text-[10px] text-stone-400">Expense Due</p>
                             </div>
-                            <span className="text-xs font-semibold text-rose-400">-${re.amount}</span>
+                            <span className="text-xs font-semibold text-rose-400 shrink-0">-${re.amount}</span>
                           </div>
                         ))}
                         {selectedDayData.dayRecurringIn.map(ri => (
-                          <div key={ri.id} className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex justify-between items-center">
-                            <div>
-                              <p className="text-xs font-semibold text-emerald-400">{ri.description}</p>
+                          <div key={ri.id} className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex justify-between items-center gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-emerald-400 break-words [overflow-wrap:anywhere]">{ri.description}</p>
                               <p className="text-[10px] text-stone-400">Income Scheduled</p>
                             </div>
-                            <span className="text-xs font-semibold text-emerald-400">+${ri.amount}</span>
+                            <span className="text-xs font-semibold text-emerald-400 shrink-0">+${ri.amount}</span>
                           </div>
                         ))}
                       </div>
@@ -828,11 +828,13 @@ const Calendar: React.FC<Props> = ({
             </div>
 
             {/* Scrollable Modal Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
-              <h3 className="text-xl font-bold text-stone-900 leading-snug">{selectedEventModal.title}</h3>
+            <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden flex-1 space-y-4 min-w-0">
+              <h3 className="text-lg sm:text-xl font-bold text-stone-900 leading-snug break-words [overflow-wrap:anywhere]">
+                {selectedEventModal.title}
+              </h3>
 
               <div className="space-y-3 py-3 border-y border-stone-150 text-xs text-stone-600">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <CalendarIcon className="w-4 h-4 text-stone-400 shrink-0" />
                   <span className="font-semibold text-stone-800">
                     {new Date(selectedEventModal.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -843,7 +845,7 @@ const Calendar: React.FC<Props> = ({
                 {selectedEventModal.location && (
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
-                    <span className="text-stone-700 font-medium">{selectedEventModal.location}</span>
+                    <span className="text-stone-700 font-medium break-words [overflow-wrap:anywhere]">{selectedEventModal.location}</span>
                   </div>
                 )}
 
@@ -878,7 +880,7 @@ const Calendar: React.FC<Props> = ({
                 {selectedEventModal.description && (
                   <div className="pt-2">
                     <p className="text-xs font-semibold text-stone-700 mb-1">Details & Agenda</p>
-                    <p className="text-stone-600 whitespace-pre-wrap bg-stone-50 p-3 rounded-xl border border-stone-200 leading-relaxed text-xs">
+                    <p className="text-stone-600 whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-stone-50 p-3 rounded-xl border border-stone-200 leading-relaxed text-xs">
                       {selectedEventModal.description}
                     </p>
                   </div>
@@ -950,7 +952,7 @@ const Calendar: React.FC<Props> = ({
               </div>
 
               {/* Scrollable Form Fields */}
-              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-left">
+              <div className="p-4 sm:p-5 overflow-y-auto overflow-x-hidden flex-1 space-y-4 text-left min-w-0">
                 <div>
                   <label className="text-xs font-semibold text-stone-700 block mb-1">Title / Subject</label>
                   <input 
@@ -1106,7 +1108,7 @@ const Calendar: React.FC<Props> = ({
             </div>
 
             {/* Content Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+            <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden flex-1 space-y-4 min-w-0">
               {(() => {
                 const dayNum = selectedDayModal.getDate();
                 const dayDetails = getDayDetails(dayNum);
@@ -1139,7 +1141,7 @@ const Calendar: React.FC<Props> = ({
                               }}
                               className="p-2.5 rounded-xl border border-stone-200 hover:border-stone-300 bg-stone-50 hover:bg-stone-100 flex items-center justify-between gap-3 cursor-pointer transition"
                             >
-                              <div className="flex items-center gap-2 truncate">
+                              <div className="flex items-center gap-2 min-w-0">
                                 {ci.hangoutLink ? (
                                   <Video className="w-4 h-4 text-emerald-600 shrink-0" />
                                 ) : ci.isGoogleCalendar ? (
@@ -1147,8 +1149,8 @@ const Calendar: React.FC<Props> = ({
                                 ) : (
                                   <Clock className="w-4 h-4 text-stone-400 shrink-0" />
                                 )}
-                                <span className="text-xs font-semibold text-stone-900 truncate">{ci.title}</span>
-                                {ci.startTime && <span className="text-[11px] text-stone-500 font-medium">({ci.startTime})</span>}
+                                <span className="text-xs font-semibold text-stone-900 break-words [overflow-wrap:anywhere]">{ci.title}</span>
+                                {ci.startTime && <span className="text-[11px] text-stone-500 font-medium shrink-0">({ci.startTime})</span>}
                               </div>
                               <span className="text-[10px] text-indigo-600 font-semibold shrink-0">View Details →</span>
                             </div>
@@ -1171,8 +1173,8 @@ const Calendar: React.FC<Props> = ({
                               }}
                               className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 flex items-center justify-between gap-3 cursor-pointer transition"
                             >
-                              <div className="truncate">
-                                <p className="text-xs font-semibold text-emerald-950 truncate">{p.name}</p>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-emerald-950 break-words [overflow-wrap:anywhere]">{p.name}</p>
                                 <p className="text-[10px] text-emerald-700 font-medium">Budget: ${p.totalBudget?.toLocaleString() || 0} • {p.category}</p>
                               </div>
                               <span className="text-[10px] text-emerald-800 font-semibold shrink-0">View Project →</span>
@@ -1192,7 +1194,7 @@ const Calendar: React.FC<Props> = ({
                               key={t.task.id}
                               className="p-2.5 rounded-xl border border-stone-200 bg-stone-50 flex items-center justify-between gap-3 transition"
                             >
-                              <div className="flex items-center gap-2 truncate">
+                              <div className="flex items-center gap-2 min-w-0">
                                 <button
                                   type="button"
                                   onClick={() => onToggleTaskCompletion && onToggleTaskCompletion(t.eventId, t.task.id)}
@@ -1204,7 +1206,7 @@ const Calendar: React.FC<Props> = ({
                                     <Square className="w-4 h-4" />
                                   )}
                                 </button>
-                                <span className={`text-xs font-medium truncate ${t.task.status === 'done' ? 'line-through text-stone-400' : 'text-stone-800'}`}>
+                                <span className={`text-xs font-medium break-words [overflow-wrap:anywhere] ${t.task.status === 'done' ? 'line-through text-stone-400' : 'text-stone-800'}`}>
                                   {t.task.text}
                                 </span>
                               </div>
@@ -1225,7 +1227,7 @@ const Calendar: React.FC<Props> = ({
                               key={re.id}
                               className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/50 flex items-center justify-between gap-3"
                             >
-                              <span className="text-xs font-semibold text-amber-950 truncate">{re.description}</span>
+                              <span className="text-xs font-semibold text-amber-950 break-words [overflow-wrap:anywhere]">{re.description}</span>
                               <span className="text-xs font-bold text-amber-900 shrink-0">${re.amount.toLocaleString()}</span>
                             </div>
                           ))}
@@ -1274,11 +1276,11 @@ const Calendar: React.FC<Props> = ({
             className="bg-white w-full max-w-md rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(88vh,560px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
           >
             <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-start gap-3 bg-white shrink-0">
-              <div>
+              <div className="min-w-0">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
                   Project
                 </span>
-                <h3 className="text-lg font-bold text-stone-900 mt-1">{selectedProjectModal.name}</h3>
+                <h3 className="text-lg font-bold text-stone-900 mt-1 break-words [overflow-wrap:anywhere]">{selectedProjectModal.name}</h3>
               </div>
               <button 
                 onClick={() => setSelectedProjectModal(null)} 
@@ -1287,11 +1289,11 @@ const Calendar: React.FC<Props> = ({
                 ✕
               </button>
             </div>
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3 text-xs">
+            <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden flex-1 space-y-3 text-xs min-w-0">
               <div className="grid grid-cols-2 gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
                 <div>
                   <span className="text-stone-400 block text-[10px] font-semibold uppercase">Category</span>
-                  <span className="font-semibold text-stone-800">{selectedProjectModal.category}</span>
+                  <span className="font-semibold text-stone-800 break-words [overflow-wrap:anywhere]">{selectedProjectModal.category}</span>
                 </div>
                 <div>
                   <span className="text-stone-400 block text-[10px] font-semibold uppercase">Total Budget</span>
@@ -1311,8 +1313,8 @@ const Calendar: React.FC<Props> = ({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Project Tasks</h4>
                   <div className="space-y-1.5">
                     {selectedProjectModal.tasks.map(t => (
-                      <div key={t.id} className="p-2 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-between text-xs">
-                        <span className={`truncate ${t.status === 'done' ? 'line-through text-stone-400' : 'text-stone-700'}`}>{t.text}</span>
+                      <div key={t.id} className="p-2 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-between text-xs gap-2">
+                        <span className={`break-words [overflow-wrap:anywhere] min-w-0 ${t.status === 'done' ? 'line-through text-stone-400' : 'text-stone-700'}`}>{t.text}</span>
                         <span className="text-[10px] font-semibold text-stone-400 capitalize shrink-0">{t.status}</span>
                       </div>
                     ))}
@@ -1344,11 +1346,11 @@ const Calendar: React.FC<Props> = ({
             className="bg-white w-full max-w-md rounded-2xl border border-stone-200 shadow-2xl flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[min(88vh,480px)] my-auto animate-in zoom-in-95 duration-200 overflow-hidden"
           >
             <div className="p-4 sm:p-5 border-b border-stone-150 flex justify-between items-start gap-3 bg-white shrink-0">
-              <div>
+              <div className="min-w-0">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-rose-100 text-rose-800">
                   Project Task
                 </span>
-                <h3 className="text-base font-bold text-stone-900 mt-1">{selectedTaskModal.task.text}</h3>
+                <h3 className="text-base font-bold text-stone-900 mt-1 break-words [overflow-wrap:anywhere]">{selectedTaskModal.task.text}</h3>
               </div>
               <button 
                 onClick={() => setSelectedTaskModal(null)} 
@@ -1357,11 +1359,11 @@ const Calendar: React.FC<Props> = ({
                 ✕
               </button>
             </div>
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3 text-xs">
+            <div className="p-4 sm:p-6 overflow-y-auto overflow-x-hidden flex-1 space-y-3 text-xs min-w-0">
               <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-stone-400 font-medium">Project:</span>
-                  <span className="font-semibold text-stone-800">{selectedTaskModal.eventName}</span>
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-stone-400 font-medium shrink-0">Project:</span>
+                  <span className="font-semibold text-stone-800 text-right break-words [overflow-wrap:anywhere]">{selectedTaskModal.eventName}</span>
                 </div>
                 {selectedTaskModal.task.dueDate && (
                   <div className="flex justify-between">
