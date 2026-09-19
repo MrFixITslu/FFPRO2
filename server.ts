@@ -27,6 +27,7 @@ import legalRoutes from './server/routes/legal.js';
 import fundingRoutes from './server/routes/funding.js';
 import notificationsRoutes from './server/routes/notifications.js';
 import filesRoutes from './server/routes/files.js';
+import aiNewsRoutes from './server/routes/aiNews.js';
 
 async function bootstrap() {
   await databaseReady;
@@ -98,6 +99,8 @@ async function bootstrap() {
   app.use('/api/funding', fundingRoutes);
   app.use('/api/notifications', notificationsRoutes);
   app.use('/api/files', filesRoutes);
+  app.use('/api/ai-news', aiNewsRoutes);
+  app.use('/api/ai/news', aiNewsRoutes);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
   app.use(legalRoutes);
   if (!production) {

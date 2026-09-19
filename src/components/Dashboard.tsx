@@ -5,6 +5,7 @@ import { Transaction, RecurringExpense, RecurringIncome, InvestmentAccount, Mark
 import { SpendingCashflowIntelligence } from './SpendingCashflowIntelligence';
 import { UnifiedNotificationHub } from './UnifiedNotificationHub';
 import { EmailDetailModal } from './EmailDetailModal';
+import { AiNewsBriefing } from './AiNewsBriefing';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
 import { hasCalendarEventPassed } from '../utils/calendarNotificationUtils';
 import { 
@@ -1095,6 +1096,9 @@ const Dashboard: React.FC<Props> = ({
                 <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Offline'}</span>
               </div>
             </section>
+
+            {/* Module 6: AI Industry Intelligence Briefing */}
+            <AiNewsBriefing />
 
           </div>
         </div>

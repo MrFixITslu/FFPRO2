@@ -1283,7 +1283,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-stone-50 flex flex-col ${privacyMode ? 'privacy-mode-enabled' : ''}`}>
+    <div className={`min-h-screen bg-white flex flex-col ${privacyMode ? 'privacy-mode-enabled' : ''}`}>
       {authUser && <EmailVerificationNotice user={authUser} />}
       {authUser && cloudError && <div role="alert" className="bg-amber-50 text-amber-950 p-4 border-b border-amber-200">
         <p>{cloudError}</p>

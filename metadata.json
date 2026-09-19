@@ -1,6 +1,6 @@
 {
   "name": "Fire Finance Pro",
-  "description": "A strategic personal finance hub with secure cloud data sync, wealth forecasts, budget assistance, calendar tracking, and project planning.",
+  "description": "A strategic executive personal finance and operations hub with secure cloud data sync, wealth forecasts, budget assistance, calendar tracking, project planning, and AI industry intelligence briefing.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

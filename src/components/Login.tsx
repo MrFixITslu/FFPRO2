@@ -14,12 +14,12 @@ interface Props {
 }
 
 const OAuthButton: React.FC<{
-  provider: 'google' | 'facebook' | 'apple';
+  provider: 'google' | 'apple';
   label: string;
   icon: string;
   isConfigured: boolean;
   onCustomClick?: () => void;
-  onClickIfNotConfigured: (provider: 'google' | 'facebook' | 'apple') => void;
+  onClickIfNotConfigured: (provider: 'google' | 'apple') => void;
 }> = ({ provider, label, icon, isConfigured, onCustomClick, onClickIfNotConfigured }) => {
   if (isConfigured) {
     return (
@@ -32,9 +32,9 @@ const OAuthButton: React.FC<{
             window.location.href = authService.oauthUrl(provider);
           }
         }}
-        className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all cursor-pointer"
+        className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-stone-300 rounded-xl font-bold text-stone-800 text-[11px] uppercase tracking-wider transition shadow-2xs cursor-pointer"
       >
-        <i className={icon}></i> Continue with {label}
+        <i className={`${icon} text-stone-700`}></i> Continue with {label}
       </button>
     );
   }
@@ -43,10 +43,10 @@ const OAuthButton: React.FC<{
     <button
       type="button"
       onClick={() => onClickIfNotConfigured(provider)}
-      className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded font-bold text-white text-[10px] uppercase tracking-wider transition-all relative group cursor-pointer"
+      className="w-full flex items-center justify-center gap-2.5 py-2.5 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-stone-300 rounded-xl font-bold text-stone-800 text-[11px] uppercase tracking-wider transition shadow-2xs relative group cursor-pointer"
     >
-      <i className={icon}></i> Continue with {label}
-      <span className="absolute right-2 top-1/2 -translate-y-1/2 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded px-1.5 py-0.5 text-[7px] font-bold tracking-normal normal-case">
+      <i className={`${icon} text-stone-700`}></i> Continue with {label}
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 text-[8px] font-bold tracking-normal normal-case">
         Configure
       </span>
     </button>
@@ -202,49 +202,49 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   // --- Verification-pending screen: shown after registration ---
   if (mode === 'verification-pending') {
     return (
-      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-6 overflow-y-auto">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+          <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-50/70 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-stone-100/80 blur-[120px] rounded-full"></div>
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-white tracking-tight">Check Your Email</h1>
+            <h1 className="text-xl font-bold text-stone-900 tracking-tight">Check Your Email</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Verification Required</p>
+            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Verification Required</p>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4 text-center">
-            <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center mx-auto text-xl border border-indigo-500/30">
+          <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4 text-center">
+            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-xl border border-indigo-200">
               <i className="fas fa-envelope-open-text"></i>
             </div>
             
             <div className="space-y-2">
-              <p className="text-stone-300 text-xs leading-relaxed">
+              <p className="text-stone-700 text-xs leading-relaxed font-normal">
                 {verificationNotice || 'We have sent a verification email to confirm that your email address is legit before giving access to the site.'}
               </p>
-              <div className="py-1.5 px-3 bg-white/5 border border-white/10 rounded text-indigo-300 font-mono text-xs break-all">
+              <div className="py-2 px-3 bg-stone-50 border border-stone-200 rounded-xl text-indigo-700 font-mono text-xs break-all">
                 {unverifiedEmail || email}
               </div>
-              <p className="text-stone-400 text-[11px] leading-relaxed">
+              <p className="text-stone-500 text-[11px] leading-relaxed">
                 Please click the verification link in the email to activate your account.
               </p>
             </div>
 
             {resendSuccess && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed animate-in fade-in">
-                <i className="fas fa-check-circle mr-1.5"></i> {resendSuccess}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed animate-in fade-in">
+                <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> {resendSuccess}
               </div>
             )}
 
             {error && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
-                <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                <i className="fas fa-exclamation-circle mr-1.5 text-rose-600"></i> {error}
               </div>
             )}
 
@@ -253,7 +253,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 type="button"
                 disabled={resendLoading}
                 onClick={() => handleResendFromAlert(unverifiedEmail || email)}
-                className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 text-[10px] uppercase tracking-wider border border-white/10"
+                className="w-full py-2.5 bg-stone-50 hover:bg-stone-100 text-stone-800 font-bold rounded-xl shadow-2xs transition-all active:scale-98 disabled:opacity-50 text-[10px] uppercase tracking-wider border border-stone-200 cursor-pointer"
               >
                 {resendLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -267,7 +267,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => { setMode('login'); setError(null); setUnverifiedEmail(null); setResendSuccess(null); }}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 text-[10px] uppercase tracking-wider"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 text-[10px] uppercase tracking-wider cursor-pointer"
               >
                 Back to Sign In
               </button>
@@ -281,70 +281,70 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   // --- Resend verification screen ---
   if (mode === 'resend') {
     return (
-      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-6 overflow-y-auto">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+          <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-50/70 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-stone-100/80 blur-[120px] rounded-full"></div>
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-white tracking-tight">Resend Verification</h1>
+            <h1 className="text-xl font-bold text-stone-900 tracking-tight">Resend Verification</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Security</p>
+            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Security</p>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+          <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
             {resendSuccess ? (
               <div className="text-center space-y-4">
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed">
-                  <i className="fas fa-check-circle mr-1.5"></i> {resendSuccess}
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed">
+                  <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> {resendSuccess}
                 </div>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setResendSuccess(null); setError(null); }}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 uppercase tracking-wider text-[10px]"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-[10px] cursor-pointer"
                 >
                   Back to Sign In
                 </button>
               </div>
             ) : (
               <form onSubmit={handleResendSubmit} className="space-y-4">
-                <p className="text-stone-400 text-[11px] leading-relaxed">
+                <p className="text-stone-600 text-[11px] leading-relaxed">
                   Enter your registered email address to receive a fresh verification link.
                 </p>
                 <div>
-                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                     placeholder="you@example.com"
                     autoComplete="email"
                     required
                   />
                 </div>
                 {error && (
-                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
-                    <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                    <i className="fas fa-exclamation-circle mr-1.5 text-rose-600"></i> {error}
                   </div>
                 )}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px] cursor-pointer"
                 >
                   {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Send Verification Link <i className="fas fa-chevron-right text-[9px]"></i></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(null); }}
-                  className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                  className="w-full text-center text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -359,33 +359,33 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   // --- Reset-password screen: shown when the user arrived via the emailed link ---
   if (resetToken) {
     return (
-      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-6 overflow-y-auto">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+          <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-50/70 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-stone-100/80 blur-[120px] rounded-full"></div>
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-white tracking-tight">Reset Your Password</h1>
+            <h1 className="text-xl font-bold text-stone-900 tracking-tight">Reset Your Password</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
+            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+          <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
             {resetDone ? (
               <div className="text-center space-y-4">
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed">
-                  <i className="fas fa-check-circle mr-1.5"></i> Your password has been reset. You can now log in with your new password.
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed">
+                  <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> Your password has been reset. You can now log in with your new password.
                 </div>
                 <button
                   type="button"
                   onClick={() => onResetHandled && onResetHandled()}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 uppercase tracking-wider text-[10px]"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-[10px] cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -393,12 +393,12 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             ) : (
               <form onSubmit={handleResetSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">New Password</label>
+                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">New Password</label>
                   <input
                     type="password"
                     value={resetPassword}
                     onChange={(e) => setResetPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                     placeholder="••••••••"
                     autoComplete="new-password"
                     minLength={8}
@@ -406,12 +406,12 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Confirm New Password</label>
+                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Confirm New Password</label>
                   <input
                     type="password"
                     value={resetConfirmPassword}
                     onChange={(e) => setResetConfirmPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                     placeholder="••••••••"
                     autoComplete="new-password"
                     minLength={8}
@@ -419,21 +419,21 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   />
                 </div>
                 {error && (
-                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
-                    <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                    <i className="fas fa-exclamation-circle mr-1.5 text-rose-600"></i> {error}
                   </div>
                 )}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px] cursor-pointer"
                 >
                   {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Set New Password <i className="fas fa-chevron-right text-[9px]"></i></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => onResetHandled && onResetHandled()}
-                  className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                  className="w-full text-center text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -448,68 +448,68 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   // --- Forgot-password screen ---
   if (mode === 'forgot') {
     return (
-      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-6 overflow-y-auto">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+          <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-50/70 blur-[120px] rounded-full"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-stone-100/80 blur-[120px] rounded-full"></div>
         </div>
         <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-white tracking-tight">Forgot Password</h1>
+            <h1 className="text-xl font-bold text-stone-900 tracking-tight">Forgot Password</h1>
             <img
               src={APP_LOGO}
               alt="Fire Finance Pro"
               referrerPolicy="no-referrer"
-              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-md"
+              className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
+            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+          <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
             {forgotSent ? (
               <div className="text-center space-y-4">
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold leading-relaxed">
-                  <i className="fas fa-check-circle mr-1.5"></i> If an account exists for that email, a reset link has been sent. The link expires in 45 minutes.
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed">
+                  <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> If an account exists for that email, a reset link has been sent. The link expires in 45 minutes.
                 </div>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setForgotSent(false); setError(null); }}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 uppercase tracking-wider text-[10px]"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-[10px] cursor-pointer"
                 >
                   Back to Sign In
                 </button>
               </div>
             ) : (
               <form onSubmit={handleForgotSubmit} className="space-y-4">
-                <p className="text-stone-400 text-[11px] leading-relaxed">Enter your account email and we'll send you a link to reset your password.</p>
+                <p className="text-stone-600 text-[11px] leading-relaxed">Enter your account email and we'll send you a link to reset your password.</p>
                 <div>
-                  <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                     placeholder="you@example.com"
                     autoComplete="email"
                     required
                   />
                 </div>
                 {error && (
-                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
-                    <i className="fas fa-exclamation-circle mr-1.5"></i> {error}
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[9px] font-bold uppercase tracking-wider text-center animate-in shake duration-300">
+                    <i className="fas fa-exclamation-circle mr-1.5 text-rose-600"></i> {error}
                   </div>
                 )}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px] cursor-pointer"
                 >
                   {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Send Reset Link <i className="fas fa-chevron-right text-[9px]"></i></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(null); }}
-                  className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                  className="w-full text-center text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -522,25 +522,25 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-[200] bg-white flex items-center justify-center p-6 overflow-y-auto">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-600/5 blur-[120px] rounded-full"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-50/70 blur-[120px] rounded-full"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-stone-100/80 blur-[120px] rounded-full"></div>
       </div>
 
       <div className="max-w-sm w-full relative z-10 my-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="text-center mb-6">
-            <img
-              src={APP_LOGO}
-              alt="Fire Finance Pro"
-              referrerPolicy="no-referrer"
-              className="h-16 sm:h-20 w-auto max-w-[320px] mx-auto mb-3 object-contain filter drop-shadow-lg"
-            />
-            <h1 className="text-xl font-bold text-white tracking-tight">Fire Finance Pro</h1>
-            <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-wider mt-1">FIRE FINANCE PRO SECURE GATEWAY</p>
-          </div>
+        <div className="text-center mb-6">
+          <img
+            src={APP_LOGO}
+            alt="Fire Finance Pro"
+            referrerPolicy="no-referrer"
+            className="h-16 sm:h-20 w-auto max-w-[320px] mx-auto mb-3 object-contain filter drop-shadow-xs"
+          />
+          <h1 className="text-xl font-bold text-stone-900 tracking-tight">Fire Finance Pro</h1>
+          <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">FIRE FINANCE PRO SECURE GATEWAY</p>
+        </div>
 
-        <div className="bg-white/5 backdrop-blur-xl p-6 rounded-lg border border-white/10 shadow-lg space-y-4">
+        <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
           <div className="space-y-2">
             <OAuthButton
               provider="google"
@@ -550,31 +550,24 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               onCustomClick={handleGoogleSignIn}
               onClickIfNotConfigured={handleProviderClick}
             />
-            <OAuthButton
-              provider="facebook"
-              label="Facebook"
-              icon="fab fa-facebook"
-              isConfigured={availableProviders.includes('facebook')}
-              onClickIfNotConfigured={handleProviderClick}
-            />
           </div>
 
-          <div className="flex items-center gap-3 text-stone-500 text-[8px] font-bold uppercase tracking-wider">
-            <div className="flex-1 h-px bg-white/10" /> or use email <div className="flex-1 h-px bg-white/10" />
+          <div className="flex items-center gap-3 text-stone-400 text-[8px] font-bold uppercase tracking-wider">
+            <div className="flex-1 h-px bg-stone-200" /> or use email <div className="flex-1 h-px bg-stone-200" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Email</label>
+              <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                   <i className="fas fa-envelope"></i>
                 </span>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9 px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                  className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                   placeholder="you@example.com"
                   autoComplete="email"
                   required
@@ -584,16 +577,16 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
 
             {mode === 'register' && (
               <div>
-                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Username <span className="text-stone-500 normal-case">(optional)</span></label>
+                <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Username <span className="text-stone-400 normal-case">(optional)</span></label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                     <i className="fas fa-user"></i>
                   </span>
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-9 px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                    className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                     placeholder="Username"
                     autoComplete="username"
                   />
@@ -602,16 +595,16 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             )}
 
             <div>
-              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1 ml-1">Password</label>
+              <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Password</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                   <i className="fas fa-lock"></i>
                 </span>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 px-3 py-2 bg-white/5 border border-white/10 rounded outline-none focus:ring-1 focus:ring-indigo-500 font-semibold text-white transition-all text-xs"
+                  className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
                   placeholder="••••••••"
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   minLength={8}
@@ -623,7 +616,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   <button
                     type="button"
                     onClick={() => { setMode('forgot'); setError(null); }}
-                    className="text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+                    className="text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition"
                   >
                     Forgot password?
                   </button>
@@ -632,9 +625,9 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {error && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-xs space-y-2 animate-in shake duration-300">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs space-y-2 animate-in shake duration-300">
                 <div className="flex items-start gap-2">
-                  <i className="fas fa-exclamation-circle text-rose-400 mt-0.5 shrink-0"></i>
+                  <i className="fas fa-exclamation-circle text-rose-600 mt-0.5 shrink-0"></i>
                   <p className="font-semibold leading-tight">{error}</p>
                 </div>
                 {unverifiedEmail && (
@@ -642,7 +635,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                     type="button"
                     disabled={resendLoading}
                     onClick={() => handleResendFromAlert(unverifiedEmail)}
-                    className="w-full mt-1.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 rounded font-bold text-[10px] uppercase tracking-wider transition disabled:opacity-50"
+                    className="w-full mt-1.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 rounded-lg font-bold text-[10px] uppercase tracking-wider transition disabled:opacity-50"
                   >
                     {resendLoading ? 'Sending link...' : `Resend verification link to ${unverifiedEmail}`}
                   </button>
@@ -651,15 +644,15 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             )}
 
             {resendSuccess && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-[10px] font-semibold text-center leading-relaxed">
-                <i className="fas fa-check-circle mr-1.5"></i> {resendSuccess}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold text-center leading-relaxed">
+                <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> {resendSuccess}
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px]"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-xs cursor-pointer"
             >
               {loading ? (
                 <i className="fas fa-circle-notch fa-spin text-xs"></i>
@@ -675,7 +668,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             <button
               type="button"
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); setUnverifiedEmail(null); setResendSuccess(null); }}
-              className="w-full text-center text-[9px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-400 transition"
+              className="w-full text-center text-[10px] font-bold text-stone-600 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
             >
               {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
             </button>
@@ -683,7 +676,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => { setMode('resend'); setError(null); setResendSuccess(null); }}
-                className="w-full text-center text-[9px] font-medium text-stone-500 hover:text-stone-300 transition"
+                className="w-full text-center text-[10px] font-medium text-stone-500 hover:text-stone-800 transition cursor-pointer"
               >
                 Didn't receive verification email?
               </button>
@@ -691,28 +684,28 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
           </div>
         </div>
 
-        <p className="mt-6 text-center text-stone-600 text-[8px] font-bold uppercase tracking-wider">
+        <p className="mt-6 text-center text-stone-400 text-[9px] font-bold uppercase tracking-wider">
           Auth-Shield v2.0 • OAuth2 + bcrypt
         </p>
-        <p className="mt-2 text-center text-[9px] text-stone-600">
-          <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 transition">Terms of Service</a>
+        <p className="mt-2 text-center text-[10px] text-stone-500">
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition">Terms of Service</a>
           <span className="mx-1.5">·</span>
-          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400 transition">Privacy Policy</a>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition">Privacy Policy</a>
         </p>
       </div>
 
       {showConfigHelp && (
-        <div className="fixed inset-0 z-[250] bg-stone-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-stone-900 border border-white/10 rounded-lg max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[250] bg-stone-950/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-stone-200 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                  <i className={selectedProvider === 'google' ? 'fab fa-google' : selectedProvider === 'facebook' ? 'fab fa-facebook' : 'fab fa-apple'}></i>
+            <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 text-sm">
+                  <i className={selectedProvider === 'google' ? 'fab fa-google' : 'fab fa-apple'}></i>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white capitalize">{selectedProvider} Integration</h3>
-                  <p className="text-[9px] font-semibold text-stone-400 uppercase tracking-wider">Self-Hosted Server Guide</p>
+                  <h3 className="text-sm font-bold text-stone-900 capitalize">{selectedProvider} Integration</h3>
+                  <p className="text-[9px] font-semibold text-stone-500 uppercase tracking-wider">Self-Hosted Server Guide</p>
                 </div>
               </div>
               <button
@@ -720,7 +713,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   setShowConfigHelp(false);
                   setSelectedProvider(null);
                 }}
-                className="text-stone-400 hover:text-white transition p-1"
+                className="text-stone-400 hover:text-stone-700 transition p-1.5 rounded-lg hover:bg-stone-100 cursor-pointer"
                 aria-label="Close"
               >
                 <i className="fas fa-times"></i>
@@ -728,14 +721,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-white/10 bg-stone-950/40">
+            <div className="flex border-b border-stone-200 bg-stone-100/60">
               <button
                 type="button"
                 onClick={() => setConfigTab('env')}
-                className={`flex-1 py-2.5 text-center text-[9px] font-bold uppercase tracking-wider border-b-2 transition-all ${
+                className={`flex-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
                   configTab === 'env'
-                    ? 'border-indigo-500 text-indigo-400 bg-white/5'
-                    : 'border-transparent text-stone-400 hover:text-white hover:bg-white/5'
+                    ? 'border-indigo-600 text-indigo-700 bg-white'
+                    : 'border-transparent text-stone-600 hover:text-stone-900 hover:bg-stone-50'
                 }`}
               >
                 1. Environment Setup
@@ -743,10 +736,10 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => setConfigTab('docker')}
-                className={`flex-1 py-2.5 text-center text-[9px] font-bold uppercase tracking-wider border-b-2 transition-all ${
+                className={`flex-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
                   configTab === 'docker'
-                    ? 'border-indigo-500 text-indigo-400 bg-white/5'
-                    : 'border-transparent text-stone-400 hover:text-white hover:bg-white/5'
+                    ? 'border-indigo-600 text-indigo-700 bg-white'
+                    : 'border-transparent text-stone-600 hover:text-stone-900 hover:bg-stone-50'
                 }`}
               >
                 2. Docker &amp; Nginx Setup
@@ -754,33 +747,25 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {/* Content (Scrollable) */}
-            <div className="p-5 overflow-y-auto space-y-4 text-xs text-stone-300">
+            <div className="p-5 overflow-y-auto space-y-4 text-xs text-stone-700">
               {configTab === 'env' && (
                 <div className="space-y-3">
-                  <p className="text-stone-400 leading-relaxed text-[11px]">
-                    To enable <strong>Continue with {selectedProvider === 'google' ? 'Google' : selectedProvider === 'facebook' ? 'Facebook' : 'Apple'}</strong> on your live deployment, register your application on the developer portal and configure the following environment variables:
+                  <p className="text-stone-600 leading-relaxed text-[11px]">
+                    To enable <strong>Continue with {selectedProvider === 'google' ? 'Google' : 'Apple'}</strong> on your live deployment, register your application on the developer portal and configure the following environment variables:
                   </p>
 
-                  <div className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[10px] text-indigo-300 space-y-2 select-all leading-normal">
+                  <div className="bg-stone-950 p-3.5 rounded-xl border border-stone-800 font-mono text-[10px] text-emerald-400 space-y-1 select-all leading-relaxed">
                     {selectedProvider === 'google' && (
                       <>
-                        <div># Google Cloud Console OAuth Client</div>
+                        <div className="text-stone-400"># Google Cloud Console OAuth Client</div>
                         <div>GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"</div>
                         <div>GOOGLE_CLIENT_SECRET="your_google_client_secret"</div>
                         <div>GOOGLE_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/google/callback"</div>
                       </>
                     )}
-                    {selectedProvider === 'facebook' && (
-                      <>
-                        <div># Meta Developer Portal Facebook App</div>
-                        <div>FACEBOOK_APP_ID="your_facebook_app_id"</div>
-                        <div>FACEBOOK_APP_SECRET="your_facebook_app_secret"</div>
-                        <div>FACEBOOK_CALLBACK_URL="https://ffpro.v79sl.com/api/auth/facebook/callback"</div>
-                      </>
-                    )}
                     {selectedProvider === 'apple' && (
                       <>
-                        <div># Apple Developer Portal Sign In</div>
+                        <div className="text-stone-400"># Apple Developer Portal Sign In</div>
                         <div>APPLE_CLIENT_ID="your_services_id"</div>
                         <div>APPLE_TEAM_ID="your_developer_team_id"</div>
                         <div>APPLE_KEY_ID="your_private_key_id"</div>
@@ -790,33 +775,33 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                     )}
                   </div>
 
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3 text-[10px] leading-relaxed text-amber-200">
-                    <div className="font-bold uppercase tracking-wider text-[8px] text-amber-400 mb-1">
-                      <i className="fas fa-exclamation-triangle mr-1"></i> Developer Portal Settings
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[10.5px] leading-relaxed text-amber-900">
+                    <div className="font-bold uppercase tracking-wider text-[8.5px] text-amber-800 mb-1 flex items-center gap-1.5">
+                      <i className="fas fa-exclamation-triangle"></i> Developer Portal Settings
                     </div>
-                    Ensure that you add the corresponding Callback URL to your Authorized Redirect URIs in the developer settings portal for {selectedProvider === 'google' ? 'Google Cloud Console' : selectedProvider === 'facebook' ? 'Meta Developers' : 'Apple Developers'}!
+                    Ensure that you add the corresponding Callback URL to your Authorized Redirect URIs in the developer settings portal for {selectedProvider === 'google' ? 'Google Cloud Console' : 'Apple Developers'}!
                   </div>
                 </div>
               )}
 
               {configTab === 'docker' && (
                 <div className="space-y-3">
-                  <div className="text-stone-400 leading-relaxed text-[11px] space-y-2">
+                  <div className="text-stone-600 leading-relaxed text-[11px] space-y-2">
                     <p>
                       Since <strong>Port 3000 is already used</strong> on your server, and your Nginx reverse proxy is running on the Docker network <strong>"proxy_network"</strong>, you can use container-to-container routing:
                     </p>
                     <ul className="list-disc pl-4 space-y-1 mt-1 text-[10.5px]">
-                      <li>Nginx and this application container join the <code className="text-indigo-400 font-mono bg-white/5 px-1 py-0.5 rounded">proxy_network</code> network.</li>
-                      <li>Nginx forwards requests directly to the container's service name on port <code className="text-indigo-400 font-mono bg-white/5 px-1 py-0.5 rounded">3000</code>.</li>
+                      <li>Nginx and this application container join the <code className="text-indigo-600 font-mono bg-stone-100 px-1 py-0.5 rounded">proxy_network</code> network.</li>
+                      <li>Nginx forwards requests directly to the container's service name on port <code className="text-indigo-600 font-mono bg-stone-100 px-1 py-0.5 rounded">3000</code>.</li>
                       <li><strong>No host port mapping is needed</strong>, which avoids any conflict with Port 3000 on the host system!</li>
                     </ul>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">docker-compose.yml</span>
+                      <span className="text-[9px] font-bold text-stone-500 uppercase tracking-wider">docker-compose.yml</span>
                     </div>
-                    <pre className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
+                    <pre className="bg-stone-950 p-3 rounded-xl border border-stone-800 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
 {`version: '3.8'
 
 services:
@@ -833,9 +818,7 @@ services:
       - GEMINI_API_KEY=your_gemini_api_key
       ` + (selectedProvider === 'google' ? `- GOOGLE_CLIENT_ID=your_google_client_id
       - GOOGLE_CLIENT_SECRET=your_google_client_secret
-      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/google/callback` : selectedProvider === 'facebook' ? `- FACEBOOK_APP_ID=your_facebook_app_id
-      - FACEBOOK_APP_SECRET=your_facebook_app_secret
-      - FACEBOOK_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/facebook/callback` : `- APPLE_CLIENT_ID=your_services_id
+      - GOOGLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/google/callback` : `- APPLE_CLIENT_ID=your_services_id
       - APPLE_TEAM_ID=your_developer_team_id
       - APPLE_KEY_ID=your_private_key_id
       - APPLE_CALLBACK_URL=https://ffpro.v79sl.com/api/auth/apple/callback`) + `
@@ -849,9 +832,9 @@ networks:
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">nginx.conf Server Block</span>
+                      <span className="text-[9px] font-bold text-stone-500 uppercase tracking-wider">nginx.conf Server Block</span>
                     </div>
-                    <pre className="bg-stone-950 p-3 rounded border border-white/5 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
+                    <pre className="bg-stone-950 p-3 rounded-xl border border-stone-800 font-mono text-[9px] text-stone-300 overflow-x-auto select-all leading-relaxed max-h-48">
 {`server {
     listen 80;
     server_name ffpro.v79sl.com;
@@ -885,14 +868,14 @@ server {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-white/10 bg-stone-950/50 flex justify-end">
+            <div className="p-4 border-t border-stone-200 bg-stone-50/70 flex justify-end">
               <button
                 type="button"
                 onClick={() => {
                   setShowConfigHelp(false);
                   setSelectedProvider(null);
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all cursor-pointer shadow-xs"
               >
                 Got it, Thanks!
               </button>
