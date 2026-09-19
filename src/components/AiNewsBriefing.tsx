@@ -11,7 +11,14 @@ import {
   ShieldCheck,
   Zap,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  Bookmark,
+  BookmarkCheck,
+  Trash2,
+  RotateCcw,
+  Check,
+  Eye,
+  Undo2
 } from 'lucide-react';
 
 export interface AiNewsItem {
@@ -70,6 +77,12 @@ function cleanPlainText(input: string = ''): string {
   return str.replace(/\s+/g, ' ').trim();
 }
 
+const STORAGE_KEYS = {
+  READ: 'ffpro_ai_news_read_v1',
+  KEPT: 'ffpro_ai_news_kept_v1',
+  DELETED: 'ffpro_ai_news_deleted_v1',
+};
+
 export const AiNewsBriefing: React.FC = () => {
   const [data, setData] = useState<AiBriefingResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -77,6 +90,128 @@ export const AiNewsBriefing: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'active' | 'kept' | 'trash'>('active');
+
+  // Read, Kept & Deleted State management stored in localStorage
+  const [readIds, setReadIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.READ);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const [keptIds, setKeptIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.KEPT);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.DELETED);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Undo notification state
+  const [lastDeletedArticle, setLastDeletedArticle] = useState<{ id: string; title: string } | null>(null);
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.READ, JSON.stringify(Array.from(readIds)));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [readIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.KEPT, JSON.stringify(Array.from(keptIds)));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [keptIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.DELETED, JSON.stringify(Array.from(deletedIds)));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [deletedIds]);
+
+  const markAsRead = (articleId: string) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      next.add(articleId);
+      return next;
+    });
+  };
+
+  const toggleKeepStory = (articleId: string) => {
+    markAsRead(articleId);
+    setKeptIds(prev => {
+      const next = new Set(prev);
+      if (next.has(articleId)) {
+        next.delete(articleId);
+      } else {
+        next.add(articleId);
+      }
+      return next;
+    });
+    // Ensure it's not marked as deleted
+    setDeletedIds(prev => {
+      const next = new Set(prev);
+      next.delete(articleId);
+      return next;
+    });
+  };
+
+  const deleteStory = (article: AiNewsItem) => {
+    markAsRead(article.id);
+    setDeletedIds(prev => {
+      const next = new Set(prev);
+      next.add(article.id);
+      return next;
+    });
+    // Remove from kept if deleted
+    setKeptIds(prev => {
+      const next = new Set(prev);
+      next.delete(article.id);
+      return next;
+    });
+    setLastDeletedArticle({ id: article.id, title: cleanPlainText(article.title) });
+  };
+
+  const restoreStory = (articleId: string) => {
+    setDeletedIds(prev => {
+      const next = new Set(prev);
+      next.delete(articleId);
+      return next;
+    });
+    if (lastDeletedArticle?.id === articleId) {
+      setLastDeletedArticle(null);
+    }
+  };
+
+  const undoLastDelete = () => {
+    if (lastDeletedArticle) {
+      restoreStory(lastDeletedArticle.id);
+    }
+  };
+
+  const clearTrash = () => {
+    setDeletedIds(new Set());
+    setLastDeletedArticle(null);
+  };
 
   const fetchNews = async (force = false) => {
     try {
@@ -117,9 +252,17 @@ export const AiNewsBriefing: React.FC = () => {
     'Industry & Research': { bg: 'bg-stone-100', text: 'text-stone-800', border: 'border-stone-200' },
   };
 
-  const filteredArticles = useMemo(() => {
-    if (!data?.articles) return [];
-    return data.articles.filter(item => {
+  // Filtered stories based on View Mode (Active, Kept, Trash), Player, and Search query
+  const { filteredArticles, totalActiveCount, totalKeptCount, totalDeletedCount } = useMemo(() => {
+    const all = data?.articles || [];
+    
+    const activeList = all.filter(item => !deletedIds.has(item.id));
+    const keptList = all.filter(item => keptIds.has(item.id) && !deletedIds.has(item.id));
+    const trashList = all.filter(item => deletedIds.has(item.id));
+
+    const baseList = viewMode === 'active' ? activeList : viewMode === 'kept' ? keptList : trashList;
+
+    const filtered = baseList.filter(item => {
       const matchesPlayer = selectedPlayer === 'All' || item.player === selectedPlayer;
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch = !q || 
@@ -129,7 +272,14 @@ export const AiNewsBriefing: React.FC = () => {
         item.player.toLowerCase().includes(q);
       return matchesPlayer && matchesSearch;
     });
-  }, [data?.articles, selectedPlayer, searchQuery]);
+
+    return {
+      filteredArticles: filtered,
+      totalActiveCount: activeList.length,
+      totalKeptCount: keptList.length,
+      totalDeletedCount: trashList.length,
+    };
+  }, [data?.articles, deletedIds, keptIds, viewMode, selectedPlayer, searchQuery]);
 
   const playersList = ['All', 'OpenAI', 'Google DeepMind', 'Anthropic', 'Meta AI', 'Microsoft AI', 'Open Source & Frontier'];
 
@@ -138,12 +288,12 @@ export const AiNewsBriefing: React.FC = () => {
       {/* Header Row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-stone-950 via-stone-800 to-indigo-950 text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5">
-            <Cpu size={17} className="text-indigo-200" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-stone-950 via-stone-800 to-indigo-950 text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5">
+            <Bot size={20} className="text-amber-400" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-bold text-stone-900 tracking-tight">AI Industry Intelligence Briefing</h3>
+              <h3 className="text-base font-bold text-stone-900 tracking-tight">AI Industry Intelligence Briefing</h3>
               {data?.ollamaStatus?.online ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100/80 text-emerald-800 border border-emerald-200">
                   <Bot size={11} className="text-emerald-600" />
@@ -155,14 +305,14 @@ export const AiNewsBriefing: React.FC = () => {
                   Synthesized via Gemini 3.6 Flash
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700 border border-stone-200">
-                  <ShieldCheck size={11} className="text-stone-500" />
-                  Live Wire Verified
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <ShieldCheck size={11} className="text-emerald-600" />
+                  Live Feeds Active
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-stone-500 font-medium mt-0.5">
-              Curated developments across OpenAI, Google DeepMind, Anthropic, Meta, and open-source models with outbound sources.
+            <p className="text-xs text-stone-500 mt-0.5">
+              Daily synthesized developments across leading frontier labs, open-weights releases, and strategic research.
             </p>
           </div>
         </div>
@@ -174,14 +324,33 @@ export const AiNewsBriefing: React.FC = () => {
             id="btn-refresh-ai-news"
             onClick={() => fetchNews(true)}
             disabled={loading || refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-950 bg-stone-50 hover:bg-stone-100 rounded-xl border border-stone-200 transition shadow-2xs disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-950 bg-stone-50 hover:bg-stone-100 rounded-xl border border-stone-200 transition shadow-2xs cursor-pointer disabled:opacity-50"
             title="Fetch latest updates from all feeds"
           >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin text-stone-900' : ''} />
-            <span>{refreshing ? 'Updating Feed...' : 'Refresh News'}</span>
+            <RefreshCw size={13} className={refreshing ? 'animate-spin text-indigo-600' : 'text-stone-500'} />
+            <span>{refreshing ? 'Synthesizing...' : 'Refresh Feeds'}</span>
           </button>
         </div>
       </div>
+
+      {/* Undo Notification Banner */}
+      {lastDeletedArticle && (
+        <div className="bg-stone-900 text-white px-4 py-2.5 rounded-xl text-xs flex items-center justify-between shadow-md animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 truncate mr-3">
+            <Trash2 size={13} className="text-amber-400 shrink-0" />
+            <span className="truncate">
+              Story removed from list: <strong>&ldquo;{lastDeletedArticle.title.slice(0, 55)}...&rdquo;</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={undoLastDelete}
+            className="px-2.5 py-1 bg-white/15 hover:bg-white/25 text-white font-bold rounded-lg text-[11px] flex items-center gap-1.5 shrink-0 transition cursor-pointer"
+          >
+            <Undo2 size={12} /> Undo
+          </button>
+        </div>
+      )}
 
       {/* Loading Skeleton */}
       {loading && !data && (
@@ -201,7 +370,7 @@ export const AiNewsBriefing: React.FC = () => {
           <p>{error}</p>
           <button 
             onClick={() => fetchNews(true)}
-            className="px-3 py-1 font-semibold text-rose-900 bg-white rounded-lg border border-rose-300 hover:bg-rose-100"
+            className="px-3 py-1 font-semibold text-rose-900 bg-white rounded-lg border border-rose-300 hover:bg-rose-100 cursor-pointer"
           >
             Retry
           </button>
@@ -240,6 +409,71 @@ export const AiNewsBriefing: React.FC = () => {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* View Mode Tabs (Active Briefing vs Kept Stories vs Deleted/Trash) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setViewMode('active')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border ${
+                  viewMode === 'active'
+                    ? 'bg-stone-900 text-white border-stone-900 shadow-2xs'
+                    : 'bg-white hover:bg-stone-50 text-stone-600 border-stone-200'
+                }`}
+              >
+                <Newspaper size={13} />
+                <span>Active Briefing</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${viewMode === 'active' ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-700'}`}>
+                  {totalActiveCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('kept')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border ${
+                  viewMode === 'kept'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                    : 'bg-white hover:bg-stone-50 text-stone-600 border-stone-200'
+                }`}
+              >
+                <BookmarkCheck size={13} className={viewMode === 'kept' ? 'text-white' : 'text-indigo-600'} />
+                <span>Kept Stories</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${viewMode === 'kept' ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-700'}`}>
+                  {totalKeptCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('trash')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border ${
+                  viewMode === 'trash'
+                    ? 'bg-amber-800 text-white border-amber-800 shadow-2xs'
+                    : 'bg-white hover:bg-stone-50 text-stone-600 border-stone-200'
+                }`}
+              >
+                <Trash2 size={13} className={viewMode === 'trash' ? 'text-white' : 'text-stone-400'} />
+                <span>Deleted</span>
+                {totalDeletedCount > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${viewMode === 'trash' ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'}`}>
+                    {totalDeletedCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {viewMode === 'trash' && totalDeletedCount > 0 && (
+              <button
+                type="button"
+                onClick={clearTrash}
+                className="text-[11px] font-bold text-red-600 hover:text-red-700 flex items-center gap-1 transition cursor-pointer self-end sm:self-auto"
+              >
+                <Trash2 size={12} /> Clear Trash ({totalDeletedCount})
+              </button>
             )}
           </div>
 
@@ -287,17 +521,25 @@ export const AiNewsBriefing: React.FC = () => {
                 const cleanTitle = cleanPlainText(article.title);
                 const cleanSnippet = cleanPlainText(article.snippet);
                 const cleanSource = cleanPlainText(article.source);
+                const isRead = readIds.has(article.id);
+                const isKept = keptIds.has(article.id);
+                const isDeleted = deletedIds.has(article.id);
 
                 return (
-                  <a
+                  <div
                     key={article.id}
-                    href={article.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-4 bg-stone-50/70 hover:bg-white rounded-xl border border-stone-200/85 hover:border-stone-300 shadow-2xs hover:shadow-sm transition cursor-pointer group flex flex-col justify-between gap-3 min-w-0"
+                    className={`p-4 rounded-xl border shadow-2xs hover:shadow-sm transition flex flex-col justify-between gap-3 min-w-0 ${
+                      isDeleted
+                        ? 'bg-stone-100/70 border-stone-300 opacity-75'
+                        : isKept
+                        ? 'bg-indigo-50/30 hover:bg-white border-indigo-200/80 hover:border-indigo-300'
+                        : isRead
+                        ? 'bg-white hover:bg-stone-50/50 border-stone-200'
+                        : 'bg-stone-50/70 hover:bg-white border-stone-200/85 hover:border-stone-300'
+                    }`}
                   >
                     <div>
-                      {/* Badge & Source Row */}
+                      {/* Top Header: Badge, Category & Read/Kept Indicators */}
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                           <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
@@ -306,16 +548,34 @@ export const AiNewsBriefing: React.FC = () => {
                           <span className="px-1.5 py-0.5 text-[9px] font-semibold text-stone-500 bg-stone-100 rounded">
                             {article.category}
                           </span>
+                          {isKept && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 bg-indigo-100/80 border border-indigo-200 rounded flex items-center gap-1">
+                              <BookmarkCheck size={10} /> Kept
+                            </span>
+                          )}
+                          {!isKept && isRead && !isDeleted && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-semibold text-stone-500 bg-stone-100 rounded flex items-center gap-1">
+                              <Eye size={10} /> Read
+                            </span>
+                          )}
                         </div>
                         <span className="text-[10px] font-medium text-stone-400 shrink-0">
                           {article.timeAgo}
                         </span>
                       </div>
 
-                      {/* Title */}
-                      <h4 className="text-xs font-bold text-stone-900 group-hover:text-indigo-950 transition leading-snug break-words [overflow-wrap:anywhere] mb-1.5">
-                        {cleanTitle}
-                      </h4>
+                      {/* Title Link */}
+                      <a
+                        href={article.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => markAsRead(article.id)}
+                        className="block group"
+                      >
+                        <h4 className="text-xs font-bold text-stone-900 group-hover:text-indigo-600 transition leading-snug break-words [overflow-wrap:anywhere] mb-1.5">
+                          {cleanTitle}
+                        </h4>
+                      </a>
 
                       {/* Snippet */}
                       {cleanSnippet && (
@@ -325,28 +585,92 @@ export const AiNewsBriefing: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Bottom Metadata & Outbound Action */}
-                    <div className="pt-2 border-t border-stone-150 flex items-center justify-between text-[11px] text-stone-500">
-                      <div className="flex items-center gap-1.5 font-medium truncate">
+                    {/* Decision Bar & Outbound Action */}
+                    <div className="pt-2.5 border-t border-stone-150 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px]">
+                      <div className="flex items-center gap-1.5 font-medium text-stone-500 truncate">
                         <Newspaper size={12} className="text-stone-400 shrink-0" />
                         <span className="truncate">{cleanSource}</span>
                       </div>
-                      <span className="inline-flex items-center gap-1 font-semibold text-indigo-600 group-hover:text-indigo-700 shrink-0">
-                        Read Story <ArrowUpRight size={12} />
-                      </span>
+
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                        {/* Read Story Link */}
+                        <a
+                          href={article.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => markAsRead(article.id)}
+                          className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline shrink-0 mr-1 cursor-pointer"
+                        >
+                          Read Story <ArrowUpRight size={12} />
+                        </a>
+
+                        {/* Decision Controls: Keep vs Delete */}
+                        {!isDeleted ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => toggleKeepStory(article.id)}
+                              className={`px-2 py-1 rounded-lg text-[10.5px] font-bold flex items-center gap-1 transition cursor-pointer border ${
+                                isKept
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                  : 'bg-white hover:bg-stone-50 text-stone-700 border-stone-200 hover:border-stone-300'
+                              }`}
+                              title={isKept ? 'Saved in Kept Stories' : 'Keep story in your list'}
+                            >
+                              {isKept ? (
+                                <>
+                                  <Check size={11} /> Kept
+                                </>
+                              ) : (
+                                <>
+                                  <Bookmark size={11} className="text-stone-500" /> Keep
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => deleteStory(article)}
+                              className="px-2 py-1 rounded-lg text-[10.5px] font-bold text-stone-600 hover:text-red-600 bg-white hover:bg-red-50 border border-stone-200 hover:border-red-200 flex items-center gap-1 transition cursor-pointer"
+                              title="Delete and remove story from list"
+                            >
+                              <Trash2 size={11} /> Delete
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => restoreStory(article.id)}
+                            className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1 transition cursor-pointer"
+                            title="Restore back to active briefing"
+                          >
+                            <RotateCcw size={11} /> Restore Story
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </a>
+                  </div>
                 );
               })}
             </div>
           ) : (
             <div className="py-12 px-4 text-center rounded-xl bg-stone-50/50 border border-dashed border-stone-200 flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center mb-2">
-                <Search size={16} />
+                {viewMode === 'kept' ? <Bookmark size={16} /> : viewMode === 'trash' ? <Trash2 size={16} /> : <Search size={16} />}
               </div>
-              <p className="text-xs font-bold text-stone-800">No matching headlines</p>
+              <p className="text-xs font-bold text-stone-800">
+                {viewMode === 'kept' 
+                  ? 'No kept stories yet' 
+                  : viewMode === 'trash' 
+                  ? 'Trash is empty' 
+                  : 'No matching headlines'}
+              </p>
               <p className="text-[11px] text-stone-500 mt-0.5">
-                Try selecting &ldquo;All&rdquo; or adjusting your search term.
+                {viewMode === 'kept'
+                  ? 'Click "Keep" on any story card in your Active Briefing to save it here.'
+                  : viewMode === 'trash'
+                  ? 'Stories you delete will be kept here temporarily if you wish to restore them.'
+                  : 'Try selecting "All" or adjusting your search term.'}
               </p>
             </div>
           )}
@@ -360,6 +684,8 @@ export const AiNewsBriefing: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <span>Total Stories: {data?.articles?.length || 0}</span>
+          <span className="hidden sm:inline">•</span>
+          <span>Kept: {totalKeptCount}</span>
           <span className="hidden sm:inline">•</span>
           <span>Engine: {data?.briefing?.provider === 'ollama' ? 'Ollama Local' : data?.briefing?.provider === 'gemini' ? 'Gemini 3.6' : 'Deterministic'}</span>
         </div>
