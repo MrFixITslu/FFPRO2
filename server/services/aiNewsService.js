@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { checkOllamaHealth, generateOllama } from './ollamaService.js';
 import { GoogleGenAI } from '@google/genai';
 
@@ -327,8 +328,14 @@ function parseRssItems(xmlText = '', defaultSource = 'News', topic = 'ai') {
         publishedAt: dateStr
       });
 
+      const uniqueHash = crypto
+        .createHash('sha256')
+        .update(`${rawLink || ''}|${rawTitle || ''}`)
+        .digest('hex')
+        .slice(0, 24);
+
       items.push({
-        id: `rss-${Buffer.from(rawLink).toString('base64').slice(0, 24)}`,
+        id: `rss-${uniqueHash}`,
         title: rawTitle,
         link: rawLink,
         source: source || defaultSource,
@@ -540,8 +547,9 @@ async function fetchAllLiveFeeds(topic = 'ai') {
             publishedAt: dateStr
           });
 
+          const hfId = p.id || crypto.createHash('sha256').update(`${title}|${link}`).digest('hex').slice(0, 16);
           allItems.push({
-            id: `hf-${p.id || Math.random()}`,
+            id: `hf-${hfId}`,
             title: `[Research] ${title}`,
             link,
             source: 'Hugging Face',

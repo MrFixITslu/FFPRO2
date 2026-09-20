@@ -91,7 +91,26 @@ function cleanPlainText(input: string = ''): string {
  */
 function getTopicStorageKey(topic: string, suffix: 'read' | 'kept' | 'deleted'): string {
   const safe = (topic || 'ai').toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 32) || 'default';
-  return `ffpro_news_${suffix}_${safe}_v2`;
+  return `ffpro_news_${suffix}_${safe}_v3`;
+}
+
+function loadTopicStorageSet(topic: string, suffix: 'read' | 'kept' | 'deleted'): Set<string> {
+  try {
+    const keyV3 = getTopicStorageKey(topic, suffix);
+    let raw = localStorage.getItem(keyV3);
+    if (!raw) {
+      // Migrate from v2 if available
+      const safe = (topic || 'ai').toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 32) || 'default';
+      raw = localStorage.getItem(`ffpro_news_${suffix}_${safe}_v2`);
+    }
+    if (raw) {
+      const parsed: string[] = JSON.parse(raw);
+      // Strip legacy collided ID where all 30 Google News articles previously shared 'rss-aHR0cHM6Ly9uZXdz'
+      const clean = parsed.filter(id => id && typeof id === 'string' && !id.startsWith('rss-aHR0cHM6Ly9uZXdz'));
+      return new Set(clean);
+    }
+  } catch {}
+  return new Set();
 }
 
 export const AiNewsBriefing: React.FC = () => {
@@ -123,35 +142,9 @@ export const AiNewsBriefing: React.FC = () => {
   const [viewMode, setViewMode] = useState<'active' | 'kept' | 'trash'>('active');
 
   // Topic-scoped states for read, kept, and deleted stories
-  const [readIds, setReadIds] = useState<Set<string>>(() => {
-    try {
-      const key = getTopicStorageKey(effectiveTopic, 'read');
-      const saved = localStorage.getItem(key);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  const [keptIds, setKeptIds] = useState<Set<string>>(() => {
-    try {
-      const key = getTopicStorageKey(effectiveTopic, 'kept');
-      const saved = localStorage.getItem(key);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
-    try {
-      const key = getTopicStorageKey(effectiveTopic, 'deleted');
-      const saved = localStorage.getItem(key);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
+  const [readIds, setReadIds] = useState<Set<string>>(() => loadTopicStorageSet(effectiveTopic, 'read'));
+  const [keptIds, setKeptIds] = useState<Set<string>>(() => loadTopicStorageSet(effectiveTopic, 'kept'));
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => loadTopicStorageSet(effectiveTopic, 'deleted'));
 
   // Undo notification state
   const [lastDeletedArticle, setLastDeletedArticle] = useState<{ id: string; title: string } | null>(null);
@@ -159,17 +152,9 @@ export const AiNewsBriefing: React.FC = () => {
   // Re-load topic-scoped sets whenever effectiveTopic changes
   useEffect(() => {
     try {
-      const rKey = getTopicStorageKey(effectiveTopic, 'read');
-      const kKey = getTopicStorageKey(effectiveTopic, 'kept');
-      const dKey = getTopicStorageKey(effectiveTopic, 'deleted');
-
-      const rSaved = localStorage.getItem(rKey);
-      const kSaved = localStorage.getItem(kKey);
-      const dSaved = localStorage.getItem(dKey);
-
-      setReadIds(rSaved ? new Set(JSON.parse(rSaved)) : new Set());
-      setKeptIds(kSaved ? new Set(JSON.parse(kSaved)) : new Set());
-      setDeletedIds(dSaved ? new Set(JSON.parse(dSaved)) : new Set());
+      setReadIds(loadTopicStorageSet(effectiveTopic, 'read'));
+      setKeptIds(loadTopicStorageSet(effectiveTopic, 'kept'));
+      setDeletedIds(loadTopicStorageSet(effectiveTopic, 'deleted'));
       setSelectedPlayer('All');
       setLastDeletedArticle(null);
     } catch (e) {
@@ -240,6 +225,23 @@ export const AiNewsBriefing: React.FC = () => {
       }
 
       const json: AiBriefingResponse = await res.json();
+      if (json?.articles && Array.isArray(json.articles)) {
+        const seenIds = new Set<string>();
+        json.articles = json.articles.map((item, idx) => {
+          let id = item.id;
+          if (!id || id.startsWith('rss-aHR0cHM6Ly9uZXdz') || seenIds.has(id)) {
+            const strToHash = `${item.link || ''}|${item.title || ''}|${idx}`;
+            let hash = 0;
+            for (let i = 0; i < strToHash.length; i++) {
+              hash = ((hash << 5) - hash) + strToHash.charCodeAt(i);
+              hash |= 0;
+            }
+            id = `story-${Math.abs(hash).toString(36)}-${idx}`;
+          }
+          seenIds.add(id);
+          return { ...item, id };
+        });
+      }
       setData(json);
     } catch (err: any) {
       console.error('[AiNewsBriefing] Fetch failed:', err);
