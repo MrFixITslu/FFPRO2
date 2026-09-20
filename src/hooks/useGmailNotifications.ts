@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { GmailPlanningNotification, BudgetEvent, ProjectTask } from '../types';
+import { decodeHtmlEntities } from '../utils/textUtils';
 
 // Global shared state & request deduplicator to prevent duplicate API calls
 interface SharedGmailState {
@@ -173,7 +174,20 @@ export function useGmailNotifications(
 
         if (res.ok) {
           const data = await res.json();
-          const notifs = data.notifications || [];
+          const rawNotifs: GmailPlanningNotification[] = data.notifications || [];
+          const notifs: GmailPlanningNotification[] = rawNotifs.map(n => ({
+            ...n,
+            subject: decodeHtmlEntities(n.subject),
+            snippet: decodeHtmlEntities(n.snippet),
+            from: decodeHtmlEntities(n.from),
+            fromRaw: decodeHtmlEntities(n.fromRaw),
+            to: decodeHtmlEntities(n.to),
+            taskReference: n.taskReference ? {
+              ...n.taskReference,
+              projectName: decodeHtmlEntities(n.taskReference.projectName),
+              taskTitle: decodeHtmlEntities(n.taskReference.taskTitle),
+            } : null,
+          }));
           sharedGmail.notifications = notifs;
           sharedGmail.connected = true;
           sharedGmail.error = null;

@@ -535,6 +535,10 @@ export interface MonthlyForecastMonth {
   // Breakdown by items
   salesVolumeUnits: number;
   billableHoursOrJobs: number;
+  // Debt Service
+  loanInterestExpense?: number;
+  loanPrincipalRepayment?: number;
+  totalDebtService?: number;
 }
 
 export interface YearlyForecastSummary {
@@ -549,6 +553,9 @@ export interface YearlyForecastSummary {
   netMarginPercent: number;
   cashFlow: number;
   endingCashBalance: number;
+  loanInterestExpense?: number;
+  loanPrincipalRepayment?: number;
+  totalDebtService?: number;
 }
 
 export interface BreakEvenResult {
@@ -602,6 +609,48 @@ export interface StartupPlanDetails {
   startingCash?: number;
   displayCurrency?: CurrencyCode; // Active display currency: 'USD' | 'XCD' (defaults to USD or XCD)
   exchangeRate?: number;          // Pegged USD to XCD exchange rate (defaults to 2.70)
+  loanParameters?: LoanParameters;
+}
+
+export type PaymentFrequency = 'monthly' | 'fortnightly' | 'weekly';
+
+export interface LoanParameters {
+  enabled: boolean;
+  loanAmount: number;             // Principal loan amount in display currency or USD
+  annualInterestRate: number;     // e.g. 7.0 for 7% APR
+  termYears: number;              // e.g. 5 years
+  paymentFrequency: PaymentFrequency;
+  startDate?: string;             // Payment start date (e.g. YYYY-MM-DD)
+  negotiationFee?: number;        // Upfront processing fee (e.g. $675)
+  insuranceFee?: number;          // Loan insurance fee
+  includeFeesInLoan?: boolean;    // Add fees to principal balance
+  gracePeriodMonths?: number;     // Moratorium months (interest-only or deferred)
+}
+
+export interface AmortizationScheduleRow {
+  period: number;
+  paymentDate: string;
+  beginningBalance: number;
+  paymentAmount: number;
+  interestPaid: number;
+  principalPaid: number;
+  endingBalance: number;
+  cumulativeInterest: number;
+}
+
+export interface LoanAmortizationSummary {
+  loanAmount: number;
+  totalFees: number;
+  effectiveLoanAmount: number;
+  periodicPayment: number;
+  totalPayments: number;
+  totalRepaymentAmount: number;
+  totalInterestPaid: number;
+  monthlyDebtService: number;
+  annualDebtService: number;
+  dscrYear1: number;
+  dscrStatus: 'strong' | 'adequate' | 'tight' | 'insufficient';
+  schedule: AmortizationScheduleRow[];
 }
 
 export type ProjectRole = 'owner' | 'editor' | 'viewer';

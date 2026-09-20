@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { BudgetEvent, BusinessPlanSections } from '../types';
 import { generateBusinessPlanDocx, BusinessPlanCalculations } from '../services/businessPlanExportService';
+import { calculateLoanAmortizationSchedule } from '../services/startupFinancialsService';
 import { triggerSecureDownload } from '../services/fileStorageService';
 
 interface ExportBusinessPlanModalProps {
@@ -129,6 +130,9 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
       alert('Please allow popups to open the print preview.');
       return;
     }
+
+    const loanParams = sd?.loanParameters;
+    const loanSummary = loanParams?.enabled ? calculateLoanAmortizationSchedule(loanParams, sd?.displayCurrency || 'USD', sd?.exchangeRate || 2.70, calculations.y1Gross - calculations.y1OpEx) : null;
 
     const title = `${companyName} - Commercial Business Plan & Funding Proposal`;
     const docHtml = `
@@ -527,6 +531,39 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             <tr><td>Operating Margin %</td><td class="text-right">${calculations.netMarginPercent}%</td><td class="text-right">${calculations.y3Rev > 0 ? Math.round((calculations.y3Net / calculations.y3Rev) * 100) : 0}%</td><td class="text-right">${calculations.y5Rev > 0 ? Math.round((calculations.y5Net / calculations.y5Rev) * 100) : 0}%</td></tr>
           </tbody>
         </table>
+
+        ${loanSummary ? `
+        <h2 class="section-title">Bank Debt Financing & Amortization Schedule</h2>
+        <p><strong>Facility Principal:</strong> ${sd?.displayCurrency || 'USD'} $${loanSummary.loanAmount.toLocaleString()} @ ${loanParams?.annualInterestRate}% p.a. (${loanParams?.termYears}-Year Term, ${loanParams?.paymentFrequency} repayments)</p>
+        <p><strong>Periodic Payment:</strong> $${loanSummary.periodicPayment.toFixed(2)} | <strong>Total Interest Income to Bank:</strong> $${loanSummary.totalInterestPaid.toFixed(2)} | <strong>DSCR Coverage:</strong> ${loanSummary.dscrYear1 > 50 ? 'N/A' : loanSummary.dscrYear1.toFixed(2) + 'x'} (${loanSummary.dscrStatus.toUpperCase()})</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Date</th>
+              <th class="text-right">Beginning Bal</th>
+              <th class="text-right">Interest</th>
+              <th class="text-right">Principal</th>
+              <th class="text-right">Payment</th>
+              <th class="text-right">Ending Bal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${loanSummary.schedule.slice(0, 24).map(r => `
+              <tr>
+                <td>${r.period}</td>
+                <td>${r.paymentDate}</td>
+                <td class="text-right">$${r.beginningBalance.toFixed(2)}</td>
+                <td class="text-right" style="color: #b45309; font-weight: 600;">$${r.interestPaid.toFixed(2)}</td>
+                <td class="text-right" style="color: #047857; font-weight: 600;">$${r.principalPaid.toFixed(2)}</td>
+                <td class="text-right" style="font-weight: 700;">$${r.paymentAmount.toFixed(2)}</td>
+                <td class="text-right">$${r.endingBalance.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ${loanSummary.schedule.length > 24 ? `<p style="font-size: 11px; color: #64748b;"><em>Schedule truncated to first 24 periods for printed summary. Complete ${loanSummary.schedule.length}-period schedule exported in digital ledger.</em></p>` : ''}
+        ` : ''}
 
         ${bp.fundingRequirements ? `<h2 class="section-title">Funding Request & Capital Utilization</h2><p>${bp.fundingRequirements.replace(/\n/g, '<br/>')}</p>` : ''}
         ${bp.useOfFunds ? `<h2 class="section-title">Use of Proceeds</h2><p>${bp.useOfFunds.replace(/\n/g, '<br/>')}</p>` : ''}

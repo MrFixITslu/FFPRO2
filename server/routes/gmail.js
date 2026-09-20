@@ -19,6 +19,63 @@ const gmailRateLimiter = rateLimit({
 router.use(requireAuth);
 router.use(gmailRateLimiter);
 
+const NAMED_HTML_ENTITIES = {
+  amp: '&',
+  quot: '"',
+  apos: "'",
+  lt: '<',
+  gt: '>',
+  nbsp: ' ',
+  ndash: '–',
+  mdash: '—',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  hellip: '…',
+  bull: '•',
+  trade: '™',
+  copy: '©',
+  reg: '®',
+};
+
+function decodeHtmlEntities(str = '') {
+  if (!str || typeof str !== 'string') return '';
+  if (!str.includes('&')) return str;
+
+  let prev = '';
+  let curr = str;
+
+  for (let pass = 0; pass < 4 && curr !== prev; pass++) {
+    prev = curr;
+    curr = curr
+      .replace(/&#x([0-9a-fA-F]+);?/gi, (match, hex) => {
+        try {
+          const code = parseInt(hex, 16);
+          if (!isNaN(code) && code > 0 && code < 0x10ffff) {
+            return String.fromCodePoint ? String.fromCodePoint(code) : String.fromCharCode(code);
+          }
+        } catch {}
+        return match;
+      })
+      .replace(/&#([0-9]+);?/g, (match, dec) => {
+        try {
+          const code = parseInt(dec, 10);
+          if (!isNaN(code) && code > 0 && code < 0x10ffff) {
+            return String.fromCodePoint ? String.fromCodePoint(code) : String.fromCharCode(code);
+          }
+        } catch {}
+        return match;
+      })
+      .replace(/&([a-zA-Z]+);/g, (match, name) => {
+        const lower = name.toLowerCase();
+        return NAMED_HTML_ENTITIES[lower] !== undefined ? NAMED_HTML_ENTITIES[lower] : match;
+      });
+  }
+
+  return curr;
+}
+
 /**
  * Server-Side Authorization Middleware
  * Verifies that the authenticated user strictly matches the authorized email (case-insensitive).
@@ -271,15 +328,21 @@ router.get('/notifications', requireAuthorizedAccount, async (req, res) => {
         const headers = msgData.payload?.headers || [];
         const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 
-        const from = getHeader('From');
-        const to = getHeader('To');
-        const subject = getHeader('Subject') || '(No Subject)';
+        const rawFrom = getHeader('From');
+        const rawTo = getHeader('To');
+        const rawSubject = getHeader('Subject') || '(No Subject)';
         const dateHeader = getHeader('Date');
-        const snippet = msgData.snippet || '';
+        const rawSnippet = msgData.snippet || '';
         const isUnread = Array.isArray(msgData.labelIds) && msgData.labelIds.includes('UNREAD');
 
         // If email is no longer unread or was processed in the meantime, skip it
         if (!isUnread || processedSet.has(msgData.id)) continue;
+
+        // Decode HTML entities (e.g. &#39; -> ', &amp; -> &, &quot; -> ")
+        const subject = decodeHtmlEntities(rawSubject);
+        const snippet = decodeHtmlEntities(rawSnippet);
+        const to = decodeHtmlEntities(rawTo);
+        const from = decodeHtmlEntities(rawFrom);
 
         // Clean sender display name
         let cleanFrom = from;

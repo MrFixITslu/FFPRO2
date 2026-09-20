@@ -30,6 +30,7 @@ import {
   ProjectTask,
   BankConnection,
 } from '../types';
+import { decodeHtmlEntities } from '../utils/textUtils';
 import { EmailDetailModal } from './EmailDetailModal';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
 import { hasCalendarEventPassed } from '../utils/calendarNotificationUtils';
@@ -533,17 +534,27 @@ export const UnifiedNotificationHub: React.FC<Props> = ({
 
     // --- F. Gmail Planning Email Notifications ---
     activeGmailNotifications.forEach(g => {
+      const decodedSubject = decodeHtmlEntities(g.subject) || '(No Subject)';
+      const decodedFrom = decodeHtmlEntities(g.from);
+      const decodedSnippet = decodeHtmlEntities(g.snippet);
+      const linkedTaskTitle = g.taskReference?.taskTitle ? decodeHtmlEntities(g.taskReference.taskTitle) : '';
+
       items.push({
         id: `gmail-${g.id}`,
         category: 'gmail',
         type: 'gmail_email',
-        title: g.subject || '(No Subject)',
-        subtitle: `From: ${g.from}${g.taskReference ? ` • Linked Task: ${g.taskReference.taskTitle}` : ''}`,
-        snippet: g.snippet,
+        title: decodedSubject,
+        subtitle: `From: ${decodedFrom}${linkedTaskTitle ? ` • Linked Task: ${linkedTaskTitle}` : ''}`,
+        snippet: decodedSnippet,
         timestamp: g.date,
         statusText: g.taskReference ? 'Linked to Project Task' : 'Unread Planning Header',
         statusColor: 'blue',
-        sourceData: g,
+        sourceData: {
+          ...g,
+          subject: decodedSubject,
+          from: decodedFrom,
+          snippet: decodedSnippet,
+        },
         actionType: 'gmail',
       });
     });

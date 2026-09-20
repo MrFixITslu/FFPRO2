@@ -8,6 +8,7 @@ import { EmailDetailModal } from './EmailDetailModal';
 import { AiNewsBriefing } from './AiNewsBriefing';
 import { useGmailNotifications } from '../hooks/useGmailNotifications';
 import { hasCalendarEventPassed } from '../utils/calendarNotificationUtils';
+import { decodeHtmlEntities } from '../utils/textUtils';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -63,7 +64,8 @@ interface InstitutionalBalance {
 
 const getSenderMonogram = (fromStr: string) => {
   if (!fromStr) return 'EM';
-  const clean = fromStr.replace(/<.*?>/, '').replace(/["']/g, '').trim();
+  const decoded = decodeHtmlEntities(fromStr);
+  const clean = decoded.replace(/<.*?>/, '').replace(/["']/g, '').trim();
   const parts = clean.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -73,14 +75,15 @@ const getSenderMonogram = (fromStr: string) => {
 
 const getSenderCleanName = (fromStr: string) => {
   if (!fromStr) return 'Unknown Sender';
-  const match = fromStr.match(/^"?([^"<]+)"?\s*(?:<.*>)?$/);
+  const decoded = decodeHtmlEntities(fromStr);
+  const match = decoded.match(/^"?([^"<]+)"?\s*(?:<.*>)?$/);
   if (match && match[1]?.trim()) return match[1].trim();
-  const clean = fromStr.replace(/<.*?>/, '').replace(/["']/g, '').trim();
-  return clean || fromStr;
+  const clean = decoded.replace(/<.*?>/, '').replace(/["']/g, '').trim();
+  return clean || decoded;
 };
 
 const getEmailCategoryBadge = (subject: string, snippet: string) => {
-  const text = `${subject} ${snippet}`.toLowerCase();
+  const text = `${decodeHtmlEntities(subject)} ${decodeHtmlEntities(snippet)}`.toLowerCase();
   if (text.includes('invoice') || text.includes('receipt') || text.includes('bill') || text.includes('payment') || text.includes('statement') || text.includes('$')) {
     return { label: 'Invoice / Financial', color: 'bg-emerald-50 text-emerald-700 border-emerald-200/80' };
   }
@@ -1053,11 +1056,11 @@ const Dashboard: React.FC<Props> = ({
                                 {senderClean}
                               </div>
                               <h4 className="text-xs font-semibold text-stone-800 group-hover:text-stone-950 transition truncate">
-                                {g.subject || '(No Subject)'}
+                                {decodeHtmlEntities(g.subject) || '(No Subject)'}
                               </h4>
                               {g.snippet && (
                                 <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5 leading-relaxed">
-                                  {g.snippet}
+                                  {decodeHtmlEntities(g.snippet)}
                                 </p>
                               )}
                             </div>

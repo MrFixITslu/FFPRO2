@@ -18,6 +18,7 @@ import {
 import { StartupPlanDetails, CurrencyCode } from '../../types';
 import { generateStartupFinancialForecast } from '../../services/startupFinancialsService';
 import { CurrencyToggle } from './CurrencyToggle';
+import { LoanAmortizationPanel } from './LoanAmortizationPanel';
 import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol, formatCurrencyAmount } from '../../services/currencyService';
 
 interface StartupFinancialSummaryProps {
@@ -26,6 +27,7 @@ interface StartupFinancialSummaryProps {
   exchangeRate?: number;
   onChangeDisplayCurrency?: (currency: CurrencyCode) => void;
   onUpdateExchangeRate?: (rate: number) => void;
+  onUpdateStartupDetails?: (details: StartupPlanDetails) => void;
 }
 
 export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = ({
@@ -33,7 +35,8 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
   displayCurrency: controlledDisplayCurrency,
   exchangeRate: controlledExchangeRate,
   onChangeDisplayCurrency,
-  onUpdateExchangeRate
+  onUpdateExchangeRate,
+  onUpdateStartupDetails
 }) => {
   const [localDisplayCurrency, setLocalDisplayCurrency] = useState<CurrencyCode>(startupDetails?.displayCurrency || 'USD');
   const [localExchangeRate, setLocalExchangeRate] = useState<number>(startupDetails?.exchangeRate || DEFAULT_USD_TO_XCD_RATE);
@@ -470,6 +473,17 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
         </div>
       </div>
 
+      {/* Loan Amortization Schedule Panel */}
+      {startupDetails && (
+        <LoanAmortizationPanel
+          startupDetails={startupDetails}
+          onChange={(updated) => onUpdateStartupDetails?.(updated)}
+          currency={displayCurrency}
+          exchangeRate={exchangeRate}
+          year1Ebitda={totalsYear1.grossProfit - totalsYear1.operatingExpenses}
+        />
+      )}
+
       {/* 5-Year Projections Annual Summary */}
       <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="border-b border-stone-150 pb-3">
@@ -535,8 +549,36 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
                   </td>
                 ))}
               </tr>
+              {startupDetails?.loanParameters?.enabled && (
+                <>
+                  <tr>
+                    <td className="py-2 px-3 text-amber-800 font-medium">Bank Interest Expense</td>
+                    {yearlyProjections.map((y) => (
+                      <td key={y.year} className="py-2 px-3 text-right text-amber-800 font-medium">
+                        {fmt(y.loanInterestExpense || 0)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 text-indigo-800 font-medium">Principal Loan Repayment</td>
+                    {yearlyProjections.map((y) => (
+                      <td key={y.year} className="py-2 px-3 text-right text-indigo-800 font-medium">
+                        {fmt(y.loanPrincipalRepayment || 0)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="bg-slate-50 font-semibold border-t border-b border-slate-200">
+                    <td className="py-2 px-3 text-slate-900">Total Debt Service</td>
+                    {yearlyProjections.map((y) => (
+                      <td key={y.year} className="py-2 px-3 text-right text-slate-900 font-bold">
+                        {fmt(y.totalDebtService || 0)}
+                      </td>
+                    ))}
+                  </tr>
+                </>
+              )}
               <tr className="bg-stone-100 font-bold">
-                <td className="py-2 px-3 text-stone-900">Net Profit</td>
+                <td className="py-2 px-3 text-stone-900">Net Profit (EBT)</td>
                 {yearlyProjections.map((y) => (
                   <td
                     key={y.year}

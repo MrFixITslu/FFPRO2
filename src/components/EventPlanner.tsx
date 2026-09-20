@@ -3236,6 +3236,7 @@ const EventPlanner: React.FC<Props> = ({
                         exchangeRate={sd.exchangeRate || 2.70}
                         onChangeDisplayCurrency={(displayCurrency) => handleUpdateStartup({ displayCurrency })}
                         onUpdateExchangeRate={(exchangeRate) => handleUpdateStartup({ exchangeRate })}
+                        onUpdateStartupDetails={(updated) => handleUpdateStartup(updated)}
                       />
 
                       {/* Step 3 Footer Navigation */}

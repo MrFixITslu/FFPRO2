@@ -12,6 +12,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { GmailPlanningNotification } from '../types';
+import { decodeHtmlEntities } from '../utils/textUtils';
 
 interface Props {
   userEmail?: string;
@@ -70,7 +71,22 @@ export const GmailPlanningNotifications: React.FC<Props> = ({
       }
 
       const data = await res.json();
-      setNotifications(data.notifications || []);
+      const rawNotifs: GmailPlanningNotification[] = data.notifications || [];
+      setNotifications(
+        rawNotifs.map(n => ({
+          ...n,
+          subject: decodeHtmlEntities(n.subject),
+          snippet: decodeHtmlEntities(n.snippet),
+          from: decodeHtmlEntities(n.from),
+          fromRaw: decodeHtmlEntities(n.fromRaw),
+          to: decodeHtmlEntities(n.to),
+          taskReference: n.taskReference ? {
+            ...n.taskReference,
+            projectName: decodeHtmlEntities(n.taskReference.projectName),
+            taskTitle: decodeHtmlEntities(n.taskReference.taskTitle),
+          } : null,
+        }))
+      );
       setNeedsGoogleLogin(false);
       setLastSynced(new Date());
     } catch (err: any) {

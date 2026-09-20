@@ -12,7 +12,11 @@ import {
   ServiceRevenueModel,
   ImportDutyCategory,
   ImportDutyCalculation,
-  CurrencyCode
+  CurrencyCode,
+  LoanParameters,
+  AmortizationScheduleRow,
+  LoanAmortizationSummary,
+  PaymentFrequency
 } from '../types';
 import {
   DEFAULT_USD_TO_XCD_RATE,
@@ -480,6 +484,136 @@ export function extractUnifiedCostItems(sd?: StartupPlanDetails): StartupCostIte
 }
 
 /**
+ * Calculates a complete 5-year/N-year Loan Amortization Schedule and Bank Debt Metrics
+ */
+export function calculateLoanAmortizationSchedule(
+  params?: LoanParameters | null,
+  targetCurrency: CurrencyCode = 'USD',
+  exchangeRate: number = DEFAULT_USD_TO_XCD_RATE,
+  year1Ebitda: number = 0
+): LoanAmortizationSummary | null {
+  if (!params || !params.enabled || !params.loanAmount || params.loanAmount <= 0) {
+    return null;
+  }
+
+  const rawAmount = params.loanAmount || 0;
+  const rawNegFee = params.negotiationFee || 0;
+  const rawInsFee = params.insuranceFee || 0;
+
+  const loanAmount = roundCurrency(rawAmount);
+  const negotiationFee = roundCurrency(rawNegFee);
+  const insuranceFee = roundCurrency(rawInsFee);
+  const totalFees = roundCurrency(negotiationFee + insuranceFee);
+
+  const includeFeesInLoan = params.includeFeesInLoan ?? false;
+  const effectiveLoanAmount = includeFeesInLoan ? roundCurrency(loanAmount + totalFees) : loanAmount;
+
+  const annualInterestRate = params.annualInterestRate ?? 7.0; // e.g. 7%
+  const termYears = Math.max(1, params.termYears ?? 5);
+  const paymentFrequency: PaymentFrequency = params.paymentFrequency || 'monthly';
+
+  let paymentsPerYear = 12;
+  if (paymentFrequency === 'fortnightly') paymentsPerYear = 26;
+  if (paymentFrequency === 'weekly') paymentsPerYear = 52;
+
+  const totalPeriods = termYears * paymentsPerYear;
+  const periodInterestRate = (annualInterestRate / 100) / paymentsPerYear;
+
+  const graceMonths = params.gracePeriodMonths || 0;
+  const gracePeriods = Math.round(graceMonths * (paymentsPerYear / 12));
+  const activeRepaymentPeriods = Math.max(1, totalPeriods - gracePeriods);
+
+  // Periodic payment calculation (PMT formula)
+  let periodicPayment = 0;
+  if (periodInterestRate > 0) {
+    const factor = Math.pow(1 + periodInterestRate, activeRepaymentPeriods);
+    periodicPayment = roundCurrency(effectiveLoanAmount * (periodInterestRate * factor) / (factor - 1));
+  } else {
+    periodicPayment = roundCurrency(effectiveLoanAmount / activeRepaymentPeriods);
+  }
+
+  const schedule: AmortizationScheduleRow[] = [];
+  let currentBalance = effectiveLoanAmount;
+  let cumulativeInterest = 0;
+
+  const startDateObj = params.startDate ? new Date(params.startDate) : new Date();
+
+  for (let p = 1; p <= totalPeriods; p++) {
+    const periodDate = new Date(startDateObj);
+    if (paymentFrequency === 'monthly') {
+      periodDate.setMonth(periodDate.getMonth() + (p - 1));
+    } else if (paymentFrequency === 'fortnightly') {
+      periodDate.setDate(periodDate.getDate() + (p - 1) * 14);
+    } else {
+      periodDate.setDate(periodDate.getDate() + (p - 1) * 7);
+    }
+    const dateStr = periodDate.toISOString().split('T')[0];
+
+    const beginningBalance = currentBalance;
+    const interestPaid = roundCurrency(beginningBalance * periodInterestRate);
+
+    let paymentAmount = 0;
+    let principalPaid = 0;
+
+    if (p <= gracePeriods) {
+      paymentAmount = interestPaid;
+      principalPaid = 0;
+    } else {
+      paymentAmount = periodicPayment;
+      principalPaid = roundCurrency(paymentAmount - interestPaid);
+
+      if (principalPaid > beginningBalance || p === totalPeriods) {
+        principalPaid = beginningBalance;
+        paymentAmount = roundCurrency(principalPaid + interestPaid);
+      }
+    }
+
+    const endingBalance = Math.max(0, roundCurrency(beginningBalance - principalPaid));
+    cumulativeInterest = roundCurrency(cumulativeInterest + interestPaid);
+    currentBalance = endingBalance;
+
+    schedule.push({
+      period: p,
+      paymentDate: dateStr,
+      beginningBalance,
+      paymentAmount,
+      interestPaid,
+      principalPaid,
+      endingBalance,
+      cumulativeInterest
+    });
+  }
+
+  const totalRepaymentAmount = roundCurrency(schedule.reduce((sum, row) => sum + row.paymentAmount, 0) + (includeFeesInLoan ? 0 : totalFees));
+  const totalInterestPaid = roundCurrency(schedule.reduce((sum, row) => sum + row.interestPaid, 0));
+
+  const year1Rows = schedule.slice(0, paymentsPerYear);
+  const annualDebtService = roundCurrency(year1Rows.reduce((sum, row) => sum + row.paymentAmount, 0));
+  const monthlyDebtService = roundCurrency(annualDebtService / 12);
+
+  const dscrYear1 = annualDebtService > 0 ? roundCurrency(year1Ebitda / annualDebtService) : 99;
+  let dscrStatus: 'strong' | 'adequate' | 'tight' | 'insufficient' = 'strong';
+  if (dscrYear1 < 1.0) dscrStatus = 'insufficient';
+  else if (dscrYear1 < 1.25) dscrStatus = 'tight';
+  else if (dscrYear1 < 1.5) dscrStatus = 'adequate';
+
+  return {
+    loanAmount,
+    totalFees,
+    effectiveLoanAmount,
+    periodicPayment,
+    totalPayments: totalPeriods,
+    totalRepaymentAmount,
+    totalInterestPaid,
+    monthlyDebtService,
+    annualDebtService,
+    dscrYear1,
+    dscrStatus,
+    schedule
+  };
+}
+
+/**
  * 12-Month Year 1 Forecast Engine + 5-Year Projections (Decision 3)
  */
 export function generateStartupFinancialForecast(
@@ -492,6 +626,7 @@ export function generateStartupFinancialForecast(
   monthlyYear1: MonthlyForecastMonth[];
   yearlyProjections: YearlyForecastSummary[];
   breakEven: BreakEvenResult;
+  loanSummary?: LoanAmortizationSummary | null;
   totalsYear1: {
     revenue: number;
     cogs: number;
@@ -504,6 +639,9 @@ export function generateStartupFinancialForecast(
     netCashFlow: number;
     endingCash: number;
     equipmentCapitalOutlay: number;
+    totalInterestExpense?: number;
+    totalPrincipalRepaid?: number;
+    totalDebtService?: number;
   };
 } {
   const activeCurrency: CurrencyCode = targetCurrency || sd?.displayCurrency || 'USD';
@@ -594,6 +732,9 @@ export function generateStartupFinancialForecast(
 
   let totalSalesUnitsYear1 = 0;
   let totalServiceHoursOrJobsYear1 = 0;
+
+  // Calculate Loan Amortization Summary if enabled
+  const loanSummary = calculateLoanAmortizationSchedule(sd?.loanParameters, activeCurrency, activeRate);
 
   for (let m = 1; m <= 12; m++) {
     const monthIndex = m - 1;
@@ -701,27 +842,46 @@ export function generateStartupFinancialForecast(
 
     const totalOpEx = sumCurrency(monthlyRecurringOpEx, thisMonthSetupExpenses);
 
-    // 4. Depreciation (P&L only, active for items purchased on or before this month)
+    // 4. Depreciation & Loan Interest
     const activeDepreciation = equipmentDeprecations
       .filter((eq) => eq.purchaseMonth <= m)
       .reduce((sum, eq) => sum + eq.monthlyDepreciation, 0);
 
-    const netProfit = roundCurrency(grossProfit - totalOpEx - activeDepreciation);
+    let mInterest = 0;
+    let mPrincipal = 0;
+    if (loanSummary && loanSummary.schedule.length > 0) {
+      const pPerYear = loanSummary.schedule.length / (sd?.loanParameters?.termYears || 5);
+      const pPerMonth = pPerYear / 12;
+      const startP = Math.floor((m - 1) * pPerMonth);
+      const endP = Math.floor(m * pPerMonth);
+      const mRows = loanSummary.schedule.slice(startP, endP);
+      mInterest = roundCurrency(mRows.reduce((sum, r) => sum + r.interestPaid, 0));
+      mPrincipal = roundCurrency(mRows.reduce((sum, r) => sum + r.principalPaid, 0));
+    }
+
+    const netProfit = roundCurrency(grossProfit - totalOpEx - activeDepreciation - mInterest);
     const netMarginPercent = totalRevenue > 0 ? roundCurrency((netProfit / totalRevenue) * 100) : 0;
 
     // 5. Cash Flow Calculations
-    // Full equipment purchase hits cash outflow ONLY in purchaseMonth
     const cashEquipmentPurchases = equipmentDeprecations
       .filter((eq) => eq.purchaseMonth === m)
       .reduce((sum, eq) => sum + eq.purchaseCost, 0);
 
-    const cashInflow = totalRevenue;
+    let loanUpfrontFeeCash = 0;
+    if (m === 1 && loanSummary && !sd?.loanParameters?.includeFeesInLoan) {
+      loanUpfrontFeeCash = loanSummary.totalFees;
+    }
+
+    const cashInflow = totalRevenue + (m === 1 && loanSummary ? loanSummary.effectiveLoanAmount : 0);
     const cashOutflow = sumCurrency(
       cashEquipmentPurchases,
       stockPurchasesCash,
       directCostsTotal,
       monthlyRecurringOpEx,
-      thisMonthSetupExpenses
+      thisMonthSetupExpenses,
+      mInterest,
+      mPrincipal,
+      loanUpfrontFeeCash
     );
     const monthlyNetCashFlow = roundCurrency(cashInflow - cashOutflow);
     runningCashBalance = roundCurrency(runningCashBalance + monthlyNetCashFlow);
@@ -753,7 +913,10 @@ export function generateStartupFinancialForecast(
       endingInventoryValue: runningInventoryValue,
       endingInventoryUnits: runningInventoryUnits,
       salesVolumeUnits: goodsUnits,
-      billableHoursOrJobs: serviceUnits
+      billableHoursOrJobs: serviceUnits,
+      loanInterestExpense: mInterest,
+      loanPrincipalRepayment: mPrincipal,
+      totalDebtService: roundCurrency(mInterest + mPrincipal)
     });
   }
 
@@ -763,13 +926,26 @@ export function generateStartupFinancialForecast(
   const totalGrossY1 = roundCurrency(totalRevenueY1 - totalCogsY1);
   const totalOpExY1 = monthlyYear1.reduce((sum, m) => sum + m.operatingExpenses, 0);
   const totalDeprecY1 = monthlyYear1.reduce((sum, m) => sum + m.depreciation, 0);
-  const totalNetY1 = roundCurrency(totalGrossY1 - totalOpExY1 - totalDeprecY1);
+  const totalInterestY1 = monthlyYear1.reduce((sum, m) => sum + (m.loanInterestExpense || 0), 0);
+  const totalPrincipalY1 = monthlyYear1.reduce((sum, m) => sum + (m.loanPrincipalRepayment || 0), 0);
+  const totalDebtServiceY1 = roundCurrency(totalInterestY1 + totalPrincipalY1);
+  const totalNetY1 = roundCurrency(totalGrossY1 - totalOpExY1 - totalDeprecY1 - totalInterestY1);
   const totalCashInflowY1 = monthlyYear1.reduce((sum, m) => sum + m.cashInflow, 0);
   const totalCashOutflowY1 = monthlyYear1.reduce((sum, m) => sum + m.cashOutflow, 0);
   const totalNetCashY1 = roundCurrency(totalCashInflowY1 - totalCashOutflowY1);
   const equipmentCapitalOutlay = equipmentDeprecations.reduce((sum, eq) => sum + eq.purchaseCost, 0);
 
-  // 6. Years 2-5 Projections (Decision 3)
+  // Recalculate DSCR with Year 1 Net Operating Income (EBITDA = Gross Profit - OpEx)
+  const year1Ebitda = roundCurrency(totalGrossY1 - totalOpExY1);
+  if (loanSummary && totalDebtServiceY1 > 0) {
+    loanSummary.dscrYear1 = roundCurrency(year1Ebitda / totalDebtServiceY1);
+    if (loanSummary.dscrYear1 < 1.0) loanSummary.dscrStatus = 'insufficient';
+    else if (loanSummary.dscrYear1 < 1.25) loanSummary.dscrStatus = 'tight';
+    else if (loanSummary.dscrYear1 < 1.5) loanSummary.dscrStatus = 'adequate';
+    else loanSummary.dscrStatus = 'strong';
+  }
+
+  // 6. Years 2-5 Projections
   const yearlyProjections: YearlyForecastSummary[] = [
     {
       year: 1,
@@ -782,7 +958,10 @@ export function generateStartupFinancialForecast(
       netProfit: totalNetY1,
       netMarginPercent: totalRevenueY1 > 0 ? roundCurrency((totalNetY1 / totalRevenueY1) * 100) : 0,
       cashFlow: totalNetCashY1,
-      endingCashBalance: monthlyYear1[11].endingCashBalance
+      endingCashBalance: monthlyYear1[11].endingCashBalance,
+      loanInterestExpense: totalInterestY1,
+      loanPrincipalRepayment: totalPrincipalY1,
+      totalDebtService: totalDebtServiceY1
     }
   ];
 
@@ -813,11 +992,22 @@ export function generateStartupFinancialForecast(
       .filter((eq) => year <= eq.usefulLifeYears)
       .reduce((sum, eq) => sum + eq.annualDepreciation, 0);
 
-    const yearNetProfit = roundCurrency(yearGrossProfit - yearOpEx - yearDepreciation);
+    let yearInterest = 0;
+    let yearPrincipal = 0;
+    if (loanSummary && loanSummary.schedule.length > 0) {
+      const pPerYear = Math.round(loanSummary.schedule.length / (sd?.loanParameters?.termYears || 5));
+      const startP = (year - 1) * pPerYear;
+      const endP = Math.min(loanSummary.schedule.length, year * pPerYear);
+      const yRows = loanSummary.schedule.slice(startP, endP);
+      yearInterest = roundCurrency(yRows.reduce((sum, r) => sum + r.interestPaid, 0));
+      yearPrincipal = roundCurrency(yRows.reduce((sum, r) => sum + r.principalPaid, 0));
+    }
+
+    const yearNetProfit = roundCurrency(yearGrossProfit - yearOpEx - yearDepreciation - yearInterest);
     const netMargin = yearRevenue > 0 ? roundCurrency((yearNetProfit / yearRevenue) * 100) : 0;
 
     // Cash flow in Year 2+: no new equipment cash outlay unless replacement; depreciation is non-cash
-    const yearCashFlow = roundCurrency(yearRevenue - yearCogs - yearOpEx);
+    const yearCashFlow = roundCurrency(yearRevenue - yearCogs - yearOpEx - yearInterest - yearPrincipal);
     previousCashBalance = roundCurrency(previousCashBalance + yearCashFlow);
 
     yearlyProjections.push({
@@ -831,7 +1021,10 @@ export function generateStartupFinancialForecast(
       netProfit: yearNetProfit,
       netMarginPercent: netMargin,
       cashFlow: yearCashFlow,
-      endingCashBalance: previousCashBalance
+      endingCashBalance: previousCashBalance,
+      loanInterestExpense: yearInterest,
+      loanPrincipalRepayment: yearPrincipal,
+      totalDebtService: roundCurrency(yearInterest + yearPrincipal)
     });
   }
 
@@ -919,6 +1112,7 @@ export function generateStartupFinancialForecast(
     monthlyYear1,
     yearlyProjections,
     breakEven,
+    loanSummary,
     totalsYear1: {
       revenue: roundCurrency(totalRevenueY1),
       cogs: roundCurrency(totalCogsY1),
@@ -930,7 +1124,10 @@ export function generateStartupFinancialForecast(
       cashOutflow: roundCurrency(totalCashOutflowY1),
       netCashFlow: totalNetCashY1,
       endingCash: monthlyYear1[11].endingCashBalance,
-      equipmentCapitalOutlay
+      equipmentCapitalOutlay,
+      totalInterestExpense: totalInterestY1,
+      totalPrincipalRepaid: totalPrincipalY1,
+      totalDebtService: totalDebtServiceY1
     }
   };
 }

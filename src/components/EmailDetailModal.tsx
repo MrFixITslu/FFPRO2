@@ -1,6 +1,7 @@
 import React from 'react';
 import { Mail, X, ExternalLink, Trash2, Clock, User, Check, FolderKanban, CheckSquare, Receipt, Plane } from 'lucide-react';
 import { GmailPlanningNotification } from '../types';
+import { decodeHtmlEntities } from '../utils/textUtils';
 
 interface EmailDetailModalProps {
   email: GmailPlanningNotification | null;
@@ -99,8 +100,18 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
       })
     : 'Unknown Date';
 
-  const monogram = getSenderMonogram(email.from);
-  const entryType = getEntryTypeDetails(email);
+  const decodedSubject = decodeHtmlEntities(email.subject) || '(No Subject)';
+  const decodedSnippet = decodeHtmlEntities(email.snippet);
+  const decodedFrom = decodeHtmlEntities(email.from);
+  const decodedFromRaw = decodeHtmlEntities(email.fromRaw);
+  const decodedTo = decodeHtmlEntities(email.to);
+
+  const monogram = getSenderMonogram(decodedFrom);
+  const entryType = getEntryTypeDetails({
+    ...email,
+    subject: decodedSubject,
+    snippet: decodedSnippet,
+  });
   const TypeIcon = entryType.icon;
 
   return (
@@ -127,7 +138,7 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
                 </span>
               </div>
               <h3 className="text-base font-bold text-stone-900 leading-snug tracking-tight">
-                {email.subject || '(No Subject)'}
+                {decodedSubject}
               </h3>
             </div>
           </div>
@@ -150,12 +161,12 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="font-bold text-indigo-950 flex items-center gap-1.5 truncate">
-                  <span>Project: {email.taskReference.projectName || 'Planner Project'}</span>
+                  <span>Project: {decodeHtmlEntities(email.taskReference.projectName) || 'Planner Project'}</span>
                 </div>
                 {email.taskReference.taskTitle && (
                   <div className="text-[11px] text-indigo-700 flex items-center gap-1 truncate mt-0.5 font-medium">
                     <CheckSquare size={11} className="shrink-0" />
-                    <span className="truncate">Task: {email.taskReference.taskTitle}</span>
+                    <span className="truncate">Task: {decodeHtmlEntities(email.taskReference.taskTitle)}</span>
                   </div>
                 )}
               </div>
@@ -171,21 +182,21 @@ export const EmailDetailModal: React.FC<EmailDetailModalProps> = ({
           <div className="flex items-center gap-2 min-w-0">
             <User size={13} className="text-stone-400 shrink-0" />
             <span className="font-semibold text-stone-600">From:</span>
-            <span className="font-bold text-stone-900 truncate">{email.from}</span>
-            {email.fromRaw && email.fromRaw !== email.from && (
-              <span className="text-[11px] text-stone-400 truncate">({email.fromRaw})</span>
+            <span className="font-bold text-stone-900 truncate">{decodedFrom}</span>
+            {decodedFromRaw && decodedFromRaw !== decodedFrom && (
+              <span className="text-[11px] text-stone-400 truncate">({decodedFromRaw})</span>
             )}
           </div>
-          {email.to && (
+          {decodedTo && (
             <div className="text-[11px] text-stone-500 shrink-0">
-              <span className="font-semibold text-stone-600">To:</span> {email.to}
+              <span className="font-semibold text-stone-600">To:</span> {decodedTo}
             </div>
           )}
         </div>
 
         {/* Email Body / Snippet */}
         <div className="p-6 max-h-[320px] overflow-y-auto font-normal text-stone-700 text-sm leading-relaxed whitespace-pre-wrap selection:bg-indigo-100">
-          {email.snippet ? email.snippet : 'No snippet preview available for this message.'}
+          {decodedSnippet ? decodedSnippet : 'No snippet preview available for this message.'}
         </div>
 
         {/* Action Footer */}
