@@ -354,10 +354,13 @@ export type ImportDutyCategory =
   | 'general_commercial'  // 20% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT
   | 'custom';             // Custom user-defined rates
 
+export type CurrencyCode = 'USD' | 'XCD';
+
 export interface ImportDutyCalculation {
   isImported?: boolean;
   country?: 'saint_lucia' | 'caricom' | 'custom';
   category?: ImportDutyCategory;
+  currency?: CurrencyCode; // Currency in which FOB/Freight is input (USD or XCD)
   fobCost?: number; // Base invoice/purchase price
   shippingFreight?: number; // Air or ocean freight
   insuranceCost?: number; // Marine/cargo insurance
@@ -388,6 +391,7 @@ export interface StartupCostItem {
   classification: CostItemClassification;
   category?: string;
   notes?: string;
+  currency?: CurrencyCode; // Native pricing currency (defaults to USD or XCD)
 
   // Import Duties & Shipping Provision
   importDetails?: ImportDutyCalculation;
@@ -435,6 +439,7 @@ export interface StartupCostItem {
 export interface GoodsProduct {
   id: string;
   name: string;
+  currency?: CurrencyCode;
   sellingPrice: number;
   monthlySalesVolume: number;
   monthlyGrowthRatePercent?: number; // month-over-month growth % in Year 1
@@ -449,6 +454,7 @@ export interface GoodsProduct {
 export interface ServiceOffering {
   id: string;
   name: string;
+  currency?: CurrencyCode;
   revenueModel: ServiceRevenueModel;
   rate: number; // hourly rate, project fee, monthly retainer, subscription fee, rental daily/hourly rate
   monthlyCapacityUnits?: number; // hours, projects, clients, subscribers, rental days
@@ -594,6 +600,8 @@ export interface StartupPlanDetails {
   serviceCapacityPlan?: ServiceCapacityPlan;
   costItems?: StartupCostItem[];
   startingCash?: number;
+  displayCurrency?: CurrencyCode; // Active display currency: 'USD' | 'XCD' (defaults to USD or XCD)
+  exchangeRate?: number;          // Pegged USD to XCD exchange rate (defaults to 2.70)
 }
 
 export type ProjectRole = 'owner' | 'editor' | 'viewer';

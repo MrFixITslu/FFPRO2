@@ -17,7 +17,8 @@ import {
   ArrowRight,
   CheckSquare,
   Square,
-  Ship
+  Ship,
+  ArrowLeftRight
 } from 'lucide-react';
 import {
   ServiceOffering,
@@ -25,22 +26,29 @@ import {
   ServiceRevenueModel,
   StartupCostItem,
   ImportDutyCalculation,
-  ImportDutyCategory
+  ImportDutyCategory,
+  CurrencyCode
 } from '../../types';
 import { SharedCostItemList } from './SharedCostItemList';
 import { SharedCostItemForm } from './SharedCostItemForm';
 import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
+import { CurrencyToggle } from './CurrencyToggle';
 import { calculateServiceCapacity, roundCurrency } from '../../services/startupFinancialsService';
+import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol, convertCurrency } from '../../services/currencyService';
 
 interface ServicesWorkflowPanelProps {
   services: ServiceOffering[];
   capacityPlan?: ServiceCapacityPlan;
   costItems: StartupCostItem[];
   startingCash?: number;
+  displayCurrency?: CurrencyCode;
+  exchangeRate?: number;
   onUpdateServices: (services: ServiceOffering[]) => void;
   onUpdateCapacityPlan: (plan: ServiceCapacityPlan) => void;
   onUpdateCostItems: (items: StartupCostItem[]) => void;
   onUpdateStartingCash: (cash: number) => void;
+  onChangeDisplayCurrency?: (currency: CurrencyCode) => void;
+  onUpdateExchangeRate?: (rate: number) => void;
 }
 
 export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
@@ -48,16 +56,66 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   capacityPlan: initialCapacityPlan,
   costItems,
   startingCash = 10000,
+  displayCurrency: controlledDisplayCurrency,
+  exchangeRate: controlledExchangeRate,
   onUpdateServices,
   onUpdateCapacityPlan,
   onUpdateCostItems,
-  onUpdateStartingCash
+  onUpdateStartingCash,
+  onChangeDisplayCurrency,
+  onUpdateExchangeRate
 }) => {
+  const [localDisplayCurrency, setLocalDisplayCurrency] = useState<CurrencyCode>('USD');
+  const [localExchangeRate, setLocalExchangeRate] = useState<number>(DEFAULT_USD_TO_XCD_RATE);
+
+  const displayCurrency = controlledDisplayCurrency ?? localDisplayCurrency;
+  const exchangeRate = controlledExchangeRate ?? localExchangeRate;
+
+  const handleCurrencyChange = (curr: CurrencyCode) => {
+    setLocalDisplayCurrency(curr);
+    onChangeDisplayCurrency?.(curr);
+  };
+
+  const handleRateChange = (rate: number) => {
+    setLocalExchangeRate(rate);
+    onUpdateExchangeRate?.(rate);
+  };
+
+  const currentSymbol = getCurrencySymbol(displayCurrency);
+  const otherCurrency: CurrencyCode = displayCurrency === 'USD' ? 'XCD' : 'USD';
+  const otherSymbol = getCurrencySymbol(otherCurrency);
+
   const [editingItem, setEditingItem] = useState<StartupCostItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
   const [showFleetImportCalculator, setShowFleetImportCalculator] = useState(false);
   const [hoveredGuide, setHoveredGuide] = useState<string | null>(null);
+
+  // Live conversion helper for input fields
+  const renderConversionHint = (valStr: string | number, inputCurrency: CurrencyCode = displayCurrency) => {
+    const val = typeof valStr === 'number' ? valStr : parseFloat(valStr) || 0;
+    if (val <= 0) return null;
+    const target = inputCurrency === 'USD' ? 'XCD' : 'USD';
+    const converted = convertCurrency(val, inputCurrency, target, exchangeRate);
+    const targetSym = getCurrencySymbol(target);
+    return (
+      <span className="text-[10px] text-stone-500 font-mono flex items-center gap-1 mt-0.5">
+        <ArrowLeftRight size={10} className="text-blue-500 shrink-0" />
+        <span>≈ {targetSym} {converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </span>
+    );
+  };
+
+  // Helper to normalize service rate to active display currency
+  const normalizeServiceRate = (service: ServiceOffering): number => {
+    const sCurrency = service.currency || 'USD';
+    return convertCurrency(service.rate, sCurrency, displayCurrency, exchangeRate);
+  };
+
+  const normalizeServiceDirectCost = (service: ServiceOffering): number => {
+    const sCurrency = service.currency || 'USD';
+    return convertCurrency(service.directCostPerUnitOrJob || 0, sCurrency, displayCurrency, exchangeRate);
+  };
 
   // Initialize independent staff and equipment plans
   const staffPlan = initialCapacityPlan?.staff || {
@@ -135,6 +193,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       name: `${equipmentPlan.resourceCount}x Rental Fleet Units (${result.importDetails.category?.replace('_', ' ').toUpperCase() || 'EQUIPMENT'})`,
       classification: 'equipment',
       category: 'Fleet & Rental Assets',
+      currency: displayCurrency,
       purchaseCost: result.totalLandedCost,
       amount: result.totalLandedCost,
       residualValue: roundCurrency(result.totalLandedCost * 0.1),
@@ -147,7 +206,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       rentalRatePerUnit: equipmentPlan.dailyRate,
       rentalTimeUnit: 'days',
       importDetails: result.importDetails,
-      notes: `Landed asset imported to Saint Lucia (ASYCUDA Tariff Category: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}). CIF: $${result.importDetails.cifValue?.toLocaleString()}, Total Duties & Levies: $${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}.`
+      notes: `Landed asset imported to Saint Lucia (ASYCUDA Tariff Category: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}). CIF: ${currentSymbol}${result.importDetails.cifValue?.toLocaleString()}, Total Duties & Levies: ${currentSymbol}${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}.`
     };
 
     let updatedCostList: StartupCostItem[];
@@ -165,6 +224,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   const [newServiceName, setNewServiceName] = useState('');
   const [newRevenueModel, setNewRevenueModel] = useState<ServiceRevenueModel>('project');
   const [newRate, setNewRate] = useState('250.00');
+  const [newServiceCurrency, setNewServiceCurrency] = useState<CurrencyCode>(displayCurrency);
   const [newVolume, setNewVolume] = useState('15');
   const [newDirectCost, setNewDirectCost] = useState('25.00');
   const [newGrowth, setNewGrowth] = useState('2.0');
@@ -176,6 +236,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     const newService: ServiceOffering = {
       id: `service-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: newServiceName.trim(),
+      currency: newServiceCurrency,
       revenueModel: newRevenueModel,
       rate: Math.max(0.01, parseFloat(newRate) || 100),
       expectedVolume: Math.max(1, parseInt(newVolume) || 10),
@@ -187,6 +248,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     onUpdateServices([...services, newService]);
     setNewServiceName('');
     setNewRate('250.00');
+    setNewServiceCurrency(displayCurrency);
     setNewVolume('15');
     setNewDirectCost('25.00');
     setShowAddService(false);
@@ -201,7 +263,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       if (s.id === id) {
         return { ...s, [field]: value };
       }
-      return { ...s, [field]: value };
+      return s;
     });
     onUpdateServices(updated);
   };
@@ -260,31 +322,50 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Starting Cash Balance Banner */}
-      <div className="bg-emerald-900 text-white rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Starting Cash Balance & Currency Selector Banner */}
+      <div className="bg-emerald-900 text-white rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-            Initial Capitalization &amp; Liquidity
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+              Services Financial &amp; Capacity Engine
+            </span>
           </div>
           <div className="text-sm font-semibold text-emerald-50">
-            Starting Cash in Bank (Month 1 Reserve)
+            Initial Liquidity &amp; Currency Framework
           </div>
           <div className="text-[11px] text-emerald-200/80">
-            Available working capital to fund software, tooling, setup deposits, and initial operations.
+            Configure working capital, resource billing rates, and switch between US Dollars (USD) and Eastern Caribbean Dollars (XCD).
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <span className="absolute left-3 top-2 text-xs text-stone-400 font-bold">$</span>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={startingCash}
-              onChange={(e) => onUpdateStartingCash(Math.max(0, parseFloat(e.target.value) || 0))}
-              className="w-36 pl-7 pr-3 py-1.5 text-xs font-bold bg-white text-stone-900 rounded-xl border border-emerald-300/40 focus:ring-2 focus:ring-emerald-400 focus:outline-hidden"
-            />
+        <div className="flex flex-wrap items-center gap-4">
+          <CurrencyToggle
+            currentCurrency={displayCurrency}
+            onChangeCurrency={handleCurrencyChange}
+            exchangeRate={exchangeRate}
+            onUpdateExchangeRate={handleRateChange}
+            size="sm"
+          />
+
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-xs text-stone-500 font-bold font-mono">{currentSymbol}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  value={startingCash}
+                  onChange={(e) => onUpdateStartingCash(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-36 pl-10 pr-3 py-1.5 text-xs font-bold font-mono bg-white text-stone-900 rounded-xl border border-emerald-300/40 focus:ring-2 focus:ring-emerald-400 focus:outline-hidden text-right"
+                />
+              </div>
+            </div>
+            {startingCash > 0 && (
+              <div className="text-[10px] text-emerald-200/90 font-mono">
+                ≈ {otherSymbol} {convertCurrency(startingCash, displayCurrency, otherCurrency, exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -296,7 +377,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200/70">
-                Capacity Engine (Decision 2)
+                Capacity Engine ({displayCurrency})
               </span>
               <div 
                 className="relative inline-block"
@@ -338,7 +419,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       </li>
                     </ul>
                     <p className="text-[10.5px] text-emerald-300 pt-1">
-                      Both engines calculate capacity independently, and their monthly revenue potential combines automatically.
+                      Both engines calculate capacity independently, and their monthly revenue potential combines automatically in {displayCurrency}.
                     </p>
                   </div>
                 </div>
@@ -349,7 +430,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               <span>Service Delivery Capacity &amp; Resource Plan</span>
             </h4>
             <p className="text-xs text-stone-500 mt-0.5">
-              Staff and Equipment operate as <strong className="text-stone-700">independent capacity engines</strong>. Enable and customize one or both below.
+              Staff and Equipment operate as <strong className="text-stone-700">independent capacity engines</strong>. All monetary rates are entered and calculated in <strong className="text-stone-800">{displayCurrency} ({currentSymbol})</strong>.
             </p>
           </div>
 
@@ -416,7 +497,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     <Users size={12} /> Staff Billable Labor Model
                   </div>
                   <p className="text-[11px] text-stone-300 leading-relaxed">
-                    Calculates billable hours generated by human team members (consultants, developers, designers, technicians, mechanics). Revenue is determined by <strong>billable hours × hourly rate ($/hr)</strong>.
+                    Calculates billable hours generated by human team members (consultants, developers, designers, technicians, mechanics). Revenue is determined by <strong>billable hours × hourly rate ({currentSymbol}/hr)</strong>.
                   </p>
                 </div>
               </div>
@@ -446,17 +527,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
                     />
                     <p className="text-[10px] text-stone-500">e.g. 2 full-time consultants</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-staff-count' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Total number of team members whose working hours are billed directly to paying clients.
-                      </p>
-                    </div>
                   </div>
 
                   {/* Staff Field 2: Monthly Hours */}
@@ -481,17 +551,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
                     />
                     <p className="text-[10px] text-stone-500">e.g. 160 hrs (40 hrs/wk × 4)</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-staff-hours' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Total work hours in 1 month for 1 employee. Standard full-time (40 hrs/wk) is <strong>160 hrs/mo</strong>.
-                      </p>
-                    </div>
                   </div>
 
                   {/* Staff Field 3: Utilisation Rate */}
@@ -519,17 +578,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
                     </div>
                     <p className="text-[10px] text-stone-500">e.g. 75% billable client work</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-staff-util' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Percentage of working time dedicated to billable client contracts (excluding admin, sales, breaks).
-                      </p>
-                    </div>
                   </div>
 
                   {/* Staff Field 4: Hourly Rate */}
@@ -540,35 +588,24 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   >
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-blue-800 select-none">
-                        <span>Benchmark Rate ($/hr)</span>
+                        <span>Benchmark Rate ({currentSymbol}/hr)</span>
                         <Info size={11} className="text-stone-400 group-hover/field:text-blue-600" />
                       </label>
-                      <span className="text-[10px] text-stone-400">$/hr</span>
+                      <span className="text-[10px] text-stone-400">{currentSymbol}/hr</span>
                     </div>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold">$</span>
+                      <span className="absolute left-2.5 top-1.5 text-xs text-stone-500 font-bold font-mono">{currentSymbol}</span>
                       <input
                         type="number"
                         min="0"
                         step="1"
                         value={staffPlan.hourlyRate}
                         onChange={(e) => handleUpdateStaffPlan({ hourlyRate: Math.max(0, parseFloat(e.target.value) || 0) })}
-                        className="w-full pl-6 pr-12 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
+                        className="w-full pl-10 pr-12 py-1.5 text-xs font-semibold font-mono border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-hidden"
                       />
                       <span className="absolute right-2 top-1.5 text-[10px] text-stone-400 font-bold">/ hr</span>
                     </div>
-                    <p className="text-[10px] text-stone-500">e.g. $75 / billable hour</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-blue-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-staff-rate' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Average hourly billing fee charged to clients for team labor.
-                      </p>
-                    </div>
+                    {renderConversionHint(staffPlan.hourlyRate, displayCurrency)}
                   </div>
                 </div>
 
@@ -579,8 +616,8 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     <span className="text-stone-300">•</span>
                     <span>Billable: <strong className="text-blue-900">{capacityCalc.staff.effectiveHours} hrs/mo</strong></span>
                   </div>
-                  <div className="font-bold text-blue-900">
-                    Staff Revenue: <span>${capacityCalc.staff.monthlyRevenue.toLocaleString()}/mo</span>
+                  <div className="font-bold text-blue-900 font-mono">
+                    Staff Revenue: <span>{currentSymbol} {capacityCalc.staff.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo</span>
                   </div>
                 </div>
               </div>
@@ -639,7 +676,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     <Wrench size={12} /> Equipment Rental / Asset Hire Model
                   </div>
                   <p className="text-[11px] text-stone-300 leading-relaxed">
-                    Calculates rental days generated by physical inventory or machinery assets (vehicles, cameras, plant equipment, event booths, tools). Revenue is determined by <strong>booked rental days × daily rental rate ($/day)</strong>.
+                    Calculates rental days generated by physical inventory or machinery assets (vehicles, cameras, plant equipment, event booths, tools). Revenue is determined by <strong>booked rental days × daily rental rate ({currentSymbol}/day)</strong>.
                   </p>
                 </div>
               </div>
@@ -669,17 +706,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
                     />
                     <p className="text-[10px] text-stone-500">e.g. 12 rental fleet items</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-equip-count' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Total quantity of physical machines, vehicles, or gear units in inventory available for customer hire.
-                      </p>
-                    </div>
                   </div>
 
                   {/* Equipment Field 2: Rental Days per Unit */}
@@ -704,17 +730,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
                     />
                     <p className="text-[10px] text-stone-500">e.g. 25 days/mo (max 31)</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-equip-days' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Total calendar days in 1 month that ONE unit is operational and ready to be rented (usually 20 to 30 days).
-                      </p>
-                    </div>
                   </div>
 
                   {/* Equipment Field 3: Utilisation Rate */}
@@ -742,17 +757,6 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
                     </div>
                     <p className="text-[10px] text-stone-500">e.g. 50% fleet booked/rented</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-equip-util' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Expected percentage of rental availability that is actively booked and generating rental fees.
-                      </p>
-                    </div>
                   </div>
 
                   {/* Equipment Field 4: Daily Rental Rate */}
@@ -763,35 +767,24 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   >
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-bold text-stone-700 flex items-center gap-1 cursor-help hover:text-amber-800 select-none">
-                        <span>Benchmark Daily Rate ($/day)</span>
+                        <span>Benchmark Daily Rate ({currentSymbol}/day)</span>
                         <Info size={11} className="text-stone-400 group-hover/field:text-amber-600" />
                       </label>
-                      <span className="text-[10px] text-stone-400">$/day</span>
+                      <span className="text-[10px] text-stone-400">{currentSymbol}/day</span>
                     </div>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold">$</span>
+                      <span className="absolute left-2.5 top-1.5 text-xs text-stone-500 font-bold font-mono">{currentSymbol}</span>
                       <input
                         type="number"
                         min="0"
                         step="1"
                         value={equipmentPlan.dailyRate}
                         onChange={(e) => handleUpdateEquipmentPlan({ dailyRate: Math.max(0, parseFloat(e.target.value) || 0) })}
-                        className="w-full pl-6 pr-12 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        className="w-full pl-10 pr-12 py-1.5 text-xs font-semibold font-mono border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
                       />
                       <span className="absolute right-2 top-1.5 text-[10px] text-stone-400 font-bold">/ day</span>
                     </div>
-                    <p className="text-[10px] text-stone-500">e.g. $1,440 / rental day</p>
-
-                    {/* Hover Guide */}
-                    <div 
-                      className={`absolute right-0 sm:left-0 top-full mt-1 w-72 bg-stone-950/95 text-white rounded-xl p-2.5 shadow-2xl border border-amber-500/40 text-xs z-50 pointer-events-none transition-all duration-200 ${
-                        hoveredGuide === 'guide-equip-rate' ? 'opacity-100 translate-y-0 visible scale-100' : 'opacity-0 translate-y-1 invisible scale-98'
-                      }`}
-                    >
-                      <p className="text-[11px] text-stone-300">
-                        Average rental fee charged to clients for 1 full day of equipment hire.
-                      </p>
-                    </div>
+                    {renderConversionHint(equipmentPlan.dailyRate, displayCurrency)}
                   </div>
                 </div>
 
@@ -802,8 +795,8 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     <span className="text-stone-300">•</span>
                     <span>Booked: <strong className="text-amber-900">{capacityCalc.equipment.effectiveDays} days/mo</strong></span>
                   </div>
-                  <div className="font-bold text-amber-900">
-                    Equipment Revenue: <span>${capacityCalc.equipment.monthlyRevenue.toLocaleString()}/mo</span>
+                  <div className="font-bold text-amber-900 font-mono">
+                    Equipment Revenue: <span>{currentSymbol} {capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo</span>
                   </div>
                 </div>
 
@@ -837,14 +830,14 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       <span className="font-semibold flex items-center gap-1 text-emerald-800">
                         <Check size={13} className="text-emerald-700" /> Landed Capital Cost ({equipmentPlan.resourceCount} Units • {equipmentPlan.importDetails.category?.toUpperCase()}):
                       </span>
-                      <div className="flex items-center gap-3 text-[11px] font-medium">
-                        <span>FOB: <strong>${equipmentPlan.importDetails.fobCost?.toLocaleString()}</strong></span>
+                      <div className="flex items-center gap-3 text-[11px] font-medium font-mono">
+                        <span>FOB: <strong>{currentSymbol} {equipmentPlan.importDetails.fobCost?.toLocaleString()}</strong></span>
                         <span>•</span>
-                        <span>Freight/Ins: <strong>${((equipmentPlan.importDetails.shippingFreight || 0) + (equipmentPlan.importDetails.insurance || 0)).toLocaleString()}</strong></span>
+                        <span>Freight/Ins: <strong>{currentSymbol} {((equipmentPlan.importDetails.shippingFreight || 0) + (equipmentPlan.importDetails.insurance || 0)).toLocaleString()}</strong></span>
                         <span>•</span>
-                        <span>Customs Taxes: <strong>${equipmentPlan.importDetails.totalDutiesAndTaxes?.toLocaleString()}</strong></span>
+                        <span>Customs Taxes: <strong>{currentSymbol} {equipmentPlan.importDetails.totalDutiesAndTaxes?.toLocaleString()}</strong></span>
                         <span>•</span>
-                        <span>Total Landed: <strong className="text-emerald-800 font-bold">${equipmentPlan.importDetails.totalLandedCost?.toLocaleString()}</strong></span>
+                        <span>Total Landed: <strong className="text-emerald-800 font-bold">{currentSymbol} {equipmentPlan.importDetails.totalLandedCost?.toLocaleString()}</strong></span>
                       </div>
                     </div>
                   )}
@@ -856,6 +849,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                         initialFobUnitCost={equipmentPlan.unitPurchasePrice || 500}
                         initialCategory={equipmentPlan.importCategory || 'electronics'}
                         initialImportDetails={equipmentPlan.importDetails}
+                        currency={displayCurrency}
                         isCompact
                         onApplyLandedCost={handleSyncFleetToCostLedger}
                         onClose={() => setShowFleetImportCalculator(false)}
@@ -883,8 +877,8 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
             </div>
             <div className="flex items-center gap-3 text-xs font-bold text-emerald-800 bg-white/80 px-3 py-1 rounded-xl border border-emerald-300/60 shadow-2xs">
               <span className="text-stone-500 font-normal">Combined Max Revenue:</span>
-              <span className="text-sm font-extrabold text-emerald-700">
-                ${capacityCalc.totalMonthlyRevenuePotential.toLocaleString()} / mo
+              <span className="text-sm font-extrabold text-emerald-700 font-mono">
+                {currentSymbol} {capacityCalc.totalMonthlyRevenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo
               </span>
             </div>
           </div>
@@ -893,14 +887,14 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
               <span>
-                Staff Labor Capacity: <strong>{staffPlan.enabled ? `${capacityCalc.staff.effectiveHours} billable hrs/mo ($${capacityCalc.staff.monthlyRevenue.toLocaleString()})` : 'Disabled'}</strong>
+                Staff Labor Capacity: <strong>{staffPlan.enabled ? `${capacityCalc.staff.effectiveHours} billable hrs/mo (${currentSymbol} ${capacityCalc.staff.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })})` : 'Disabled'}</strong>
               </span>
             </div>
             <span className="text-stone-300 hidden sm:inline">|</span>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
               <span>
-                Equipment Rental Capacity: <strong>{equipmentPlan.enabled ? `${capacityCalc.equipment.effectiveDays} booked days/mo ($${capacityCalc.equipment.monthlyRevenue.toLocaleString()})` : 'Disabled'}</strong>
+                Equipment Rental Capacity: <strong>{equipmentPlan.enabled ? `${capacityCalc.equipment.effectiveDays} booked days/mo (${currentSymbol} ${capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })})` : 'Disabled'}</strong>
               </span>
             </div>
           </div>
@@ -921,7 +915,10 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => setShowAddService(!showAddService)}
+            onClick={() => {
+              setNewServiceCurrency(displayCurrency);
+              setShowAddService(!showAddService);
+            }}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
           >
             <Plus size={13} />
@@ -932,7 +929,30 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         {/* Add Service Inline Form */}
         {showAddService && (
           <form onSubmit={handleAddService} className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-150">
-            <div className="text-xs font-bold text-stone-900">Add New Service Offering</div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-bold text-stone-900">Add New Service Offering</div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setNewServiceCurrency('USD')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    newServiceCurrency === 'USD' ? 'bg-blue-600 text-white' : 'bg-stone-200 text-stone-600'
+                  }`}
+                >
+                  US$ Rate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewServiceCurrency('XCD')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    newServiceCurrency === 'XCD' ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-600'
+                  }`}
+                >
+                  EC$ Rate
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">Service Name</label>
@@ -963,18 +983,23 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-stone-700">Billing Rate / Price ($)</label>
+                <label className="text-[11px] font-bold text-stone-700">
+                  Billing Rate ({getCurrencySymbol(newServiceCurrency)})
+                </label>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold font-mono">
+                    {getCurrencySymbol(newServiceCurrency)}
+                  </span>
                   <input
                     type="number"
                     min="0.01"
                     step="0.01"
                     value={newRate}
                     onChange={(e) => setNewRate(e.target.value)}
-                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full pl-10 pr-3 py-1.5 text-xs font-bold font-mono border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />
                 </div>
+                {renderConversionHint(newRate, newServiceCurrency)}
               </div>
 
               <div className="space-y-1">
@@ -986,23 +1011,28 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   min="1"
                   value={newVolume}
                   onChange={(e) => setNewVolume(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  className="w-full px-3 py-1.5 text-xs font-mono border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-stone-700">Direct Cost per Job/Unit ($)</label>
+                <label className="text-[11px] font-bold text-stone-700">
+                  Direct Cost per Unit ({getCurrencySymbol(newServiceCurrency)})
+                </label>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold font-mono">
+                    {getCurrencySymbol(newServiceCurrency)}
+                  </span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={newDirectCost}
                     onChange={(e) => setNewDirectCost(e.target.value)}
-                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full pl-10 pr-3 py-1.5 text-xs font-bold font-mono border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />
                 </div>
+                {renderConversionHint(newDirectCost, newServiceCurrency)}
               </div>
 
               <div className="space-y-1">
@@ -1014,7 +1044,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     step="0.1"
                     value={newGrowth}
                     onChange={(e) => setNewGrowth(e.target.value)}
-                    className="w-full px-3 pr-6 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full px-3 pr-6 py-1.5 text-xs font-mono border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />
                   <span className="absolute right-2 top-1.5 text-xs text-stone-400">%</span>
                 </div>
@@ -1042,25 +1072,51 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         {/* Service Offerings List */}
         <div className="space-y-2.5">
           {services.map((service) => {
-            const monthlyRev = service.rate * (service.expectedVolume || 1);
+            const servCurrency = service.currency || 'USD';
+            const normalizedRate = normalizeServiceRate(service);
+            const monthlyRev = normalizedRate * (service.expectedVolume || 1);
+            const isDifferentCurrency = servCurrency !== displayCurrency;
+
             return (
               <div
                 key={service.id}
                 className="bg-stone-50/70 border border-stone-200/90 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-stone-900">{service.name}</span>
-                    <span className="text-[10px] font-semibold px-2 py-0.2 rounded bg-stone-200/80 text-stone-700">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-stone-200/80 text-stone-700">
                       {getModelLabel(service.revenueModel)}
                     </span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold flex items-center gap-1">
+                      <span>{currentSymbol} {normalizedRate.toFixed(2)}</span>
+                      {isDifferentCurrency && (
+                        <span className="text-[9px] text-emerald-700 font-normal">
+                          (native: {getCurrencySymbol(servCurrency)} {service.rate.toFixed(2)})
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleUpdateServiceField(
+                          service.id,
+                          'currency',
+                          servCurrency === 'USD' ? 'XCD' : 'USD'
+                        )
+                      }
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-stone-200 hover:bg-stone-300 text-stone-700 transition-colors cursor-pointer"
+                      title="Toggle service native entered currency"
+                    >
+                      Set as {servCurrency === 'USD' ? 'EC$' : 'US$'}
+                    </button>
                   </div>
-                  <div className="text-[11px] text-stone-500 flex items-center gap-3">
-                    <span>Rate: <strong>${service.rate.toFixed(2)}</strong></span>
+                  <div className="text-[11px] text-stone-500 flex flex-wrap items-center gap-3">
+                    <span>Rate: <strong className="font-mono">{currentSymbol} {normalizedRate.toFixed(2)}</strong></span>
                     <span>•</span>
                     <span>Volume: <strong>{service.expectedVolume || 1} {getUnitName(service.revenueModel)}/mo</strong></span>
                     <span>•</span>
-                    <span>Monthly Revenue: <strong>${monthlyRev.toLocaleString()}</strong></span>
+                    <span>Monthly Revenue: <strong className="font-mono text-emerald-800">{currentSymbol} {monthlyRev.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
                   </div>
                 </div>
 
@@ -1074,12 +1130,14 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       onChange={(e) =>
                         handleUpdateServiceField(service.id, 'expectedVolume', parseInt(e.target.value) || 1)
                       }
-                      className="w-18 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                      className="w-18 px-2 py-1 text-xs font-mono border border-stone-200 bg-white rounded-lg"
                     />
                   </div>
 
                   <div className="flex items-center gap-1 text-xs">
-                    <label className="text-[10px] text-stone-500">Rate:</label>
+                    <label className="text-[10px] text-stone-500">
+                      Rate ({getCurrencySymbol(servCurrency)}):
+                    </label>
                     <input
                       type="number"
                       min="0.01"
@@ -1088,7 +1146,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       onChange={(e) =>
                         handleUpdateServiceField(service.id, 'rate', parseFloat(e.target.value) || 0)
                       }
-                      className="w-20 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                      className="w-20 px-2 py-1 text-xs font-bold font-mono border border-stone-200 bg-white rounded-lg"
                     />
                   </div>
 
@@ -1113,6 +1171,8 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       {isAddingItem || editingItem ? (
         <SharedCostItemForm
           initialItem={editingItem || undefined}
+          displayCurrency={displayCurrency}
+          exchangeRate={exchangeRate}
           availableEquipmentList={equipmentItems}
           onSave={handleSaveCostItem}
           onCancel={() => {
@@ -1123,6 +1183,10 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       ) : (
         <SharedCostItemList
           items={costItems}
+          displayCurrency={displayCurrency}
+          exchangeRate={exchangeRate}
+          onChangeCurrency={handleCurrencyChange}
+          onUpdateExchangeRate={handleRateChange}
           onAddItem={() => setIsAddingItem(true)}
           onEditItem={(item) => setEditingItem(item)}
           onDeleteItem={handleDeleteCostItem}

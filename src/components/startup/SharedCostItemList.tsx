@@ -12,10 +12,13 @@ import {
   DollarSign,
   TrendingUp,
   Sparkles,
-  Ship
+  Ship,
+  ArrowRightLeft
 } from 'lucide-react';
 import { CostItemClassification, StartupCostItem } from '../../types';
 import { calculateEquipmentDepreciation, calculateEquipmentRentalRevenue } from '../../services/startupFinancialsService';
+import { CurrencyCode, convertCurrency, DEFAULT_EXCHANGE_RATE, getCurrencySymbol } from '../../services/currencyService';
+import { CurrencyToggle } from './CurrencyToggle';
 
 interface SharedCostItemListProps {
   items: StartupCostItem[];
@@ -24,6 +27,12 @@ interface SharedCostItemListProps {
   onDeleteItem: (itemId: string) => void;
   title?: string;
   subtitle?: string;
+  displayCurrency?: CurrencyCode;
+  exchangeRate?: number;
+  onCurrencyChange?: (currency: CurrencyCode) => void;
+  onChangeCurrency?: (currency: CurrencyCode) => void;
+  onRateChange?: (rate: number) => void;
+  onUpdateExchangeRate?: (rate: number) => void;
 }
 
 export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
@@ -32,35 +41,81 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   onEditItem,
   onDeleteItem,
   title = 'Universal Cost & Asset Ledger',
-  subtitle = 'Manage capital equipment, raw materials, direct job costs, and monthly overheads'
+  subtitle = 'Manage capital equipment, raw materials, direct job costs, and monthly overheads',
+  displayCurrency: controlledCurrency,
+  exchangeRate: controlledRate = DEFAULT_EXCHANGE_RATE,
+  onCurrencyChange,
+  onChangeCurrency,
+  onRateChange,
+  onUpdateExchangeRate
 }) => {
+  const [internalCurrency, setInternalCurrency] = useState<CurrencyCode>('USD');
+  const [internalRate, setInternalRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
   const [activeFilter, setActiveFilter] = useState<CostItemClassification | 'all'>('all');
+
+  const currency = controlledCurrency ?? internalCurrency;
+  const exchangeRate = controlledRate ?? internalRate;
+  const currentSymbol = getCurrencySymbol(currency);
+
+  const handleCurrencyToggle = (newCur: CurrencyCode) => {
+    if (onChangeCurrency) {
+      onChangeCurrency(newCur);
+    } else if (onCurrencyChange) {
+      onCurrencyChange(newCur);
+    } else {
+      setInternalCurrency(newCur);
+    }
+  };
+
+  const handleRateUpdate = (newRate: number) => {
+    if (onUpdateExchangeRate) {
+      onUpdateExchangeRate(newRate);
+    } else if (onRateChange) {
+      onRateChange(newRate);
+    } else {
+      setInternalRate(newRate);
+    }
+  };
 
   const filteredItems = items.filter((item) => {
     if (activeFilter === 'all') return true;
     return item.classification === activeFilter;
   });
 
-  // Calculate high-level summary buckets
+  // Convert an item's raw value from its native currency into current displayCurrency
+  const normalizeItemValue = (value: number | undefined, itemCur?: CurrencyCode): number => {
+    if (value === undefined || isNaN(value)) return 0;
+    const from = itemCur || 'USD';
+    return convertCurrency(value, from, currency, exchangeRate);
+  };
+
+  // Calculate high-level summary buckets normalized to displayCurrency
   const equipmentItems = items.filter((i) => i.classification === 'equipment');
   const stockItems = items.filter((i) => i.classification === 'stock');
   const directItems = items.filter((i) => i.classification === 'direct');
   const operatingItems = items.filter((i) => i.classification === 'operating');
   const setupItems = items.filter((i) => i.classification === 'setup');
 
-  const totalEquipmentCost = equipmentItems.reduce((sum, i) => sum + (i.purchaseCost ?? i.amount ?? 0), 0);
-  const totalStockInitial = stockItems.reduce(
-    (sum, i) => sum + (i.stockQuantity ?? i.initialStockUnits ?? 1) * (i.stockUnitCost ?? 0),
-    0
-  );
-  const totalMonthlyOpEx = operatingItems.reduce(
-    (sum, i) => sum + (i.monthlyExpenseAmount ?? i.amount ?? 0),
-    0
-  );
-  const totalSetupCost = setupItems.reduce(
-    (sum, i) => sum + (i.setupExpenseAmount ?? i.amount ?? 0),
-    0
-  );
+  const totalEquipmentCost = equipmentItems.reduce((sum, i) => {
+    const raw = i.purchaseCost ?? i.amount ?? 0;
+    return sum + normalizeItemValue(raw, i.currency);
+  }, 0);
+
+  const totalStockInitial = stockItems.reduce((sum, i) => {
+    const qty = i.stockQuantity ?? i.initialStockUnits ?? 1;
+    const unitCost = normalizeItemValue(i.stockUnitCost ?? 0, i.currency);
+    return sum + (qty * unitCost);
+  }, 0);
+
+  const totalMonthlyOpEx = operatingItems.reduce((sum, i) => {
+    const raw = i.monthlyExpenseAmount ?? i.amount ?? 0;
+    return sum + normalizeItemValue(raw, i.currency);
+  }, 0);
+
+  const totalSetupCost = setupItems.reduce((sum, i) => {
+    const raw = i.setupExpenseAmount ?? i.amount ?? 0;
+    return sum + normalizeItemValue(raw, i.currency);
+  }, 0);
 
   const getClassificationBadge = (classification: CostItemClassification) => {
     switch (classification) {
@@ -101,19 +156,28 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
     <div className="space-y-4">
       {/* Header & Quick Summary Strip */}
       <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-stone-900">{title}</h3>
             <p className="text-xs text-stone-500 mt-0.5">{subtitle}</p>
           </div>
-          <button
-            type="button"
-            onClick={onAddItem}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors self-start sm:self-auto"
-          >
-            <Plus size={14} />
-            <span>Add Cost Item</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <CurrencyToggle
+              currentCurrency={currency}
+              exchangeRate={exchangeRate}
+              onCurrencyChange={handleCurrencyToggle}
+              onRateChange={handleRateUpdate}
+              compact
+            />
+            <button
+              type="button"
+              onClick={onAddItem}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus size={14} />
+              <span>Add Cost Item</span>
+            </button>
+          </div>
         </div>
 
         {/* Ledger Category Cards */}
@@ -122,11 +186,11 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
             <div className="text-[10.5px] font-semibold text-stone-500 flex items-center gap-1">
               <Wrench size={12} className="text-blue-600" /> Equipment Assets
             </div>
-            <div className="text-sm font-bold text-stone-900 mt-1">
-              ${totalEquipmentCost.toLocaleString()}
+            <div className="text-sm font-bold text-stone-900 mt-1 font-mono">
+              {currentSymbol} {totalEquipmentCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5">
-              {equipmentItems.length} asset{equipmentItems.length === 1 ? '' : 's'} registered
+              {equipmentItems.length} asset{equipmentItems.length === 1 ? '' : 's'} registered ({currency})
             </div>
           </div>
 
@@ -134,11 +198,11 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
             <div className="text-[10.5px] font-semibold text-stone-500 flex items-center gap-1">
               <Package size={12} className="text-amber-600" /> Initial Stock
             </div>
-            <div className="text-sm font-bold text-stone-900 mt-1">
-              ${totalStockInitial.toLocaleString()}
+            <div className="text-sm font-bold text-stone-900 mt-1 font-mono">
+              {currentSymbol} {totalStockInitial.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5">
-              {stockItems.length} item{stockItems.length === 1 ? '' : 's'} tracked
+              {stockItems.length} item{stockItems.length === 1 ? '' : 's'} tracked ({currency})
             </div>
           </div>
 
@@ -146,11 +210,11 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
             <div className="text-[10.5px] font-semibold text-stone-500 flex items-center gap-1">
               <Repeat size={12} className="text-emerald-600" /> Monthly Overhead
             </div>
-            <div className="text-sm font-bold text-emerald-800 mt-1">
-              ${totalMonthlyOpEx.toLocaleString()}/mo
+            <div className="text-sm font-bold text-emerald-800 mt-1 font-mono">
+              {currentSymbol} {totalMonthlyOpEx.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mo
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5">
-              {operatingItems.length} recurring bill{operatingItems.length === 1 ? '' : 's'}
+              {operatingItems.length} recurring bill{operatingItems.length === 1 ? '' : 's'} ({currency})
             </div>
           </div>
 
@@ -158,11 +222,11 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
             <div className="text-[10.5px] font-semibold text-stone-500 flex items-center gap-1">
               <Calendar size={12} className="text-stone-600" /> Setup Outlay
             </div>
-            <div className="text-sm font-bold text-stone-900 mt-1">
-              ${totalSetupCost.toLocaleString()}
+            <div className="text-sm font-bold text-stone-900 mt-1 font-mono">
+              {currentSymbol} {totalSetupCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-[10px] text-stone-400 mt-0.5">
-              {setupItems.length} one-time cost{setupItems.length === 1 ? '' : 's'}
+              {setupItems.length} one-time cost{setupItems.length === 1 ? '' : 's'} ({currency})
             </div>
           </div>
         </div>
@@ -184,7 +248,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
               key={pill.id}
               type="button"
               onClick={() => setActiveFilter(pill.id as any)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 activeFilter === pill.id
                   ? 'bg-stone-900 text-white shadow-2xs'
                   : 'bg-stone-100 text-stone-600 hover:bg-stone-200 hover:text-stone-900'
@@ -211,7 +275,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
           <button
             type="button"
             onClick={onAddItem}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold transition-colors cursor-pointer"
           >
             <Plus size={13} />
             <span>Add Item</span>
@@ -220,6 +284,10 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredItems.map((item) => {
+            const itemNativeCur: CurrencyCode = item.currency || 'USD';
+            const itemSymbol = getCurrencySymbol(itemNativeCur);
+            const isDifferentCurrency = itemNativeCur !== currency;
+
             return (
               <div
                 key={item.id}
@@ -235,12 +303,22 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                             {item.category}
                           </span>
                         )}
+                        <span
+                          className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${
+                            itemNativeCur === 'USD'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                          title={`Input currency: ${itemNativeCur}`}
+                        >
+                          {itemNativeCur}
+                        </span>
                       </div>
                       <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
                         {getClassificationBadge(item.classification)}
                         {item.importDetails?.isImported && (
                           <span className="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            <Ship size={10} /> Landed Import (Duties: ${item.importDetails.totalDutiesAndTaxes?.toLocaleString()})
+                            <Ship size={10} /> Landed Import (Duties: {itemSymbol} {item.importDetails.totalDutiesAndTaxes?.toLocaleString()})
                           </span>
                         )}
                       </div>
@@ -250,7 +328,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                       <button
                         type="button"
                         onClick={() => onEditItem(item)}
-                        className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
+                        className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
                         title="Edit Item"
                       >
                         <Edit2 size={13} />
@@ -258,7 +336,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                       <button
                         type="button"
                         onClick={() => onDeleteItem(item.id)}
-                        className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                         title="Delete Item"
                       >
                         <Trash2 size={13} />
@@ -271,84 +349,157 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                     {item.classification === 'equipment' && (() => {
                       const dep = calculateEquipmentDepreciation(item);
                       const rental = calculateEquipmentRentalRevenue(item);
+                      const pCostDisplay = normalizeItemValue(item.purchaseCost ?? 0, item.currency);
+                      const monthlyDepDisplay = normalizeItemValue(dep.monthlyDepreciation, item.currency);
+                      const rentalRevDisplay = normalizeItemValue(rental.monthlyRentalRevenue, item.currency);
+
                       return (
-                        <div className="space-y-1 text-[11px] text-stone-600">
+                        <div className="space-y-1 text-[11px] text-stone-600 font-mono">
                           <div className="flex justify-between">
-                            <span>Purchase Cost:</span>
-                            <span className="font-bold text-stone-900">${(item.purchaseCost ?? 0).toLocaleString()} (Month {item.purchaseMonth || 1})</span>
+                            <span className="font-sans">Purchase Cost:</span>
+                            <span className="font-bold text-stone-900">
+                              {currentSymbol} {pCostDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {isDifferentCurrency && (
+                                <span className="text-[9.5px] text-stone-400 font-sans ml-1">
+                                  ({itemSymbol} {(item.purchaseCost ?? 0).toLocaleString()})
+                                </span>
+                              )}
+                              <span className="font-sans text-stone-500 font-normal ml-1">
+                                (Month {item.purchaseMonth || 1})
+                              </span>
+                            </span>
                           </div>
-                          <div className="flex justify-between">
+                          <div className="flex justify-between font-sans text-stone-500 text-[10.5px]">
                             <span>Useful Life / Residual:</span>
-                            <span>{item.usefulLifeYears || 5} yrs (${item.residualValue || 0} salvage)</span>
+                            <span>
+                              {item.usefulLifeYears || 5} yrs ({currentSymbol} {normalizeItemValue(item.residualValue || 0, item.currency).toFixed(2)} salvage)
+                            </span>
                           </div>
                           <div className="flex justify-between text-emerald-800 font-semibold border-t border-stone-200/60 pt-1 mt-1">
-                            <span>Monthly Depreciation:</span>
-                            <span>${dep.monthlyDepreciation.toFixed(2)}/mo</span>
+                            <span className="font-sans">Monthly Depreciation:</span>
+                            <span>
+                              {currentSymbol} {monthlyDepDisplay.toFixed(2)}/mo
+                              {isDifferentCurrency && (
+                                <span className="text-[9.5px] text-emerald-600 font-sans ml-1">
+                                  ({itemSymbol} {dep.monthlyDepreciation.toFixed(2)}/mo)
+                                </span>
+                              )}
+                            </span>
                           </div>
                           {item.isRentalRevenueGenerator && (
                             <div className="flex justify-between text-blue-800 font-semibold bg-blue-50/70 p-1 rounded mt-1">
-                              <span>Rental Revenue Potential:</span>
-                              <span>+${rental.monthlyRentalRevenue.toLocaleString()}/mo</span>
+                              <span className="font-sans">Rental Revenue Potential:</span>
+                              <span>
+                                +{currentSymbol} {rentalRevDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mo
+                              </span>
                             </div>
                           )}
                         </div>
                       );
                     })()}
 
-                    {item.classification === 'stock' && (
-                      <div className="space-y-1 text-[11px] text-stone-600">
-                        <div className="flex justify-between">
-                          <span>Unit Supplier Cost:</span>
-                          <span className="font-bold text-stone-900">${(item.stockUnitCost ?? 0).toFixed(2)} / unit</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Initial Stock / Threshold:</span>
-                          <span>{item.stockQuantity ?? 100} units (Reorder at {item.stockReorderPoint || 0})</span>
-                        </div>
-                        <div className="flex justify-between text-stone-800 font-semibold border-t border-stone-200/60 pt-1 mt-1">
-                          <span>Initial Cash Outlay:</span>
-                          <span>${((item.stockQuantity ?? 100) * (item.stockUnitCost ?? 0)).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    )}
+                    {item.classification === 'stock' && (() => {
+                      const unitCostDisplay = normalizeItemValue(item.stockUnitCost ?? 0, item.currency);
+                      const initialStockDisplay = normalizeItemValue((item.stockQuantity ?? 100) * (item.stockUnitCost ?? 0), item.currency);
 
-                    {item.classification === 'direct' && (
-                      <div className="space-y-1 text-[11px] text-stone-600">
-                        <div className="flex justify-between">
-                          <span>Direct Cost per Sale/Job:</span>
-                          <span className="font-bold text-stone-900">${(item.directCostPerUnitOrJob ?? 0).toFixed(2)}</span>
-                        </div>
-                        <div className="text-[10px] text-stone-400">
-                          Automatically multiplies by monthly sales volume or billable services.
-                        </div>
-                      </div>
-                    )}
-
-                    {item.classification === 'operating' && (
-                      <div className="space-y-1 text-[11px] text-stone-600">
-                        <div className="flex justify-between">
-                          <span>Monthly Recurring Overhead:</span>
-                          <span className="font-bold text-emerald-800">${(item.monthlyExpenseAmount ?? 0).toLocaleString()}/mo</span>
-                        </div>
-                        {item.isMaintenanceForEquipmentId && (
-                          <div className="text-[10px] text-blue-700">
-                            Tagged for equipment maintenance
+                      return (
+                        <div className="space-y-1 text-[11px] text-stone-600 font-mono">
+                          <div className="flex justify-between">
+                            <span className="font-sans">Unit Supplier Cost:</span>
+                            <span className="font-bold text-stone-900">
+                              {currentSymbol} {unitCostDisplay.toFixed(2)} / unit
+                              {isDifferentCurrency && (
+                                <span className="text-[9.5px] text-stone-400 font-sans ml-1">
+                                  ({itemSymbol} {(item.stockUnitCost ?? 0).toFixed(2)})
+                                </span>
+                              )}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <div className="flex justify-between font-sans text-stone-500 text-[10.5px]">
+                            <span>Initial Stock / Threshold:</span>
+                            <span>{item.stockQuantity ?? 100} units (Reorder at {item.stockReorderPoint || 0})</span>
+                          </div>
+                          <div className="flex justify-between text-stone-800 font-semibold border-t border-stone-200/60 pt-1 mt-1">
+                            <span className="font-sans">Initial Cash Outlay:</span>
+                            <span>{currentSymbol} {initialStockDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
-                    {item.classification === 'setup' && (
-                      <div className="space-y-1 text-[11px] text-stone-600">
-                        <div className="flex justify-between">
-                          <span>One-Time Outlay:</span>
-                          <span className="font-bold text-stone-900">${(item.setupExpenseAmount ?? 0).toLocaleString()} (Month {item.setupMonth || 1})</span>
+                    {item.classification === 'direct' && (() => {
+                      const directCostDisplay = normalizeItemValue(item.directCostPerUnitOrJob ?? 0, item.currency);
+
+                      return (
+                        <div className="space-y-1 text-[11px] text-stone-600 font-mono">
+                          <div className="flex justify-between">
+                            <span className="font-sans">Direct Cost per Sale/Job:</span>
+                            <span className="font-bold text-stone-900">
+                              {currentSymbol} {directCostDisplay.toFixed(2)}
+                              {isDifferentCurrency && (
+                                <span className="text-[9.5px] text-stone-400 font-sans ml-1">
+                                  ({itemSymbol} {(item.directCostPerUnitOrJob ?? 0).toFixed(2)})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-stone-400 font-sans">
+                            Automatically multiplies by monthly sales volume or billable services.
+                          </div>
                         </div>
-                        <div className="text-[10px] text-stone-400">
-                          Cash hits during month {item.setupMonth || 1} of Year 1.
+                      );
+                    })()}
+
+                    {item.classification === 'operating' && (() => {
+                      const opExDisplay = normalizeItemValue(item.monthlyExpenseAmount ?? 0, item.currency);
+
+                      return (
+                        <div className="space-y-1 text-[11px] text-stone-600 font-mono">
+                          <div className="flex justify-between">
+                            <span className="font-sans">Monthly Recurring Overhead:</span>
+                            <span className="font-bold text-emerald-800">
+                              {currentSymbol} {opExDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mo
+                              {isDifferentCurrency && (
+                                <span className="text-[9.5px] text-emerald-600 font-sans ml-1">
+                                  ({itemSymbol} {(item.monthlyExpenseAmount ?? 0).toLocaleString()}/mo)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          {item.isMaintenanceForEquipmentId && (
+                            <div className="text-[10px] text-blue-700 font-sans">
+                              Tagged for equipment maintenance
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
+
+                    {item.classification === 'setup' && (() => {
+                      const setupDisplay = normalizeItemValue(item.setupExpenseAmount ?? 0, item.currency);
+
+                      return (
+                        <div className="space-y-1 text-[11px] text-stone-600 font-mono">
+                          <div className="flex justify-between">
+                            <span className="font-sans">One-Time Outlay:</span>
+                            <span className="font-bold text-stone-900">
+                              {currentSymbol} {setupDisplay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {isDifferentCurrency && (
+                                <span className="text-[9.5px] text-stone-400 font-sans ml-1">
+                                  ({itemSymbol} {(item.setupExpenseAmount ?? 0).toLocaleString()})
+                                </span>
+                              )}
+                              <span className="font-sans text-stone-500 font-normal ml-1">
+                                (Month {item.setupMonth || 1})
+                              </span>
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-stone-400 font-sans">
+                            Cash hits during month {item.setupMonth || 1} of Year 1.
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -365,3 +516,4 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
     </div>
   );
 };
+

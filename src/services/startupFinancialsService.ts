@@ -11,8 +11,16 @@ import {
   BusinessModelType,
   ServiceRevenueModel,
   ImportDutyCategory,
-  ImportDutyCalculation
+  ImportDutyCalculation,
+  CurrencyCode
 } from '../types';
+import {
+  DEFAULT_USD_TO_XCD_RATE,
+  convertCurrency,
+  normalizeCostItemToCurrency,
+  normalizeGoodsProductToCurrency,
+  normalizeServiceOfferingToCurrency
+} from './currencyService';
 
 /**
  * Cents-safe currency rounding
@@ -474,7 +482,13 @@ export function extractUnifiedCostItems(sd?: StartupPlanDetails): StartupCostIte
 /**
  * 12-Month Year 1 Forecast Engine + 5-Year Projections (Decision 3)
  */
-export function generateStartupFinancialForecast(sd?: StartupPlanDetails): {
+export function generateStartupFinancialForecast(
+  sd?: StartupPlanDetails,
+  targetCurrency?: CurrencyCode,
+  targetExchangeRate?: number
+): {
+  currency: CurrencyCode;
+  exchangeRate: number;
   monthlyYear1: MonthlyForecastMonth[];
   yearlyProjections: YearlyForecastSummary[];
   breakEven: BreakEvenResult;
@@ -492,10 +506,21 @@ export function generateStartupFinancialForecast(sd?: StartupPlanDetails): {
     equipmentCapitalOutlay: number;
   };
 } {
+  const activeCurrency: CurrencyCode = targetCurrency || sd?.displayCurrency || 'USD';
+  const activeRate: number = targetExchangeRate || sd?.exchangeRate || DEFAULT_USD_TO_XCD_RATE;
+
   const modelType: BusinessModelType = sd?.businessModelType || 'goods';
   const goodsType = sd?.goodsType || 'make';
-  const costItems = extractUnifiedCostItems(sd);
-  const startingCash = sd?.startingCash ?? 0;
+  
+  // Extract and normalize all cost items into active display currency
+  const rawCostItems = extractUnifiedCostItems(sd);
+  const costItems = rawCostItems.map((item) =>
+    normalizeCostItemToCurrency(item, activeCurrency, activeRate)
+  );
+
+  const startingCash = sd?.startingCash !== undefined
+    ? convertCurrency(sd.startingCash, 'USD', activeCurrency, activeRate)
+    : 0;
 
   // 1. Group cost items by classification
   const equipmentItems = costItems.filter((i) => i.classification === 'equipment');
@@ -504,10 +529,13 @@ export function generateStartupFinancialForecast(sd?: StartupPlanDetails): {
   const recurringOpExItems = costItems.filter((i) => i.classification === 'operating');
   const setupCostItems = costItems.filter((i) => i.classification === 'setup');
 
-  // Baseline Goods Products
-  let goodsProducts: GoodsProduct[] = sd?.goodsProducts || [];
+  // Baseline Goods Products (normalized)
+  let goodsProducts: GoodsProduct[] = (sd?.goodsProducts || []).map((p) =>
+    normalizeGoodsProductToCurrency(p, activeCurrency, activeRate)
+  );
   if (goodsProducts.length === 0 && (modelType === 'goods' || modelType === 'both')) {
-    const defaultPrice = sd?.cogs ? sd.cogs * (1 + (sd.markup || 50) / 100) : 25;
+    const rawPrice = sd?.cogs ? sd.cogs * (1 + (sd.markup || 50) / 100) : 25;
+    const defaultPrice = convertCurrency(rawPrice, 'USD', activeCurrency, activeRate);
     goodsProducts = [
       {
         id: 'default-goods-1',
@@ -520,19 +548,21 @@ export function generateStartupFinancialForecast(sd?: StartupPlanDetails): {
     ];
   }
 
-  // Baseline Service Offerings
-  let serviceOfferings: ServiceOffering[] = sd?.serviceOfferings || [];
+  // Baseline Service Offerings (normalized)
+  let serviceOfferings: ServiceOffering[] = (sd?.serviceOfferings || []).map((s) =>
+    normalizeServiceOfferingToCurrency(s, activeCurrency, activeRate)
+  );
   if (serviceOfferings.length === 0 && (modelType === 'services' || modelType === 'both')) {
     serviceOfferings = [
       {
         id: 'default-service-1',
         name: 'Core Service Offering',
         revenueModel: 'project',
-        rate: 250,
+        rate: convertCurrency(250, 'USD', activeCurrency, activeRate),
         expectedVolume: 20,
         monthlyGrowthRatePercent: 2,
         annualGrowthRatePercent: sd?.growthRateYear3 || 15,
-        directCostPerUnitOrJob: 35
+        directCostPerUnitOrJob: convertCurrency(35, 'USD', activeCurrency, activeRate)
       }
     ];
   }
@@ -884,6 +914,8 @@ export function generateStartupFinancialForecast(sd?: StartupPlanDetails): {
   };
 
   return {
+    currency: activeCurrency,
+    exchangeRate: activeRate,
     monthlyYear1,
     yearlyProjections,
     breakEven,

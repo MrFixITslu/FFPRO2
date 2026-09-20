@@ -12,14 +12,30 @@ import {
   Check,
   X,
   Repeat,
-  Ship
+  Ship,
+  ArrowLeftRight,
+  RefreshCw
 } from 'lucide-react';
-import { CostItemClassification, StartupCostItem, ImportDutyCalculation, ImportDutyCategory } from '../../types';
+import {
+  CostItemClassification,
+  StartupCostItem,
+  ImportDutyCalculation,
+  ImportDutyCategory,
+  CurrencyCode
+} from '../../types';
 import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
+import {
+  DEFAULT_USD_TO_XCD_RATE,
+  convertCurrency,
+  getCurrencySymbol,
+  formatCurrencyAmount
+} from '../../services/currencyService';
 
 interface SharedCostItemFormProps {
   initialItem?: Partial<StartupCostItem>;
   availableEquipmentList?: StartupCostItem[];
+  defaultCurrency?: CurrencyCode;
+  exchangeRate?: number;
   onSave: (item: StartupCostItem) => void;
   onCancel: () => void;
 }
@@ -27,6 +43,8 @@ interface SharedCostItemFormProps {
 export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   initialItem,
   availableEquipmentList = [],
+  defaultCurrency = 'USD',
+  exchangeRate = DEFAULT_USD_TO_XCD_RATE,
   onSave,
   onCancel
 }) => {
@@ -36,6 +54,11 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   const [name, setName] = useState(initialItem?.name || '');
   const [category, setCategory] = useState(initialItem?.category || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
+  
+  // Cost Item Currency (USD vs XCD)
+  const [currency, setCurrency] = useState<CurrencyCode>(
+    initialItem?.currency || defaultCurrency || 'USD'
+  );
 
   // Import Duties & Landed Shipping State
   const [importDetails, setImportDetails] = useState<ImportDutyCalculation | undefined>(
@@ -92,6 +115,52 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   );
   const [setupMonth, setSetupMonth] = useState(initialItem?.setupMonth?.toString() || '1');
 
+  // Helper function to convert all entered monetary numbers when user switches currencies
+  const handleCurrencySwitchAndConvert = (targetCurrency: CurrencyCode) => {
+    if (targetCurrency === currency) return;
+    const fromCur = currency;
+    const toCur = targetCurrency;
+
+    const convertNum = (strVal: string): string => {
+      const num = parseFloat(strVal);
+      if (isNaN(num) || num === 0) return strVal;
+      const converted = convertCurrency(num, fromCur, toCur, exchangeRate);
+      return (Math.round(converted * 100) / 100).toString();
+    };
+
+    setPurchaseCost(convertNum(purchaseCost));
+    setResidualValue(convertNum(residualValue));
+    setRentalRatePerUnit(convertNum(rentalRatePerUnit));
+    setStockUnitCost(convertNum(stockUnitCost));
+    setDirectCostPerUnitOrJob(convertNum(directCostPerUnitOrJob));
+    setMonthlyExpenseAmount(convertNum(monthlyExpenseAmount));
+    setSetupExpenseAmount(convertNum(setupExpenseAmount));
+
+    setCurrency(targetCurrency);
+  };
+
+  // Live conversion helper for an individual input field
+  const renderConversionHint = (valStr: string) => {
+    const num = parseFloat(valStr);
+    if (isNaN(num) || num <= 0) return null;
+
+    const otherCurrency: CurrencyCode = currency === 'USD' ? 'XCD' : 'USD';
+    const convertedAmount = convertCurrency(num, currency, otherCurrency, exchangeRate);
+    const otherSymbol = getCurrencySymbol(otherCurrency);
+
+    return (
+      <div className="flex items-center gap-1.5 text-[10.5px] text-stone-500 font-mono mt-1">
+        <span>≈</span>
+        <span className="font-semibold text-stone-700">
+          {otherSymbol} {convertedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+        <span className="text-stone-400 text-[9.5px]">
+          ({currency === 'USD' ? `x${exchangeRate} EC$` : `÷${exchangeRate} US$`})
+        </span>
+      </div>
+    );
+  };
+
   // Calculated live previews
   const pCostNum = Math.max(0, parseFloat(purchaseCost) || 0);
   const resValNum = Math.max(0, parseFloat(residualValue) || 0);
@@ -107,6 +176,8 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   const previewRentalDaysOrHours = Math.round(rUnits * rTime * rUtil);
   const previewMonthlyRentalRev = Math.round(previewRentalDaysOrHours * rRate);
 
+  const currentSymbol = getCurrencySymbol(currency);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -115,6 +186,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
       id: initialItem?.id || `cost-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: name.trim(),
       classification,
+      currency,
       category: category.trim() || undefined,
       notes: notes.trim() || undefined,
       importDetails: importDetails
@@ -170,7 +242,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
 
   return (
     <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-md space-y-6 animate-in fade-in duration-200">
-      <div className="flex items-center justify-between border-b border-stone-150 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-150 pb-4">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/70">
             Universal Cost Architecture
@@ -179,13 +251,42 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             {initialItem?.id ? 'Edit Financial Line Item' : 'Add Financial Line Item'}
           </h3>
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-colors"
-        >
-          <X size={16} />
-        </button>
+
+        {/* Currency Selector & Quick-Convert Bar */}
+        <div className="flex items-center gap-2 self-start sm:self-auto bg-stone-50 border border-stone-200 p-1.5 rounded-xl">
+          <span className="text-[10px] font-bold text-stone-500 uppercase px-1">Cost Currency:</span>
+          <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-stone-200 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleCurrencySwitchAndConvert('USD')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
+                currency === 'USD'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              }`}
+            >
+              US$ (USD)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCurrencySwitchAndConvert('XCD')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
+                currency === 'XCD'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+              }`}
+            >
+              EC$ (XCD)
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition-colors ml-1"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -359,19 +460,20 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Purchase Cost ($)
+                  Purchase Cost ({currentSymbol})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-2 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={purchaseCost}
                     onChange={(e) => setPurchaseCost(e.target.value)}
-                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
+                {renderConversionHint(purchaseCost)}
               </div>
 
               <div className="space-y-1">
@@ -384,25 +486,26 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                   max="30"
                   value={usefulLifeYears}
                   onChange={(e) => setUsefulLifeYears(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Residual / Salvage Value ($)
+                  Residual / Salvage Value ({currentSymbol})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-2 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={residualValue}
                     onChange={(e) => setResidualValue(e.target.value)}
-                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
+                {renderConversionHint(residualValue)}
               </div>
 
               <div className="space-y-1">
@@ -426,15 +529,15 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             {/* Live Depreciation Badge */}
             <div className="bg-white border border-stone-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="text-stone-600 font-medium">
-                P&L Depreciation Schedule:
+                P&L Depreciation Schedule ({currency}):
               </span>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 font-mono">
                 <span className="font-semibold text-stone-800">
-                  Annual: <strong>${annualDeprec.toFixed(2)}/yr</strong>
+                  Annual: <strong>{currentSymbol} {annualDeprec.toFixed(2)}/yr</strong>
                 </span>
                 <span className="text-stone-300">|</span>
                 <span className="font-semibold text-emerald-800">
-                  Monthly: <strong>${monthlyDeprec.toFixed(2)}/mo</strong>
+                  Monthly: <strong>{currentSymbol} {monthlyDeprec.toFixed(2)}/mo</strong>
                 </span>
               </div>
             </div>
@@ -571,28 +674,29 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-stone-700">
-                        Rental Rate per {rentalTimeUnit === 'hours' ? 'Hour' : 'Day'} ($)
+                        Rental Rate per {rentalTimeUnit === 'hours' ? 'Hour' : 'Day'} ({currentSymbol})
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                        <span className="absolute left-2.5 top-2 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={rentalRatePerUnit}
                           onChange={(e) => setRentalRatePerUnit(e.target.value)}
-                          className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg"
+                          className="w-full pl-10 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg font-mono focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                         />
                       </div>
+                      {renderConversionHint(rentalRatePerUnit)}
                     </div>
                   </div>
 
                   <div className="bg-white border border-emerald-200/80 rounded-lg p-2.5 flex items-center justify-between text-xs">
                     <span className="text-stone-600 font-medium">
-                      Projected Rental Capacity & Output:
+                      Projected Rental Capacity & Output ({currency}):
                     </span>
-                    <span className="font-bold text-emerald-800">
-                      ~{previewRentalDaysOrHours} {rentalTimeUnit}/mo → <strong>${previewMonthlyRentalRev.toLocaleString()}/mo Revenue</strong>
+                    <span className="font-bold text-emerald-800 font-mono">
+                      ~{previewRentalDaysOrHours} {rentalTimeUnit}/mo → <strong>{currentSymbol} {previewMonthlyRentalRev.toLocaleString()}/mo Revenue</strong>
                     </span>
                   </div>
                 </div>
@@ -622,25 +726,26 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                   min="1"
                   value={stockQuantity}
                   onChange={(e) => setStockQuantity(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Unit Cost from Supplier ($)
+                  Unit Cost from Supplier ({currentSymbol})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-2 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={stockUnitCost}
                     onChange={(e) => setStockUnitCost(e.target.value)}
-                    className="w-full pl-6 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
+                {renderConversionHint(stockUnitCost)}
               </div>
 
               <div className="space-y-1">
@@ -652,7 +757,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                   min="0"
                   value={stockReorderPoint}
                   onChange={(e) => setStockReorderPoint(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                 />
               </div>
 
@@ -666,15 +771,15 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                   step="0.01"
                   value={unitsConsumedPerProduct}
                   onChange={(e) => setUnitsConsumedPerProduct(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                 />
               </div>
             </div>
 
             <div className="bg-white border border-stone-200 rounded-lg p-3 flex items-center justify-between text-xs">
-              <span className="text-stone-600">Initial Stock Outlay (Month 1 Cash Outflow):</span>
-              <span className="font-bold text-emerald-800">
-                ${((parseFloat(stockQuantity) || 0) * (parseFloat(stockUnitCost) || 0)).toFixed(2)}
+              <span className="text-stone-600">Initial Stock Outlay ({currency} Month 1 Cash Outflow):</span>
+              <span className="font-bold text-emerald-800 font-mono">
+                {currentSymbol} {((parseFloat(stockQuantity) || 0) * (parseFloat(stockUnitCost) || 0)).toFixed(2)}
               </span>
             </div>
 
@@ -751,19 +856,20 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Direct Cost Amount per Unit / Job ($)
+                  Direct Cost Amount per Unit / Job ({currentSymbol})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-2.5 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={directCostPerUnitOrJob}
                     onChange={(e) => setDirectCostPerUnitOrJob(e.target.value)}
-                    className="w-full pl-6 pr-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
+                {renderConversionHint(directCostPerUnitOrJob)}
               </div>
 
               <div className="flex items-center text-xs text-stone-500 pt-5">
@@ -787,19 +893,20 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Monthly Expense Amount ($)
+                  Monthly Expense Amount ({currentSymbol})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-2.5 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={monthlyExpenseAmount}
                     onChange={(e) => setMonthlyExpenseAmount(e.target.value)}
-                    className="w-full pl-6 pr-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
+                {renderConversionHint(monthlyExpenseAmount)}
               </div>
 
               {availableEquipmentList.length > 0 && (
@@ -839,19 +946,20 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Total Setup Amount ($)
+                  Total Setup Amount ({currentSymbol})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs text-stone-400">$</span>
+                  <span className="absolute left-2.5 top-2.5 text-xs font-semibold text-stone-500">{currentSymbol}</span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={setupExpenseAmount}
                     onChange={(e) => setSetupExpenseAmount(e.target.value)}
-                    className="w-full pl-6 pr-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                    className="w-full pl-10 pr-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
                   />
                 </div>
+                {renderConversionHint(setupExpenseAmount)}
               </div>
 
               <div className="space-y-1">

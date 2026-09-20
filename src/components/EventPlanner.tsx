@@ -3068,10 +3068,14 @@ const EventPlanner: React.FC<Props> = ({
                               products={sd.goodsProducts || []}
                               costItems={sd.costItems || []}
                               startingCash={sd.startingCash ?? 10000}
+                              displayCurrency={sd.displayCurrency || 'USD'}
+                              exchangeRate={sd.exchangeRate || 2.70}
                               onUpdateProducts={(goodsProducts) => handleUpdateStartup({ goodsProducts })}
                               onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
                               onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
                               onUpdateGoodsType={(goodsType) => handleUpdateStartup({ goodsType })}
+                              onChangeDisplayCurrency={(displayCurrency) => handleUpdateStartup({ displayCurrency })}
+                              onUpdateExchangeRate={(exchangeRate) => handleUpdateStartup({ exchangeRate })}
                             />
                           )}
 
@@ -3081,10 +3085,14 @@ const EventPlanner: React.FC<Props> = ({
                               capacityPlan={sd.serviceCapacityPlan}
                               costItems={sd.costItems || []}
                               startingCash={sd.startingCash ?? 10000}
+                              displayCurrency={sd.displayCurrency || 'USD'}
+                              exchangeRate={sd.exchangeRate || 2.70}
                               onUpdateServices={(serviceOfferings) => handleUpdateStartup({ serviceOfferings })}
                               onUpdateCapacityPlan={(serviceCapacityPlan) => handleUpdateStartup({ serviceCapacityPlan })}
                               onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
                               onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
+                              onChangeDisplayCurrency={(displayCurrency) => handleUpdateStartup({ displayCurrency })}
+                              onUpdateExchangeRate={(exchangeRate) => handleUpdateStartup({ exchangeRate })}
                             />
                           )}
 
@@ -3121,10 +3129,14 @@ const EventPlanner: React.FC<Props> = ({
                                   products={sd.goodsProducts || []}
                                   costItems={sd.costItems || []}
                                   startingCash={sd.startingCash ?? 10000}
+                                  displayCurrency={sd.displayCurrency || 'USD'}
+                                  exchangeRate={sd.exchangeRate || 2.70}
                                   onUpdateProducts={(goodsProducts) => handleUpdateStartup({ goodsProducts })}
                                   onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
                                   onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
                                   onUpdateGoodsType={(goodsType) => handleUpdateStartup({ goodsType })}
+                                  onChangeDisplayCurrency={(displayCurrency) => handleUpdateStartup({ displayCurrency })}
+                                  onUpdateExchangeRate={(exchangeRate) => handleUpdateStartup({ exchangeRate })}
                                 />
                               ) : (
                                 <ServicesWorkflowPanel
@@ -3132,10 +3144,14 @@ const EventPlanner: React.FC<Props> = ({
                                   capacityPlan={sd.serviceCapacityPlan}
                                   costItems={sd.costItems || []}
                                   startingCash={sd.startingCash ?? 10000}
+                                  displayCurrency={sd.displayCurrency || 'USD'}
+                                  exchangeRate={sd.exchangeRate || 2.70}
                                   onUpdateServices={(serviceOfferings) => handleUpdateStartup({ serviceOfferings })}
                                   onUpdateCapacityPlan={(serviceCapacityPlan) => handleUpdateStartup({ serviceCapacityPlan })}
                                   onUpdateCostItems={(costItems) => handleUpdateStartup({ costItems })}
                                   onUpdateStartingCash={(startingCash) => handleUpdateStartup({ startingCash })}
+                                  onChangeDisplayCurrency={(displayCurrency) => handleUpdateStartup({ displayCurrency })}
+                                  onUpdateExchangeRate={(exchangeRate) => handleUpdateStartup({ exchangeRate })}
                                 />
                               )}
                             </div>
@@ -3214,7 +3230,13 @@ const EventPlanner: React.FC<Props> = ({
                   {/* Step 3: 12-Month & 5-Year Financial Forecasts */}
                   {businessPlanSubTab === 'forecast' && (
                     <div className="space-y-6">
-                      <StartupFinancialSummary startupDetails={sd} />
+                      <StartupFinancialSummary
+                        startupDetails={sd}
+                        displayCurrency={sd.displayCurrency || 'USD'}
+                        exchangeRate={sd.exchangeRate || 2.70}
+                        onChangeDisplayCurrency={(displayCurrency) => handleUpdateStartup({ displayCurrency })}
+                        onUpdateExchangeRate={(exchangeRate) => handleUpdateStartup({ exchangeRate })}
+                      />
 
                       {/* Step 3 Footer Navigation */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-stone-50 border border-stone-200 rounded-2xl">
