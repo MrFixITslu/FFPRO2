@@ -343,12 +343,54 @@ export type CostItemClassification =
   | 'operating'   // Recurring Operating Expense (Rent, utilities, subscriptions, insurance)
   | 'setup';      // One-Time Setup Expense (Deposits, licenses, launch branding)
 
+export type ImportDutyCategory = 
+  | 'electronics'         // 20% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT (Effective ~46.25%)
+  | 'computers_it'        // 0% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT (Effective ~23.75%)
+  | 'machinery_tools'     // 5% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT (Effective ~29.38%)
+  | 'furniture_fixtures'  // 20% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT (Effective ~46.25%)
+  | 'apparel_textiles'    // 20% Duty, 6% CSC, 2.5% HCSL, 0% ENV, 12.5% VAT (Effective ~44.56%)
+  | 'vehicles_heavy'      // 30% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT (Effective ~57.50%)
+  | 'raw_materials_food'  // 10% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT (Effective ~35.00%)
+  | 'general_commercial'  // 20% Duty, 6% CSC, 2.5% HCSL, 1.5% ENV, 12.5% VAT
+  | 'custom';             // Custom user-defined rates
+
+export interface ImportDutyCalculation {
+  isImported?: boolean;
+  country?: 'saint_lucia' | 'caricom' | 'custom';
+  category?: ImportDutyCategory;
+  fobCost?: number; // Base invoice/purchase price
+  shippingFreight?: number; // Air or ocean freight
+  insuranceCost?: number; // Marine/cargo insurance
+  cifValue?: number; // FOB + Freight + Insurance
+  
+  // St. Lucia statutory levies & customs duties
+  dutyRatePercent?: number; // e.g. 20%
+  dutyAmount?: number;
+  cscRatePercent?: number; // Customs Service Charge 6%
+  cscAmount?: number;
+  hcslRatePercent?: number; // Health & Citizen Security Levy 2.5%
+  hcslAmount?: number;
+  envRatePercent?: number; // Environmental Levy 1.5%
+  envAmount?: number;
+  landedBeforeVat?: number;
+  vatRatePercent?: number; // 12.5%
+  vatAmount?: number;
+  totalDutiesAndTaxes?: number;
+  
+  portAndBrokerageFee?: number; // Flat port / broker clearance charges
+  totalLandedCost?: number; // Total landed cost (CIF + Duties + Port)
+  costPerUnitLanded?: number; // Unit landed cost
+}
+
 export interface StartupCostItem {
   id: string;
   name: string;
   classification: CostItemClassification;
   category?: string;
   notes?: string;
+
+  // Import Duties & Shipping Provision
+  importDetails?: ImportDutyCalculation;
 
   // Reusable Equipment fields
   purchaseCost?: number;
@@ -432,6 +474,16 @@ export interface EquipmentCapacityDetails {
   availableDaysPerUnit: number; // Monthly rental days per unit (e.g. 25)
   targetUtilisationPercent: number; // e.g. 50%
   dailyRate: number; // $/day
+
+  // Asset Acquisition & Import Duties Provision
+  hasAcquisitionPlan?: boolean;
+  unitPurchasePrice?: number; // FOB price per unit
+  shippingFreightPerUnit?: number; // Shipping/freight per unit
+  insurancePerUnit?: number; // Insurance per unit (defaults to 1% FOB if omitted)
+  importCategory?: ImportDutyCategory;
+  importDetails?: ImportDutyCalculation;
+  amortizationMonths?: number; // e.g. 12, 24, 36 months to amortize capital outlay into monthly overhead
+  includeAmortizationInMonthlyOpEx?: boolean;
 }
 
 export interface ServiceCapacityPlan {

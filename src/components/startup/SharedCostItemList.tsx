@@ -11,7 +11,8 @@ import {
   Filter,
   DollarSign,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  Ship
 } from 'lucide-react';
 import { CostItemClassification, StartupCostItem } from '../../types';
 import { calculateEquipmentDepreciation, calculateEquipmentRentalRevenue } from '../../services/startupFinancialsService';
@@ -235,7 +236,14 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="pt-0.5">{getClassificationBadge(item.classification)}</div>
+                      <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
+                        {getClassificationBadge(item.classification)}
+                        {item.importDetails?.isImported && (
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <Ship size={10} /> Landed Import (Duties: ${item.importDetails.totalDutiesAndTaxes?.toLocaleString()})
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">

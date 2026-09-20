@@ -16,16 +16,20 @@ import {
   Layers,
   ArrowRight,
   CheckSquare,
-  Square
+  Square,
+  Ship
 } from 'lucide-react';
 import {
   ServiceOffering,
   ServiceCapacityPlan,
   ServiceRevenueModel,
-  StartupCostItem
+  StartupCostItem,
+  ImportDutyCalculation,
+  ImportDutyCategory
 } from '../../types';
 import { SharedCostItemList } from './SharedCostItemList';
 import { SharedCostItemForm } from './SharedCostItemForm';
+import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
 import { calculateServiceCapacity, roundCurrency } from '../../services/startupFinancialsService';
 
 interface ServicesWorkflowPanelProps {
@@ -52,6 +56,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   const [editingItem, setEditingItem] = useState<StartupCostItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
+  const [showFleetImportCalculator, setShowFleetImportCalculator] = useState(false);
   const [hoveredGuide, setHoveredGuide] = useState<string | null>(null);
 
   // Initialize independent staff and equipment plans
@@ -106,6 +111,54 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         hourlyOrDailyRate: updatedEquip.dailyRate
       })
     });
+  };
+
+  const handleSyncFleetToCostLedger = (result: {
+    totalLandedCost: number;
+    costPerUnitLanded: number;
+    importDetails: ImportDutyCalculation;
+  }) => {
+    handleUpdateEquipmentPlan({
+      hasAcquisitionPlan: true,
+      unitPurchasePrice: result.importDetails.fobCost ? (result.importDetails.fobCost / equipmentPlan.resourceCount) : undefined,
+      shippingFreightPerUnit: result.importDetails.shippingFreight ? (result.importDetails.shippingFreight / equipmentPlan.resourceCount) : undefined,
+      importCategory: result.importDetails.category,
+      importDetails: result.importDetails
+    });
+
+    const existingIndex = costItems.findIndex(
+      (i) => i.classification === 'equipment' && (i.isRentalRevenueGenerator || i.name.toLowerCase().includes('rental') || i.name.toLowerCase().includes('fleet'))
+    );
+
+    const fleetItem: StartupCostItem = {
+      id: existingIndex >= 0 ? costItems[existingIndex].id : `cost-fleet-${Date.now()}`,
+      name: `${equipmentPlan.resourceCount}x Rental Fleet Units (${result.importDetails.category?.replace('_', ' ').toUpperCase() || 'EQUIPMENT'})`,
+      classification: 'equipment',
+      category: 'Fleet & Rental Assets',
+      purchaseCost: result.totalLandedCost,
+      amount: result.totalLandedCost,
+      residualValue: roundCurrency(result.totalLandedCost * 0.1),
+      usefulLifeYears: 4,
+      purchaseMonth: 1,
+      isRentalRevenueGenerator: true,
+      rentalUnitsOwned: equipmentPlan.resourceCount,
+      rentalAvailableTimePerUnit: equipmentPlan.availableDaysPerUnit,
+      rentalUtilisationPercent: equipmentPlan.targetUtilisationPercent,
+      rentalRatePerUnit: equipmentPlan.dailyRate,
+      rentalTimeUnit: 'days',
+      importDetails: result.importDetails,
+      notes: `Landed asset imported to Saint Lucia (ASYCUDA Tariff Category: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}). CIF: $${result.importDetails.cifValue?.toLocaleString()}, Total Duties & Levies: $${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}.`
+    };
+
+    let updatedCostList: StartupCostItem[];
+    if (existingIndex >= 0) {
+      updatedCostList = [...costItems];
+      updatedCostList[existingIndex] = fleetItem;
+    } else {
+      updatedCostList = [fleetItem, ...costItems];
+    }
+    onUpdateCostItems(updatedCostList);
+    setShowFleetImportCalculator(false);
   };
 
   // New service form state
@@ -752,6 +805,63 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   <div className="font-bold text-amber-900">
                     Equipment Revenue: <span>${capacityCalc.equipment.monthlyRevenue.toLocaleString()}/mo</span>
                   </div>
+                </div>
+
+                {/* Fleet Equipment Acquisition & Landed Import Duty Provisioning */}
+                <div className="border border-amber-200/90 rounded-xl bg-amber-50/50 p-3 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-lg bg-amber-200/70 text-amber-900">
+                        <Ship size={14} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-stone-900">
+                          Fleet Import Shipping &amp; Customs Duties (Saint Lucia ASYCUDA Tariffs)
+                        </span>
+                        <p className="text-[10.5px] text-stone-600">
+                          Provision ocean/air shipping freight, customs duties, CSC (6%), HCSL (2.5%), ENV, and VAT for {equipmentPlan.resourceCount} units.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowFleetImportCalculator(!showFleetImportCalculator)}
+                      className="text-xs font-bold text-amber-900 hover:text-amber-950 px-3 py-1 rounded-lg border border-amber-300 bg-white hover:bg-amber-100/80 transition-colors cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
+                    >
+                      {showFleetImportCalculator ? 'Hide Duty Provision' : (equipmentPlan.importDetails?.isImported ? 'Adjust Landed Cost' : '+ Provision Import & Shipping')}
+                    </button>
+                  </div>
+
+                  {equipmentPlan.importDetails?.isImported && !showFleetImportCalculator && (
+                    <div className="bg-white border border-amber-200 rounded-lg p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-800">
+                      <span className="font-semibold flex items-center gap-1 text-emerald-800">
+                        <Check size={13} className="text-emerald-700" /> Landed Capital Cost ({equipmentPlan.resourceCount} Units • {equipmentPlan.importDetails.category?.toUpperCase()}):
+                      </span>
+                      <div className="flex items-center gap-3 text-[11px] font-medium">
+                        <span>FOB: <strong>${equipmentPlan.importDetails.fobCost?.toLocaleString()}</strong></span>
+                        <span>•</span>
+                        <span>Freight/Ins: <strong>${((equipmentPlan.importDetails.shippingFreight || 0) + (equipmentPlan.importDetails.insurance || 0)).toLocaleString()}</strong></span>
+                        <span>•</span>
+                        <span>Customs Taxes: <strong>${equipmentPlan.importDetails.totalDutiesAndTaxes?.toLocaleString()}</strong></span>
+                        <span>•</span>
+                        <span>Total Landed: <strong className="text-emerald-800 font-bold">${equipmentPlan.importDetails.totalLandedCost?.toLocaleString()}</strong></span>
+                      </div>
+                    </div>
+                  )}
+
+                  {showFleetImportCalculator && (
+                    <div className="pt-2">
+                      <ImportLandedCostCalculator
+                        initialUnitsCount={equipmentPlan.resourceCount}
+                        initialFobUnitCost={equipmentPlan.unitPurchasePrice || 500}
+                        initialCategory={equipmentPlan.importCategory || 'electronics'}
+                        initialImportDetails={equipmentPlan.importDetails}
+                        isCompact
+                        onApplyLandedCost={handleSyncFleetToCostLedger}
+                        onClose={() => setShowFleetImportCalculator(false)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

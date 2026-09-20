@@ -11,9 +11,11 @@ import {
   Plus,
   Check,
   X,
-  Repeat
+  Repeat,
+  Ship
 } from 'lucide-react';
-import { CostItemClassification, StartupCostItem } from '../../types';
+import { CostItemClassification, StartupCostItem, ImportDutyCalculation, ImportDutyCategory } from '../../types';
+import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
 
 interface SharedCostItemFormProps {
   initialItem?: Partial<StartupCostItem>;
@@ -34,6 +36,14 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   const [name, setName] = useState(initialItem?.name || '');
   const [category, setCategory] = useState(initialItem?.category || '');
   const [notes, setNotes] = useState(initialItem?.notes || '');
+
+  // Import Duties & Landed Shipping State
+  const [importDetails, setImportDetails] = useState<ImportDutyCalculation | undefined>(
+    initialItem?.importDetails
+  );
+  const [showImportCalculator, setShowImportCalculator] = useState<boolean>(
+    !!initialItem?.importDetails?.isImported
+  );
 
   // Equipment fields
   const [purchaseCost, setPurchaseCost] = useState(initialItem?.purchaseCost?.toString() || initialItem?.amount?.toString() || '1500');
@@ -106,7 +116,8 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
       name: name.trim(),
       classification,
       category: category.trim() || undefined,
-      notes: notes.trim() || undefined
+      notes: notes.trim() || undefined,
+      importDetails: importDetails
     };
 
     if (classification === 'equipment') {
@@ -428,6 +439,65 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
               </div>
             </div>
 
+            {/* Import & Customs Duties Provision */}
+            <div className="border border-stone-200 rounded-xl bg-white p-3.5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
+                    <Ship size={14} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-stone-900">
+                      Import Shipping &amp; Customs Duties (Saint Lucia ASYCUDA Tariffs)
+                    </span>
+                    <p className="text-[10.5px] text-stone-500">
+                      Compute freight, insurance, CSC (6%), HCSL (2.5%), ENV, and VAT (12.5%) for electronics, machinery, computers, or general items.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowImportCalculator(!showImportCalculator)}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer self-start sm:self-auto"
+                >
+                  {showImportCalculator ? 'Hide Calculator' : (importDetails?.isImported ? 'Edit Landed Calculation' : '+ Calculate Landed Cost')}
+                </button>
+              </div>
+
+              {importDetails?.isImported && !showImportCalculator && (
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-lg p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950">
+                  <span className="font-semibold flex items-center gap-1">
+                    <Check size={13} className="text-emerald-700" /> Landed Cost Active ({importDetails.category?.toUpperCase()}):
+                  </span>
+                  <div className="flex items-center gap-3 font-medium">
+                    <span>FOB: <strong>${importDetails.fobCost?.toLocaleString()}</strong></span>
+                    <span>•</span>
+                    <span>Taxes &amp; Levies: <strong>${importDetails.totalDutiesAndTaxes?.toLocaleString()}</strong></span>
+                    <span>•</span>
+                    <span>Total Landed: <strong className="text-emerald-800">${importDetails.totalLandedCost?.toLocaleString()}</strong></span>
+                  </div>
+                </div>
+              )}
+
+              {showImportCalculator && (
+                <div className="pt-2">
+                  <ImportLandedCostCalculator
+                    initialUnitsCount={isRentalRevenueGenerator ? rUnits : 1}
+                    initialFobUnitCost={pCostNum / (isRentalRevenueGenerator ? rUnits : 1)}
+                    initialCategory={importDetails?.category || 'electronics'}
+                    initialImportDetails={importDetails}
+                    isCompact
+                    onApplyLandedCost={(res) => {
+                      setImportDetails(res.importDetails);
+                      setPurchaseCost(res.totalLandedCost.toString());
+                      setShowImportCalculator(false);
+                    }}
+                    onClose={() => setShowImportCalculator(false)}
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Decision 2: Direct Rental Revenue Toggle */}
             <div className="border-t border-stone-200/80 pt-3 space-y-3">
               <div className="flex items-center justify-between">
@@ -606,6 +676,63 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
               <span className="font-bold text-emerald-800">
                 ${((parseFloat(stockQuantity) || 0) * (parseFloat(stockUnitCost) || 0)).toFixed(2)}
               </span>
+            </div>
+
+            {/* Import & Customs Duties Provision for Inventory/Stock */}
+            <div className="border border-stone-200 rounded-xl bg-white p-3.5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
+                    <Ship size={14} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-stone-900">
+                      Import Freight &amp; Customs Duties (Raw Materials / Stock Landed Cost)
+                    </span>
+                    <p className="text-[10.5px] text-stone-500">
+                      Compute CIF, import duties, CSC, HCSL, and VAT to determine the exact unit landed cost of inventory.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowImportCalculator(!showImportCalculator)}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer self-start sm:self-auto"
+                >
+                  {showImportCalculator ? 'Hide Calculator' : (importDetails?.isImported ? 'Edit Landed Calculation' : '+ Calculate Landed Unit Cost')}
+                </button>
+              </div>
+
+              {importDetails?.isImported && !showImportCalculator && (
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-lg p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950">
+                  <span className="font-semibold flex items-center gap-1">
+                    <Check size={13} className="text-emerald-700" /> Landed Unit Cost Active ({importDetails.category?.toUpperCase()}):
+                  </span>
+                  <div className="flex items-center gap-3 font-medium">
+                    <span>Batch Total: <strong>${importDetails.totalLandedCost?.toLocaleString()}</strong></span>
+                    <span>•</span>
+                    <span>Unit Landed: <strong className="text-emerald-800">${importDetails.costPerUnitLanded?.toLocaleString()} / unit</strong></span>
+                  </div>
+                </div>
+              )}
+
+              {showImportCalculator && (
+                <div className="pt-2">
+                  <ImportLandedCostCalculator
+                    initialUnitsCount={parseFloat(stockQuantity) || 100}
+                    initialFobUnitCost={parseFloat(stockUnitCost) || 10}
+                    initialCategory={importDetails?.category || 'raw_materials_food'}
+                    initialImportDetails={importDetails}
+                    isCompact
+                    onApplyLandedCost={(res) => {
+                      setImportDetails(res.importDetails);
+                      setStockUnitCost(res.costPerUnitLanded.toString());
+                      setShowImportCalculator(false);
+                    }}
+                    onClose={() => setShowImportCalculator(false)}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

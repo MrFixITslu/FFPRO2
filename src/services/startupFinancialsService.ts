@@ -9,7 +9,9 @@ import {
   BreakEvenResult,
   CostItemClassification,
   BusinessModelType,
-  ServiceRevenueModel
+  ServiceRevenueModel,
+  ImportDutyCategory,
+  ImportDutyCalculation
 } from '../types';
 
 /**
@@ -26,6 +28,196 @@ export function roundCurrency(value: number): number {
 export function sumCurrency(...values: (number | undefined)[]): number {
   const sum = values.reduce<number>((acc, v) => acc + (v || 0), 0);
   return roundCurrency(sum);
+}
+
+export interface DutyPresetRates {
+  label: string;
+  shortLabel: string;
+  description: string;
+  dutyRatePercent: number;
+  cscRatePercent: number;
+  hcslRatePercent: number;
+  envRatePercent: number;
+  vatRatePercent: number;
+  effectiveRatePercent: number;
+}
+
+export const SAINT_LUCIA_DUTY_PRESETS: Record<ImportDutyCategory, DutyPresetRates> = {
+  electronics: {
+    label: 'Electronics, AV, Simulators & Gaming Units',
+    shortLabel: 'Electronics (20% Duty + Levies + VAT)',
+    description: 'Commercial gaming units, simulators, displays, audio systems, entertainment hardware (20% Duty + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~46.25% effective)',
+    dutyRatePercent: 20,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 46.25
+  },
+  computers_it: {
+    label: 'Computers, Laptops & IT Hardware (0% Duty Exemption)',
+    shortLabel: 'Computers / IT (0% Duty + Levies + VAT)',
+    description: 'Laptops, tablets, desktop workstations, networking & server equipment (0% CARICOM duty exemption + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~23.75% effective)',
+    dutyRatePercent: 0,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 23.75
+  },
+  machinery_tools: {
+    label: 'Commercial Machinery, Tools & Solar Equipment',
+    shortLabel: 'Machinery & Tools (5% Duty + Levies + VAT)',
+    description: 'Commercial manufacturing plant, power tools, solar panels & energy systems (5% capital equipment duty + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~29.38% effective)',
+    dutyRatePercent: 5,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 29.38
+  },
+  furniture_fixtures: {
+    label: 'Commercial Furniture, Fixtures & Fittings',
+    shortLabel: 'Furniture & Fixtures (20% Duty + Levies + VAT)',
+    description: 'Commercial desks, salon/gaming chairs, booths, display shelves, lighting (20% Duty + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~46.25% effective)',
+    dutyRatePercent: 20,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 46.25
+  },
+  apparel_textiles: {
+    label: 'Apparel, Uniforms & Commercial Textiles',
+    shortLabel: 'Uniforms & Textiles (20% Duty + Levies + VAT)',
+    description: 'Branded staff uniforms, commercial linen, protective clothing (20% Duty + 6% CSC + 2.5% HCSL + 0% ENV + 12.5% VAT = ~44.56% effective)',
+    dutyRatePercent: 20,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 0,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 44.56
+  },
+  vehicles_heavy: {
+    label: 'Commercial Vehicles, Vans & Heavy Equipment',
+    shortLabel: 'Vehicles & Heavy Gear (30% Duty + Levies + VAT)',
+    description: 'Transport vans, utility trailers, heavy service equipment (30% Duty + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~57.50% effective)',
+    dutyRatePercent: 30,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 57.50
+  },
+  raw_materials_food: {
+    label: 'Raw Materials & Commercial Packaging',
+    shortLabel: 'Raw Materials (10% Duty + Levies + VAT)',
+    description: 'Bulk raw ingredients, food-grade packaging supplies, consumable stock (10% Duty + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~35.00% effective)',
+    dutyRatePercent: 10,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 35.00
+  },
+  general_commercial: {
+    label: 'General Commercial Imported Goods',
+    shortLabel: 'General Goods (20% Duty + Levies + VAT)',
+    description: 'Standard commercial imports (20% Duty + 6% CSC + 2.5% HCSL + 1.5% ENV + 12.5% VAT = ~46.25% effective)',
+    dutyRatePercent: 20,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 46.25
+  },
+  custom: {
+    label: 'Custom User-Defined Tariff Rates',
+    shortLabel: 'Custom Tariff Rates',
+    description: 'Manually adjust Duty, Customs Service Charge, Health & Security Levy, Environmental Levy, and VAT percentages',
+    dutyRatePercent: 20,
+    cscRatePercent: 6,
+    hcslRatePercent: 2.5,
+    envRatePercent: 1.5,
+    vatRatePercent: 12.5,
+    effectiveRatePercent: 46.25
+  }
+};
+
+/**
+ * Calculate complete Saint Lucia / International landed import costs, duties, taxes and port fees
+ */
+export function calculateLandedImportCost(params: {
+  fobCost: number;
+  shippingFreight?: number;
+  insuranceCost?: number;
+  category?: ImportDutyCategory;
+  country?: 'saint_lucia' | 'caricom' | 'custom';
+  customDutyRate?: number;
+  customCscRate?: number;
+  customHcslRate?: number;
+  customEnvRate?: number;
+  customVatRate?: number;
+  portAndBrokerageFee?: number;
+  unitsCount?: number;
+}): ImportDutyCalculation {
+  const category = params.category || 'electronics';
+  const preset = SAINT_LUCIA_DUTY_PRESETS[category] || SAINT_LUCIA_DUTY_PRESETS.electronics;
+
+  const fobCost = Math.max(0, params.fobCost || 0);
+  const shippingFreight = Math.max(0, params.shippingFreight || 0);
+  // Default customs insurance estimate is 1% of FOB if not specified
+  const insuranceCost = params.insuranceCost !== undefined && params.insuranceCost > 0
+    ? params.insuranceCost
+    : (fobCost > 0 ? roundCurrency(fobCost * 0.01) : 0);
+
+  const cifValue = roundCurrency(fobCost + shippingFreight + insuranceCost);
+
+  const dutyRatePercent = params.customDutyRate !== undefined ? params.customDutyRate : preset.dutyRatePercent;
+  const cscRatePercent = params.customCscRate !== undefined ? params.customCscRate : preset.cscRatePercent;
+  const hcslRatePercent = params.customHcslRate !== undefined ? params.customHcslRate : preset.hcslRatePercent;
+  const envRatePercent = params.customEnvRate !== undefined ? params.customEnvRate : preset.envRatePercent;
+  const vatRatePercent = params.customVatRate !== undefined ? params.customVatRate : preset.vatRatePercent;
+
+  const dutyAmount = roundCurrency(cifValue * (dutyRatePercent / 100));
+  const cscAmount = roundCurrency(cifValue * (cscRatePercent / 100));
+  const hcslAmount = roundCurrency(cifValue * (hcslRatePercent / 100));
+  const envAmount = roundCurrency(cifValue * (envRatePercent / 100));
+
+  const landedBeforeVat = roundCurrency(cifValue + dutyAmount + cscAmount + hcslAmount + envAmount);
+  const vatAmount = roundCurrency(landedBeforeVat * (vatRatePercent / 100));
+  const totalDutiesAndTaxes = roundCurrency(dutyAmount + cscAmount + hcslAmount + envAmount + vatAmount);
+
+  const portAndBrokerageFee = Math.max(0, params.portAndBrokerageFee || 0);
+  const totalLandedCost = roundCurrency(cifValue + totalDutiesAndTaxes + portAndBrokerageFee);
+
+  const units = Math.max(1, params.unitsCount || 1);
+  const costPerUnitLanded = roundCurrency(totalLandedCost / units);
+
+  return {
+    isImported: true,
+    country: params.country || 'saint_lucia',
+    category,
+    fobCost,
+    shippingFreight,
+    insuranceCost,
+    cifValue,
+    dutyRatePercent,
+    dutyAmount,
+    cscRatePercent,
+    cscAmount,
+    hcslRatePercent,
+    hcslAmount,
+    envRatePercent,
+    envAmount,
+    landedBeforeVat,
+    vatRatePercent,
+    vatAmount,
+    totalDutiesAndTaxes,
+    portAndBrokerageFee,
+    totalLandedCost,
+    costPerUnitLanded
+  };
 }
 
 /**
