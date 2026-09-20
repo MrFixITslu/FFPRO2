@@ -339,13 +339,20 @@ const Dashboard: React.FC<Props> = ({
   }, [liquidFunds, daysUntilNextCycle]);
 
   // High-Level Executive Summary Metrics
-  // Closed/completed projects are excluded from the Projects & Planner
-  // Summary — that module is meant to surface what's still in progress.
-  const openProjects = useMemo(() => events.filter(ev => ev.status !== 'completed'), [events]);
+  // Closed and completed projects are excluded from the Projects & Planner
+  // Summary — that module is meant to surface what's still active and in progress.
+  const openProjects = useMemo(() => {
+    return events.filter(ev => {
+      if (ev.status === 'closed' || (ev as any).status === 'closed') return false;
+      if (ev.status === 'completed' || (ev as any).status === 'completed') return false;
+      if (ev.closedAt) return false;
+      return true;
+    });
+  }, [events]);
   const totalProjects = openProjects.length;
   const allTasks = useMemo(() => {
-    return events.flatMap(e => e.tasks || []);
-  }, [events]);
+    return openProjects.flatMap(e => e.tasks || []);
+  }, [openProjects]);
   const completedTasksCount = allTasks.filter(t => t.completed).length;
   const pendingTasksCount = allTasks.length - completedTasksCount;
   const overallTaskProgress = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
@@ -710,9 +717,9 @@ const Dashboard: React.FC<Props> = ({
                   )}
                 </div>
 
-                {events.length > 0 ? (
+                {openProjects.length > 0 ? (
                   <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                    {events.map((ev) => {
+                    {openProjects.map((ev) => {
                       const tasks = ev.tasks || [];
                       const done = tasks.filter(t => t.completed).length;
                       const pct = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0;
@@ -763,7 +770,7 @@ const Dashboard: React.FC<Props> = ({
               </div>
 
               <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-stone-600">
-                <span>Active Projects: {events.length}</span>
+                <span>Active Projects: {openProjects.length}</span>
                 <span>Pending Tasks: {pendingTasksCount}</span>
               </div>
             </section>
