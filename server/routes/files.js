@@ -25,7 +25,7 @@ export function safeFileType(name, bytes) {
   if (ext==='webp' && header.toString('ascii',0,4)==='RIFF' && header.toString('ascii',8,12)==='WEBP') return 'image/webp';
   if (ext==='pdf' && header.toString('ascii',0,5)==='%PDF-') return 'application/pdf';
   if (['docx','xlsx'].includes(ext) && header[0]===80 && header[1]===75) return 'application/octet-stream';
-  if (['doc','xls'].includes(ext) && header.subarray(0,8).equals(Buffer.from('d0cf11e0a1b11e1','hex'))) return 'application/octet-stream';
+  if (['doc','xls'].includes(ext) && header.subarray(0,8).equals(Buffer.from('d0cf11e0a1b11ae1','hex'))) return 'application/octet-stream';
   if (['txt','csv','json','fdoc','fcel'].includes(ext) && !bytes.includes(0)) return 'text/plain';
   throw Object.assign(new Error('File contents do not match the file extension.'),{status:415});
 }

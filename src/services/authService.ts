@@ -165,4 +165,15 @@ export const authService = {
     });
     return handle(res);
   },
+
+  /** Changes password directly for the authenticated user session */
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ ok: true; message: string }> {
+    const res = await fetch(`${BASE}/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    return handle(res);
+  },
 };

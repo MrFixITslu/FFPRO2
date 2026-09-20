@@ -2,7 +2,7 @@ import { Router } from '../http.js';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import passport from '../passport.js';
-import { createVerification, consumeVerification, resetPassword } from '../securityStore.js';
+import { createVerification, consumeVerification, resetPassword, getUser, updateUserPassword } from '../securityStore.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { pool } from '../db.js';
 import { projectsDb } from '../projectsDb.js';
@@ -238,10 +238,12 @@ router.post('/login', async (req, res) => {
         return res.status(500).json({ error: 'Failed to initialize session.' });
       }
 
+      req.session.csrfToken = crypto.randomBytes(32).toString('hex');
       req.login(user, (err) => {
         if (err) return res.status(500).json({ error: 'Failed to start a session.' });
         res.json({ 
-          user: sanitizeUser(user)
+          user: sanitizeUser(user),
+          csrfToken: req.session.csrfToken
         });
       });
     });
@@ -322,6 +324,47 @@ router.post('/reset-password', forgotPasswordLimiter, async (req, res) => {
   }
 });
 
+router.post('/change-password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const passwordError = validatePasswordStrength(newPassword);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
+  }
+
+  try {
+    const user = await getUser(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    if (user.password_hash) {
+      if (!currentPassword || typeof currentPassword !== 'string') {
+        return res.status(400).json({ error: 'Current password is required.' });
+      }
+      const matches = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!matches) {
+        return res.status(401).json({ error: 'Incorrect current password.' });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await updateUserPassword(user.id, passwordHash);
+
+    // Refresh current user session version so this device remains authenticated,
+    // while all other sessions on other devices are invalidated.
+    const refreshedUser = await getUser(user.id);
+    req.login(refreshedUser, (loginErr) => {
+      if (loginErr) {
+        console.error('Change-password session refresh error:', loginErr);
+      }
+      res.json({ ok: true, message: 'Password updated successfully. Other active sessions have been invalidated.' });
+    });
+  } catch (err) {
+    console.error('Change-password error:', err);
+    res.status(500).json({ error: 'Failed to update password. Please try again.' });
+  }
+});
+
 router.post('/logout', (req, res) => {
   req.logout((err) => {
     if (err) {
@@ -369,14 +412,21 @@ router.get(
         console.warn('[auth] Google OAuth error:', errMsg);
         return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(errMsg)}`);
       }
-      req.login(user, (loginErr) => {
-        if (loginErr) {
-          console.error('[auth] Google session login error:', loginErr);
-          return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+      req.session.regenerate((regenErr) => {
+        if (regenErr) {
+          console.error('[auth] Google session regeneration error:', regenErr);
+          return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent('Session initialization failed')}`);
         }
-        req.session.save(saveErr => {
-          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
-          res.redirect(`${baseUrl}/?auth=success`);
+        req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+        req.login(user, (loginErr) => {
+          if (loginErr) {
+            console.error('[auth] Google session login error:', loginErr);
+            return res.redirect(`${baseUrl}/?auth=failed&provider=google&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+          }
+          req.session.save(saveErr => {
+            if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
+            res.redirect(`${baseUrl}/?auth=success`);
+          });
         });
       });
     })(req, res, next);
@@ -396,14 +446,21 @@ router.get(
         console.warn('[auth] Facebook OAuth error:', errMsg);
         return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(errMsg)}`);
       }
-      req.login(user, (loginErr) => {
-        if (loginErr) {
-          console.error('[auth] Facebook session login error:', loginErr);
-          return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+      req.session.regenerate((regenErr) => {
+        if (regenErr) {
+          console.error('[auth] Facebook session regeneration error:', regenErr);
+          return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent('Session initialization failed')}`);
         }
-        req.session.save(saveErr => {
-          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
-          res.redirect(`${baseUrl}/?auth=success`);
+        req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+        req.login(user, (loginErr) => {
+          if (loginErr) {
+            console.error('[auth] Facebook session login error:', loginErr);
+            return res.redirect(`${baseUrl}/?auth=failed&provider=facebook&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+          }
+          req.session.save(saveErr => {
+            if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
+            res.redirect(`${baseUrl}/?auth=success`);
+          });
         });
       });
     })(req, res, next);
@@ -424,14 +481,21 @@ router.post(
         console.warn('[auth] Apple OAuth error:', errMsg);
         return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(errMsg)}`);
       }
-      req.login(user, (loginErr) => {
-        if (loginErr) {
-          console.error('[auth] Apple session login error:', loginErr);
-          return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+      req.session.regenerate((regenErr) => {
+        if (regenErr) {
+          console.error('[auth] Apple session regeneration error:', regenErr);
+          return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent('Session initialization failed')}`);
         }
-        req.session.save(saveErr => {
-          if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
-          res.redirect(`${baseUrl}/?auth=success`);
+        req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+        req.login(user, (loginErr) => {
+          if (loginErr) {
+            console.error('[auth] Apple session login error:', loginErr);
+            return res.redirect(`${baseUrl}/?auth=failed&provider=apple&error=${encodeURIComponent(loginErr.message || 'Session initialization failed')}`);
+          }
+          req.session.save(saveErr => {
+            if (saveErr) return res.redirect(`${baseUrl}/?auth=failed`);
+            res.redirect(`${baseUrl}/?auth=success`);
+          });
         });
       });
     })(req, res, next);

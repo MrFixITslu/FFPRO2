@@ -50,8 +50,9 @@ export function validateAppState(data) {
     if(!Array.isArray(data[key]) || data[key].length>50000) return `${key} must be a bounded array.`;
     const ids=new Set();
     for(const item of data[key]) {
-      if(!item || typeof item!=='object' || typeof item.id!=='string' || !item.id || item.id.length>200 || ids.has(item.id)) return `${key} contains invalid or duplicate identifiers.`;
-      ids.add(item.id);
+      const idStr = item?.id !== undefined && item?.id !== null ? String(item.id).trim() : '';
+      if(!item || typeof item!=='object' || (typeof item.id!=='string' && typeof item.id!=='number') || !idStr || idStr.length>200 || ids.has(idStr)) return `${key} contains invalid or duplicate identifiers.`;
+      ids.add(idStr);
     }
   }
   if(data.bankConnections && (data.bankConnections.length>1000 || data.bankConnections.some(x=>!x || typeof x.institution!=='string' || !Number.isFinite(x.openingBalance)))) return 'Invalid manual accounts.';

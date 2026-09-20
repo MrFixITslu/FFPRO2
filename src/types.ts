@@ -687,8 +687,62 @@ export const STORAGE_KEYS = {
   DATA_OWNER: 'ff_data_owner_id',
   IDEAS: 'ff_ideas',
   FORECAST_SETTINGS: 'ff_forecast_settings',
-  FINANCIAL_LOGS: 'ff_financial_logs'
+  FINANCIAL_LOGS: 'ff_financial_logs',
+  BRIEFING_TOPIC: 'ff_briefing_topic_config'
 };
+
+export interface BriefingTopicOption {
+  id: string;
+  name: string;
+  query: string;
+  description: string;
+  icon: string;
+}
+
+export const DEFAULT_BRIEFING_TOPICS: BriefingTopicOption[] = [
+  {
+    id: 'ai',
+    name: 'Artificial Intelligence & Frontier Tech',
+    query: 'OpenAI OR Anthropic OR DeepMind OR "Meta AI" OR "Artificial Intelligence"',
+    description: 'Frontier AI models, LLM benchmarks, agentic reasoning, and enterprise AI developments.',
+    icon: 'fa-brain'
+  },
+  {
+    id: 'ict',
+    name: 'ICT & Enterprise Technology',
+    query: 'ICT OR "Information and Communications Technology" OR telecom OR cybersecurity OR "cloud computing"',
+    description: 'Telecommunications, cybersecurity defense, multi-cloud networking, and enterprise software.',
+    icon: 'fa-server'
+  },
+  {
+    id: 'weather',
+    name: 'Weather & Climate Intelligence',
+    query: 'weather OR meteorology OR "severe weather" OR forecast OR climate',
+    description: 'Meteorological patterns, severe storm advisories, seasonal forecasts, and atmospheric research.',
+    icon: 'fa-cloud-sun-rain'
+  },
+  {
+    id: 'sports',
+    name: 'Sports & Athletics Wire',
+    query: 'sports OR athletics OR championship OR tournament OR league',
+    description: 'Major league updates, tournament brackets, match analysis, and championship standings.',
+    icon: 'fa-trophy'
+  },
+  {
+    id: 'finance',
+    name: 'Global Financial Markets',
+    query: '"financial markets" OR "stock market" OR "federal reserve" OR inflation OR treasury',
+    description: 'Central bank interest rates, treasury yields, macroeconomic trends, and equity markets.',
+    icon: 'fa-chart-line'
+  },
+  {
+    id: 'energy',
+    name: 'Clean Energy & Sustainability',
+    query: '"clean energy" OR "renewable energy" OR solar OR "electric vehicles" OR battery',
+    description: 'Renewable power grids, EV battery technology, grid infrastructure, and energy transition.',
+    icon: 'fa-bolt'
+  }
+];
 
 export interface GmailPlanningNotification {
   id: string;

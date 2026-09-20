@@ -523,6 +523,19 @@ const App: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'recurring' | 'goals' | 'api' | 'security' | 'intelligence'>('general');
+
+  useEffect(() => {
+    const handleOpenSettings = (e: any) => {
+      if (e?.detail?.tab) {
+        setSettingsInitialTab(e.detail.tab);
+      }
+      setShowSettings(true);
+    };
+    window.addEventListener('open-settings', handleOpenSettings);
+    return () => window.removeEventListener('open-settings', handleOpenSettings);
+  }, []);
+
   const [showBankSync, setShowBankSync] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [vaultHandle, setVaultHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -2136,7 +2149,15 @@ const App: React.FC = () => {
               onToggleReminders={() => {}}
               bankConnections={bankConnections}
               onResetBank={() => setBankConnections([])}
-              onUpdatePassword={() => {}}
+              onUpdatePassword={async (currentPass?: string, newPass?: string) => {
+                if (!newPass) return;
+                try {
+                  await authService.changePassword(currentPass || '', newPass);
+                } catch (err: any) {
+                  console.error('Password update error:', err);
+                  throw err;
+                }
+              }}
               users={[]}
               onUpdateUsers={() => {}}
               isAdmin={isAdmin}
@@ -2149,6 +2170,7 @@ const App: React.FC = () => {
               cloudLastSyncTime={cloudLastSyncTime}
               cloudVersion={cloudVersion}
               realtimeStatus={realtimeStatus}
+              initialTab={settingsInitialTab}
               onForceSync={() => {
                 pushToCloud().catch(()=>{});
               }}

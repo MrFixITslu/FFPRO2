@@ -4,8 +4,8 @@ import { PushSettings } from './PushSettings';
 import type { AppState } from '../services/vaultService';
 import { validateAppState } from '../../shared/appState.js';
 
-import React, { useState, useMemo, useRef } from 'react';
-import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS } from '../types';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS, DEFAULT_BRIEFING_TOPICS } from '../types';
 import { triggerSecureDownload } from '../services/fileStorageService';
 import { APP_LOGO } from '../assets/logo';
 import { 
@@ -30,7 +30,12 @@ import {
   Lock,
   Radio,
   Wifi,
-  WifiOff
+  WifiOff,
+  Globe,
+  Newspaper,
+  Search,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -80,9 +85,10 @@ interface Props {
   cloudVersion?: number;
   realtimeStatus?: 'connected' | 'connecting' | 'disconnected';
   onForceSync?: () => void;
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'general' | 'recurring' | 'goals' | 'api' | 'security';
+type SettingsTab = 'general' | 'recurring' | 'goals' | 'api' | 'security' | 'intelligence';
 
 const Settings: React.FC<Props> = ({ 
   targetMargin, categoryBudgets, onUpdateCategoryBudgets, 
@@ -101,13 +107,63 @@ const Settings: React.FC<Props> = ({
   cloudLastSyncTime = null,
   cloudVersion = 1,
   realtimeStatus = 'connected',
-  onForceSync, currentState, onRestoreState
+  onForceSync, currentState, onRestoreState,
+  initialTab = 'general'
 }) => {
   const dialog=useAccessibleDialog(onClose);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [isChangingPass, setIsChangingPass] = useState(false);
-  const [passForm, setPassForm] = useState({ new: '', confirm: '' });
+  const [passForm, setPassForm] = useState({ current: '', new: '', confirm: '' });
+  const [passLoading, setPassLoading] = useState(false);
+  const [passError, setPassError] = useState<string | null>(null);
+  const [passSuccess, setPassSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Intelligence & News Briefing Topic Settings
+  const [selectedTopicId, setSelectedTopicId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BRIEFING_TOPIC);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.topicId || 'ai';
+      }
+      return 'ai';
+    } catch {
+      return 'ai';
+    }
+  });
+
+  const [customTopicQuery, setCustomTopicQuery] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BRIEFING_TOPIC);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.customQuery || '';
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [topicSaveFeedback, setTopicSaveFeedback] = useState<string | null>(null);
+
+  const handleSaveTopic = (topicId: string, customText = customTopicQuery) => {
+    setSelectedTopicId(topicId);
+    const payload = {
+      topicId,
+      customQuery: topicId === 'custom' ? customText.trim() : '',
+      updatedAt: new Date().toISOString()
+    };
+    try {
+      localStorage.setItem(STORAGE_KEYS.BRIEFING_TOPIC, JSON.stringify(payload));
+      setTopicSaveFeedback('Briefing topics updated! Fresh intelligence will be gathered.');
+      window.dispatchEvent(new CustomEvent('briefing-topic-updated', { detail: payload }));
+      setTimeout(() => setTopicSaveFeedback(null), 3500);
+    } catch (err) {
+      console.error('Failed to save briefing topic:', err);
+    }
+  };
 
   // Temp form states for adding new items
   const [newRec, setNewRec] = useState({ description: '', amount: '', category: CATEGORIES[0], nextDate: new Date().toISOString().split('T')[0] });
@@ -252,6 +308,34 @@ const Settings: React.FC<Props> = ({
     }catch(error:any){alert(error.message || 'Could not request password reset.');}
   };
 
+  const handleDirectPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError(null);
+    setPassSuccess(null);
+    if (!passForm.new || passForm.new.length < 8) {
+      setPassError('New password must be at least 8 characters long.');
+      return;
+    }
+    if (passForm.new !== passForm.confirm) {
+      setPassError('New passwords do not match.');
+      return;
+    }
+    setPassLoading(true);
+    try {
+      const res = await authService.changePassword(passForm.current, passForm.new);
+      setPassSuccess(res.message || 'Password updated successfully. Other active sessions have been invalidated.');
+      setPassForm({ current: '', new: '', confirm: '' });
+      setTimeout(() => {
+        setIsChangingPass(false);
+        setPassSuccess(null);
+      }, 2000);
+    } catch (err: any) {
+      setPassError(err.message || 'Failed to update password.');
+    } finally {
+      setPassLoading(false);
+    }
+  };
+
   const startEditRec = (exp: RecurringExpense) => {
     setEditingRecId(exp.id);
     setEditRecData({ ...exp });
@@ -285,6 +369,7 @@ const Settings: React.FC<Props> = ({
 
   const tabs: {id: SettingsTab, label: string, icon: string}[] = [
     { id: 'general', label: 'Core', icon: 'fa-sliders-h' },
+    { id: 'intelligence', label: 'Briefing Topics', icon: 'fa-newspaper' },
     { id: 'recurring', label: 'Recurring', icon: 'fa-redo' },
     { id: 'goals', label: 'Targets', icon: 'fa-bullseye' },
     { id: 'api', label: 'Gateways', icon: 'fa-plug' },
@@ -385,6 +470,134 @@ const Settings: React.FC<Props> = ({
                   ))}
                 </div>
               </section>
+            </div>
+          )}
+
+          {activeTab === 'intelligence' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-1.5">
+                  <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Newspaper className="text-indigo-600" size={18} />
+                    Briefing & Intelligence Topics
+                  </h3>
+                  <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-200/80 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Live Feed Filter
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 leading-relaxed max-w-2xl">
+                  Choose the primary subject matter scanned by your real-time executive synthesizer and wire dispatches. Stories and reading states are kept isolated per topic so you never lose your curated reports.
+                </p>
+              </div>
+
+              {topicSaveFeedback && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2.5 text-xs text-emerald-800 font-semibold animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{topicSaveFeedback}</span>
+                </div>
+              )}
+
+              {/* Curated Presets Grid */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">
+                  Curated Domain Feeds
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {DEFAULT_BRIEFING_TOPICS.map((topic) => {
+                    const isSelected = selectedTopicId === topic.id;
+                    return (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() => handleSaveTopic(topic.id)}
+                        className={`text-left p-3.5 rounded-xl border transition-all relative flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50/70 border-indigo-400 shadow-xs ring-1 ring-indigo-300'
+                            : 'bg-white hover:bg-stone-50/80 border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                              isSelected ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              <i className={`fas ${topic.icon}`}></i>
+                            </div>
+                            <h4 className="text-xs font-bold text-stone-900 leading-tight">
+                              {topic.name}
+                            </h4>
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-white/90 border border-indigo-200 px-2 py-0.5 rounded-md shadow-2xs">
+                              <Check size={11} className="text-indigo-600" /> Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-stone-600 leading-normal pl-9">
+                          {topic.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Topic Keywords Section */}
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Search size={15} className="text-stone-500" />
+                    <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                      Custom Topic or Search Query
+                    </h4>
+                  </div>
+                  {selectedTopicId === 'custom' && (
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded border border-indigo-200">
+                      Active Custom Query
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-stone-500 leading-relaxed">
+                  Enter any specific subject (e.g. <span className="font-semibold text-stone-700">ICT, Cybersecurity, Weather, Premier League, Robotics, Local Economy</span>). The system will aggregate live wire reports and synthesize an executive briefing tailored to your keywords.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={customTopicQuery}
+                    onChange={(e) => setCustomTopicQuery(e.target.value)}
+                    placeholder="e.g. ICT Telecom, Caribbean Weather, Formula 1, Electric Vehicles..."
+                    className="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-2 text-xs font-medium text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customTopicQuery.trim()) {
+                        handleSaveTopic('custom', customTopicQuery);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customTopicQuery.trim()) {
+                        handleSaveTopic('custom', customTopicQuery);
+                      }
+                    }}
+                    disabled={!customTopicQuery.trim()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+                  >
+                    <Sparkles size={13} />
+                    Apply Custom Topic
+                  </button>
+                </div>
+              </div>
+
+              {/* Data Isolation & Workflow Note */}
+              <div className="p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-xl flex items-start gap-3">
+                <Info size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-stone-600 leading-relaxed">
+                  <span className="font-bold text-stone-800">State Persistence & Isolation: </span>
+                  Your <span className="font-semibold text-stone-700">Kept Stories</span>, <span className="font-semibold text-stone-700">Read Status</span>, and <span className="font-semibold text-stone-700">Trash</span> are maintained separately per topic. You can toggle between topics anytime without losing saved stories or mixing reading histories.
+                </div>
+              </div>
             </div>
           )}
 
@@ -932,15 +1145,103 @@ const Settings: React.FC<Props> = ({
       </div>
 
       {isChangingPass && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-sm rounded-lg p-6 border border-stone-200 shadow-xl">
-            <h3 className="text-base font-bold text-stone-800 mb-1">Security Update</h3>
-            <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mb-6">Update Vault Credentials</p>
-            <div className="space-y-4">
-              <p className="text-sm text-stone-600">Use the secure link sent to your account email to choose a new password. Resetting your password signs out existing sessions.</p>
-              <button onClick={handlePasswordSubmit} className="w-full py-2.5 bg-stone-900 text-white font-bold rounded text-sm">Send password reset email</button>
-              <button onClick={() => setIsChangingPass(false)} className="w-full py-1 text-stone-400 font-bold text-xs uppercase tracking-wider">Abort Process</button>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-xl p-6 border border-stone-200 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-stone-800">Security & Credentials</h3>
+                <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Update Account Password</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsChangingPass(false); setPassError(null); setPassSuccess(null); }}
+                className="text-stone-400 hover:text-stone-600 p-1 text-xs"
+              >
+                ✕
+              </button>
             </div>
+
+            {passSuccess ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm font-medium mb-4">
+                ✓ {passSuccess}
+              </div>
+            ) : (
+              <form onSubmit={handleDirectPasswordChange} className="space-y-4">
+                {passError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold">
+                    {passError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passForm.current}
+                    onChange={e => setPassForm(prev => ({ ...prev, current: e.target.value }))}
+                    placeholder="Enter current password (if set)"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={passForm.new}
+                    onChange={e => setPassForm(prev => ({ ...prev, new: e.target.value }))}
+                    placeholder="Minimum 8 characters with numbers & symbols"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={passForm.confirm}
+                    onChange={e => setPassForm(prev => ({ ...prev, confirm: e.target.value }))}
+                    placeholder="Repeat new password"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={passLoading}
+                    className="flex-1 py-2.5 bg-stone-900 text-white font-bold rounded-lg text-sm hover:bg-stone-800 disabled:opacity-50 transition"
+                  >
+                    {passLoading ? 'Updating...' : 'Update Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsChangingPass(false); setPassError(null); setPassSuccess(null); }}
+                    className="px-4 py-2.5 bg-stone-100 text-stone-600 font-bold rounded-lg text-sm hover:bg-stone-200 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="pt-3 border-t border-stone-100 text-center">
+                  <button
+                    type="button"
+                    onClick={handlePasswordSubmit}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    Forgot current password? Send reset link to email
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

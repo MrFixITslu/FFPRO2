@@ -5,14 +5,27 @@ const router = Router();
 const EFFECTIVE_DATE = 'September 1, 2026';
 const COMPANY_NAME = 'Vision79 Digital';
 const APP_NAME = 'Fire Finance Pro (FFPRO2)';
-const CONTACT_EMAIL = process.env.SUPPORT_EMAIL || process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
+const rawEmail = process.env.SUPPORT_EMAIL || process.env.AUTHORIZED_EMAIL || 'vision79slu@gmail.com';
+
+function escapeHtml(str = '') {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+const SAFE_CONTACT_EMAIL = escapeHtml(rawEmail.replace(/[\r\n]/g, '').trim());
+const SAFE_COMPANY_NAME = escapeHtml(COMPANY_NAME);
+const SAFE_APP_NAME = escapeHtml(APP_NAME);
 
 const pageShell = (title, bodyHtml) => `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${title} — ${APP_NAME}</title>
+<title>${escapeHtml(title)} — ${SAFE_APP_NAME}</title>
 <meta name="robots" content="index, follow" />
 <style>
   :root { color-scheme: light; }
@@ -60,12 +73,12 @@ const pageShell = (title, bodyHtml) => `<!DOCTYPE html>
   <div class="wrap">
     <header class="page-header">
       <div class="logo">V79</div>
-      <div class="brand">${COMPANY_NAME}</div>
+      <div class="brand">${SAFE_COMPANY_NAME}</div>
     </header>
     ${bodyHtml}
     <footer>
-      ${APP_NAME} is developed and operated by ${COMPANY_NAME}, Castries, Saint Lucia.<br />
-      Questions about this document? Contact <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.
+      ${SAFE_APP_NAME} is developed and operated by ${SAFE_COMPANY_NAME}, Castries, Saint Lucia.<br />
+      Questions about this document? Contact <a href="mailto:${SAFE_CONTACT_EMAIL}">${SAFE_CONTACT_EMAIL}</a>.
     </footer>
   </div>
 </body>

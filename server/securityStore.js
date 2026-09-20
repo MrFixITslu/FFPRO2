@@ -78,3 +78,20 @@ export async function verifyUser(userId) {
   if(realPool) await realPool.query('UPDATE users SET email_verified_at=now() WHERE id=$1', [userId]);
   else {const db=readDB(); const user=db.users.find(u=>u.id===userId); if(user){user.email_verified_at=new Date().toISOString();writeDB(db);}}
 }
+
+export async function updateUserPassword(userId, passwordHash) {
+  if (realPool) {
+    await realPool.query(
+      'UPDATE users SET password_hash = $1, session_version = session_version + 1 WHERE id = $2',
+      [passwordHash, userId]
+    );
+  } else {
+    const db = readDB();
+    const user = (db.users || []).find(u => u.id === userId);
+    if (user) {
+      user.password_hash = passwordHash;
+      user.session_version = (user.session_version || 0) + 1;
+      writeDB(db);
+    }
+  }
+}
