@@ -87,6 +87,44 @@ function cleanPlainText(input: string = ''): string {
 }
 
 /**
+ * Strips accidental headline repetitions from the snippet body so readers get 100% pure context
+ */
+function sanitizeSnippetContext(snippet: string = '', title: string = '', source: string = ''): string {
+  let s = cleanPlainText(snippet);
+  if (!s) return '';
+  const cleanTitle = cleanPlainText(title).replace(/\s+-\s+[^-]+$/, '').trim();
+  const titleCore = cleanTitle.replace(/^(exclusive|breaking|analysis|opinion|watch|update|report|explainer):\s*/i, '').trim();
+
+  // Strip "${source} reports that ..." prefix if present
+  if (source) {
+    const srcEscaped = source.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const sourcePrefixRegex = new RegExp(`^${srcEscaped}\\s+(reports|details|notes|states|highlights|dispatches)\\s+that\\s+`, 'i');
+    if (sourcePrefixRegex.test(s)) {
+      s = s.replace(sourcePrefixRegex, '');
+    }
+  }
+
+  // Strip leading sentence if it duplicates the headline
+  if (titleCore && titleCore.length > 15) {
+    const titleSnippet = titleCore.slice(0, 28).replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const titleRegex = new RegExp(`^${titleSnippet}[^.?!]*[.?!]\\s*`, 'i');
+    if (titleRegex.test(s)) {
+      const remainder = s.replace(titleRegex, '').trim();
+      if (remainder.length > 35) {
+        s = remainder;
+      }
+    }
+  }
+
+  // Ensure initial letter is uppercase
+  if (s.length > 0) {
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  return s;
+}
+
+/**
  * Helper to build topic-scoped localStorage keys
  */
 function getTopicStorageKey(topic: string, suffix: 'read' | 'kept' | 'deleted'): string {
@@ -764,8 +802,8 @@ export const AiNewsBriefing: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {filteredArticles.map(article => {
                 const cleanTitle = cleanPlainText(article.title);
-                const cleanSnippet = cleanPlainText(article.snippet);
                 const cleanSource = cleanPlainText(article.source);
+                const cleanSnippet = sanitizeSnippetContext(article.snippet, article.title, article.source);
 
                 const isRead = readIds.has(article.id);
                 const isKept = keptIds.has(article.id);
@@ -830,14 +868,14 @@ export const AiNewsBriefing: React.FC = () => {
                         onClick={() => markAsRead(article.id)}
                         className="block group"
                       >
-                        <h4 className="text-xs font-bold text-stone-900 group-hover:text-indigo-600 transition leading-snug break-words [overflow-wrap:anywhere] mb-2">
+                        <h4 className="text-[13px] font-bold text-stone-900 group-hover:text-indigo-600 transition leading-snug break-words [overflow-wrap:anywhere] mb-2">
                           {cleanTitle}
                         </h4>
                       </a>
 
-                      {/* Substantive Paragraph Summary (Full key details) */}
+                      {/* In-Depth Contextual Paragraph (Never repeats heading, double length) */}
                       {cleanSnippet && (
-                        <p className="text-[11.5px] text-stone-700 leading-relaxed break-words [overflow-wrap:anywhere]">
+                        <p className="text-[12px] text-stone-700 leading-relaxed break-words [overflow-wrap:anywhere]">
                           {cleanSnippet}
                         </p>
                       )}
