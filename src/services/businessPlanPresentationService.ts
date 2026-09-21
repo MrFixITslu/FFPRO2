@@ -193,7 +193,7 @@ export function buildBusinessPlanPresentation(
   customCalcs?: BusinessPlanCalculations
 ): BusinessPlanPresentationModel {
   const calculations = customCalcs || computeStartupCalculations(details);
-  const currencyCode: CurrencyCode = details?.displayCurrency || 'XCD';
+  const currencyCode: CurrencyCode = details?.displayCurrency || 'USD';
   const currencySymbol = getCurrencySymbol(currencyCode);
   const exchangeRate = details?.exchangeRate || 2.70;
 
