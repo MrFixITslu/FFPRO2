@@ -461,6 +461,7 @@ export async function generateBusinessPlanDocx(
   const activeRate = sd.exchangeRate || 2.70;
   const currencySymbol = calc.currencySymbol || (activeCurrency === 'XCD' ? 'EC$' : 'US$');
   const isServicePlan = Boolean(calc.isServiceBusiness);
+  const isHybridPlan = sd.businessModelType === 'both';
   const financialForecast = generateStartupFinancialForecast(sd, activeCurrency, activeRate);
   const projectionFor = (yearNumber: number) =>
     financialForecast.yearlyProjections.find((p) => p.year === yearNumber) ?? financialForecast.yearlyProjections[0]!;
@@ -624,7 +625,7 @@ export async function generateBusinessPlanDocx(
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: isServicePlan ? `${calc.contributionMarginPercent ?? calc.grossMarginPercent}% Contribution Margin` : `${calc.markupPercent}% Target Markup`, size: 16, color: COLOR_SECONDARY })] })
             ], false, 25, AlignmentType.CENTER, { isHighlight: true }),
             createTableCell([
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: isServicePlan ? 'DIRECT COST / SERVICE UNIT' : 'UNIT COGS', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: isHybridPlan ? 'BLENDED DIRECT COST / UNIT' : (isServicePlan ? 'DIRECT COST / SERVICE UNIT' : 'UNIT COGS'), size: 16, color: COLOR_MUTED, bold: true })] }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: money2(calc.costOfGoodsSoldUnit), size: 28, bold: true, color: COLOR_PRIMARY })] }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.grossMarginPercent}% ${isServicePlan ? 'Contribution' : 'Gross'} Margin`, size: 16, color: COLOR_MUTED })] })
             ], false, 25, AlignmentType.CENTER),
@@ -700,14 +701,19 @@ export async function generateBusinessPlanDocx(
   // FINANCIAL SECTION: Pricing / Unit Economics
   // =========================================================================
   docChildren.push(
-    createSectionHeading(isServicePlan ? 'Service Pricing & Unit Economics' : 'Product Costing & Unit Pricing', String(sectionIndex++)),
-    createParagraph(isServicePlan
-      ? 'The following unit economics summarize the configured service rate, direct variable cost, contribution margin, and break-even basis using the service-unit label selected for the business.'
-      : 'The following pricing model summarizes direct product cost, labor allocation, overhead allocation, and calculated selling price from the configured assumptions.')
+    createSectionHeading(
+      isHybridPlan ? 'Hybrid Revenue & Unit Economics' : (isServicePlan ? 'Service Pricing & Unit Economics' : 'Product Costing & Unit Pricing'),
+      String(sectionIndex++)
+    ),
+    createParagraph(isHybridPlan
+      ? 'The following unit economics summarize the combined product-and-service revenue model, blended direct costs, contribution margin, and break-even basis from the configured assumptions.'
+      : (isServicePlan
+        ? 'The following unit economics summarize the configured service rate, direct variable cost, contribution margin, and break-even basis using the service-unit label selected for the business.'
+        : 'The following pricing model summarizes direct product cost, labor allocation, overhead allocation, and calculated selling price from the configured assumptions.'))
   );
 
   const productionItems = sd.productionItems || [];
-  if (!isServicePlan && productionItems.length > 0) {
+  if ((!isServicePlan || isHybridPlan) && productionItems.length > 0) {
     docChildren.push(createSubHeading('Direct Materials & Supplier Quoted Inputs'));
     const itemRows: TableRow[] = [
       new TableRow({
@@ -747,25 +753,25 @@ export async function generateBusinessPlanDocx(
   const unitBreakdownRows: TableRow[] = isServicePlan ? [
     new TableRow({
       children: [
-        createTableCell('Service Unit Economics', true, 60),
+        createTableCell(isHybridPlan ? 'Hybrid Unit Economics' : 'Service Unit Economics', true, 60),
         createTableCell('Value', true, 40, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Service Unit Label'),
+        createTableCell(isHybridPlan ? 'Combined Activity Unit Label' : 'Service Unit Label'),
         createTableCell(serviceUnitLabel, false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Average Revenue / Rate per Service Unit'),
+        createTableCell(isHybridPlan ? 'Average Revenue per Combined Unit' : 'Average Revenue / Rate per Service Unit'),
         createTableCell(money2(calc.finalSuggestedPrice), false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Direct Variable Cost per Service Unit'),
+        createTableCell(isHybridPlan ? 'Blended Direct Cost per Combined Unit' : 'Direct Variable Cost per Service Unit'),
         createTableCell(money2(calc.costOfGoodsSoldUnit), false, undefined, AlignmentType.RIGHT)
       ]
     }),
@@ -924,7 +930,7 @@ export async function generateBusinessPlanDocx(
     }),
     new TableRow({
       children: [
-        createTableCell(isServicePlan ? 'Direct Variable Service Costs' : 'Cost of Goods Sold (COGS)'),
+        createTableCell(isHybridPlan ? 'Direct Product & Service Costs' : (isServicePlan ? 'Direct Variable Service Costs' : 'Cost of Goods Sold (COGS)')),
         createTableCell(money(y1Statement.cogs), false, undefined, AlignmentType.RIGHT),
         createTableCell(money(y3Statement.cogs), false, undefined, AlignmentType.RIGHT),
         createTableCell(money(y5Statement.cogs), false, undefined, AlignmentType.RIGHT)
