@@ -59,7 +59,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   
   // Cost Item Currency (USD vs XCD)
   const [currency, setCurrency] = useState<CurrencyCode>(
-    coerceCurrencyCode(initialItem?.currency, defaultCurrency || 'XCD')
+    coerceCurrencyCode(initialItem?.currency, (defaultCurrency ?? 'XCD') as CurrencyCode)
   );
 
   // Import Duties & Landed Shipping State
