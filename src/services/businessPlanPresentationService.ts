@@ -4,7 +4,12 @@ import {
   LoanAmortizationSummary,
   CurrencyCode
 } from '../types';
-import { generateStartupFinancialForecast, calculateLoanAmortizationSchedule } from './startupFinancialsService';
+import {
+  generateStartupFinancialForecast,
+  calculateLoanAmortizationSchedule,
+  calculateMonthlyOperatingExpenses,
+  roundCurrency
+} from './startupFinancialsService';
 import { computeStartupCalculations, BusinessPlanCalculations } from './businessPlanExportService';
 import { getCurrencySymbol, formatCurrencyAmount } from './currencyService';
 
@@ -138,6 +143,8 @@ export interface BusinessPlanPresentationModel {
     annualInterestRate: number;
     termYears: number;
     paymentFrequency: string;
+    gracePeriodMonths?: number;
+    gracePeriodType?: string;
     disbursementDate?: string;
     firstPaymentDate?: string;
     monthlyDebtService: number;

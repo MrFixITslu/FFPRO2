@@ -441,6 +441,142 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
   };
 }
 
+export interface MonthlyOperatingExpensesResult {
+  rent: number;
+  salaries: number;
+  marketing: number;
+  utilities: number;
+  otherExpenses: number;
+  customExpenses: Array<{ name: string; amount: number; category?: string }>;
+  totalMonthlyOperatingExpenses: number;
+  totalAnnualOperatingExpenses: number;
+  monthlyTotal: number;
+  annualTotal: number;
+  operatingExpensesBreakdown: Array<{ name: string; amount: number; category?: string; source: 'ledger' | 'legacy' }>;
+}
+
+/**
+ * Single authoritative operating expense calculation function.
+ * Precedence Rule:
+ * 1. If explicit costItems classified as 'operating' exist, use the item-driven operating ledger.
+ * 2. If no operating costItems exist, fall back to legacy expense fields (rent, salaries, marketing, utilities, otherExpenses, customExpenses).
+ * This prevents double-counting while preserving backward compatibility.
+ */
+export function calculateMonthlyOperatingExpenses(sd?: StartupPlanDetails): MonthlyOperatingExpensesResult {
+  if (!sd) {
+    return {
+      rent: 0,
+      salaries: 0,
+      marketing: 0,
+      utilities: 0,
+      otherExpenses: 0,
+      customExpenses: [],
+      totalMonthlyOperatingExpenses: 0,
+      totalAnnualOperatingExpenses: 0,
+      monthlyTotal: 0,
+      annualTotal: 0,
+      operatingExpensesBreakdown: []
+    };
+  }
+
+  const explicitCostItems = sd.costItems || [];
+  const operatingCostItems = explicitCostItems.filter((i) => i.classification === 'operating');
+
+  if (operatingCostItems.length > 0) {
+    const breakdown = operatingCostItems.map((item) => ({
+      name: item.name || 'Operating Overhead',
+      amount: roundCurrency(item.monthlyExpenseAmount ?? item.amount ?? 0),
+      category: item.category || 'General',
+      source: 'ledger' as const
+    }));
+
+    const totalMonthlyOperatingExpenses = roundCurrency(breakdown.reduce((sum, item) => sum + item.amount, 0));
+    const totalAnnualOperatingExpenses = roundCurrency(totalMonthlyOperatingExpenses * 12);
+
+    let rent = 0;
+    let salaries = 0;
+    let marketing = 0;
+    let utilities = 0;
+    let otherExpenses = 0;
+    const customExpenses: Array<{ name: string; amount: number; category?: string }> = [];
+
+    breakdown.forEach((item) => {
+      const lowerName = item.name.toLowerCase();
+      const lowerCat = (item.category || '').toLowerCase();
+      if (lowerCat.includes('rent') || lowerName.includes('rent') || lowerName.includes('lease') || lowerName.includes('facility')) {
+        rent = roundCurrency(rent + item.amount);
+      } else if (lowerCat.includes('salar') || lowerCat.includes('payroll') || lowerName.includes('salar') || lowerName.includes('wage') || lowerName.includes('staff')) {
+        salaries = roundCurrency(salaries + item.amount);
+      } else if (lowerCat.includes('market') || lowerCat.includes('adver') || lowerName.includes('market') || lowerName.includes('promo')) {
+        marketing = roundCurrency(marketing + item.amount);
+      } else if (lowerCat.includes('util') || lowerCat.includes('power') || lowerName.includes('util') || lowerName.includes('internet') || lowerName.includes('water') || lowerName.includes('electric')) {
+        utilities = roundCurrency(utilities + item.amount);
+      } else if (lowerCat.includes('admin') || lowerName.includes('admin') || lowerName.includes('other') || lowerName.includes('misc')) {
+        otherExpenses = roundCurrency(otherExpenses + item.amount);
+      } else {
+        customExpenses.push({ name: item.name, amount: item.amount, category: item.category });
+      }
+    });
+
+    return {
+      rent,
+      salaries,
+      marketing,
+      utilities,
+      otherExpenses,
+      customExpenses,
+      totalMonthlyOperatingExpenses,
+      totalAnnualOperatingExpenses,
+      monthlyTotal: totalMonthlyOperatingExpenses,
+      annualTotal: totalAnnualOperatingExpenses,
+      operatingExpensesBreakdown: breakdown
+    };
+  }
+
+  // Fallback: Legacy fields
+  const rent = roundCurrency(sd.rent || 0);
+  const salaries = roundCurrency(sd.salaries || 0);
+  const marketing = roundCurrency(sd.marketing || 0);
+  const utilities = roundCurrency(sd.utilities || 0);
+  const otherExpenses = roundCurrency(sd.otherExpenses || 0);
+  const customExpenses = (sd.customExpenses || []).map((exp) => ({
+    name: exp.name || 'Additional Operating Expense',
+    amount: roundCurrency(exp.amount || 0),
+    category: exp.category || 'General'
+  }));
+
+  const breakdown: Array<{ name: string; amount: number; category?: string; source: 'ledger' | 'legacy' }> = [];
+  if (rent > 0) breakdown.push({ name: 'Facility Rent / Lease', amount: rent, category: 'Rent', source: 'legacy' });
+  if (salaries > 0) breakdown.push({ name: 'Management & Staff Salaries', amount: salaries, category: 'Salaries', source: 'legacy' });
+  if (marketing > 0) breakdown.push({ name: 'Advertising & Marketing', amount: marketing, category: 'Marketing', source: 'legacy' });
+  if (utilities > 0) breakdown.push({ name: 'Utilities & Internet', amount: utilities, category: 'Utilities', source: 'legacy' });
+  if (otherExpenses > 0) breakdown.push({ name: 'Other Fixed Administrative Expenses', amount: otherExpenses, category: 'Administrative', source: 'legacy' });
+  customExpenses.forEach((exp) => {
+    if (exp.amount > 0) {
+      breakdown.push({ name: exp.name, amount: exp.amount, category: exp.category, source: 'legacy' });
+    }
+  });
+
+  const totalMonthlyOperatingExpenses = roundCurrency(
+    rent + salaries + marketing + utilities + otherExpenses + customExpenses.reduce((sum, e) => sum + e.amount, 0)
+  );
+  const totalAnnualOperatingExpenses = roundCurrency(totalMonthlyOperatingExpenses * 12);
+
+  return {
+    rent,
+    salaries,
+    marketing,
+    utilities,
+    otherExpenses,
+    customExpenses,
+    totalMonthlyOperatingExpenses,
+    totalAnnualOperatingExpenses,
+    monthlyTotal: totalMonthlyOperatingExpenses,
+    annualTotal: totalAnnualOperatingExpenses,
+    operatingExpensesBreakdown: breakdown
+  };
+}
+
 /**
  * Extract unified list of cost items from startupDetails, merging legacy fields if needed
  */
@@ -448,23 +584,21 @@ export function extractUnifiedCostItems(sd?: StartupPlanDetails): StartupCostIte
   if (!sd) return [];
   
   const explicitItems: StartupCostItem[] = sd.costItems ? [...sd.costItems] : [];
-
-  // If there are explicit cost items, return them
-  if (explicitItems.length > 0) {
-    return explicitItems;
-  }
-
-  // Synthesize from legacy fields if costItems is empty
   const synthesized: StartupCostItem[] = [];
 
-  // Legacy production items -> Stock / Raw materials
-  if (sd.productionItems && sd.productionItems.length > 0) {
+  const hasExplicitStock = explicitItems.some((i) => i.classification === 'stock');
+  const hasExplicitOperating = explicitItems.some((i) => i.classification === 'operating');
+
+  // Legacy production items -> Stock / Raw materials if no explicit stock items
+  const baseCurrency = sd.displayCurrency || 'USD';
+  if (!hasExplicitStock && sd.productionItems && sd.productionItems.length > 0) {
     sd.productionItems.forEach((pi) => {
       synthesized.push({
         id: pi.id || `legacy-prod-${Math.random()}`,
         name: pi.name || 'Raw Material',
         classification: 'stock',
         category: 'Materials',
+        currency: baseCurrency,
         stockQuantity: pi.quantity || 1,
         stockUnitCost: pi.unitCost || pi.cost || 0,
         directCostPerUnitOrJob: pi.cost || 0,
@@ -473,66 +607,76 @@ export function extractUnifiedCostItems(sd?: StartupPlanDetails): StartupCostIte
     });
   }
 
-  // Legacy Operating Expenses -> Recurring Operating Expenses
-  if (sd.rent) {
-    synthesized.push({
-      id: 'legacy-rent',
-      name: 'Premises Rent & Lease',
-      classification: 'operating',
-      category: 'Rent',
-      monthlyExpenseAmount: sd.rent
-    });
-  }
-  if (sd.salaries) {
-    synthesized.push({
-      id: 'legacy-salaries',
-      name: 'Staff Wages & Payroll',
-      classification: 'operating',
-      category: 'Salaries',
-      monthlyExpenseAmount: sd.salaries
-    });
-  }
-  if (sd.utilities) {
-    synthesized.push({
-      id: 'legacy-utilities',
-      name: 'Utilities & Power',
-      classification: 'operating',
-      category: 'Utilities',
-      monthlyExpenseAmount: sd.utilities
-    });
-  }
-  if (sd.marketing) {
-    synthesized.push({
-      id: 'legacy-marketing',
-      name: 'Marketing & Customer Acquisition',
-      classification: 'operating',
-      category: 'Marketing',
-      monthlyExpenseAmount: sd.marketing
-    });
-  }
-  if (sd.otherExpenses) {
-    synthesized.push({
-      id: 'legacy-other-op',
-      name: 'Administrative & Other Overheads',
-      classification: 'operating',
-      category: 'Administrative',
-      monthlyExpenseAmount: sd.otherExpenses
-    });
-  }
-
-  if (sd.customExpenses && sd.customExpenses.length > 0) {
-    sd.customExpenses.forEach((ce, idx) => {
+  // Legacy Operating Expenses -> Recurring Operating Expenses if no explicit operating items in ledger
+  if (!hasExplicitOperating) {
+    if (sd.rent) {
       synthesized.push({
-        id: `legacy-custom-${idx}`,
-        name: ce.name || 'Custom Expense',
+        id: 'legacy-rent',
+        name: 'Facility Rent / Lease',
         classification: 'operating',
-        category: ce.category || 'General',
-        monthlyExpenseAmount: ce.amount || 0
+        category: 'Rent',
+        currency: baseCurrency,
+        monthlyExpenseAmount: sd.rent
       });
-    });
+    }
+    if (sd.salaries) {
+      synthesized.push({
+        id: 'legacy-salaries',
+        name: 'Management & Staff Salaries',
+        classification: 'operating',
+        category: 'Salaries',
+        currency: baseCurrency,
+        monthlyExpenseAmount: sd.salaries
+      });
+    }
+    if (sd.marketing) {
+      synthesized.push({
+        id: 'legacy-marketing',
+        name: 'Advertising & Marketing',
+        classification: 'operating',
+        category: 'Marketing',
+        currency: baseCurrency,
+        monthlyExpenseAmount: sd.marketing
+      });
+    }
+    if (sd.utilities) {
+      synthesized.push({
+        id: 'legacy-utilities',
+        name: 'Utilities & Internet',
+        classification: 'operating',
+        category: 'Utilities',
+        currency: baseCurrency,
+        monthlyExpenseAmount: sd.utilities
+      });
+    }
+    if (sd.otherExpenses) {
+      synthesized.push({
+        id: 'legacy-other-op',
+        name: 'Other Fixed Administrative Expenses',
+        classification: 'operating',
+        category: 'Administrative',
+        currency: baseCurrency,
+        monthlyExpenseAmount: sd.otherExpenses
+      });
+    }
+
+    if (sd.customExpenses && sd.customExpenses.length > 0) {
+      sd.customExpenses.forEach((ce, idx) => {
+        if (ce.amount && ce.amount > 0) {
+          synthesized.push({
+            id: `legacy-custom-${idx}`,
+            name: ce.name || 'Custom Expense',
+            classification: 'operating',
+            category: ce.category || 'General',
+            currency: baseCurrency,
+            monthlyExpenseAmount: ce.amount
+          });
+        }
+      });
+    }
   }
 
-  return synthesized;
+  return [...explicitItems, ...synthesized];
 }
 
 /**

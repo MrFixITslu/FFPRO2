@@ -444,9 +444,15 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           .sign-date { font-size: 11px; color: #94a3b8; margin-top: 4px; }
 
           @media print {
-            body { padding: 0; max-width: 100%; }
+            @page {
+              size: A4 portrait;
+              margin: 15mm 15mm 15mm 15mm;
+            }
+            body { padding: 0; margin: 0; max-width: 100%; font-size: 11pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .no-print-bar { display: none !important; }
+            .narrative-content p { text-align: left; word-spacing: normal; }
             .page-break { page-break-after: always; break-after: page; }
+            table, tr, .kpi-grid, .kpi-card, .meta-box, .sign-grid, .narrative-section { page-break-inside: avoid; break-inside: avoid; }
           }
         </style>
       </head>
@@ -525,9 +531,9 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             <div class="kpi-sub">${presentation.headline.volumeYear1.toLocaleString()} Projected Units</div>
           </div>
           <div class="kpi-card highlight">
-            <div class="kpi-title">Year 1 Net (EBITDA)</div>
+            <div class="kpi-title">Year 1 Operating Profit (EBITDA)</div>
             <div class="kpi-val">${presentation.year1.ebitdaFormatted}</div>
-            <div class="kpi-sub">${presentation.year1.netMarginPercent}% Operating Margin</div>
+            <div class="kpi-sub">${presentation.year1.revenue > 0 ? Math.round((presentation.year1.ebitda / presentation.year1.revenue) * 100) : 0}% EBITDA Margin</div>
           </div>
         </div>
 
@@ -670,11 +676,30 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
               <td class="text-right">${presentation.currencySymbol}${Math.round(presentation.year1.depreciation).toLocaleString()}</td>
               <td class="text-right">${presentation.currencySymbol}${Math.round(presentation.year1.depreciation).toLocaleString()}</td>
             </tr>
-            <tr class="bold total-double-line">
-              <td>Net Profit Before Tax (EBIT)</td>
+            <tr class="bold">
+              <td>Net Operating Profit (EBIT)</td>
               <td class="text-right">${presentation.year1.ebitFormatted}</td>
               <td class="text-right">${presentation.currencySymbol}${Math.round(calculations.y3Net - presentation.year1.depreciation).toLocaleString()}</td>
               <td class="text-right">${presentation.currencySymbol}${Math.round(calculations.y5Net - presentation.year1.depreciation).toLocaleString()}</td>
+            </tr>
+            ${presentation.year1.interest > 0 ? `
+            <tr>
+              <td>Loan Interest Expense</td>
+              <td class="text-right">(${presentation.year1.interestFormatted})</td>
+              <td class="text-right">-</td>
+              <td class="text-right">-</td>
+            </tr>
+            <tr class="bold">
+              <td>Profit Before Tax (EBT)</td>
+              <td class="text-right">${presentation.year1.profitBeforeTaxFormatted}</td>
+              <td class="text-right">-</td>
+              <td class="text-right">-</td>
+            </tr>` : ''}
+            <tr class="bold total-double-line">
+              <td>Net Profit / Bottom Line</td>
+              <td class="text-right">${presentation.year1.netProfitFormatted}</td>
+              <td class="text-right">${presentation.year3.netProfitFormatted}</td>
+              <td class="text-right">${presentation.year5.netProfitFormatted}</td>
             </tr>
           </tbody>
         </table>
@@ -699,10 +724,11 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           <h2 class="section-title">Bank Debt Financing & Amortization Schedule</h2>
           <p><strong>Facility Principal:</strong> ${presentation.currencyCode} ${presentation.loan.principalFormatted} @ ${presentation.loan.annualInterestRate}% p.a. (${presentation.loan.termYears}-Year Term, ${presentation.loan.paymentFrequency} repayments)</p>
           <p>
-            <strong>Upfront Fees:</strong> Negotiation Fee ${presentation.loan.negotiationFeeFormatted} + Insurance ${presentation.loan.insuranceFeeFormatted} = ${presentation.loan.totalFeesFormatted} (${presentation.loan.includeFeesInLoan ? 'Financed in Loan' : 'Out-of-Pocket Equity'}).<br/>
+            <strong>Upfront Fees:</strong> Negotiation Fee ${presentation.loan.negotiationFeeFormatted} + Insurance ${presentation.loan.insuranceFeeFormatted} = ${presentation.loan.totalFeesFormatted} (${presentation.loan.includeFeesInLoan ? 'Financed in Opening Balance' : 'Out-of-Pocket Cash Payment'}).<br/>
             <strong>Opening Loan Balance:</strong> ${presentation.loan.openingBalanceFormatted} | 
             <strong>Monthly Debt Service:</strong> ${presentation.loan.monthlyDebtServiceFormatted} | 
             <strong>Annual Debt Service:</strong> ${presentation.loan.annualDebtServiceFormatted}
+            ${presentation.loan.gracePeriodMonths ? `<br/><strong>Grace Period (Moratorium):</strong> ${presentation.loan.gracePeriodMonths} Month(s) (${presentation.loan.gracePeriodType === 'full_defer' ? 'Full Interest & Principal Deferral' : 'Interest-Only Servicing'}) | <strong>Repayment Start:</strong> ${presentation.loan.firstPaymentDate || 'Month 1'}` : ''}
           </p>
           <p>
             <strong>Debt Service Coverage Ratio (DSCR):</strong> ${presentation.loan.dscrYear1 > 50 ? 'N/A' : presentation.loan.dscrYear1.toFixed(2) + 'x'} 
@@ -1021,9 +1047,9 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
                       <div className="text-[9px] text-stone-500">{presentation.headline.volumeYear1.toLocaleString()} Units</div>
                     </div>
                     <div className="bg-emerald-50/70 border border-emerald-150 rounded-lg p-2">
-                      <div className="text-[9px] font-bold text-stone-400 uppercase">Year 1 Net (EBITDA)</div>
+                      <div className="text-[9px] font-bold text-stone-400 uppercase">Year 1 Operating Profit (EBITDA)</div>
                       <div className="text-sm font-extrabold text-emerald-800">{presentation.year1.ebitdaFormatted}</div>
-                      <div className="text-[9px] text-emerald-700">{presentation.year1.netMarginPercent}% Net Margin</div>
+                      <div className="text-[9px] text-emerald-700">{presentation.year1.revenue > 0 ? Math.round((presentation.year1.ebitda / presentation.year1.revenue) * 100) : 0}% EBITDA Margin</div>
                     </div>
                   </div>
                 </div>

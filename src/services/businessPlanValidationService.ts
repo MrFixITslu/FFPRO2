@@ -3,7 +3,12 @@ import {
   BusinessPlanSections
 } from '../types';
 import { computeStartupCalculations, BusinessPlanCalculations } from './businessPlanExportService';
-import { generateStartupFinancialForecast, calculateLoanAmortizationSchedule } from './startupFinancialsService';
+import {
+  generateStartupFinancialForecast,
+  calculateLoanAmortizationSchedule,
+  calculateMonthlyOperatingExpenses,
+  roundCurrency
+} from './startupFinancialsService';
 
 export type BusinessPlanReadinessStatus = 'draft' | 'needs_review' | 'ready_for_financial_review' | 'bank_ready';
 
@@ -218,7 +223,25 @@ export function validateBusinessPlan(
     }
   }
 
-  // 5. Narrative vs Financials Consistency Check
+  // 5. Operating Expenses Reconciliation Rule
+  const opexData = calculateMonthlyOperatingExpenses(details);
+  const sumBreakdown = roundCurrency(opexData.operatingExpensesBreakdown.reduce((sum, item) => sum + item.amount, 0));
+  const forecast = generateStartupFinancialForecast(details);
+  const forecastMonthlyOpEx = forecast.monthlyYear1[0]?.operatingExpenses ?? 0;
+  const calcMonthlyOpEx = calculations.monthlyOpExpenses ?? 0;
+
+  if (Math.abs(sumBreakdown - forecastMonthlyOpEx) > 1.0 || Math.abs(sumBreakdown - calcMonthlyOpEx) > 1.0) {
+    issues.push({
+      id: 'opex-reconciliation-mismatch',
+      type: 'error',
+      category: 'forecast',
+      title: 'Operating Expense Reconciliation Discrepancy',
+      message: `The sum of displayed operating expense rows (${calculations.currencySymbol || 'EC$'}${sumBreakdown.toLocaleString()}/mo) does not match the forecast operating overhead (${calculations.currencySymbol || 'EC$'}${forecastMonthlyOpEx.toLocaleString()}/mo).`,
+      actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
+    });
+  }
+
+  // 6. Narrative vs Financials Consistency Check
   const execSummary = bp.executiveSummary || '';
   const finNotes = bp.salesRevenueProjectionsNotes || '';
   const combinedNarrative = `${execSummary} ${finNotes}`;

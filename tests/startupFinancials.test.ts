@@ -7,6 +7,7 @@ import {
   calculateEquipmentRentalRevenue,
   calculateServiceCapacity,
   calculateLoanAmortizationSchedule,
+  calculateMonthlyOperatingExpenses,
   generateStartupFinancialForecast,
   needsBusinessModelClassification
 } from '../src/services/startupFinancialsService.ts';
@@ -356,7 +357,7 @@ test('validateBusinessPlan assesses narrative completeness, loan viability and r
     companyName: 'Island Laser Sports',
     preparedBy: 'Managing Director',
     fundingAgencyOrBank: 'Saint Lucia Development Bank',
-    executiveSummary: 'Island Laser Sports is a premier entertainment hub.',
+    executiveSummary: 'Island Laser Sports is a premier entertainment hub projecting EC$120,000 in annual revenue.',
     businessDescription: 'High quality tactical recreation.',
     businessObjectives: 'Attain 30% local market share in 24 months.',
     problemOpportunity: 'Growing demand for experiential entertainment in Saint Lucia.',
@@ -375,8 +376,8 @@ test('validateBusinessPlan assesses narrative completeness, loan viability and r
     managementStaffing: 'Experienced entertainment manager and 4 part-time coordinators.',
     startupRequirements: 'EC$100,000 initial capital for facility fit-out and hardware.',
     financialRequirements: 'EC$50,000 equity injection and EC$50,000 debt facility.',
-    salesRevenueProjectionsNotes: 'Projecting 50 private party bookings monthly in Year 1.',
-    operatingCostsNotes: 'Fixed overhead capped at EC$3,000 monthly.',
+    salesRevenueProjectionsNotes: 'Projecting EC$120,000 in Year 1 revenue with 50 private party bookings monthly.',
+    operatingCostsNotes: 'Fixed overhead capped at EC$3,600 monthly.',
     fundingRequirements: 'Seeking EC$50,000 capital expenditure loan.',
     useOfFunds: 'Procurement of laser tag fleet and mobile obstacle course.',
     implementationPlan: 'Setup and launch within 60 days of funding approval.',
@@ -387,6 +388,7 @@ test('validateBusinessPlan assesses narrative completeness, loan viability and r
 
   const completePlan: StartupPlanDetails = {
     businessModelType: 'services',
+    operatingModel: 'mobile',
     cogs: 0,
     markup: 0,
     monthlyVolume: 50,
@@ -414,6 +416,160 @@ test('validateBusinessPlan assesses narrative completeness, loan viability and r
   const completeStatus = validateBusinessPlan(completePlan);
   assert.ok(completeStatus.completionPercent >= 90);
   assert.equal(completeStatus.status, 'bank_ready');
+});
+
+test('calculateMonthlyOperatingExpenses enforces single source-of-truth precedence and prevents double counting', () => {
+  // Scenario 1: Plan with explicit operating costItems (Ledger takes precedence over legacy fields)
+  const planWithLedger: StartupPlanDetails = {
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    rent: 2000,
+    salaries: 5000,
+    marketing: 1000,
+    utilities: 500,
+    otherExpenses: 300,
+    costItems: [
+      {
+        id: 'cost-op-rent',
+        name: 'Facility Lease',
+        classification: 'operating',
+        monthlyExpenseAmount: 2000
+      },
+      {
+        id: 'cost-op-salaries',
+        name: 'Staff Payroll',
+        classification: 'operating',
+        monthlyExpenseAmount: 5000
+      },
+      {
+        id: 'cost-op-mktg',
+        name: 'Digital Advertising',
+        classification: 'operating',
+        monthlyExpenseAmount: 1000
+      }
+    ]
+  };
+
+  const opexLedger = calculateMonthlyOperatingExpenses(planWithLedger);
+  // Total should be 2000 + 5000 + 1000 = 8000, NOT double-counted with legacy fields!
+  assert.equal(opexLedger.monthlyTotal, 8000);
+  assert.equal(opexLedger.annualTotal, 96000);
+  assert.equal(opexLedger.operatingExpensesBreakdown.length, 3);
+
+  // Scenario 2: Legacy plan without costItems (Fallback to legacy fields)
+  const legacyPlan: StartupPlanDetails = {
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    rent: 1500,
+    salaries: 3000,
+    marketing: 500,
+    utilities: 300,
+    otherExpenses: 200
+  };
+
+  const opexLegacy = calculateMonthlyOperatingExpenses(legacyPlan);
+  assert.equal(opexLegacy.monthlyTotal, 5500);
+  assert.equal(opexLegacy.annualTotal, 66000);
+  assert.equal(opexLegacy.operatingExpensesBreakdown.length, 5);
+});
+
+test('buildBusinessPlanPresentation computes accurate EBITDA, EBIT, EBT, and Net Profit values', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 100,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    rent: 2000,
+    salaries: 3000,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    serviceOfferings: [
+      {
+        id: 'svc-1',
+        name: 'Arena Session',
+        revenueModel: 'per_participant',
+        unitLabel: 'Participants',
+        rate: 50,
+        expectedVolume: 100, // Monthly rev = 5,000; Annual = 60,000
+        directCostPerUnitOrJob: 10 // Monthly direct = 1,000; Annual = 12,000
+      }
+    ],
+    costItems: [
+      {
+        id: 'eq-1',
+        name: 'Arena Gear',
+        classification: 'equipment',
+        purchaseCost: 12000, // Depreciation = 12,000 / 5 = 2,400/yr (200/mo)
+        usefulLifeYears: 5
+      }
+    ],
+    loanParameters: {
+      enabled: true,
+      loanAmount: 20000,
+      annualInterestRate: 10.0,
+      termYears: 5,
+      paymentFrequency: 'monthly',
+      negotiationFee: 0,
+      includeFeesInLoan: false
+    }
+  };
+
+  const calcs = computeStartupCalculations(plan);
+  const presentation = buildBusinessPlanPresentation(plan, calcs);
+
+  // Year 1 Revenue = $60,000
+  assert.equal(presentation.year1.revenue, 60000);
+  // Year 1 Direct Costs = $12,000
+  assert.equal(presentation.year1.cogs, 12000);
+  // Gross Profit = $48,000
+  assert.equal(presentation.year1.grossProfit, 48000);
+  // Fixed OpEx = ($2000 + $3000) * 12 = $60,000
+  assert.equal(presentation.year1.operatingExpenses, 60000);
+  // EBITDA = $48,000 - $60,000 = -$12,000
+  assert.equal(presentation.year1.ebitda, -12000);
+  // Depreciation = $2,400
+  assert.equal(presentation.year1.depreciation, 2400);
+  // EBIT = EBITDA - Depreciation = -$12,000 - $2,400 = -$14,400
+  assert.equal(presentation.year1.ebit, -14400);
+});
+
+test('calculateLoanAmortizationSchedule supports grace period deferral and fee capitalization', () => {
+  const resultWithGrace = calculateLoanAmortizationSchedule(
+    {
+      enabled: true,
+      loanAmount: 100000,
+      annualInterestRate: 6.0,
+      termYears: 5,
+      paymentFrequency: 'monthly',
+      negotiationFee: 1000,
+      insuranceFee: 500,
+      includeFeesInLoan: true, // Capitalized -> Effective loan = 101,500
+      gracePeriodMonths: 6,
+      gracePeriodType: 'full_defer'
+    },
+    'USD',
+    1.0,
+    25000
+  );
+
+  assert.equal(resultWithGrace.loanAmount, 100000);
+  assert.equal(resultWithGrace.totalFees, 1500);
+  assert.equal(resultWithGrace.effectiveLoanAmount, 101500);
+  assert.equal(resultWithGrace.schedule.length, 60);
+
+  // First 6 payments should have 0 principal repayment in full_defer grace period
+  for (let i = 0; i < 6; i++) {
+    assert.equal(resultWithGrace.schedule[i].principalPaid, 0);
+  }
 });
 
 test('formatBusinessPlanMarkdownToHtml safely parses bold, italics, lists and headings', () => {

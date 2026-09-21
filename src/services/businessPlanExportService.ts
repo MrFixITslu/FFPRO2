@@ -17,6 +17,7 @@ import {
   ShadingType
 } from 'docx';
 import { BudgetEvent, StartupPlanDetails, BusinessPlanSections } from '../types';
+import { calculateMonthlyOperatingExpenses } from './startupFinancialsService';
 
 export interface BusinessPlanCalculations {
   costOfGoodsSoldUnit: number;
@@ -78,25 +79,12 @@ export interface BusinessPlanCalculations {
 export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPlanCalculations => {
   const isServices = sd?.businessModelType === 'services' || sd?.businessModelType === 'both' || Boolean(sd?.serviceOfferings && sd.serviceOfferings.length > 0);
 
-  // Extract operating expenses
-  const rent = sd?.rent || 0;
-  const salaries = sd?.salaries || 0;
-  const marketing = sd?.marketing || 0;
-  const utilities = sd?.utilities || 0;
-  const otherExpenses = sd?.otherExpenses || 0;
-  const customExpensesTotal = (sd?.customExpenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
-
-  // Check costItems for recurring operating expenses if present
-  const costItems = sd?.costItems || [];
-  const recurringCostItemsTotal = costItems
-    .filter((i) => i.classification === 'operating')
-    .reduce((sum, i) => sum + (i.monthlyExpenseAmount ?? i.amount ?? 0), 0);
-
-  const monthlyOpExpenses = recurringCostItemsTotal > 0
-    ? recurringCostItemsTotal
-    : (rent + salaries + marketing + utilities + otherExpenses + customExpensesTotal);
+  // Authoritative single-source operating expenses
+  const opexData = calculateMonthlyOperatingExpenses(sd);
+  const monthlyOpExpenses = opexData.totalMonthlyOperatingExpenses;
 
   // Check for equipment depreciation in Year 1
+  const costItems = sd?.costItems || [];
   const equipmentItems = costItems.filter((i) => i.classification === 'equipment');
   const totalAnnualDepreciation = equipmentItems.reduce((sum, eq) => {
     const cost = eq.purchaseCost ?? eq.amount ?? 0;
@@ -641,9 +629,9 @@ export async function generateBusinessPlanDocx(
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${Math.round(calc.monthlyUnits * 12).toLocaleString()} Units/Yr`, size: 16, color: COLOR_MUTED })] })
             ], false, 25, AlignmentType.CENTER),
             createTableCell([
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'YEAR 1 NET EBIT', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'YEAR 1 EBITDA', size: 16, color: COLOR_MUTED, bold: true })] }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${Math.round(calc.y1Net).toLocaleString()}`, size: 28, bold: true, color: COLOR_SECONDARY })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.netMarginPercent}% Net Margin`, size: 16, color: COLOR_SECONDARY, bold: true })] })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.netMarginPercent}% Operating Margin`, size: 16, color: COLOR_SECONDARY, bold: true })] })
             ], false, 25, AlignmentType.CENTER, { isHighlight: true })
           ]
         })
@@ -852,17 +840,8 @@ export async function generateBusinessPlanDocx(
     createParagraph('The following schedule outlines recurring fixed overhead expenditures required to maintain business continuity:')
   );
 
-  const customExpenses = sd.customExpenses || [];
-  const customExpensesTotal = customExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-  const monthlyTotalOpEx = (sd.rent || 0) + (sd.salaries || 0) + (sd.marketing || 0) + (sd.utilities || 0) + (sd.otherExpenses || 0) + customExpensesTotal;
-  
-  const customRows = customExpenses.filter(e => (e.name && e.name.trim()) || (e.amount || 0) > 0).map(exp => new TableRow({
-    children: [
-      createTableCell(exp.name || 'Additional Operating Expense'),
-      createTableCell(`$${(exp.amount || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-      createTableCell(`$${((exp.amount || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
-    ]
-  }));
+  const opexResult = calculateMonthlyOperatingExpenses(sd);
+  const monthlyTotalOpEx = opexResult.totalMonthlyOperatingExpenses;
 
   const opexRows: TableRow[] = [
     new TableRow({
@@ -872,42 +851,13 @@ export async function generateBusinessPlanDocx(
         createTableCell('Annualized Budget', true, 20, AlignmentType.RIGHT)
       ]
     }),
-    new TableRow({
+    ...opexResult.operatingExpensesBreakdown.map((item) => new TableRow({
       children: [
-        createTableCell('Rent / Facilities / Workspace'),
-        createTableCell(`$${(sd.rent || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${((sd.rent || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(item.name),
+        createTableCell(`$${item.amount.toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
+        createTableCell(`$${(item.amount * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
       ]
-    }),
-    new TableRow({
-      children: [
-        createTableCell('Direct Staff Salaries & Payroll'),
-        createTableCell(`$${(sd.salaries || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${((sd.salaries || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
-      ]
-    }),
-    new TableRow({
-      children: [
-        createTableCell('Marketing, Client Acquisition & PR'),
-        createTableCell(`$${(sd.marketing || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${((sd.marketing || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
-      ]
-    }),
-    new TableRow({
-      children: [
-        createTableCell('Utilities, Power & Technology Infrastructure'),
-        createTableCell(`$${(sd.utilities || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${((sd.utilities || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
-      ]
-    }),
-    new TableRow({
-      children: [
-        createTableCell('Administrative, Legal & Miscellaneous Contingency'),
-        createTableCell(`$${(sd.otherExpenses || 0).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${((sd.otherExpenses || 0) * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
-      ]
-    }),
-    ...customRows,
+    })),
     new TableRow({
       children: [
         createTableCell('TOTAL FIXED OPERATING OVERHEAD', true),
@@ -927,6 +877,12 @@ export async function generateBusinessPlanDocx(
     createSubHeading('Multi-Year Profit & Loss Projections (Commercial Credit Evaluation)'),
     createParagraph('Prepared under standard commercial bank criteria modeling 5-year growth trajectory:')
   );
+
+  const y1Depr = calc.depreciationYear1 || 0;
+  const y1Ebitda = calc.y1Net;
+  const y1Ebit = Math.round(y1Ebitda - y1Depr);
+  const y3Ebit = Math.round(calc.y3Net - y1Depr);
+  const y5Ebit = Math.round(calc.y5Net - y1Depr);
 
   const pnlRows: TableRow[] = [
     new TableRow({
@@ -971,15 +927,31 @@ export async function generateBusinessPlanDocx(
     }),
     new TableRow({
       children: [
-        createTableCell('Net Operating Profit (EBIT)', true),
-        createTableCell(`$${Math.round(calc.y1Net).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
+        createTableCell('Operating Profit (EBITDA)', true),
+        createTableCell(`$${Math.round(y1Ebitda).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
         createTableCell(`$${Math.round(calc.y3Net).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
         createTableCell(`$${Math.round(calc.y5Net).toLocaleString()}`, true, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Operating Margin %'),
+        createTableCell('Depreciation'),
+        createTableCell(`$${Math.round(y1Depr).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
+        createTableCell(`$${Math.round(y1Depr).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
+        createTableCell(`$${Math.round(y1Depr).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Net Operating Profit (EBIT)', true),
+        createTableCell(`$${y1Ebit.toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
+        createTableCell(`$${y3Ebit.toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
+        createTableCell(`$${y5Ebit.toLocaleString()}`, true, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('EBITDA Margin %'),
         createTableCell(`${calc.netMarginPercent}%`, false, undefined, AlignmentType.RIGHT),
         createTableCell(`${calc.y3Rev > 0 ? Math.round((calc.y3Net / calc.y3Rev) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT),
         createTableCell(`${calc.y5Rev > 0 ? Math.round((calc.y5Net / calc.y5Rev) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT)
