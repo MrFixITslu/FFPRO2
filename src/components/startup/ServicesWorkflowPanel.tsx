@@ -141,6 +141,11 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         resourceUnitLabel: initialCapacityPlan.equipment.resourceUnitLabel?.trim() || 'operating units',
         capacityPerResource: initialCapacityPlan.equipment.capacityPerResource ?? 1,
         capacityUnitLabel: initialCapacityPlan.equipment.capacityUnitLabel?.trim() || 'capacity units',
+        operatingHoursPerDay: initialCapacityPlan.equipment.operatingHoursPerDay ?? 8,
+        serviceUnitDurationHours: initialCapacityPlan.equipment.serviceUnitDurationHours ?? 1,
+        capacityServiceOfferingId:
+          initialCapacityPlan.equipment.capacityServiceOfferingId ??
+          (services.length === 1 ? services[0]?.id : undefined),
         importUnitsCount:
           initialCapacityPlan.equipment.importUnitsCount ??
           initialCapacityPlan.equipment.importDetails?.unitsCount ??
@@ -156,6 +161,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         resourceUnitLabel: 'operating units',
         capacityPerResource: 1,
         capacityUnitLabel: 'capacity units',
+        operatingHoursPerDay: 8,
+        serviceUnitDurationHours: 1,
+        capacityServiceOfferingId: services.length === 1 ? services[0]?.id : undefined,
         importUnitsCount: legacyEquipmentCount
       };
 
@@ -167,6 +175,27 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   };
 
   const capacityCalc = calculateServiceCapacity(currentPlan);
+  const capacityServiceId =
+    equipmentPlan.capacityServiceOfferingId ||
+    (services.length === 1 ? services[0]?.id : undefined);
+  const capacityService = services.find((service) => service.id === capacityServiceId);
+  const capacityServiceUnitLabel = capacityService
+    ? getServiceOfferingUnitLabel(capacityService)
+    : 'service units';
+  const plannedCapacityServiceUnits = Math.max(0, capacityService?.expectedVolume ?? 0);
+  const plannedCapacityLoadPercent = capacityCalc.equipment.maxServiceUnits > 0
+    ? roundCurrency((plannedCapacityServiceUnits / capacityCalc.equipment.maxServiceUnits) * 100)
+    : 0;
+  const targetCapacityLoadPercent = capacityCalc.equipment.effectiveServiceUnits > 0
+    ? roundCurrency((plannedCapacityServiceUnits / capacityCalc.equipment.effectiveServiceUnits) * 100)
+    : 0;
+  const hasDirectCapacityRevenue =
+    (staffPlan.enabled && capacityCalc.staff.monthlyRevenue > 0) ||
+    (
+      equipmentPlan.enabled &&
+      capacityCalc.equipment.revenueTreatment === 'independent_revenue' &&
+      capacityCalc.equipment.monthlyRevenue > 0
+    );
 
   const handleUpdateStaffPlan = (updates: Partial<typeof staffPlan>) => {
     const updatedStaff = { ...staffPlan, ...updates };
@@ -314,6 +343,25 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     onUpdateServices(updated);
   };
 
+  const handleUpdateServiceModel = (id: string, revenueModel: ServiceRevenueModel) => {
+    const updated = services.map((service) => {
+      if (service.id !== id) return service;
+      const currentDefault = getDefaultServiceUnitLabel(service.revenueModel);
+      const shouldRefreshUnitLabel =
+        !service.unitLabel?.trim() ||
+        service.unitLabel.trim().toLowerCase() === currentDefault.toLowerCase();
+
+      return {
+        ...service,
+        revenueModel,
+        unitLabel: shouldRefreshUnitLabel
+          ? getDefaultServiceUnitLabel(revenueModel)
+          : service.unitLabel
+      };
+    });
+    onUpdateServices(updated);
+  };
+
   // Cost items handlers
   const handleSaveCostItem = (item: StartupCostItem) => {
     const exists = costItems.some((i) => i.id === item.id);
@@ -343,11 +391,11 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       case 'subscription':
         return 'Recurring Subscription';
       case 'rental':
-        return 'Equipment / Facility Rental';
+        return 'Equipment / Facility Rental (Direct Hire)';
       case 'commission':
         return 'Commission / Success Fee';
       case 'event':
-        return 'Per Event';
+        return 'Per Event / Session';
       case 'package':
         return 'Package / Bundle';
       case 'per_participant':
@@ -817,7 +865,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       />
                       <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
                     </div>
-                    <p className="text-[10px] text-stone-500">Share of available operating days expected to be in use.</p>
+                    <p className="text-[10px] text-stone-500">Share of available operating time expected to be in use.</p>
                   </div>
 
                   {/* Equipment Field 4: Resource Label */}
@@ -862,6 +910,63 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     <p className="text-[10px] text-stone-500">Describes what one operating unit can support at the same time.</p>
                   </div>
 
+                  {equipmentPlan.revenueTreatment === 'capacity_only' && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-stone-700">Operating Hours per Day</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          value={equipmentPlan.operatingHoursPerDay ?? 8}
+                          onChange={(e) => handleUpdateEquipmentPlan({
+                            operatingHoursPerDay: Math.max(0, Math.min(24, parseFloat(e.target.value) || 0))
+                          })}
+                          className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        />
+                        <p className="text-[10px] text-stone-500">Scheduled operating hours available on each operating day.</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-stone-700">Service Unit Duration (Hours)</label>
+                        <input
+                          type="number"
+                          min="0.25"
+                          max="24"
+                          step="0.25"
+                          value={equipmentPlan.serviceUnitDurationHours ?? 1}
+                          onChange={(e) => handleUpdateEquipmentPlan({
+                            serviceUnitDurationHours: Math.max(0.25, Math.min(24, parseFloat(e.target.value) || 0.25))
+                          })}
+                          className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        />
+                        <p className="text-[10px] text-stone-500">Time consumed by one session, booking, appointment, or other capacity-bound service unit.</p>
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-bold text-stone-700">Capacity-Bound Service Offering</label>
+                        <select
+                          value={capacityServiceId || ''}
+                          onChange={(e) => handleUpdateEquipmentPlan({
+                            capacityServiceOfferingId: e.target.value || undefined
+                          })}
+                          className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        >
+                          <option value="">Select service offering</option>
+                          {services.map((service) => (
+                            <option key={service.id} value={service.id}>
+                              {service.name} — {service.expectedVolume ?? 0} {getServiceOfferingUnitLabel(service)}/mo
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-stone-500">
+                          Links planned service volume to this equipment's time capacity without creating a second revenue stream.
+                        </p>
+                      </div>
+                    </>
+                  )}
+
                   {equipmentPlan.revenueTreatment === 'independent_revenue' && (
                     <div 
                       className="space-y-1 relative group/field"
@@ -893,23 +998,70 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                 </div>
 
                 {/* Equipment Capacity Summary */}
-                <div className="bg-white border border-amber-200/80 rounded-xl p-2.5 text-[11px] flex flex-wrap items-center justify-between gap-2 text-stone-700">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span>Available: <strong>{capacityCalc.equipment.totalDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
-                    <span className="text-stone-300">•</span>
-                    <span>Utilized: <strong className="text-amber-900">{capacityCalc.equipment.effectiveDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
-                    <span className="text-stone-300">•</span>
-                    <span>Simultaneous Capacity: <strong>{capacityCalc.equipment.simultaneousCapacity} {capacityCalc.equipment.capacityUnitLabel}</strong></span>
-                  </div>
-                  {capacityCalc.equipment.revenueTreatment === 'independent_revenue' ? (
-                    <div className="font-bold text-amber-900 font-mono">
-                      Equipment Rental Revenue: <span>{currentSymbol} {capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo</span>
+                <div className="bg-white border border-amber-200/80 rounded-xl p-3 text-[11px] space-y-2 text-stone-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>Available: <strong>{capacityCalc.equipment.totalDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
+                      <span className="text-stone-300">•</span>
+                      <span>Target Utilized: <strong className="text-amber-900">{capacityCalc.equipment.effectiveDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
+                      <span className="text-stone-300">•</span>
+                      <span>Simultaneous Capacity: <strong>{capacityCalc.equipment.simultaneousCapacity} {capacityCalc.equipment.capacityUnitLabel}</strong></span>
                     </div>
-                  ) : (
-                    <div className="font-bold text-emerald-800">
-                      Capacity Only — revenue is modeled in Service Offerings
+                    {capacityCalc.equipment.revenueTreatment === 'independent_revenue' ? (
+                      <div className="font-bold text-amber-900 font-mono">
+                        Equipment Rental Revenue: <span>{currentSymbol} {capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo</span>
+                      </div>
+                    ) : (
+                      <div className="font-bold text-emerald-800">
+                        Capacity Only — revenue is modeled in Service Offerings
+                      </div>
+                    )}
+                  </div>
+
+                  {capacityCalc.equipment.revenueTreatment === 'capacity_only' && (
+                    <div className="pt-2 border-t border-amber-100 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>
+                        Operating Time: <strong>{capacityCalc.equipment.totalOperatingHours.toLocaleString()} hrs/mo</strong>
+                      </span>
+                      <span className="text-stone-300">•</span>
+                      <span>
+                        Maximum Service Capacity: <strong>{capacityCalc.equipment.maxServiceUnits.toLocaleString()} {capacityServiceUnitLabel}/mo</strong>
+                      </span>
+                      <span className="text-stone-300">•</span>
+                      <span>
+                        At {capacityCalc.equipment.targetUtilisationPercent}% target utilisation: <strong>{capacityCalc.equipment.effectiveServiceUnits.toLocaleString()} {capacityServiceUnitLabel}/mo</strong>
+                      </span>
                     </div>
                   )}
+
+                  {capacityCalc.equipment.revenueTreatment === 'capacity_only' && capacityService ? (
+                    <div className={`rounded-lg px-2.5 py-2 border ${
+                      plannedCapacityLoadPercent > 100
+                        ? 'bg-rose-50 border-rose-200 text-rose-800'
+                        : plannedCapacityLoadPercent > capacityCalc.equipment.targetUtilisationPercent
+                          ? 'bg-amber-50 border-amber-200 text-amber-900'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    }`}>
+                      <strong>{capacityService.name}:</strong>{' '}
+                      {plannedCapacityServiceUnits.toLocaleString()} planned {capacityServiceUnitLabel}/mo
+                      {' • '}
+                      {plannedCapacityLoadPercent.toFixed(1)}% of maximum time capacity
+                      {' • '}
+                      {targetCapacityLoadPercent.toFixed(1)}% of target-utilized capacity
+                      {plannedCapacityLoadPercent > 100 && (
+                        <span className="font-bold"> — planned volume exceeds configured equipment capacity.</span>
+                      )}
+                      {capacityService.revenueModel === 'rental' && (
+                        <div className="mt-1.5 text-[10.5px] font-medium">
+                          This linked service is classified as a direct rental. If the customer is buying a managed session/booking rather than taking possession of the equipment, change its model below to <strong>Event / Session</strong> and set the Unit label to <strong>Sessions</strong> or <strong>Bookings</strong>.
+                        </div>
+                      )}
+                    </div>
+                  ) : capacityCalc.equipment.revenueTreatment === 'capacity_only' ? (
+                    <div className="rounded-lg px-2.5 py-2 bg-stone-50 border border-stone-200 text-stone-600">
+                      Select a capacity-bound service offering to compare planned monthly volume with available operating capacity.
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Fleet Equipment Acquisition & Landed Import Duty Provisioning */}
@@ -972,26 +1124,34 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               </div>
             ) : (
               <div className="py-6 text-center text-xs text-stone-400">
-                Equipment capacity engine disabled. Click the checkbox to activate equipment &amp; fleet rental modeling.
+                Equipment capacity engine disabled. Click the checkbox to activate equipment &amp; operating-capacity planning.
               </div>
             )}
           </div>
         </div>
 
-        {/* Combined Dual-Capacity Summary Banner */}
+        {/* Combined Operational Capacity Summary Banner */}
         <div className="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-emerald-50 border border-blue-200/80 rounded-2xl p-4 space-y-2 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <TrendingUp size={16} className="text-blue-700 shrink-0" />
               <span className="font-bold text-stone-900 text-sm">
-                Total Combined Operational Capacity Potential:
+                Operational Capacity Summary
               </span>
             </div>
             <div className="flex items-center gap-3 text-xs font-bold text-emerald-800 bg-white/80 px-3 py-1 rounded-xl border border-emerald-300/60 shadow-2xs">
-              <span className="text-stone-500 font-normal">Combined Max Revenue:</span>
-              <span className="text-sm font-extrabold text-emerald-700 font-mono">
-                {currentSymbol} {capacityCalc.totalMonthlyRevenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo
-              </span>
+              {hasDirectCapacityRevenue ? (
+                <>
+                  <span className="text-stone-500 font-normal">Direct Capacity-Engine Revenue:</span>
+                  <span className="text-sm font-extrabold text-emerald-700 font-mono">
+                    {currentSymbol} {capacityCalc.totalMonthlyRevenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo
+                  </span>
+                </>
+              ) : (
+                <span className="text-emerald-800">
+                  Service Revenue is modeled in Service Offerings
+                </span>
+              )}
             </div>
           </div>
 
@@ -1006,7 +1166,14 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
               <span>
-                Equipment Rental Capacity: <strong>{equipmentPlan.enabled ? `${capacityCalc.equipment.effectiveDays} booked days/mo (${currentSymbol} ${capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })})` : 'Disabled'}</strong>
+                Equipment Operating Capacity:{' '}
+                <strong>
+                  {!equipmentPlan.enabled
+                    ? 'Disabled'
+                    : capacityCalc.equipment.revenueTreatment === 'independent_revenue'
+                      ? `${capacityCalc.equipment.effectiveDays} utilized ${capacityCalc.equipment.resourceUnitLabel}-days/mo (${currentSymbol} ${capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })})`
+                      : `${capacityCalc.equipment.effectiveDays} utilized ${capacityCalc.equipment.resourceUnitLabel}-days/mo • ${capacityCalc.equipment.effectiveServiceUnits} target ${capacityServiceUnitLabel}/mo`}
+                </strong>
               </span>
             </div>
           </div>
@@ -1093,9 +1260,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   <option value="hourly">Hourly Billing</option>
                   <option value="retainer">Monthly Retainer</option>
                   <option value="subscription">Recurring Subscription</option>
-                  <option value="rental">Equipment / Space Rental</option>
+                  <option value="rental">Equipment / Space Rental (Direct Hire)</option>
                   <option value="commission">Commission Fee</option>
-                  <option value="event">Per Event</option>
+                  <option value="event">Per Event / Session</option>
                   <option value="package">Package / Bundle</option>
                   <option value="per_participant">Per Participant</option>
                 </select>
@@ -1251,7 +1418,27 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Model:</label>
+                    <select
+                      value={service.revenueModel}
+                      onChange={(e) => handleUpdateServiceModel(service.id, e.target.value as ServiceRevenueModel)}
+                      className="w-28 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                      title="How this service earns revenue"
+                    >
+                      <option value="project">Project</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="retainer">Retainer</option>
+                      <option value="subscription">Subscription</option>
+                      <option value="rental">Rental</option>
+                      <option value="commission">Commission</option>
+                      <option value="event">Event / Session</option>
+                      <option value="package">Package</option>
+                      <option value="per_participant">Per Participant</option>
+                    </select>
+                  </div>
+
                   <div className="flex items-center gap-1 text-xs">
                     <label className="text-[10px] text-stone-500">Unit:</label>
                     <input

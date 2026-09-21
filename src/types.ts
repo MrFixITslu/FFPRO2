@@ -512,6 +512,11 @@ export interface EquipmentCapacityDetails {
   capacityPerResource?: number; // e.g. 12 players supported by one laser-tag system
   capacityUnitLabel?: string; // e.g. "players", "guests", "seats"
 
+  // Session / appointment capacity for service businesses
+  operatingHoursPerDay?: number; // e.g. 8 operating hours per day
+  serviceUnitDurationHours?: number; // e.g. 1 hour per session/booking
+  capacityServiceOfferingId?: string; // service offering whose planned volume consumes this equipment capacity
+
   // Asset Acquisition & Import Duties Provision
   hasAcquisitionPlan?: boolean;
   importUnitsCount?: number; // Procurement/import quantity; intentionally separate from deployable system count
