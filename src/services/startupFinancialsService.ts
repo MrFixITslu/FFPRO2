@@ -20,6 +20,7 @@ import {
 } from '../types';
 import {
   DEFAULT_USD_TO_XCD_RATE,
+  coerceCurrencyCode,
   convertCurrency,
   normalizeCostItemToCurrency,
   normalizeGoodsProductToCurrency,
@@ -324,11 +325,10 @@ export function needsBusinessModelClassification(sd?: StartupPlanDetails): boole
 export function getEquipmentCapitalizedCost(item: StartupCostItem): number {
   const imported = item.importDetails;
   if (imported?.isImported) {
-    const itemCurrency: CurrencyCode = String(item.currency || imported.currency || 'XCD')
-      .trim()
-      .toUpperCase() === 'USD'
-      ? 'USD'
-      : 'XCD';
+    const itemCurrency: CurrencyCode = coerceCurrencyCode(
+      item.currency || imported.currency,
+      'XCD'
+    );
     const rate = imported.exchangeRate && imported.exchangeRate > 0
       ? imported.exchangeRate
       : DEFAULT_USD_TO_XCD_RATE;
