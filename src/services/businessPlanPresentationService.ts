@@ -290,7 +290,9 @@ export function buildBusinessPlanPresentation(
         termYears: details.loanParameters.termYears ?? 5,
         paymentFrequency: details.loanParameters.paymentFrequency || 'monthly',
         gracePeriodMonths: details.loanParameters.gracePeriodMonths ?? 0,
-        gracePeriodType: details.loanParameters.gracePeriodType || 'none',
+        gracePeriodType: (details.loanParameters.gracePeriodMonths ?? 0) > 0
+          ? (details.loanParameters.gracePeriodType === 'full_defer' ? 'full_defer' : 'interest_only')
+          : 'none',
         disbursementDate: details.loanParameters.disbursementDate,
         firstPaymentDate: details.loanParameters.firstPaymentDate || details.loanParameters.startDate,
         monthlyDebtService: loanSummary.monthlyDebtService,
