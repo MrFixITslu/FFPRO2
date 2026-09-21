@@ -145,34 +145,36 @@ export function validateBusinessPlan(
       });
     }
 
-    // Capacity vs Demand checks only compare compatible units.
-    const capacity = calculateServiceCapacity(details?.serviceCapacityPlan);
-    const hourlyDemand = offerings
-      .filter((o) => o.revenueModel === 'hourly')
-      .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
-    if (capacity.staff.enabled && hourlyDemand > capacity.staff.effectiveHours) {
-      issues.push({
-        id: 'staff-capacity-demand-mismatch',
-        type: 'warning',
-        category: 'capacity',
-        title: 'Hourly Demand Exceeds Billable Staff Capacity',
-        message: `Planned billable hours (${hourlyDemand}/month) exceed effective staff capacity (${capacity.staff.effectiveHours}/month).`,
-        actionableRecommendation: 'Increase billable staff capacity, utilisation assumptions, or reduce planned hourly volume.'
-      });
-    }
+    // Capacity vs Demand checks only compare compatible units and only when the user configured capacity.
+    if (details?.serviceCapacityPlan) {
+      const capacity = calculateServiceCapacity(details.serviceCapacityPlan);
+      const hourlyDemand = offerings
+        .filter((o) => o.revenueModel === 'hourly')
+        .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
+      if (capacity.staff.enabled && hourlyDemand > capacity.staff.effectiveHours) {
+        issues.push({
+          id: 'staff-capacity-demand-mismatch',
+          type: 'warning',
+          category: 'capacity',
+          title: 'Hourly Demand Exceeds Billable Staff Capacity',
+          message: `Planned billable hours (${hourlyDemand}/month) exceed effective staff capacity (${capacity.staff.effectiveHours}/month).`,
+          actionableRecommendation: 'Increase billable staff capacity, utilisation assumptions, or reduce planned hourly volume.'
+        });
+      }
 
-    const rentalDemand = offerings
-      .filter((o) => o.revenueModel === 'rental')
-      .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
-    if (capacity.equipment.enabled && rentalDemand > capacity.equipment.effectiveDays) {
-      issues.push({
-        id: 'equipment-capacity-demand-mismatch',
-        type: 'warning',
-        category: 'capacity',
-        title: 'Rental Demand Exceeds Effective Equipment Capacity',
-        message: `Planned rental volume (${rentalDemand} rental days/month) exceeds effective fleet capacity (${capacity.equipment.effectiveDays} rental days/month).`,
-        actionableRecommendation: 'Increase fleet capacity/utilisation or reduce planned rental-day volume.'
-      });
+      const rentalDemand = offerings
+        .filter((o) => o.revenueModel === 'rental')
+        .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
+      if (capacity.equipment.enabled && rentalDemand > capacity.equipment.effectiveDays) {
+        issues.push({
+          id: 'equipment-capacity-demand-mismatch',
+          type: 'warning',
+          category: 'capacity',
+          title: 'Rental Demand Exceeds Effective Equipment Capacity',
+          message: `Planned rental volume (${rentalDemand} rental days/month) exceeds effective fleet capacity (${capacity.equipment.effectiveDays} rental days/month).`,
+          actionableRecommendation: 'Increase fleet capacity/utilisation or reduce planned rental-day volume.'
+        });
+      }
     }
   }
 
@@ -248,7 +250,7 @@ export function validateBusinessPlan(
   const opexData = calculateMonthlyOperatingExpenses(details);
   const sumBreakdown = roundCurrency(opexData.operatingExpensesBreakdown.reduce((sum, item) => sum + item.amount, 0));
   const forecast = generateStartupFinancialForecast(details);
-  const forecastMonthlyOpEx = forecast.monthlyYear1[0]?.operatingExpenses ?? 0;
+  const forecastMonthlyOpEx = forecast.monthlyYear1[0]?.recurringExpenses ?? 0;
   const calcMonthlyOpEx = calculations.monthlyOpExpenses ?? 0;
 
   if (Math.abs(sumBreakdown - forecastMonthlyOpEx) > 1.0 || Math.abs(sumBreakdown - calcMonthlyOpEx) > 1.0) {
@@ -257,7 +259,173 @@ export function validateBusinessPlan(
       type: 'error',
       category: 'forecast',
       title: 'Operating Expense Reconciliation Discrepancy',
-      message: `The sum of displayed operating expense rows (${calculations.currencySymbol || 'EC$'}${sumBreakdown.toLocaleString()}/mo) does not match the forecast operating overhead (${calculations.currencySymbol || 'EC$'}${forecastMonthlyOpEx.toLocaleString()}/mo).`,
+      message: `The sum of recurring operating expense rows (${calculations.currencySymbol || 'EC
+      actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
+    });
+  }
+
+  // 6. Narrative vs Financials Consistency Check
+  const execSummary = bp.executiveSummary || '';
+  const finNotes = bp.salesRevenueProjectionsNotes || '';
+  const combinedNarrative = `${execSummary} ${finNotes}`;
+  const revenueNarrative = combinedNarrative
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => /\b(revenue|sales|turnover|income)\b/i.test(sentence))
+    .join(' ');
+
+  // Compare only currency figures mentioned in a revenue/sales context so loan and funding amounts
+  // in the executive summary do not create false "revenue mismatch" warnings.
+  const currencyMatches = revenueNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
+  if (currencyMatches && currencyMatches.length > 0) {
+    const y1Rev = calculations.y1Rev;
+    let foundCloseMatch = false;
+    currencyMatches.forEach((matchStr) => {
+      const numStr = matchStr.replace(/[^0-9.]/g, '');
+      const numVal = parseFloat(numStr);
+      if (numVal > 10000) {
+        // If within 20% of Year 1 revenue, mark matched
+        if (Math.abs(numVal - y1Rev) / y1Rev < 0.25) {
+          foundCloseMatch = true;
+        }
+      }
+    });
+
+    // If narrative specifically mentions high numbers far from computed revenue, flag warning
+    if (!foundCloseMatch && y1Rev > 0 && combinedNarrative.length > 200) {
+      narrativeDiscrepancies.push(
+        `Financial narrative mentions figures that differ from computed Year 1 revenue (${calculations.currencySymbol || 'EC$'}${calculations.y1Rev.toLocaleString()}).`
+      );
+    }
+  }
+
+  // Determine Overall Status
+  const hasBlockingErrors = issues.some((i) => i.type === 'error');
+  const warningsCount = issues.filter((i) => i.type === 'warning').length;
+
+  let status: BusinessPlanReadinessStatus = 'draft';
+  let statusLabel = 'Draft Plan';
+  let score = 0;
+
+  // Base score on section completion (max 60 pts) and validation checks (max 40 pts)
+  const sectionScore = Math.round((completedSectionsCount / totalSectionsCount) * 60);
+  let validationScore = 40;
+  if (hasBlockingErrors) validationScore -= 30;
+  validationScore -= Math.min(20, warningsCount * 5);
+  validationScore = Math.max(0, validationScore);
+
+  score = Math.min(100, Math.max(0, sectionScore + validationScore));
+
+  if (hasBlockingErrors || completionPercent < 30) {
+    status = 'draft';
+    statusLabel = 'Draft (Incomplete)';
+  } else if (completionPercent < 75 || warningsCount > 2) {
+    status = 'needs_review';
+    statusLabel = 'Needs Review';
+  } else if (completionPercent < 90 || warningsCount > 0) {
+    status = 'ready_for_financial_review';
+    statusLabel = 'Ready for Financial Review';
+  } else {
+    status = 'bank_ready';
+    statusLabel = 'Ready for Lender Review';
+  }
+
+  return {
+    status,
+    statusLabel,
+    score,
+    completedSectionsCount,
+    totalSectionsCount,
+    completionPercent,
+    issues,
+    hasBlockingErrors,
+    warningsCount,
+    narrativeFinancialDiscrepancies: narrativeDiscrepancies
+  };
+}
+}${sumBreakdown.toLocaleString()}/mo) does not match the recurring forecast overhead (${calculations.currencySymbol || 'EC
+      actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
+    });
+  }
+
+  // 6. Narrative vs Financials Consistency Check
+  const execSummary = bp.executiveSummary || '';
+  const finNotes = bp.salesRevenueProjectionsNotes || '';
+  const combinedNarrative = `${execSummary} ${finNotes}`;
+  const revenueNarrative = combinedNarrative
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => /\b(revenue|sales|turnover|income)\b/i.test(sentence))
+    .join(' ');
+
+  // Compare only currency figures mentioned in a revenue/sales context so loan and funding amounts
+  // in the executive summary do not create false "revenue mismatch" warnings.
+  const currencyMatches = revenueNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
+  if (currencyMatches && currencyMatches.length > 0) {
+    const y1Rev = calculations.y1Rev;
+    let foundCloseMatch = false;
+    currencyMatches.forEach((matchStr) => {
+      const numStr = matchStr.replace(/[^0-9.]/g, '');
+      const numVal = parseFloat(numStr);
+      if (numVal > 10000) {
+        // If within 20% of Year 1 revenue, mark matched
+        if (Math.abs(numVal - y1Rev) / y1Rev < 0.25) {
+          foundCloseMatch = true;
+        }
+      }
+    });
+
+    // If narrative specifically mentions high numbers far from computed revenue, flag warning
+    if (!foundCloseMatch && y1Rev > 0 && combinedNarrative.length > 200) {
+      narrativeDiscrepancies.push(
+        `Financial narrative mentions figures that differ from computed Year 1 revenue (${calculations.currencySymbol || 'EC$'}${calculations.y1Rev.toLocaleString()}).`
+      );
+    }
+  }
+
+  // Determine Overall Status
+  const hasBlockingErrors = issues.some((i) => i.type === 'error');
+  const warningsCount = issues.filter((i) => i.type === 'warning').length;
+
+  let status: BusinessPlanReadinessStatus = 'draft';
+  let statusLabel = 'Draft Plan';
+  let score = 0;
+
+  // Base score on section completion (max 60 pts) and validation checks (max 40 pts)
+  const sectionScore = Math.round((completedSectionsCount / totalSectionsCount) * 60);
+  let validationScore = 40;
+  if (hasBlockingErrors) validationScore -= 30;
+  validationScore -= Math.min(20, warningsCount * 5);
+  validationScore = Math.max(0, validationScore);
+
+  score = Math.min(100, Math.max(0, sectionScore + validationScore));
+
+  if (hasBlockingErrors || completionPercent < 30) {
+    status = 'draft';
+    statusLabel = 'Draft (Incomplete)';
+  } else if (completionPercent < 75 || warningsCount > 2) {
+    status = 'needs_review';
+    statusLabel = 'Needs Review';
+  } else if (completionPercent < 90 || warningsCount > 0) {
+    status = 'ready_for_financial_review';
+    statusLabel = 'Ready for Financial Review';
+  } else {
+    status = 'bank_ready';
+    statusLabel = 'Ready for Lender Review';
+  }
+
+  return {
+    status,
+    statusLabel,
+    score,
+    completedSectionsCount,
+    totalSectionsCount,
+    completionPercent,
+    issues,
+    hasBlockingErrors,
+    warningsCount,
+    narrativeFinancialDiscrepancies: narrativeDiscrepancies
+  };
+}
+}${forecastMonthlyOpEx.toLocaleString()}/mo).`,
       actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
     });
   }
