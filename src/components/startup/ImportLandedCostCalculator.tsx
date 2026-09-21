@@ -67,8 +67,9 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
   const [unitsCount, setUnitsCount] = useState<string>(
     (initialImportDetails?.unitsCount ?? initialUnitsCount)?.toString() || '1'
   );
+  const storedExchangeRate = initialImportDetails?.exchangeRate || 2.70;
   const initialInvoiceFob = invoiceCurrency === 'USD'
-    ? (initialImportDetails?.fobCostUSD ?? 0)
+    ? (initialImportDetails?.fobCostUSD ?? ((initialImportDetails?.fobCost ?? 0) / storedExchangeRate))
     : (initialImportDetails?.fobCost ?? 0);
   const [unitFobCost, setUnitFobCost] = useState<string>(
     initialInvoiceFob > 0
@@ -82,12 +83,22 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
   );
   const [shippingFreight, setShippingFreight] = useState<string>(
     invoiceCurrency === 'USD'
-      ? (initialImportDetails?.shippingFreightUSD?.toString() || initialShippingTotal?.toString() || '250')
+      ? (
+          initialImportDetails?.shippingFreightUSD?.toString() ||
+          (initialImportDetails?.shippingFreight
+            ? roundCurrency(initialImportDetails.shippingFreight / storedExchangeRate).toString()
+            : initialShippingTotal?.toString() || '250')
+        )
       : (initialImportDetails?.shippingFreight?.toString() || initialShippingTotal?.toString() || '250')
   );
   const [insuranceCost, setInsuranceCost] = useState<string>(
     invoiceCurrency === 'USD'
-      ? (initialImportDetails?.insuranceCostUSD?.toString() || '')
+      ? (
+          initialImportDetails?.insuranceCostUSD?.toString() ||
+          (initialImportDetails?.insuranceCost
+            ? roundCurrency(initialImportDetails.insuranceCost / storedExchangeRate).toString()
+            : '')
+        )
       : (initialImportDetails?.insuranceCost?.toString() || '')
   );
   const [portBrokerageFee, setPortBrokerageFee] = useState<string>(
