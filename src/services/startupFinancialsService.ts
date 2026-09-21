@@ -194,6 +194,7 @@ export function calculateLandedImportCost(params: {
   customVatRate?: number;
   portAndBrokerageFee?: number; // Port handling & brokerage entry fee (in EC$)
   unitsCount?: number;
+  quoteEntryMode?: 'per_unit' | 'package_total';
 }): ImportDutyCalculation {
   const category = params.category || 'electronics';
   const preset = SAINT_LUCIA_DUTY_PRESETS[category] || SAINT_LUCIA_DUTY_PRESETS.electronics;
@@ -271,6 +272,8 @@ export function calculateLandedImportCost(params: {
 
   return {
     isImported: true,
+    unitsCount: units,
+    quoteEntryMode: params.quoteEntryMode || 'per_unit',
     country: params.country || 'saint_lucia',
     category,
     currency: 'XCD', // Output is officially presented in EC$
@@ -397,8 +400,13 @@ export interface ServiceCapacityCalculationResult {
     availableDaysPerUnit: number;
     targetUtilisationPercent: number;
     dailyRate: number;
+    revenueTreatment: 'capacity_only' | 'independent_revenue';
+    resourceUnitLabel: string;
+    capacityPerResource: number;
+    capacityUnitLabel: string;
     totalDays: number;
     effectiveDays: number;
+    simultaneousCapacity: number;
     monthlyRevenue: number;
   };
   totalMonthlyRevenuePotential: number;
@@ -422,10 +430,14 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
 
   const defaultEquipment = {
     enabled: plan?.equipment?.enabled ?? (plan?.resourceType === 'equipment' || plan?.resourceType === 'both'),
-    resourceCount: plan?.equipment?.resourceCount ?? (plan?.resourceType === 'equipment' ? (plan.resourceCount || 12) : 12),
+    resourceCount: plan?.equipment?.resourceCount ?? (plan?.resourceType === 'equipment' ? (plan.resourceCount || 1) : 1),
     availableDaysPerUnit: plan?.equipment?.availableDaysPerUnit ?? (plan?.resourceType === 'equipment' ? (plan.availableTimePerResource || 25) : 25),
     targetUtilisationPercent: plan?.equipment?.targetUtilisationPercent ?? (plan?.resourceType === 'equipment' ? (plan.targetUtilisationPercent ?? 50) : 50),
-    dailyRate: plan?.equipment?.dailyRate ?? (plan?.resourceType === 'equipment' ? (plan.hourlyOrDailyRate || 500) : 500)
+    dailyRate: plan?.equipment?.dailyRate ?? (plan?.resourceType === 'equipment' ? (plan.hourlyOrDailyRate || 0) : 0),
+    revenueTreatment: plan?.equipment?.revenueTreatment ?? 'capacity_only' as 'capacity_only' | 'independent_revenue',
+    resourceUnitLabel: plan?.equipment?.resourceUnitLabel?.trim() || 'operating units',
+    capacityPerResource: Math.max(0, plan?.equipment?.capacityPerResource ?? 1),
+    capacityUnitLabel: plan?.equipment?.capacityUnitLabel?.trim() || 'capacity units'
   };
 
   // Calculate Staff Capacity
@@ -436,7 +448,11 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
   // Calculate Equipment Capacity
   const equipTotalDays = defaultEquipment.resourceCount * defaultEquipment.availableDaysPerUnit;
   const equipEffectiveDays = roundCurrency(equipTotalDays * (defaultEquipment.targetUtilisationPercent / 100));
-  const equipMonthlyRevenue = defaultEquipment.enabled ? roundCurrency(equipEffectiveDays * defaultEquipment.dailyRate) : 0;
+  const equipSimultaneousCapacity = roundCurrency(defaultEquipment.resourceCount * defaultEquipment.capacityPerResource);
+  const equipMonthlyRevenue =
+    defaultEquipment.enabled && defaultEquipment.revenueTreatment === 'independent_revenue'
+      ? roundCurrency(equipEffectiveDays * defaultEquipment.dailyRate)
+      : 0;
 
   const totalMonthlyRevenue = roundCurrency(staffMonthlyRevenue + equipMonthlyRevenue);
 
@@ -451,6 +467,7 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
       ...defaultEquipment,
       totalDays: equipTotalDays,
       effectiveDays: equipEffectiveDays,
+      simultaneousCapacity: equipSimultaneousCapacity,
       monthlyRevenue: equipMonthlyRevenue
     },
     totalMonthlyRevenuePotential: totalMonthlyRevenue,
