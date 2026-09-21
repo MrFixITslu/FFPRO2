@@ -7,6 +7,8 @@ import {
   generateStartupFinancialForecast,
   calculateLoanAmortizationSchedule,
   calculateMonthlyOperatingExpenses,
+  calculateServiceCapacity,
+  getServiceOfferingUnitLabel,
   roundCurrency
 } from './startupFinancialsService';
 
@@ -53,7 +55,10 @@ export function validateBusinessPlan(
 
   const bp: BusinessPlanSections = details?.businessPlan || {};
   const calculations = customCalcs || computeStartupCalculations(details);
-  const isServices = details?.businessModelType === 'services' || calculations.isServiceBusiness;
+  const isServices =
+    details?.businessModelType === 'services' ||
+    details?.businessModelType === 'both' ||
+    calculations.isServiceBusiness;
 
   // 1. Check Section Narrative Completeness
   let completedSectionsCount = 0;
@@ -104,24 +109,25 @@ export function validateBusinessPlan(
       });
     } else {
       offerings.forEach((s, idx) => {
+        const unitLabel = getServiceOfferingUnitLabel(s);
         if (!s.rate || s.rate <= 0) {
           issues.push({
             id: `service-rate-zero-${idx}`,
             type: 'error',
             category: 'pricing',
             title: `Zero Rate on "${s.name || `Service #${idx + 1}`}"`,
-            message: 'Service offerings must have a billable rate greater than zero.',
-            actionableRecommendation: 'Set a positive pricing rate per session or booking.'
+            message: `Service offerings must have a billable rate greater than zero per ${unitLabel.toLowerCase()}.`,
+            actionableRecommendation: `Set a positive pricing rate for each ${unitLabel.toLowerCase()}.`
           });
         }
-        if (!s.expectedVolume || s.expectedVolume <= 0) {
+        if (s.expectedVolume === undefined || s.expectedVolume === null || s.expectedVolume <= 0) {
           issues.push({
             id: `service-volume-zero-${idx}`,
             type: 'warning',
             category: 'pricing',
             title: `Zero Volume on "${s.name || `Service #${idx + 1}`}"`,
-            message: 'Service volume is set to 0, which yields $0 projected revenue.',
-            actionableRecommendation: 'Specify target monthly sessions or bookings.'
+            message: `Monthly ${unitLabel.toLowerCase()} volume is 0, so this offering contributes no projected revenue.`,
+            actionableRecommendation: `Specify the target monthly number of ${unitLabel.toLowerCase()}.`
           });
         }
       });
@@ -135,25 +141,38 @@ export function validateBusinessPlan(
         category: 'pricing',
         title: 'High Contribution Margin Ratio',
         message: `Calculated service contribution margin is ${calculations.contributionMarginPercent}%. Ensure staff direct labor or direct event expenses are captured.`,
-        actionableRecommendation: 'Review direct consumables and job-specific expenses per booking.'
+        actionableRecommendation: 'Review direct labor, consumables, and other job-specific costs for each service unit.'
       });
     }
 
-    // Capacity vs Demand check
-    const fleetCapacity = details?.serviceCapacityPlan?.equipment;
-    if (fleetCapacity && fleetCapacity.enabled && fleetCapacity.resourceCount > 0) {
-      const maxMonthlyDays = fleetCapacity.resourceCount * (fleetCapacity.availableDaysPerUnit || 25);
-      const totalPlannedMonthlyDemand = offerings.reduce((sum, o) => sum + (o.expectedVolume || 0), 0);
-      if (totalPlannedMonthlyDemand > maxMonthlyDays * 1.5) {
-        issues.push({
-          id: 'capacity-demand-mismatch',
-          type: 'warning',
-          category: 'capacity',
-          title: 'Demand Exceeds Fleet Capacity Limit',
-          message: `Planned monthly bookings (${totalPlannedMonthlyDemand}) exceed maximum fleet operational capacity (${maxMonthlyDays} unit-days/month).`,
-          actionableRecommendation: 'Increase fleet units owned or adjust target monthly bookings.'
-        });
-      }
+    // Capacity vs Demand checks only compare compatible units.
+    const capacity = calculateServiceCapacity(details?.serviceCapacityPlan);
+    const hourlyDemand = offerings
+      .filter((o) => o.revenueModel === 'hourly')
+      .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
+    if (capacity.staff.enabled && hourlyDemand > capacity.staff.effectiveHours) {
+      issues.push({
+        id: 'staff-capacity-demand-mismatch',
+        type: 'warning',
+        category: 'capacity',
+        title: 'Hourly Demand Exceeds Billable Staff Capacity',
+        message: `Planned billable hours (${hourlyDemand}/month) exceed effective staff capacity (${capacity.staff.effectiveHours}/month).`,
+        actionableRecommendation: 'Increase billable staff capacity, utilisation assumptions, or reduce planned hourly volume.'
+      });
+    }
+
+    const rentalDemand = offerings
+      .filter((o) => o.revenueModel === 'rental')
+      .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
+    if (capacity.equipment.enabled && rentalDemand > capacity.equipment.effectiveDays) {
+      issues.push({
+        id: 'equipment-capacity-demand-mismatch',
+        type: 'warning',
+        category: 'capacity',
+        title: 'Rental Demand Exceeds Effective Equipment Capacity',
+        message: `Planned rental volume (${rentalDemand} rental days/month) exceeds effective fleet capacity (${capacity.equipment.effectiveDays} rental days/month).`,
+        actionableRecommendation: 'Increase fleet capacity/utilisation or reduce planned rental-day volume.'
+      });
     }
   }
 
@@ -202,24 +221,26 @@ export function validateBusinessPlan(
       calculations.ebitdaYear1 || calculations.y1Net
     );
 
-    if (loanSummary.dscrYear1 < 1.0) {
-      issues.push({
-        id: 'loan-dscr-insufficient',
-        type: 'error',
-        category: 'loan',
-        title: 'DSCR Below 1.0x (Insufficient Debt Service Coverage)',
-        message: `Year 1 DSCR is ${loanSummary.dscrYear1.toFixed(2)}x. Net operating cash flow is insufficient to service loan debt.`,
-        actionableRecommendation: 'Increase revenue projections, trim operating overhead, or extend loan tenure.'
-      });
-    } else if (loanSummary.dscrYear1 < 1.25) {
-      issues.push({
-        id: 'loan-dscr-tight',
-        type: 'warning',
-        category: 'loan',
-        title: 'DSCR Tight (<1.25x Commercial Benchmark)',
-        message: `Year 1 DSCR is ${loanSummary.dscrYear1.toFixed(2)}x. Commercial banks generally prefer a minimum 1.25x - 1.35x coverage ratio.`,
-        actionableRecommendation: 'Consider requesting a partial grant or injecting additional equity.'
-      });
+    if (loanSummary) {
+      if (loanSummary.dscrYear1 < 1.0) {
+        issues.push({
+          id: 'loan-dscr-insufficient',
+          type: 'error',
+          category: 'loan',
+          title: 'DSCR Below 1.0x (Insufficient Debt Service Coverage)',
+          message: `Year 1 simplified DSCR is ${loanSummary.dscrYear1.toFixed(2)}x using EBITDA / scheduled debt service.`,
+          actionableRecommendation: 'Increase revenue, trim operating overhead, increase equity/grant funding, or revise loan terms.'
+        });
+      } else if (loanSummary.dscrYear1 < 1.25) {
+        issues.push({
+          id: 'loan-dscr-tight',
+          type: 'warning',
+          category: 'loan',
+          title: 'DSCR Tight (<1.25x Screening Threshold)',
+          message: `Year 1 simplified DSCR is ${loanSummary.dscrYear1.toFixed(2)}x using EBITDA / scheduled debt service. Some lenders use higher internal thresholds.`,
+          actionableRecommendation: 'Review the lender-specific DSCR requirement and consider more equity, lower debt, or revised repayment terms.'
+        });
+      }
     }
   }
 
@@ -245,9 +266,14 @@ export function validateBusinessPlan(
   const execSummary = bp.executiveSummary || '';
   const finNotes = bp.salesRevenueProjectionsNotes || '';
   const combinedNarrative = `${execSummary} ${finNotes}`;
+  const revenueNarrative = combinedNarrative
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => /\b(revenue|sales|turnover|income)\b/i.test(sentence))
+    .join(' ');
 
-  // Extract dollar figures from narrative (e.g. $150,000 or EC$ 150,000)
-  const currencyMatches = combinedNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
+  // Compare only currency figures mentioned in a revenue/sales context so loan and funding amounts
+  // in the executive summary do not create false "revenue mismatch" warnings.
+  const currencyMatches = revenueNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
   if (currencyMatches && currencyMatches.length > 0) {
     const y1Rev = calculations.y1Rev;
     let foundCloseMatch = false;
@@ -298,7 +324,7 @@ export function validateBusinessPlan(
     statusLabel = 'Ready for Financial Review';
   } else {
     status = 'bank_ready';
-    statusLabel = 'Funding & Bank Ready';
+    statusLabel = 'Ready for Lender Review';
   }
 
   return {
