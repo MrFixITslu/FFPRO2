@@ -752,7 +752,9 @@ export function calculateLoanAmortizationSchedule(
   const requestedGracePeriods = Math.round(graceMonths * (paymentsPerYear / 12));
   const gracePeriods = Math.min(Math.max(0, requestedGracePeriods), Math.max(0, totalPeriods - 1));
   const activeRepaymentPeriods = Math.max(1, totalPeriods - gracePeriods);
-  const gracePeriodType = params.gracePeriodType || (graceMonths > 0 ? 'interest_only' : 'none');
+  const gracePeriodType = gracePeriods > 0
+    ? (params.gracePeriodType === 'full_defer' ? 'full_defer' : 'interest_only')
+    : 'none';
 
   // A full-payment deferral capitalizes accrued interest into the balance.
   // Compute the post-grace balance first so the regular payment fully amortizes the debt
