@@ -322,16 +322,18 @@ export function buildBusinessPlanPresentation(
   let headline: BusinessPlanPresentationModel['headline'];
   if (isServiceBusiness) {
     headline = {
-      primaryMetricLabel: offerings.length === 1 ? 'Service Rate' : 'Average Booking Value',
+      primaryMetricLabel: businessModelType === 'both'
+        ? 'Blended Revenue per Unit'
+        : (offerings.length === 1 ? 'Service Rate' : 'Average Service Unit Value'),
       primaryPrice: calculations.sellingPrice,
       primaryPriceFormatted: fmt(calculations.sellingPrice),
-      primaryCostLabel: 'Direct Cost per Unit',
-      primaryCost: calculations.directCostPerUnit || calculations.costOfGoodsSoldUnit,
-      primaryCostFormatted: fmt(calculations.directCostPerUnit || calculations.costOfGoodsSoldUnit),
+      primaryCostLabel: businessModelType === 'both' ? 'Blended Direct Cost per Unit' : 'Direct Cost per Service Unit',
+      primaryCost: calculations.directCostPerUnit ?? calculations.costOfGoodsSoldUnit,
+      primaryCostFormatted: fmt(calculations.directCostPerUnit ?? calculations.costOfGoodsSoldUnit),
       marginMetricLabel: 'Contribution Margin',
-      marginMetricValue: calculations.unitContributionMargin || (calculations.sellingPrice - calculations.costOfGoodsSoldUnit),
-      marginMetricFormatted: fmt(calculations.unitContributionMargin || (calculations.sellingPrice - calculations.costOfGoodsSoldUnit)),
-      marginMetricPercent: calculations.contributionMarginPercent || calculations.grossMarginPercent,
+      marginMetricValue: calculations.unitContributionMargin ?? (calculations.sellingPrice - calculations.costOfGoodsSoldUnit),
+      marginMetricFormatted: fmt(calculations.unitContributionMargin ?? (calculations.sellingPrice - calculations.costOfGoodsSoldUnit)),
+      marginMetricPercent: calculations.contributionMarginPercent ?? calculations.grossMarginPercent,
       volumeMetricLabel: resolvedVolumeLabel,
       volumeMonthly: monthlyVolume,
       volumeYear1: year1Volume
@@ -355,7 +357,7 @@ export function buildBusinessPlanPresentation(
   }
 
   const projectionFor = (yearNumber: number) =>
-    forecast.yearlyProjections.find((p) => p.year === yearNumber) || forecast.yearlyProjections[0];
+    forecast.yearlyProjections.find((p) => p.year === yearNumber) ?? forecast.yearlyProjections[0]!;
 
   const toStatement = (projection: ReturnType<typeof projectionFor>) => {
     const ebitda = roundCurrency(projection.grossProfit - projection.operatingExpenses);
