@@ -6,6 +6,7 @@ import {
   calculateEquipmentDepreciation,
   calculateEquipmentRentalRevenue,
   calculateServiceCapacity,
+  calculateLandedImportCost,
   calculateLoanAmortizationSchedule,
   calculateMonthlyOperatingExpenses,
   generateStartupFinancialForecast,
@@ -92,6 +93,69 @@ test('generalised service capacity handles both staff and equipment resources', 
   assert.equal(staffPlan.totalCapacityUnits, 480);
   assert.equal(staffPlan.effectiveCapacityUnits, 360);
   assert.equal(staffPlan.monthlyRevenuePotential, 18000);
+});
+
+test('equipment capacity-only mode tracks operating capacity without fabricating rental revenue', () => {
+  const result = calculateServiceCapacity({
+    equipment: {
+      enabled: true,
+      resourceCount: 1,
+      availableDaysPerUnit: 30,
+      targetUtilisationPercent: 35,
+      dailyRate: 288,
+      revenueTreatment: 'capacity_only',
+      resourceUnitLabel: 'systems',
+      capacityPerResource: 12,
+      capacityUnitLabel: 'players',
+      importUnitsCount: 12
+    }
+  });
+
+  assert.equal(result.equipment.totalDays, 30);
+  assert.equal(result.equipment.effectiveDays, 10.5);
+  assert.equal(result.equipment.simultaneousCapacity, 12);
+  assert.equal(result.equipment.monthlyRevenue, 0);
+  assert.equal(result.totalMonthlyRevenuePotential, 0);
+});
+
+test('equipment independent-rental mode only creates revenue when explicitly selected', () => {
+  const result = calculateServiceCapacity({
+    equipment: {
+      enabled: true,
+      resourceCount: 2,
+      availableDaysPerUnit: 25,
+      targetUtilisationPercent: 80,
+      dailyRate: 500,
+      revenueTreatment: 'independent_revenue',
+      resourceUnitLabel: 'excavators',
+      capacityPerResource: 1,
+      capacityUnitLabel: 'machines'
+    }
+  });
+
+  assert.equal(result.equipment.effectiveDays, 40);
+  assert.equal(result.equipment.monthlyRevenue, 20000);
+});
+
+test('landed-cost calculator preserves whole-package quote and procurement quantity metadata', () => {
+  const result = calculateLandedImportCost({
+    fobCost: 14166.40,
+    shippingFreight: 1200,
+    insuranceCost: 0,
+    invoiceCurrency: 'USD',
+    exchangeRate: 2.70,
+    category: 'electronics',
+    portAndBrokerageFee: 324,
+    unitsCount: 12,
+    quoteEntryMode: 'package_total'
+  });
+
+  assert.equal(result.unitsCount, 12);
+  assert.equal(result.quoteEntryMode, 'package_total');
+  assert.equal(result.fobCostUSD, 14166.40);
+  assert.equal(result.shippingFreightUSD, 1200);
+  assert.equal(result.fobCost, 38249.28);
+  assert.ok((result.totalLandedCostXCD || 0) > result.cifValue);
 });
 
 test('12-month Year 1 forecast engine isolates equipment cash hit to purchase month while spreading depreciation', () => {
