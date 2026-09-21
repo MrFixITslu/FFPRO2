@@ -604,6 +604,8 @@ test('explicit zero service inputs remain zero instead of generating placeholder
   const validation = validateBusinessPlan(plan, calc);
 
   assert.equal(forecast.totalsYear1.revenue, 0);
+  assert.equal(forecast.breakEven.breakEvenRevenueMonthly, 0);
+  assert.equal(forecast.breakEven.breakEvenUnitsMonthly, 0);
   assert.equal(calc.monthlyRevenue, 0);
   assert.equal(calc.y1Rev, 0);
   assert.ok(validation.issues.some((issue) => issue.id === 'service-rate-zero-0'));
