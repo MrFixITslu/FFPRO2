@@ -162,18 +162,54 @@ export function validateBusinessPlan(
         });
       }
 
-      const rentalDemand = offerings
-        .filter((o) => o.revenueModel === 'rental')
-        .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
-      if (capacity.equipment.enabled && rentalDemand > capacity.equipment.effectiveDays) {
-        issues.push({
-          id: 'equipment-capacity-demand-mismatch',
-          type: 'warning',
-          category: 'capacity',
-          title: 'Rental Demand Exceeds Effective Equipment Capacity',
-          message: `Planned rental volume (${rentalDemand} rental days/month) exceeds effective fleet capacity (${capacity.equipment.effectiveDays} rental days/month).`,
-          actionableRecommendation: 'Increase fleet capacity/utilisation or reduce planned rental-day volume.'
-        });
+      if (capacity.equipment.enabled && capacity.equipment.revenueTreatment === 'independent_revenue') {
+        const rentalDemand = offerings
+          .filter((o) => o.revenueModel === 'rental')
+          .reduce((sum, o) => sum + Math.max(0, o.expectedVolume ?? 0), 0);
+        if (rentalDemand > capacity.equipment.effectiveDays) {
+          issues.push({
+            id: 'equipment-rental-capacity-demand-mismatch',
+            type: 'warning',
+            category: 'capacity',
+            title: 'Rental Demand Exceeds Effective Equipment Capacity',
+            message: `Planned rental volume (${rentalDemand} rental days/month) exceeds effective equipment capacity (${capacity.equipment.effectiveDays} rental days/month).`,
+            actionableRecommendation: 'Increase equipment availability/utilisation or reduce planned rental-day volume.'
+          });
+        }
+      }
+
+      if (capacity.equipment.enabled && capacity.equipment.revenueTreatment === 'capacity_only') {
+        const linkedServiceId =
+          details.serviceCapacityPlan?.equipment?.capacityServiceOfferingId ||
+          (offerings.length === 1 ? offerings[0]?.id : undefined);
+        const linkedService = offerings.find((o) => o.id === linkedServiceId);
+
+        if (linkedService) {
+          const plannedUnits = Math.max(0, linkedService.expectedVolume ?? 0);
+          const unitLabel = getServiceOfferingUnitLabel(linkedService);
+          if (capacity.equipment.maxServiceUnits > 0 && plannedUnits > capacity.equipment.maxServiceUnits) {
+            issues.push({
+              id: 'equipment-service-capacity-demand-mismatch',
+              type: 'error',
+              category: 'capacity',
+              title: 'Planned Service Volume Exceeds Equipment Time Capacity',
+              message: `Planned volume for "${linkedService.name}" is ${plannedUnits} ${unitLabel}/month, above the configured maximum of ${capacity.equipment.maxServiceUnits} ${unitLabel}/month.`,
+              actionableRecommendation: 'Increase operating days/hours, add deployable systems, shorten service duration, or reduce planned monthly volume.'
+            });
+          } else if (
+            capacity.equipment.effectiveServiceUnits > 0 &&
+            plannedUnits > capacity.equipment.effectiveServiceUnits
+          ) {
+            issues.push({
+              id: 'equipment-service-capacity-above-target-utilisation',
+              type: 'warning',
+              category: 'capacity',
+              title: 'Planned Service Volume Exceeds Target Utilisation',
+              message: `Planned volume for "${linkedService.name}" is ${plannedUnits} ${unitLabel}/month versus ${capacity.equipment.effectiveServiceUnits} ${unitLabel}/month at the configured ${capacity.equipment.targetUtilisationPercent}% utilisation target.`,
+              actionableRecommendation: 'Raise the utilisation assumption only if operations can support it, or revise the monthly service-volume target.'
+            });
+          }
+        }
       }
     }
   }
