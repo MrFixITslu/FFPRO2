@@ -330,6 +330,8 @@ test('buildBusinessPlanPresentation correctly models service offerings, fees and
   // Total fees = 1.5% + 0.5% = 2.0% = $1,000 -> opening balance = $51,000
   assert.equal(presentation.loan.openingBalance, 51000);
   assert.equal(presentation.loan.totalFees, 1000);
+  assert.equal(presentation.loan.negotiationFee, 750);
+  assert.equal(presentation.loan.insuranceFee, 250);
   assert.ok(presentation.loan.dscrYear1 > 0);
   assert.equal(presentation.loan.dscrStatus, 'adequate');
 });
@@ -570,6 +572,188 @@ test('calculateLoanAmortizationSchedule supports grace period deferral and fee c
   for (let i = 0; i < 6; i++) {
     assert.equal(resultWithGrace.schedule[i].principalPaid, 0);
   }
+});
+
+test('explicit zero service inputs remain zero instead of generating placeholder revenue', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 15,
+    growthRateYear5: 35,
+    serviceOfferings: [{
+      id: 'svc-zero',
+      name: 'Unpriced Pilot',
+      revenueModel: 'event',
+      unitLabel: 'Bookings',
+      rate: 0,
+      expectedVolume: 0,
+      directCostPerUnitOrJob: 0
+    }]
+  };
+
+  const forecast = generateStartupFinancialForecast(plan);
+  const calc = computeStartupCalculations(plan);
+  const validation = validateBusinessPlan(plan, calc);
+
+  assert.equal(forecast.totalsYear1.revenue, 0);
+  assert.equal(calc.monthlyRevenue, 0);
+  assert.equal(calc.y1Rev, 0);
+  assert.ok(validation.issues.some((issue) => issue.id === 'service-rate-zero-0'));
+  assert.ok(validation.issues.some((issue) => issue.id === 'service-volume-zero-0'));
+});
+
+test('custom service unit label flows through calculations, presentation and break-even', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 1000,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceOfferings: [{
+      id: 'svc-session',
+      name: 'Arena Session',
+      revenueModel: 'event',
+      unitLabel: 'Sessions',
+      rate: 500,
+      expectedVolume: 12,
+      directCostPerUnitOrJob: 50
+    }]
+  };
+
+  const calc = computeStartupCalculations(plan);
+  const presentation = buildBusinessPlanPresentation(plan, calc);
+  const forecast = generateStartupFinancialForecast(plan);
+
+  assert.equal(calc.revenueUnitLabel, 'Sessions');
+  assert.equal(calc.breakEvenMetricLabel, 'Sessions');
+  assert.equal(presentation.revenueStreams[0].unitLabel, 'Sessions');
+  assert.equal(presentation.headline.volumeMetricLabel, 'Sessions');
+  assert.equal(presentation.breakEven.metricLabel, 'Sessions');
+  assert.equal(forecast.breakEven.breakEvenMetricLabel, 'Sessions');
+});
+
+test('Year 3 and Year 5 growth percentages are cumulative targets relative to Year 1', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 15,
+    growthRateYear5: 35,
+    serviceOfferings: [{
+      id: 'svc-growth',
+      name: 'Private Booking',
+      revenueModel: 'event',
+      unitLabel: 'Bookings',
+      rate: 1000,
+      expectedVolume: 10,
+      monthlyGrowthRatePercent: 0,
+      directCostPerUnitOrJob: 0
+    }]
+  };
+
+  const forecast = generateStartupFinancialForecast(plan);
+  const y1 = forecast.yearlyProjections.find((y) => y.year === 1)!;
+  const y3 = forecast.yearlyProjections.find((y) => y.year === 3)!;
+  const y5 = forecast.yearlyProjections.find((y) => y.year === 5)!;
+
+  assert.equal(y1.revenue, 120000);
+  assert.equal(y3.revenue, 138000);
+  assert.equal(y5.revenue, 162000);
+});
+
+test('full-payment grace capitalizes interest without treating it as cash paid', () => {
+  const result = calculateLoanAmortizationSchedule({
+    enabled: true,
+    loanAmount: 100000,
+    annualInterestRate: 6,
+    termYears: 5,
+    paymentFrequency: 'monthly',
+    negotiationFee: 0,
+    insuranceFee: 0,
+    includeFeesInLoan: false,
+    gracePeriodMonths: 6,
+    gracePeriodType: 'full_defer',
+    firstPaymentDate: '2026-01-31'
+  })!;
+
+  for (const row of result.schedule.slice(0, 6)) {
+    assert.equal(row.paymentAmount, 0);
+    assert.equal(row.interestPaid, 0);
+    assert.ok((row.interestAccrued || 0) > 0);
+    assert.equal(row.capitalizedInterest, row.interestAccrued);
+  }
+
+  assert.ok(result.schedule[5].endingBalance > result.effectiveLoanAmount);
+  assert.equal(result.schedule.at(-1)?.endingBalance, 0);
+  assert.equal(result.schedule[1].paymentDate, '2026-02-28');
+});
+
+test('setup expenses do not create a false recurring OpEx reconciliation error', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceOfferings: [{
+      id: 'svc-setup',
+      name: 'Booking',
+      revenueModel: 'event',
+      unitLabel: 'Bookings',
+      rate: 1000,
+      expectedVolume: 10,
+      directCostPerUnitOrJob: 100
+    }],
+    costItems: [
+      {
+        id: 'op-rent',
+        name: 'Facility Lease',
+        classification: 'operating',
+        currency: 'USD',
+        monthlyExpenseAmount: 2000
+      },
+      {
+        id: 'setup-license',
+        name: 'Launch License',
+        classification: 'setup',
+        currency: 'USD',
+        setupExpenseAmount: 5000,
+        setupMonth: 1
+      }
+    ]
+  };
+
+  const validation = validateBusinessPlan(plan);
+  assert.ok(!validation.issues.some((issue) => issue.id === 'opex-reconciliation-mismatch'));
 });
 
 test('formatBusinessPlanMarkdownToHtml safely parses bold, italics, lists and headings', () => {
