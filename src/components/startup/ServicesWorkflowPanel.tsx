@@ -1125,20 +1125,28 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
           </div>
         </div>
 
-        {/* Combined Dual-Capacity Summary Banner */}
+        {/* Combined Operational Capacity Summary Banner */}
         <div className="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-emerald-50 border border-blue-200/80 rounded-2xl p-4 space-y-2 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <TrendingUp size={16} className="text-blue-700 shrink-0" />
               <span className="font-bold text-stone-900 text-sm">
-                Total Combined Operational Capacity Potential:
+                Operational Capacity Summary
               </span>
             </div>
             <div className="flex items-center gap-3 text-xs font-bold text-emerald-800 bg-white/80 px-3 py-1 rounded-xl border border-emerald-300/60 shadow-2xs">
-              <span className="text-stone-500 font-normal">Combined Max Revenue:</span>
-              <span className="text-sm font-extrabold text-emerald-700 font-mono">
-                {currentSymbol} {capacityCalc.totalMonthlyRevenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo
-              </span>
+              {hasDirectCapacityRevenue ? (
+                <>
+                  <span className="text-stone-500 font-normal">Direct Capacity-Engine Revenue:</span>
+                  <span className="text-sm font-extrabold text-emerald-700 font-mono">
+                    {currentSymbol} {capacityCalc.totalMonthlyRevenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} / mo
+                  </span>
+                </>
+              ) : (
+                <span className="text-emerald-800">
+                  Service Revenue is modeled in Service Offerings
+                </span>
+              )}
             </div>
           </div>
 
@@ -1153,7 +1161,14 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
               <span>
-                Equipment Rental Capacity: <strong>{equipmentPlan.enabled ? `${capacityCalc.equipment.effectiveDays} booked days/mo (${currentSymbol} ${capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })})` : 'Disabled'}</strong>
+                Equipment Operating Capacity:{' '}
+                <strong>
+                  {!equipmentPlan.enabled
+                    ? 'Disabled'
+                    : capacityCalc.equipment.revenueTreatment === 'independent_revenue'
+                      ? `${capacityCalc.equipment.effectiveDays} utilized ${capacityCalc.equipment.resourceUnitLabel}-days/mo (${currentSymbol} ${capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })})`
+                      : `${capacityCalc.equipment.effectiveDays} utilized ${capacityCalc.equipment.resourceUnitLabel}-days/mo • ${capacityCalc.equipment.effectiveServiceUnits} target ${capacityServiceUnitLabel}/mo`}
+                </strong>
               </span>
             </div>
           </div>
@@ -1398,7 +1413,27 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Model:</label>
+                    <select
+                      value={service.revenueModel}
+                      onChange={(e) => handleUpdateServiceModel(service.id, e.target.value as ServiceRevenueModel)}
+                      className="w-28 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                      title="How this service earns revenue"
+                    >
+                      <option value="project">Project</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="retainer">Retainer</option>
+                      <option value="subscription">Subscription</option>
+                      <option value="rental">Rental</option>
+                      <option value="commission">Commission</option>
+                      <option value="event">Event / Session</option>
+                      <option value="package">Package</option>
+                      <option value="per_participant">Per Participant</option>
+                    </select>
+                  </div>
+
                   <div className="flex items-center gap-1 text-xs">
                     <label className="text-[10px] text-stone-500">Unit:</label>
                     <input
