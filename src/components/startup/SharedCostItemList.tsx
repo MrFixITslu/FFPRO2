@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { CostItemClassification, StartupCostItem } from '../../types';
 import { calculateEquipmentDepreciation, calculateEquipmentRentalRevenue } from '../../services/startupFinancialsService';
-import { CurrencyCode, convertCurrency, DEFAULT_EXCHANGE_RATE, getCurrencySymbol } from '../../services/currencyService';
+import { CurrencyCode, convertCurrency, DEFAULT_EXCHANGE_RATE, getCurrencySymbol, normalizeCostItemAmount } from '../../services/currencyService';
 import { CurrencyToggle } from './CurrencyToggle';
 
 interface SharedCostItemListProps {
@@ -118,8 +118,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   const setupItems = items.filter((i) => i.classification === 'setup');
 
   const totalEquipmentCost = equipmentItems.reduce((sum, i) => {
-    const raw = i.purchaseCost ?? i.amount ?? 0;
-    return sum + normalizeItemValue(raw, i.currency);
+    return sum + normalizeCostItemAmount(i, currency, exchangeRate);
   }, 0);
 
   const totalStockInitial = stockItems.reduce((sum, i) => {
@@ -129,13 +128,11 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   }, 0);
 
   const totalMonthlyOpEx = operatingItems.reduce((sum, i) => {
-    const raw = i.monthlyExpenseAmount ?? i.amount ?? 0;
-    return sum + normalizeItemValue(raw, i.currency);
+    return sum + normalizeCostItemAmount(i, currency, exchangeRate);
   }, 0);
 
   const totalSetupCost = setupItems.reduce((sum, i) => {
-    const raw = i.setupExpenseAmount ?? i.amount ?? 0;
-    return sum + normalizeItemValue(raw, i.currency);
+    return sum + normalizeCostItemAmount(i, currency, exchangeRate);
   }, 0);
 
   const getClassificationBadge = (classification: CostItemClassification) => {
@@ -404,7 +401,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                     {item.classification === 'equipment' && (() => {
                       const dep = calculateEquipmentDepreciation(item);
                       const rental = calculateEquipmentRentalRevenue(item);
-                      const pCostDisplay = normalizeItemValue(item.purchaseCost ?? 0, item.currency);
+                      const pCostDisplay = normalizeCostItemAmount(item, currency, exchangeRate);
                       const monthlyDepDisplay = normalizeItemValue(dep.monthlyDepreciation, item.currency);
                       const rentalRevDisplay = normalizeItemValue(rental.monthlyRentalRevenue, item.currency);
 

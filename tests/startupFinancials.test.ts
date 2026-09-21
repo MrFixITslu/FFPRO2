@@ -10,6 +10,8 @@ import {
   generateStartupFinancialForecast,
   needsBusinessModelClassification
 } from '../src/services/startupFinancialsService.ts';
+import { computeStartupCalculations } from '../src/services/businessPlanExportService.ts';
+import { normalizeCostItemAmount, DEFAULT_BASE_CURRENCY } from '../src/services/currencyService.ts';
 import { StartupCostItem, StartupPlanDetails } from '../src/types.ts';
 
 test('cents-safe rounding and summation prevents floating point loss', () => {
@@ -184,8 +186,88 @@ test('calculateLoanAmortizationSchedule correctly calculates PMT, schedule, and 
   assert.equal(result.dscrStatus, 'adequate');
 });
 
+test('computeStartupCalculations separates service business direct costs from fixed operating expenses', () => {
+  const servicePlan: StartupPlanDetails = {
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 20,
+    growthRateYear3: 10,
+    growthRateYear5: 25,
+    businessModelType: 'services',
+    operatingModel: 'mobile',
+    displayCurrency: 'XCD',
+    exchangeRate: 2.70,
+    rent: 1500,
+    salaries: 3000,
+    marketing: 500,
+    utilities: 300,
+    otherExpenses: 200,
+    serviceOfferings: [
+      {
+        id: 'svc-1',
+        name: 'Mobile Laser Tag Party (10 players)',
+        revenueModel: 'project',
+        rate: 550, // EC$550 per booking
+        expectedVolume: 20, // 20 parties/month = EC$11,000
+        directCostPerUnitOrJob: 50 // EC$50 per party in direct consumables
+      }
+    ],
+    costItems: [
+      {
+        id: 'eq-lasers',
+        name: 'Laser Tag Phasers (16 units)',
+        classification: 'equipment',
+        purchaseCost: 25000, // EC$25,000 landed
+        usefulLifeYears: 5
+      }
+    ]
+  };
+
+  const calc = computeStartupCalculations(servicePlan);
+  assert.equal(calc.isServiceBusiness, true);
+  assert.equal(calc.monthlyRevenue, 11000);
+  // Direct variable cost = 20 * $50 = $1,000
+  assert.equal(calc.monthlyCOGS, 1000);
+  // Gross profit / contribution margin = $11,000 - $1,000 = $10,000
+  assert.equal(calc.monthlyGrossProfit, 10000);
+  // Fixed OpEx = 1500 + 3000 + 500 + 300 + 200 = $5,500
+  assert.equal(calc.monthlyOpExpenses, 5500);
+  // Net operating profit (EBITDA) = $10,000 - $5,500 = $4,500
+  assert.equal(calc.monthlyNetOperatingProfit, 4500);
+  // Year 1 Revenue = $132,000
+  assert.equal(calc.y1Rev, 132000);
+  // Year 1 Net = $54,000
+  assert.equal(calc.y1Net, 54000);
+});
+
+test('normalizeCostItemAmount accurately computes landed duties and avoids double-converting currency', () => {
+  const itemWithLandedDuty: StartupCostItem = {
+    id: 'eq-import-1',
+    name: 'Tactical Gaming Helmets',
+    classification: 'equipment',
+    currency: 'USD',
+    purchaseCost: 2000, // $2,000 USD FOB
+    importDetails: {
+      isImported: true,
+      category: 'general_commercial',
+      cifValueUSD: 2300, // $2,300 USD CIF
+      totalLandedCostXCD: 9089.60, // Exact ASYCUDA calculated EC$ landed cost
+      totalLandedCostUSD: 3366.52
+    }
+  };
+
+  // When requesting base currency XCD:
+  const xcdAmount = normalizeCostItemAmount(itemWithLandedDuty, 'XCD', 2.70);
+  assert.equal(xcdAmount, 9089.60);
+
+  // When requesting display currency USD:
+  const usdAmount = normalizeCostItemAmount(itemWithLandedDuty, 'USD', 2.70);
+  assert.equal(usdAmount, 3366.52);
+});
+
 test('existing plan without businessModelType flags needsBusinessModelClassification', () => {
   assert.equal(needsBusinessModelClassification(undefined), true);
   assert.equal(needsBusinessModelClassification({ cogs: 10 } as any), true);
   assert.equal(needsBusinessModelClassification({ businessModelType: 'goods' } as any), false);
 });
+

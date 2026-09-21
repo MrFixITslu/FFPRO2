@@ -611,6 +611,9 @@ export interface StartupPlanDetails {
 
   // Additive Item-Driven Business Model fields
   businessModelType?: BusinessModelType;
+  operatingModel?: 'mobile' | 'fixed' | 'hybrid';
+  equityContribution?: number;
+  grantFunding?: number;
   goodsType?: GoodsBusinessType;
   goodsProducts?: GoodsProduct[];
   serviceOfferings?: ServiceOffering[];

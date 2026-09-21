@@ -884,7 +884,8 @@ export function generateStartupFinancialForecast(
     );
     // Legacy fallback if recurringOpExItems was empty
     if (monthlyRecurringOpEx === 0 && sd) {
-      monthlyRecurringOpEx = sumCurrency(sd.rent, sd.salaries, sd.utilities, sd.marketing, sd.otherExpenses);
+      const customTotal = (sd.customExpenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      monthlyRecurringOpEx = sumCurrency(sd.rent, sd.salaries, sd.utilities, sd.marketing, sd.otherExpenses, customTotal);
     }
 
     // One-Time Setup Expenses in this month

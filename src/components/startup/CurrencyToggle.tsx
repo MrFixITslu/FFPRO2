@@ -4,7 +4,8 @@ import { CurrencyCode } from '../../types';
 import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol } from '../../services/currencyService';
 
 interface CurrencyToggleProps {
-  currentCurrency: CurrencyCode;
+  currentCurrency?: CurrencyCode;
+  currency?: CurrencyCode;
   onChangeCurrency?: (currency: CurrencyCode) => void;
   onCurrencyChange?: (currency: CurrencyCode) => void;
   exchangeRate?: number;
@@ -17,7 +18,8 @@ interface CurrencyToggleProps {
 }
 
 export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({
-  currentCurrency = 'XCD',
+  currentCurrency,
+  currency,
   onChangeCurrency,
   onCurrencyChange,
   exchangeRate = DEFAULT_USD_TO_XCD_RATE,
@@ -28,11 +30,12 @@ export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({
   showRateBadge = true,
   compact = false
 }) => {
+  const activeCurrency: CurrencyCode = currentCurrency || currency || 'XCD';
   const [showRateModal, setShowRateModal] = useState(false);
   const [tempRate, setTempRate] = useState(exchangeRate.toString());
 
-  const isUSD = currentCurrency === 'USD';
-  const isXCD = currentCurrency === 'XCD';
+  const isUSD = activeCurrency === 'USD';
+  const isXCD = activeCurrency === 'XCD';
 
   const triggerChange = (newCur: CurrencyCode) => {
     onChangeCurrency?.(newCur);

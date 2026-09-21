@@ -56,9 +56,180 @@ export interface BusinessPlanCalculations {
   includeLevy: boolean;
   vatCost: number;
   levyCost: number;
+
+  // Service Business & Advanced Model additions
+  isServiceBusiness?: boolean;
+  businessModelType?: 'goods' | 'services' | 'both';
+  operatingModel?: 'mobile' | 'fixed' | 'hybrid';
+  directCostPerUnit?: number;
+  unitContributionMargin?: number;
+  contributionMarginPercent?: number;
+  breakEvenRevenueMonthly?: number;
+  breakEvenUnitsMonthly?: number;
+  breakEvenMetricLabel?: string;
+  revenueUnitLabel?: string;
+  ebitdaYear1?: number;
+  ebitYear1?: number;
+  depreciationYear1?: number;
+  interestYear1?: number;
+  currencySymbol?: string;
 }
 
 export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPlanCalculations => {
+  const isServices = sd?.businessModelType === 'services';
+
+  // Extract operating expenses
+  const rent = sd?.rent || 0;
+  const salaries = sd?.salaries || 0;
+  const marketing = sd?.marketing || 0;
+  const utilities = sd?.utilities || 0;
+  const otherExpenses = sd?.otherExpenses || 0;
+  const customExpensesTotal = (sd?.customExpenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
+
+  // Check costItems for recurring operating expenses if present
+  const costItems = sd?.costItems || [];
+  const recurringCostItemsTotal = costItems
+    .filter((i) => i.classification === 'operating')
+    .reduce((sum, i) => sum + (i.monthlyExpenseAmount ?? i.amount ?? 0), 0);
+
+  const monthlyOpExpenses = recurringCostItemsTotal > 0
+    ? recurringCostItemsTotal
+    : (rent + salaries + marketing + utilities + otherExpenses + customExpensesTotal);
+
+  // Check for equipment depreciation in Year 1
+  const equipmentItems = costItems.filter((i) => i.classification === 'equipment');
+  const totalAnnualDepreciation = equipmentItems.reduce((sum, eq) => {
+    const cost = eq.purchaseCost ?? eq.amount ?? 0;
+    const res = eq.residualValue ?? 0;
+    const life = Math.max(1, eq.usefulLifeYears ?? 3);
+    return sum + ((cost - res) / life);
+  }, 0);
+
+  // Check if service-based business logic applies
+  if (isServices && (sd?.serviceOfferings?.length || sd?.serviceCapacityPlan)) {
+    const offerings = sd.serviceOfferings || [];
+    let totalMonthlyServiceRev = 0;
+    let totalMonthlyDirectCosts = 0;
+    let totalMonthlySessions = 0;
+
+    offerings.forEach((s) => {
+      const vol = s.expectedVolume || 10;
+      const rate = s.rate || 100;
+      const direct = s.directCostPerUnitOrJob || 0;
+      totalMonthlyServiceRev += vol * rate;
+      totalMonthlyDirectCosts += vol * direct;
+      totalMonthlySessions += vol;
+    });
+
+    // Check equipment rental revenue
+    let rentalRevMonthly = 0;
+    equipmentItems.forEach((eq) => {
+      if (eq.isRentalRevenueGenerator && eq.rentalRatePerUnit && eq.rentalUnitsOwned) {
+        const availTime = eq.rentalAvailableTimePerUnit || 25;
+        const util = (eq.rentalUtilisationPercent ?? 50) / 100;
+        const rate = eq.rentalRatePerUnit || 0;
+        rentalRevMonthly += Math.round(eq.rentalUnitsOwned * availTime * util * rate);
+      }
+    });
+
+    totalMonthlyServiceRev += rentalRevMonthly;
+    const monthlyUnits = Math.max(1, totalMonthlySessions);
+    const avgSellingPrice = parseFloat((totalMonthlyServiceRev / monthlyUnits).toFixed(2));
+    const avgDirectCost = parseFloat((totalMonthlyDirectCosts / monthlyUnits).toFixed(2));
+    const unitContribMargin = parseFloat((avgSellingPrice - avgDirectCost).toFixed(2));
+    const contribMarginPercent = totalMonthlyServiceRev > 0
+      ? Math.round((unitContribMargin / avgSellingPrice) * 100)
+      : 0;
+
+    const monthlyCOGS = totalMonthlyDirectCosts;
+    const monthlyRevenue = totalMonthlyServiceRev;
+    const monthlyGrossProfit = monthlyRevenue - monthlyCOGS;
+    const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
+    const grossMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyGrossProfit / monthlyRevenue) * 100) : 0;
+    const netMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyNetOperatingProfit / monthlyRevenue) * 100) : 0;
+
+    const g3 = 1 + (sd?.growthRateYear3 || 15) / 100;
+    const g5 = 1 + (sd?.growthRateYear5 || 35) / 100;
+
+    const y1Rev = monthlyRevenue * 12;
+    const y1COGS = monthlyCOGS * 12;
+    const y1Gross = y1Rev - y1COGS;
+    const y1OpEx = monthlyOpExpenses * 12;
+    const y1Net = y1Gross - y1OpEx;
+
+    const y3Rev = y1Rev * g3;
+    const y3COGS = y1COGS * g3;
+    const y3Gross = y3Rev - y3COGS;
+    const y3OpEx = y1OpEx * 1.08;
+    const y3Net = y3Gross - y3OpEx;
+
+    const y5Rev = y1Rev * g5;
+    const y5COGS = y1COGS * g5;
+    const y5Gross = y5Rev - y5COGS;
+    const y5OpEx = y1OpEx * 1.15;
+    const y5Net = y5Gross - y5OpEx;
+
+    // Break-even
+    const beRev = contribMarginPercent > 0 ? Math.round(monthlyOpExpenses / (contribMarginPercent / 100)) : 0;
+    const beUnits = unitContribMargin > 0 ? Math.ceil(monthlyOpExpenses / unitContribMargin) : 0;
+
+    return {
+      costOfGoodsSoldUnit: avgDirectCost,
+      sellingPrice: avgSellingPrice,
+      markupPercent: avgDirectCost > 0 ? parseFloat((((avgSellingPrice - avgDirectCost) / avgDirectCost) * 100).toFixed(1)) : 100,
+      monthlyUnits,
+      grossMarginPercent,
+      netMarginPercent,
+      monthlyRevenue,
+      monthlyCOGS,
+      monthlyGrossProfit,
+      monthlyOpExpenses,
+      monthlyNetOperatingProfit,
+      y1Rev,
+      y3Rev,
+      y5Rev,
+      y1COGS,
+      y3COGS,
+      y5COGS,
+      y1Gross,
+      y3Gross,
+      y5Gross,
+      y1OpEx,
+      y3OpEx,
+      y5OpEx,
+      y1Net,
+      y3Net,
+      y5Net,
+      materialsCostPerUnit: avgDirectCost,
+      laborCostPerUnit: 0,
+      allocatedOverheadPerUnit: 0,
+      calculatedProfitPerUnit: unitContribMargin,
+      preTaxSellingPrice: avgSellingPrice,
+      finalSuggestedPrice: avgSellingPrice,
+      contingencyPercent: 0,
+      includeVat: !!sd?.includeVat,
+      includeLevy: !!sd?.includeLevy,
+      vatCost: 0,
+      levyCost: 0,
+
+      isServiceBusiness: true,
+      businessModelType: 'services',
+      operatingModel: sd?.operatingModel || 'mobile',
+      directCostPerUnit: avgDirectCost,
+      unitContributionMargin: unitContribMargin,
+      contributionMarginPercent: contribMarginPercent,
+      breakEvenRevenueMonthly: beRev,
+      breakEvenUnitsMonthly: beUnits,
+      breakEvenMetricLabel: 'Bookings / Sessions',
+      revenueUnitLabel: 'Sessions / Jobs',
+      ebitdaYear1: y1Net,
+      ebitYear1: y1Net - totalAnnualDepreciation,
+      depreciationYear1: totalAnnualDepreciation,
+      currencySymbol: sd?.displayCurrency === 'USD' ? 'US$' : 'EC$'
+    };
+  }
+
+  // Standard Goods Business Calculation
   const productionItems = sd?.productionItems || [];
   const derivedUnits = sd?.derivedUnits !== undefined ? sd.derivedUnits : 1;
   const hourlyRate = sd?.hourlyRate !== undefined ? sd.hourlyRate : 20;
@@ -78,39 +249,38 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
   const totalLaborCost = hourlyRate * laborHours;
   const laborCostPerUnit = derivedUnits > 0 ? totalLaborCost / derivedUnits : 0;
 
-  const rent = sd?.rent || 0;
-  const salaries = sd?.salaries || 0;
-  const marketing = sd?.marketing || 0;
-  const utilities = sd?.utilities || 0;
-  const otherExpenses = sd?.otherExpenses || 0;
-  const customExpensesTotal = (sd?.customExpenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
-  const monthlyOpExpenses = rent + salaries + marketing + utilities + otherExpenses + customExpensesTotal;
   const monthlyVolumeUnits = sd?.monthlyVolume || 1;
   const allocatedOverheadPerUnit = (allocateOverhead && monthlyVolumeUnits > 0) ? (monthlyOpExpenses / monthlyVolumeUnits) : 0;
 
-  const calculatedCogs = parseFloat((finalMaterialsCostPerUnit + laborCostPerUnit + allocatedOverheadPerUnit).toFixed(2));
+  // Direct unit cost (materials + labor)
+  const directCogsUnit = parseFloat((finalMaterialsCostPerUnit + laborCostPerUnit).toFixed(2));
+  // Pricing baseline unit cost (includes allocated overhead for full absorption pricing when requested)
+  const pricingCogsUnit = parseFloat((finalMaterialsCostPerUnit + laborCostPerUnit + allocatedOverheadPerUnit).toFixed(2));
 
   let calculatedProfitPerUnit = 0;
   if (desiredProfitType === 'percentage') {
-    calculatedProfitPerUnit = calculatedCogs * (desiredProfitValue / 100);
+    calculatedProfitPerUnit = pricingCogsUnit * (desiredProfitValue / 100);
   } else {
     calculatedProfitPerUnit = desiredProfitValue;
   }
   calculatedProfitPerUnit = parseFloat(calculatedProfitPerUnit.toFixed(2));
 
-  const preTaxSellingPrice = parseFloat((calculatedCogs + calculatedProfitPerUnit).toFixed(2));
+  const preTaxSellingPrice = parseFloat((pricingCogsUnit + calculatedProfitPerUnit).toFixed(2));
   const levyCost = includeLevy ? parseFloat((preTaxSellingPrice * 0.025).toFixed(2)) : 0;
   const vatCost = includeVat ? parseFloat((preTaxSellingPrice * 0.125).toFixed(2)) : 0;
   const finalSuggestedPrice = parseFloat((preTaxSellingPrice + levyCost + vatCost).toFixed(2));
 
   const hasDynamicCosting = productionItems.length > 0 || laborHours > 0 || allocateOverhead;
-  const costOfGoodsSoldUnit = hasDynamicCosting ? calculatedCogs : (sd?.cogs || 10);
+  const unitCostForPricing = hasDynamicCosting ? pricingCogsUnit : (sd?.cogs || 10);
   const markupPercent = hasDynamicCosting 
-    ? (desiredProfitType === 'percentage' ? desiredProfitValue : parseFloat(((calculatedProfitPerUnit / (calculatedCogs || 1)) * 100).toFixed(1)))
+    ? (desiredProfitType === 'percentage' ? desiredProfitValue : parseFloat(((calculatedProfitPerUnit / (pricingCogsUnit || 1)) * 100).toFixed(1)))
     : (sd?.markup || 50);
 
-  const sellingPrice = hasDynamicCosting ? finalSuggestedPrice : parseFloat((costOfGoodsSoldUnit * (1 + markupPercent / 100)).toFixed(2));
+  const sellingPrice = hasDynamicCosting ? finalSuggestedPrice : parseFloat((unitCostForPricing * (1 + markupPercent / 100)).toFixed(2));
   
+  // In the P&L statement, COGS reflects direct variable production costs only.
+  // Operating overhead is deducted separately in OpEx to prevent double-counting.
+  const costOfGoodsSoldUnit = hasDynamicCosting ? directCogsUnit : (sd?.cogs || 10);
   const monthlyCOGS = costOfGoodsSoldUnit * monthlyVolumeUnits;
   const monthlyRevenue = sellingPrice * monthlyVolumeUnits;
   const monthlyGrossProfit = monthlyRevenue - monthlyCOGS;
@@ -168,7 +338,7 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
     y1Net,
     y3Net,
     y5Net,
-    materialsCostPerUnit,
+    materialsCostPerUnit: finalMaterialsCostPerUnit,
     laborCostPerUnit,
     allocatedOverheadPerUnit,
     calculatedProfitPerUnit,
@@ -178,7 +348,22 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
     includeVat,
     includeLevy,
     vatCost,
-    levyCost
+    levyCost,
+
+    isServiceBusiness: false,
+    businessModelType: sd?.businessModelType || 'goods',
+    operatingModel: sd?.operatingModel,
+    directCostPerUnit: costOfGoodsSoldUnit,
+    unitContributionMargin: sellingPrice - costOfGoodsSoldUnit,
+    contributionMarginPercent: grossMarginPercent,
+    breakEvenRevenueMonthly: grossMarginPercent > 0 ? Math.round(monthlyOpExpenses / (grossMarginPercent / 100)) : 0,
+    breakEvenUnitsMonthly: (sellingPrice - costOfGoodsSoldUnit) > 0 ? Math.ceil(monthlyOpExpenses / (sellingPrice - costOfGoodsSoldUnit)) : 0,
+    breakEvenMetricLabel: 'Units',
+    revenueUnitLabel: 'Units',
+    ebitdaYear1: y1Net,
+    ebitYear1: y1Net - totalAnnualDepreciation,
+    depreciationYear1: totalAnnualDepreciation,
+    currencySymbol: sd?.displayCurrency === 'USD' ? 'US$' : 'EC$'
   };
 };
 

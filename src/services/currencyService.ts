@@ -10,6 +10,7 @@ export type { CurrencyCode };
  */
 export const DEFAULT_USD_TO_XCD_RATE = 2.70;
 export const DEFAULT_EXCHANGE_RATE = DEFAULT_USD_TO_XCD_RATE;
+export const DEFAULT_BASE_CURRENCY: CurrencyCode = 'XCD';
 
 
 /**
@@ -207,4 +208,57 @@ export function normalizeServiceOfferingToCurrency(
         : undefined,
     costItems: service.costItems?.map((ci) => normalizeCostItemToCurrency(ci, targetCurrency, rate))
   };
+}
+
+/**
+ * Get the normalized monetary value for a cost item in the target currency,
+ * respecting import details (which store exact Landed EC$ and Landed US$)
+ * to prevent double-conversion or currency corruption.
+ */
+export function normalizeCostItemAmount(
+  item: StartupCostItem,
+  targetCurrency: CurrencyCode = 'XCD',
+  rate: number = DEFAULT_USD_TO_XCD_RATE
+): number {
+  if (!item) return 0;
+
+  // If item has importDetails with pre-calculated dual landed values
+  if (item.importDetails?.isImported) {
+    if (targetCurrency === 'XCD') {
+      const landedXCD = item.importDetails.totalLandedCostXCD ?? item.importDetails.totalLandedCost;
+      if (landedXCD !== undefined && landedXCD > 0) {
+        return roundCurrency(landedXCD);
+      }
+    } else if (targetCurrency === 'USD') {
+      const landedUSD = item.importDetails.totalLandedCostUSD;
+      if (landedUSD !== undefined && landedUSD > 0) {
+        return roundCurrency(landedUSD);
+      }
+      const rawXCD = item.importDetails.totalLandedCostXCD ?? item.importDetails.totalLandedCost;
+      if (rawXCD !== undefined && rawXCD > 0) {
+        return roundCurrency(rawXCD / (rate > 0 ? rate : DEFAULT_USD_TO_XCD_RATE));
+      }
+    }
+  }
+
+  // Get raw value based on classification
+  let rawVal = 0;
+  if (item.classification === 'equipment') {
+    rawVal = item.purchaseCost ?? item.amount ?? 0;
+  } else if (item.classification === 'stock') {
+    const qty = item.stockQuantity ?? item.initialStockUnits ?? 1;
+    const unitC = item.stockUnitCost ?? item.unitCost ?? 0;
+    rawVal = qty * unitC;
+  } else if (item.classification === 'direct') {
+    rawVal = item.directCostPerUnitOrJob ?? item.unitCost ?? item.amount ?? 0;
+  } else if (item.classification === 'operating') {
+    rawVal = item.monthlyExpenseAmount ?? item.amount ?? 0;
+  } else if (item.classification === 'setup') {
+    rawVal = item.setupExpenseAmount ?? item.amount ?? 0;
+  } else {
+    rawVal = item.amount ?? 0;
+  }
+
+  const itemCurrency: CurrencyCode = item.currency || 'XCD';
+  return convertCurrency(rawVal, itemCurrency, targetCurrency, rate);
 }
