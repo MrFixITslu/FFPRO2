@@ -139,6 +139,21 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
 
   const currentPreset = SAINT_LUCIA_DUTY_PRESETS[category] || SAINT_LUCIA_DUTY_PRESETS.electronics;
 
+  const handleInvoiceCurrencyChange = (nextCurrency: CurrencyCode) => {
+    if (nextCurrency === invoiceCurrency) return;
+    const factor = nextCurrency === 'XCD' ? 2.70 : (1 / 2.70);
+    const convertInput = (value: string) => {
+      if (value.trim() === '') return '';
+      return roundCurrency((parseFloat(value) || 0) * factor).toString();
+    };
+
+    setUnitFobCost((value) => convertInput(value));
+    setPackageFobCost((value) => convertInput(value));
+    setShippingFreight((value) => convertInput(value));
+    setInsuranceCost((value) => convertInput(value));
+    setInvoiceCurrency(nextCurrency);
+  };
+
   const calculationResult = calculateLandedImportCost({
     fobCost: totalFobCost,
     shippingFreight: shippingNum,
@@ -236,7 +251,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shrink-0">
           <button
             type="button"
-            onClick={() => setInvoiceCurrency('USD')}
+            onClick={() => handleInvoiceCurrencyChange('USD')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               invoiceCurrency === 'USD'
                 ? 'bg-blue-600 text-white shadow-xs'
@@ -247,7 +262,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
           </button>
           <button
             type="button"
-            onClick={() => setInvoiceCurrency('XCD')}
+            onClick={() => handleInvoiceCurrencyChange('XCD')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               invoiceCurrency === 'XCD'
                 ? 'bg-emerald-600 text-white shadow-xs'
