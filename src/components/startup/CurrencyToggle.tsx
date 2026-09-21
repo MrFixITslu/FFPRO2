@@ -5,22 +5,28 @@ import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol } from '../../services/curre
 
 interface CurrencyToggleProps {
   currentCurrency: CurrencyCode;
-  onChangeCurrency: (currency: CurrencyCode) => void;
+  onChangeCurrency?: (currency: CurrencyCode) => void;
+  onCurrencyChange?: (currency: CurrencyCode) => void;
   exchangeRate?: number;
   onUpdateExchangeRate?: (rate: number) => void;
+  onRateChange?: (rate: number) => void;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   showRateBadge?: boolean;
+  compact?: boolean;
 }
 
 export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({
-  currentCurrency = 'USD',
+  currentCurrency = 'XCD',
   onChangeCurrency,
+  onCurrencyChange,
   exchangeRate = DEFAULT_USD_TO_XCD_RATE,
   onUpdateExchangeRate,
+  onRateChange,
   className = '',
   size = 'md',
-  showRateBadge = true
+  showRateBadge = true,
+  compact = false
 }) => {
   const [showRateModal, setShowRateModal] = useState(false);
   const [tempRate, setTempRate] = useState(exchangeRate.toString());
@@ -28,11 +34,21 @@ export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({
   const isUSD = currentCurrency === 'USD';
   const isXCD = currentCurrency === 'XCD';
 
+  const triggerChange = (newCur: CurrencyCode) => {
+    onChangeCurrency?.(newCur);
+    onCurrencyChange?.(newCur);
+  };
+
+  const triggerRateUpdate = (newRate: number) => {
+    onUpdateExchangeRate?.(newRate);
+    onRateChange?.(newRate);
+  };
+
   const handleSaveRate = (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = parseFloat(tempRate);
-    if (parsed > 0 && onUpdateExchangeRate) {
-      onUpdateExchangeRate(parsed);
+    if (parsed > 0) {
+      triggerRateUpdate(parsed);
     }
     setShowRateModal(false);
   };
@@ -43,7 +59,7 @@ export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({
       <div className="flex items-center bg-stone-100 p-0.5 sm:p-1 rounded-xl border border-stone-200 shadow-2xs">
         <button
           type="button"
-          onClick={() => onChangeCurrency('USD')}
+          onClick={() => triggerChange('USD')}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             isUSD
               ? 'bg-blue-600 text-white shadow-xs'
@@ -57,7 +73,7 @@ export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({
 
         <button
           type="button"
-          onClick={() => onChangeCurrency('XCD')}
+          onClick={() => triggerChange('XCD')}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             isXCD
               ? 'bg-amber-600 text-white shadow-xs'

@@ -23,6 +23,7 @@ import {
   ImportDutyCategory,
   CurrencyCode
 } from '../../types';
+import { roundCurrency } from '../../services/startupFinancialsService';
 import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
 import {
   DEFAULT_USD_TO_XCD_RATE,
@@ -43,7 +44,7 @@ interface SharedCostItemFormProps {
 export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   initialItem,
   availableEquipmentList = [],
-  defaultCurrency = 'USD',
+  defaultCurrency = 'XCD',
   exchangeRate = DEFAULT_USD_TO_XCD_RATE,
   onSave,
   onCancel
@@ -57,7 +58,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   
   // Cost Item Currency (USD vs XCD)
   const [currency, setCurrency] = useState<CurrencyCode>(
-    initialItem?.currency || defaultCurrency || 'USD'
+    initialItem?.currency || defaultCurrency || 'XCD'
   );
 
   // Import Duties & Landed Shipping State
@@ -573,11 +574,11 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                     <Check size={13} className="text-emerald-700" /> Landed Cost Active ({importDetails.category?.toUpperCase()}):
                   </span>
                   <div className="flex items-center gap-3 font-medium">
-                    <span>FOB: <strong>${importDetails.fobCost?.toLocaleString()}</strong></span>
+                    <span>FOB: <strong>{importDetails.invoiceCurrency === 'USD' ? 'US$' : 'EC$'} {importDetails.fobCost?.toLocaleString()}</strong></span>
                     <span>•</span>
-                    <span>Taxes &amp; Levies: <strong>${importDetails.totalDutiesAndTaxes?.toLocaleString()}</strong></span>
+                    <span>Duties & Levies: <strong>EC$ {importDetails.totalDutiesAndTaxes?.toLocaleString()}</strong></span>
                     <span>•</span>
-                    <span>Total Landed: <strong className="text-emerald-800">${importDetails.totalLandedCost?.toLocaleString()}</strong></span>
+                    <span>Total Landed: <strong className="text-emerald-800">EC$ {(importDetails.totalLandedCostXCD ?? importDetails.totalLandedCost)?.toLocaleString()}</strong> {importDetails.totalLandedCostUSD ? `(≈ US$ ${importDetails.totalLandedCostUSD.toLocaleString()})` : ''}</span>
                   </div>
                 </div>
               )}
@@ -589,10 +590,15 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                     initialFobUnitCost={pCostNum / (isRentalRevenueGenerator ? rUnits : 1)}
                     initialCategory={importDetails?.category || 'electronics'}
                     initialImportDetails={importDetails}
+                    displayCurrency={currency}
+                    exchangeRate={exchangeRate}
                     isCompact
                     onApplyLandedCost={(res) => {
                       setImportDetails(res.importDetails);
-                      setPurchaseCost(res.totalLandedCost.toString());
+                      const finalLanded = currency === 'USD'
+                        ? (res.importDetails.totalLandedCostUSD ?? roundCurrency(res.totalLandedCost / 2.70))
+                        : (res.importDetails.totalLandedCostXCD ?? res.totalLandedCost);
+                      setPurchaseCost(finalLanded.toString());
                       setShowImportCalculator(false);
                     }}
                     onClose={() => setShowImportCalculator(false)}

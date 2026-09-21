@@ -50,7 +50,7 @@ export const GoodsWorkflowPanel: React.FC<GoodsWorkflowPanelProps> = ({
   onChangeDisplayCurrency,
   onUpdateExchangeRate
 }) => {
-  const [localDisplayCurrency, setLocalDisplayCurrency] = useState<CurrencyCode>('USD');
+  const [localDisplayCurrency, setLocalDisplayCurrency] = useState<CurrencyCode>('XCD');
   const [localExchangeRate, setLocalExchangeRate] = useState<number>(DEFAULT_USD_TO_XCD_RATE);
 
   const displayCurrency = controlledDisplayCurrency ?? localDisplayCurrency;

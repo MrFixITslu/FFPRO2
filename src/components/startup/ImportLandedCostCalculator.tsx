@@ -14,6 +14,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { ImportDutyCategory, ImportDutyCalculation } from '../../types';
+import { CurrencyCode, getCurrencySymbol } from '../../services/currencyService';
 import {
   SAINT_LUCIA_DUTY_PRESETS,
   calculateLandedImportCost,
@@ -26,6 +27,7 @@ interface ImportLandedCostCalculatorProps {
   initialShippingTotal?: number;
   initialCategory?: ImportDutyCategory;
   initialImportDetails?: ImportDutyCalculation;
+  currency?: CurrencyCode;
   title?: string;
   subtitle?: string;
   onApplyLandedCost?: (result: {
@@ -43,12 +45,19 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
   initialShippingTotal = 250,
   initialCategory = 'electronics',
   initialImportDetails,
+  currency = 'USD',
   title = 'Saint Lucia & Caribbean Landed Cost & Customs Duty Calculator',
   subtitle = 'Calculate shipping freight, CARICOM / Saint Lucia import tariffs, levies, and port clearance costs',
   onApplyLandedCost,
   onClose,
   isCompact = false
 }) => {
+  const sym = getCurrencySymbol((currency as CurrencyCode) || 'XCD');
+  const [invoiceCurrency, setInvoiceCurrency] = useState<CurrencyCode>(
+    initialImportDetails?.invoiceCurrency || 'USD'
+  );
+  const invSym = getCurrencySymbol(invoiceCurrency);
+
   const [category, setCategory] = useState<ImportDutyCategory>(
     initialImportDetails?.category || initialCategory || 'electronics'
   );
@@ -56,9 +65,11 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
     initialUnitsCount?.toString() || '1'
   );
   const [unitFobCost, setUnitFobCost] = useState<string>(
-    initialImportDetails?.fobCost && initialUnitsCount
-      ? (initialImportDetails.fobCost / (initialUnitsCount || 1)).toString()
-      : initialFobUnitCost?.toString() || '800'
+    initialImportDetails?.fobCostUSD && initialUnitsCount
+      ? (initialImportDetails.fobCostUSD / (initialUnitsCount || 1)).toString()
+      : initialImportDetails?.fobCost && initialUnitsCount
+      ? (initialImportDetails.fobCost / (initialUnitsCount || 1) / (invoiceCurrency === 'USD' ? 2.70 : 1)).toString()
+      : initialFobUnitCost?.toString() || '500'
   );
   const [shippingFreight, setShippingFreight] = useState<string>(
     initialImportDetails?.shippingFreight?.toString() || initialShippingTotal?.toString() || '250'
@@ -67,7 +78,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
     initialImportDetails?.insuranceCost?.toString() || ''
   );
   const [portBrokerageFee, setPortBrokerageFee] = useState<string>(
-    initialImportDetails?.portAndBrokerageFee?.toString() || '120'
+    initialImportDetails?.portAndBrokerageFee?.toString() || '324' // Default EC$ 324 (~US$ 120)
   );
 
   // Custom rate overrides if category === 'custom' or user wants manual adjustments
@@ -107,6 +118,8 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
     insuranceCost: insuranceNum,
     category,
     country: 'saint_lucia',
+    invoiceCurrency,
+    exchangeRate: 2.70,
     customDutyRate: isCustomMode ? parseFloat(customDuty) || 0 : undefined,
     customCscRate: isCustomMode ? parseFloat(customCsc) || 0 : undefined,
     customHcslRate: isCustomMode ? parseFloat(customHcsl) || 0 : undefined,
@@ -121,7 +134,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
     : '0';
 
   const landedMultiplierOnFob = totalFobCost > 0
-    ? ((calculationResult.totalLandedCost / totalFobCost) * 100 - 100).toFixed(1)
+    ? ((calculationResult.totalLandedCost / (invoiceCurrency === 'USD' ? totalFobCost * 2.70 : totalFobCost)) * 100 - 100).toFixed(1)
     : '0';
 
   const handleCategoryChange = (newCat: ImportDutyCategory) => {
@@ -179,6 +192,45 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         )}
       </div>
 
+      {/* Invoice Currency Selection & Customs Valuation Notice */}
+      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+            <span>Supplier Quote / Invoice Currency</span>
+          </label>
+          <p className="text-[11px] text-stone-500 mt-0.5">
+            {invoiceCurrency === 'USD' 
+              ? 'Overseas supplier invoice (USD). ASYCUDA Customs converts to EC$ at statutory 1 USD = 2.70 XCD to evaluate duties.'
+              : 'Regional or local invoice quoted directly in Eastern Caribbean Dollars (EC$).'
+            }
+          </p>
+        </div>
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shrink-0">
+          <button
+            type="button"
+            onClick={() => setInvoiceCurrency('USD')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              invoiceCurrency === 'USD'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+            }`}
+          >
+            US$ (USD) Invoice
+          </button>
+          <button
+            type="button"
+            onClick={() => setInvoiceCurrency('XCD')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              invoiceCurrency === 'XCD'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+            }`}
+          >
+            EC$ (XCD) Invoice
+          </button>
+        </div>
+      </div>
+
       {/* Commodity Category Profile Selector */}
       <div className="space-y-1.5">
         <label className="text-[11px] font-bold text-stone-800 flex items-center justify-between">
@@ -221,59 +273,66 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
 
         <div className="space-y-1">
           <label className="text-[10.5px] font-bold text-stone-700">
-            FOB Unit Price ($)
+            FOB Unit Price ({invSym})
           </label>
           <div className="relative">
-            <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+            <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">{invSym}</span>
             <input
               type="number"
               min="0"
               step="0.01"
               value={unitFobCost}
               onChange={(e) => setUnitFobCost(e.target.value)}
-              className="w-full pl-6 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
-              placeholder="800"
+              className="w-full pl-8 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
+              placeholder="500"
             />
           </div>
-          <div className="text-[9.5px] text-stone-400">Total FOB: ${totalFobCost.toLocaleString()}</div>
+          <div className="text-[9.5px] text-stone-400">
+            Total FOB: {invSym}{totalFobCost.toLocaleString()}
+            {invoiceCurrency === 'USD' && (
+              <span className="text-stone-500 font-mono"> (≈ EC$ {(totalFobCost * 2.70).toLocaleString()})</span>
+            )}
+          </div>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10.5px] font-bold text-stone-700">
-            Freight / Shipping ($)
+            Freight / Shipping ({invSym})
           </label>
           <div className="relative">
-            <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+            <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">{invSym}</span>
             <input
               type="number"
               min="0"
               step="0.01"
               value={shippingFreight}
               onChange={(e) => setShippingFreight(e.target.value)}
-              className="w-full pl-6 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
+              className="w-full pl-8 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
               placeholder="250"
             />
           </div>
-          <div className="text-[9.5px] text-stone-400">Air/Ocean Cargo</div>
+          <div className="text-[9.5px] text-stone-400">
+            {invoiceCurrency === 'USD' ? 'Air/Ocean (≈ EC$ ' + (shippingNum * 2.70).toLocaleString() + ')' : 'Air/Ocean Cargo'}
+          </div>
         </div>
 
         <div className="space-y-1">
           <label className="text-[10.5px] font-bold text-stone-700">
-            Port & Brokerage ($)
+            Port & Brokerage (EC$)
           </label>
           <div className="relative">
-            <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">$</span>
+            <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">EC$</span>
             <input
               type="number"
               min="0"
               step="0.01"
               value={portBrokerageFee}
               onChange={(e) => setPortBrokerageFee(e.target.value)}
-              className="w-full pl-6 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
-              placeholder="120"
+              className="w-full pl-9 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
+              placeholder="324"
             />
           </div>
-          <div className="text-[9.5px] text-stone-400">Clearance & Entry</div>
+          <div className="text-[9.5px] text-stone-400">Local SLU clearance entry</div>
         </div>
       </div>
 
@@ -381,21 +440,29 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
       <div className="bg-emerald-950 text-white rounded-xl p-4 space-y-3.5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-800/70 pb-2.5">
           <div>
-            <div className="text-[11px] font-mono text-emerald-300 uppercase tracking-wide">
-              Official Landed Cost Output
+            <div className="text-[11px] font-mono text-emerald-300 uppercase tracking-wide flex items-center gap-1.5">
+              <span>Official Landed Cost Output (Saint Lucia ASYCUDA)</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-800/80 text-emerald-200">XCD / EC$</span>
             </div>
-            <div className="text-lg font-extrabold text-white mt-0.5">
-              ${calculationResult.totalLandedCost.toLocaleString()} <span className="text-xs font-normal text-emerald-200">Total Investment ({unitsNum} unit{unitsNum > 1 ? 's' : ''})</span>
+            <div className="text-xl font-extrabold text-white mt-0.5 flex flex-wrap items-baseline gap-2">
+              <span>EC$ {calculationResult.totalLandedCostXCD?.toLocaleString()}</span>
+              <span className="text-xs font-normal text-emerald-300">
+                (≈ US$ {calculationResult.totalLandedCostUSD?.toLocaleString()})
+              </span>
+              <span className="text-xs font-normal text-emerald-200/80">
+                • {unitsNum} unit{unitsNum > 1 ? 's' : ''}
+              </span>
             </div>
           </div>
 
-          <div className="text-right sm:text-right">
+          <div className="text-left sm:text-right">
             <div className="text-[10.5px] text-emerald-300">Unit Landed Cost:</div>
-            <div className="text-sm font-bold text-emerald-100">
-              ${calculationResult.costPerUnitLanded.toLocaleString()} / unit
+            <div className="text-sm font-bold text-emerald-100 flex items-center sm:justify-end gap-1.5">
+              <span>EC$ {calculationResult.costPerUnitLandedXCD?.toLocaleString()} / unit</span>
+              <span className="text-xs font-normal text-emerald-300 font-mono">(≈ US$ {calculationResult.costPerUnitLandedUSD?.toLocaleString()})</span>
             </div>
             <div className="text-[9.5px] text-emerald-400 font-mono">
-              (+{landedMultiplierOnFob}% over FOB invoice)
+              (+{landedMultiplierOnFob}% over base FOB)
             </div>
           </div>
         </div>
@@ -404,20 +471,29 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           <div className="p-2 rounded-lg bg-emerald-900/60 border border-emerald-800/60">
             <div className="text-[10px] text-emerald-300 font-medium">1. Base Invoice (FOB)</div>
-            <div className="text-xs font-bold text-white mt-0.5">${calculationResult.fobCost.toLocaleString()}</div>
-            <div className="text-[9px] text-emerald-400">{unitsNum} × ${unitFobNum.toLocaleString()}</div>
+            <div className="text-xs font-bold text-white mt-0.5">
+              {invoiceCurrency === 'USD' ? `US$ ${calculationResult.fobCostUSD?.toLocaleString()}` : `EC$ ${calculationResult.fobCost.toLocaleString()}`}
+            </div>
+            <div className="text-[9px] text-emerald-400">
+              {invoiceCurrency === 'USD' 
+                ? `≈ EC$ ${calculationResult.fobCost.toLocaleString()} (at 2.70)` 
+                : `${unitsNum} × EC$ ${unitFobNum.toLocaleString()}`
+              }
+            </div>
           </div>
 
           <div className="p-2 rounded-lg bg-emerald-900/60 border border-emerald-800/60">
-            <div className="text-[10px] text-emerald-300 font-medium">2. CIF Customs Value</div>
-            <div className="text-xs font-bold text-white mt-0.5">${calculationResult.cifValue.toLocaleString()}</div>
-            <div className="text-[9px] text-emerald-400">+${calculationResult.shippingFreight} freight, ${calculationResult.insuranceCost} ins.</div>
+            <div className="text-[10px] text-emerald-300 font-medium">2. Statutory CIF (EC$)</div>
+            <div className="text-xs font-bold text-white mt-0.5">EC$ {calculationResult.cifValue.toLocaleString()}</div>
+            <div className="text-[9px] text-emerald-400">
+              +EC$ {calculationResult.shippingFreight.toLocaleString()} freight, EC$ {calculationResult.insuranceCost.toLocaleString()} ins.
+            </div>
           </div>
 
           <div className="p-2 rounded-lg bg-emerald-900/60 border border-emerald-800/60">
             <div className="text-[10px] text-emerald-300 font-medium">3. Customs Duties & Levies</div>
             <div className="text-xs font-bold text-amber-300 mt-0.5">
-              ${calculationResult.totalDutiesAndTaxes.toLocaleString()}
+              EC$ {calculationResult.totalDutiesAndTaxes.toLocaleString()}
             </div>
             <div className="text-[9px] text-emerald-300">
               {effectiveTaxOnCif}% effective tax on CIF
@@ -426,8 +502,8 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
 
           <div className="p-2 rounded-lg bg-emerald-900/60 border border-emerald-800/60">
             <div className="text-[10px] text-emerald-300 font-medium">4. Port & Brokerage</div>
-            <div className="text-xs font-bold text-white mt-0.5">${calculationResult.portAndBrokerageFee.toLocaleString()}</div>
-            <div className="text-[9px] text-emerald-400">Customs clearance</div>
+            <div className="text-xs font-bold text-white mt-0.5">EC$ {calculationResult.portAndBrokerageFee.toLocaleString()}</div>
+            <div className="text-[9px] text-emerald-400">Local port clearance entry</div>
           </div>
         </div>
 
@@ -439,38 +515,38 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
             className="text-[10.5px] text-emerald-300 hover:text-white flex items-center gap-1 font-mono cursor-pointer"
           >
             <Info size={11} />
-            <span>{showFormulaDetails ? 'Hide' : 'View'} statutory tax line items (ASYCUDA formula)</span>
+            <span>{showFormulaDetails ? 'Hide' : 'View'} statutory tax line items (ASYCUDA formula in EC$)</span>
           </button>
 
           {showFormulaDetails && (
             <div className="mt-2 p-2.5 rounded-lg bg-emerald-900/90 text-[10.5px] font-mono space-y-1 text-emerald-100 animate-in fade-in">
               <div className="flex justify-between">
-                <span>• Import Duty ({calculationResult.dutyRatePercent}% on CIF):</span>
-                <span>${calculationResult.dutyAmount.toFixed(2)}</span>
+                <span>• Import Duty ({calculationResult.dutyRatePercent}% on EC$ CIF):</span>
+                <span>EC$ {calculationResult.dutyAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>• Customs Service Charge (CSC {calculationResult.cscRatePercent}% on CIF):</span>
-                <span>${calculationResult.cscAmount.toFixed(2)}</span>
+                <span>EC$ {calculationResult.cscAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>• Health & Citizen Security Levy (HCSL {calculationResult.hcslRatePercent}% on CIF):</span>
-                <span>${calculationResult.hcslAmount.toFixed(2)}</span>
+                <span>EC$ {calculationResult.hcslAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>• Environmental Levy (ENV {calculationResult.envRatePercent}% on CIF):</span>
-                <span>${calculationResult.envAmount.toFixed(2)}</span>
+                <span>EC$ {calculationResult.envAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-emerald-300 font-semibold border-t border-emerald-800 pt-0.5">
                 <span>• Landed Subtotal before VAT:</span>
-                <span>${calculationResult.landedBeforeVat.toFixed(2)}</span>
+                <span>EC$ {calculationResult.landedBeforeVat.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>• VAT ({calculationResult.vatRatePercent}% on Landed Subtotal):</span>
-                <span>${calculationResult.vatAmount.toFixed(2)}</span>
+                <span>EC$ {calculationResult.vatAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-amber-300 font-bold border-t border-emerald-800 pt-0.5">
                 <span>Total Statutory Taxes & Duties:</span>
-                <span>${calculationResult.totalDutiesAndTaxes.toFixed(2)}</span>
+                <span>EC$ {calculationResult.totalDutiesAndTaxes.toFixed(2)}</span>
               </div>
             </div>
           )}
@@ -486,7 +562,9 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
           >
             <Check size={14} />
-            <span>Apply Landed Cost (${calculationResult.totalLandedCost.toLocaleString()}) to Item</span>
+            <span>
+              Apply Landed Cost (EC$ {calculationResult.totalLandedCostXCD?.toLocaleString()} / US$ {calculationResult.totalLandedCostUSD?.toLocaleString()}) to Asset Plan
+            </span>
           </button>
         </div>
       )}

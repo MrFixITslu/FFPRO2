@@ -13,7 +13,8 @@ import {
   TrendingUp,
   Sparkles,
   Ship,
-  ArrowRightLeft
+  ArrowRightLeft,
+  AlertTriangle
 } from 'lucide-react';
 import { CostItemClassification, StartupCostItem } from '../../types';
 import { calculateEquipmentDepreciation, calculateEquipmentRentalRevenue } from '../../services/startupFinancialsService';
@@ -49,7 +50,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   onRateChange,
   onUpdateExchangeRate
 }) => {
-  const [internalCurrency, setInternalCurrency] = useState<CurrencyCode>('USD');
+  const [internalCurrency, setInternalCurrency] = useState<CurrencyCode>('XCD');
   const [internalRate, setInternalRate] = useState<number>(DEFAULT_EXCHANGE_RATE);
   const [activeFilter, setActiveFilter] = useState<CostItemClassification | 'all'>('all');
 
@@ -60,21 +61,41 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   const handleCurrencyToggle = (newCur: CurrencyCode) => {
     if (onChangeCurrency) {
       onChangeCurrency(newCur);
-    } else if (onCurrencyChange) {
-      onCurrencyChange(newCur);
-    } else {
-      setInternalCurrency(newCur);
     }
+    if (onCurrencyChange) {
+      onCurrencyChange(newCur);
+    }
+    setInternalCurrency(newCur);
   };
 
   const handleRateUpdate = (newRate: number) => {
     if (onUpdateExchangeRate) {
       onUpdateExchangeRate(newRate);
-    } else if (onRateChange) {
-      onRateChange(newRate);
-    } else {
-      setInternalRate(newRate);
     }
+    if (onRateChange) {
+      onRateChange(newRate);
+    }
+    setInternalRate(newRate);
+  };
+
+  // Detect potential duplicate entries (identical classification + normalized name)
+  const duplicateItemIds = new Set<string>();
+  const nameCountMap = new Map<string, string[]>();
+  items.forEach((item) => {
+    const key = `${item.classification}-${item.name.trim().toLowerCase()}`;
+    const existing = nameCountMap.get(key) || [];
+    existing.push(item.id);
+    nameCountMap.set(key, existing);
+  });
+  nameCountMap.forEach((ids) => {
+    if (ids.length > 1) {
+      // Mark subsequent entries as duplicates
+      ids.slice(1).forEach((id) => duplicateItemIds.add(id));
+    }
+  });
+
+  const handleCleanDuplicates = () => {
+    duplicateItemIds.forEach((id) => onDeleteItem(id));
   };
 
   const filteredItems = items.filter((item) => {
@@ -85,7 +106,7 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   // Convert an item's raw value from its native currency into current displayCurrency
   const normalizeItemValue = (value: number | undefined, itemCur?: CurrencyCode): number => {
     if (value === undefined || isNaN(value)) return 0;
-    const from = itemCur || 'USD';
+    const from = itemCur || 'XCD';
     return convertCurrency(value, from, currency, exchangeRate);
   };
 
@@ -165,7 +186,9 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
             <CurrencyToggle
               currentCurrency={currency}
               exchangeRate={exchangeRate}
+              onChangeCurrency={handleCurrencyToggle}
               onCurrencyChange={handleCurrencyToggle}
+              onUpdateExchangeRate={handleRateUpdate}
               onRateChange={handleRateUpdate}
               compact
             />
@@ -179,6 +202,33 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Duplicate Warning Banner */}
+        {duplicateItemIds.size > 0 && (
+          <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-start gap-2.5">
+              <div className="p-1.5 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                <AlertTriangle size={15} />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                  <span>{duplicateItemIds.size} Potential Duplicate Entr{duplicateItemIds.size > 1 ? 'ies' : 'y'} Detected</span>
+                </div>
+                <div className="text-[11px] text-amber-700 mt-0.5">
+                  Repeated items with identical names may be multiplying your equipment ledger total (e.g. inflating values like US$ 71k).
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCleanDuplicates}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0"
+            >
+              <Trash2 size={13} />
+              <span>Clean Up {duplicateItemIds.size} Duplicate{duplicateItemIds.size > 1 ? 's' : ''}</span>
+            </button>
+          </div>
+        )}
 
         {/* Ledger Category Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
@@ -313,6 +363,11 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                         >
                           {itemNativeCur}
                         </span>
+                        {duplicateItemIds.has(item.id) && (
+                          <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
+                            Duplicate Entry
+                          </span>
+                        )}
                       </div>
                       <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
                         {getClassificationBadge(item.classification)}

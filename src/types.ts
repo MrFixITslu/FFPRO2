@@ -381,8 +381,18 @@ export interface ImportDutyCalculation {
   totalDutiesAndTaxes?: number;
   
   portAndBrokerageFee?: number; // Flat port / broker clearance charges
-  totalLandedCost?: number; // Total landed cost (CIF + Duties + Port)
-  costPerUnitLanded?: number; // Unit landed cost
+  totalLandedCost?: number; // Total landed cost (CIF + Duties + Port) in display currency (EC$)
+  costPerUnitLanded?: number; // Unit landed cost in display currency (EC$)
+
+  // Dual Currency Valuation (USD overseas invoice vs EC$ customs valuation)
+  invoiceCurrency?: CurrencyCode; // Supplier quote currency (USD or XCD)
+  exchangeRate?: number; // Conversion rate used (e.g. 2.70 XCD per USD)
+  fobCostUSD?: number;
+  cifValueUSD?: number;
+  totalLandedCostUSD?: number;
+  costPerUnitLandedUSD?: number;
+  totalLandedCostXCD?: number;
+  costPerUnitLandedXCD?: number;
 }
 
 export interface StartupCostItem {

@@ -165,25 +165,63 @@ export function calculateLandedImportCost(params: {
   insuranceCost?: number;
   category?: ImportDutyCategory;
   country?: 'saint_lucia' | 'caricom' | 'custom';
+  invoiceCurrency?: CurrencyCode; // Supplier invoice currency ('USD' or 'XCD', default 'USD')
+  exchangeRate?: number; // Saint Lucia customs conversion rate (default 2.70 XCD/USD)
   customDutyRate?: number;
   customCscRate?: number;
   customHcslRate?: number;
   customEnvRate?: number;
   customVatRate?: number;
-  portAndBrokerageFee?: number;
+  portAndBrokerageFee?: number; // Port handling & brokerage entry fee (in EC$)
   unitsCount?: number;
 }): ImportDutyCalculation {
   const category = params.category || 'electronics';
   const preset = SAINT_LUCIA_DUTY_PRESETS[category] || SAINT_LUCIA_DUTY_PRESETS.electronics;
+  const invoiceCurrency = params.invoiceCurrency || 'USD';
+  const rate = params.exchangeRate && params.exchangeRate > 0 ? params.exchangeRate : 2.70;
+  const units = Math.max(1, params.unitsCount || 1);
 
-  const fobCost = Math.max(0, params.fobCost || 0);
-  const shippingFreight = Math.max(0, params.shippingFreight || 0);
-  // Default customs insurance estimate is 1% of FOB if not specified
-  const insuranceCost = params.insuranceCost !== undefined && params.insuranceCost > 0
+  const rawFob = Math.max(0, params.fobCost || 0);
+  const rawFreight = Math.max(0, params.shippingFreight || 0);
+  const rawInsurance = params.insuranceCost !== undefined && params.insuranceCost > 0
     ? params.insuranceCost
-    : (fobCost > 0 ? roundCurrency(fobCost * 0.01) : 0);
+    : (rawFob > 0 ? roundCurrency(rawFob * 0.01) : 0);
 
-  const cifValue = roundCurrency(fobCost + shippingFreight + insuranceCost);
+  // If supplier quotes in USD, convert to Saint Lucia statutory customs CIF in EC$
+  let fobCostUSD: number;
+  let shippingFreightUSD: number;
+  let insuranceCostUSD: number;
+  let cifValueUSD: number;
+
+  let fobCostXCD: number;
+  let shippingFreightXCD: number;
+  let insuranceCostXCD: number;
+  let cifValueXCD: number;
+
+  if (invoiceCurrency === 'USD') {
+    fobCostUSD = rawFob;
+    shippingFreightUSD = rawFreight;
+    insuranceCostUSD = rawInsurance;
+    cifValueUSD = roundCurrency(fobCostUSD + shippingFreightUSD + insuranceCostUSD);
+
+    fobCostXCD = roundCurrency(fobCostUSD * rate);
+    shippingFreightXCD = roundCurrency(shippingFreightUSD * rate);
+    insuranceCostXCD = roundCurrency(insuranceCostUSD * rate);
+    cifValueXCD = roundCurrency(cifValueUSD * rate);
+  } else {
+    fobCostXCD = rawFob;
+    shippingFreightXCD = rawFreight;
+    insuranceCostXCD = rawInsurance;
+    cifValueXCD = roundCurrency(fobCostXCD + shippingFreightXCD + insuranceCostXCD);
+
+    fobCostUSD = roundCurrency(fobCostXCD / rate);
+    shippingFreightUSD = roundCurrency(shippingFreightXCD / rate);
+    insuranceCostUSD = roundCurrency(insuranceCostXCD / rate);
+    cifValueUSD = roundCurrency(cifValueXCD / rate);
+  }
+
+  // Statutory ASYCUDA Customs Duties assessed on CIF Value in EC$
+  const cifValue = cifValueXCD;
 
   const dutyRatePercent = params.customDutyRate !== undefined ? params.customDutyRate : preset.dutyRatePercent;
   const cscRatePercent = params.customCscRate !== undefined ? params.customCscRate : preset.cscRatePercent;
@@ -200,20 +238,30 @@ export function calculateLandedImportCost(params: {
   const vatAmount = roundCurrency(landedBeforeVat * (vatRatePercent / 100));
   const totalDutiesAndTaxes = roundCurrency(dutyAmount + cscAmount + hcslAmount + envAmount + vatAmount);
 
+  // Local Saint Lucia port clearance & brokerage in EC$
   const portAndBrokerageFee = Math.max(0, params.portAndBrokerageFee || 0);
-  const totalLandedCost = roundCurrency(cifValue + totalDutiesAndTaxes + portAndBrokerageFee);
 
-  const units = Math.max(1, params.unitsCount || 1);
+  // Total Landed Capital Cost in EC$ (XCD)
+  const totalLandedCost = roundCurrency(cifValue + totalDutiesAndTaxes + portAndBrokerageFee);
   const costPerUnitLanded = roundCurrency(totalLandedCost / units);
+
+  // Cross-currency USD representations
+  const totalLandedCostUSD = roundCurrency(totalLandedCost / rate);
+  const costPerUnitLandedUSD = roundCurrency(totalLandedCostUSD / units);
 
   return {
     isImported: true,
     country: params.country || 'saint_lucia',
     category,
-    fobCost,
-    shippingFreight,
-    insuranceCost,
-    cifValue,
+    currency: 'XCD', // Output is officially presented in EC$
+    invoiceCurrency,
+    exchangeRate: rate,
+    fobCost: fobCostXCD,
+    shippingFreight: shippingFreightXCD,
+    insuranceCost: insuranceCostXCD,
+    cifValue: cifValueXCD,
+    fobCostUSD,
+    cifValueUSD,
     dutyRatePercent,
     dutyAmount,
     cscRatePercent,
@@ -228,7 +276,11 @@ export function calculateLandedImportCost(params: {
     totalDutiesAndTaxes,
     portAndBrokerageFee,
     totalLandedCost,
-    costPerUnitLanded
+    costPerUnitLanded,
+    totalLandedCostXCD: totalLandedCost,
+    costPerUnitLandedXCD: costPerUnitLanded,
+    totalLandedCostUSD,
+    costPerUnitLandedUSD
   };
 }
 

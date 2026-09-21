@@ -65,7 +65,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   onChangeDisplayCurrency,
   onUpdateExchangeRate
 }) => {
-  const [localDisplayCurrency, setLocalDisplayCurrency] = useState<CurrencyCode>('USD');
+  const [localDisplayCurrency, setLocalDisplayCurrency] = useState<CurrencyCode>('XCD');
   const [localExchangeRate, setLocalExchangeRate] = useState<number>(DEFAULT_USD_TO_XCD_RATE);
 
   const displayCurrency = controlledDisplayCurrency ?? localDisplayCurrency;
@@ -184,19 +184,29 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       importDetails: result.importDetails
     });
 
-    const existingIndex = costItems.findIndex(
-      (i) => i.classification === 'equipment' && (i.isRentalRevenueGenerator || i.name.toLowerCase().includes('rental') || i.name.toLowerCase().includes('fleet'))
+    // Remove any previous fleet items to prevent duplicate accumulation
+    const nonFleetItems = costItems.filter(
+      (i) => !(
+        i.id === 'cost-fleet-equipment-asset' ||
+        i.id.startsWith('cost-fleet-') ||
+        (i.classification === 'equipment' && (
+          i.isRentalRevenueGenerator ||
+          i.name.toLowerCase().includes('rental fleet') ||
+          i.name.toLowerCase().includes('fleet units')
+        ))
+      )
     );
 
+    const landedAmount = result.importDetails?.totalLandedCostXCD ?? result.totalLandedCost;
     const fleetItem: StartupCostItem = {
-      id: existingIndex >= 0 ? costItems[existingIndex].id : `cost-fleet-${Date.now()}`,
+      id: 'cost-fleet-equipment-asset',
       name: `${equipmentPlan.resourceCount}x Rental Fleet Units (${result.importDetails.category?.replace('_', ' ').toUpperCase() || 'EQUIPMENT'})`,
       classification: 'equipment',
       category: 'Fleet & Rental Assets',
-      currency: displayCurrency,
-      purchaseCost: result.totalLandedCost,
-      amount: result.totalLandedCost,
-      residualValue: roundCurrency(result.totalLandedCost * 0.1),
+      currency: 'XCD', // Stored in Saint Lucia EC$
+      purchaseCost: landedAmount,
+      amount: landedAmount,
+      residualValue: roundCurrency(landedAmount * 0.1),
       usefulLifeYears: 4,
       purchaseMonth: 1,
       isRentalRevenueGenerator: true,
@@ -206,17 +216,10 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       rentalRatePerUnit: equipmentPlan.dailyRate,
       rentalTimeUnit: 'days',
       importDetails: result.importDetails,
-      notes: `Landed asset imported to Saint Lucia (ASYCUDA Tariff Category: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}). CIF: ${currentSymbol}${result.importDetails.cifValue?.toLocaleString()}, Total Duties & Levies: ${currentSymbol}${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}.`
+      notes: `Landed asset imported to Saint Lucia (ASYCUDA Tariff: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}). Customs CIF: EC$ ${result.importDetails.cifValue?.toLocaleString()}. Total Duties & Levies: EC$ ${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}. Total Landed Cost: EC$ ${landedAmount.toLocaleString()} (≈ US$ ${roundCurrency(landedAmount / 2.70).toLocaleString()}).`
     };
 
-    let updatedCostList: StartupCostItem[];
-    if (existingIndex >= 0) {
-      updatedCostList = [...costItems];
-      updatedCostList[existingIndex] = fleetItem;
-    } else {
-      updatedCostList = [fleetItem, ...costItems];
-    }
-    onUpdateCostItems(updatedCostList);
+    onUpdateCostItems([fleetItem, ...nonFleetItems]);
     setShowFleetImportCalculator(false);
   };
 
