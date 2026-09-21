@@ -660,11 +660,13 @@ export interface AmortizationScheduleRow {
   period: number;
   paymentDate: string;
   beginningBalance: number;
-  paymentAmount: number;
-  interestPaid: number;
+  paymentAmount: number; // actual cash payment due for the period
+  interestAccrued?: number; // accounting interest expense for the period
+  interestPaid: number; // cash interest paid for the period
+  capitalizedInterest?: number; // deferred interest added to principal balance
   principalPaid: number;
   endingBalance: number;
-  cumulativeInterest: number;
+  cumulativeInterest: number; // cumulative interest accrued, including capitalized interest
 }
 
 export interface LoanAmortizationSummary {
