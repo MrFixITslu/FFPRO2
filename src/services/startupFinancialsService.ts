@@ -499,7 +499,11 @@ export function calculateMonthlyOperatingExpenses(sd?: StartupPlanDetails): Mont
     };
   }
 
-  const explicitCostItems = sd.costItems || [];
+  const activeCurrency = sd.displayCurrency || 'USD';
+  const activeRate = sd.exchangeRate || DEFAULT_USD_TO_XCD_RATE;
+  const explicitCostItems = (sd.costItems || []).map((item) =>
+    normalizeCostItemToCurrency(item, activeCurrency, activeRate)
+  );
   const operatingCostItems = explicitCostItems.filter((i) => i.classification === 'operating');
 
   if (operatingCostItems.length > 0) {
