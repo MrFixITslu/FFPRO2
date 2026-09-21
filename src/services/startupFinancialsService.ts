@@ -20,6 +20,7 @@ import {
 } from '../types';
 import {
   DEFAULT_USD_TO_XCD_RATE,
+  coerceCurrencyCode,
   convertCurrency,
   normalizeCostItemToCurrency,
   normalizeGoodsProductToCurrency,
@@ -317,15 +318,54 @@ export function needsBusinessModelClassification(sd?: StartupPlanDetails): boole
 }
 
 /**
- * Compute straight-line annual & monthly depreciation for an equipment cost item
+ * Resolve the authoritative capitalized equipment cost in the item's native currency.
+ * Imported equipment is capitalized at landed cost (asset + freight + duties/taxes/fees),
+ * not at an older FOB/purchase-cost field that may remain on legacy records.
+ */
+export function getEquipmentCapitalizedCost(item: StartupCostItem): number {
+  const imported = item.importDetails;
+  if (imported?.isImported) {
+    const itemCurrency: CurrencyCode = coerceCurrencyCode(
+      item.currency || imported.currency,
+      'XCD'
+    );
+    const rate = imported.exchangeRate && imported.exchangeRate > 0
+      ? imported.exchangeRate
+      : DEFAULT_USD_TO_XCD_RATE;
+
+    if (itemCurrency === 'USD') {
+      const landedUsd = imported.totalLandedCostUSD;
+      if (landedUsd !== undefined && landedUsd > 0) return roundCurrency(landedUsd);
+
+      const landedXcd = imported.totalLandedCostXCD ?? imported.totalLandedCost;
+      if (landedXcd !== undefined && landedXcd > 0) {
+        return roundCurrency(convertCurrency(landedXcd, 'XCD', 'USD', rate));
+      }
+    } else {
+      const landedXcd = imported.totalLandedCostXCD ?? imported.totalLandedCost;
+      if (landedXcd !== undefined && landedXcd > 0) return roundCurrency(landedXcd);
+
+      const landedUsd = imported.totalLandedCostUSD;
+      if (landedUsd !== undefined && landedUsd > 0) {
+        return roundCurrency(convertCurrency(landedUsd, 'USD', 'XCD', rate));
+      }
+    }
+  }
+
+  return roundCurrency(item.purchaseCost ?? item.amount ?? 0);
+}
+
+/**
+ * Compute straight-line annual & monthly depreciation for an equipment cost item.
  */
 export function calculateEquipmentDepreciation(item: StartupCostItem): {
   annualDepreciation: number;
   monthlyDepreciation: number;
   usefulLifeYears: number;
   depreciableBase: number;
+  capitalizedCost: number;
 } {
-  const cost = item.purchaseCost ?? item.amount ?? 0;
+  const cost = getEquipmentCapitalizedCost(item);
   const residual = item.residualValue ?? 0;
   const usefulLife = Math.max(1, item.usefulLifeYears ?? 3);
   const depreciableBase = Math.max(0, cost - residual);
@@ -336,7 +376,8 @@ export function calculateEquipmentDepreciation(item: StartupCostItem): {
     annualDepreciation,
     monthlyDepreciation,
     usefulLifeYears: usefulLife,
-    depreciableBase
+    depreciableBase,
+    capitalizedCost: cost
   };
 }
 
@@ -1032,7 +1073,7 @@ export function generateStartupFinancialForecast(
   const equipmentDeprecations = equipmentItems.map((item) => {
     const dep = calculateEquipmentDepreciation(item);
     const purchaseMonth = Math.min(12, Math.max(1, item.purchaseMonth ?? 1));
-    const purchaseCost = item.purchaseCost ?? item.amount ?? 0;
+    const purchaseCost = dep.capitalizedCost;
     return {
       itemId: item.id,
       purchaseMonth,

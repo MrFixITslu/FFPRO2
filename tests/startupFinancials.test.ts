@@ -13,7 +13,11 @@ import {
   needsBusinessModelClassification
 } from '../src/services/startupFinancialsService.ts';
 import { computeStartupCalculations } from '../src/services/businessPlanExportService.ts';
-import { normalizeCostItemAmount, DEFAULT_BASE_CURRENCY } from '../src/services/currencyService.ts';
+import {
+  normalizeCostItemAmount,
+  convertCurrency,
+  DEFAULT_BASE_CURRENCY
+} from '../src/services/currencyService.ts';
 import { buildBusinessPlanPresentation } from '../src/services/businessPlanPresentationService.ts';
 import { validateBusinessPlan } from '../src/services/businessPlanValidationService.ts';
 import { formatBusinessPlanMarkdownToHtml } from '../src/utils/businessPlanRichText.ts';
@@ -55,6 +59,102 @@ test('straight-line depreciation accounts for salvage / residual value', () => {
   assert.equal(dep.depreciableBase, 20000);
   assert.equal(dep.annualDepreciation, 5000);
   assert.equal(dep.monthlyDepreciation, 416.67);
+});
+
+test('imported equipment depreciation uses authoritative landed cost instead of stale purchase cost', () => {
+  const item: StartupCostItem = {
+    id: 'eq-imported',
+    name: 'Imported Equipment Package',
+    classification: 'equipment',
+    currency: 'XCD',
+    purchaseCost: 32466,
+    amount: 32466,
+    residualValue: 0,
+    usefulLifeYears: 10,
+    purchaseMonth: 2,
+    importDetails: {
+      isImported: true,
+      country: 'saint_lucia',
+      currency: 'XCD',
+      invoiceCurrency: 'USD',
+      exchangeRate: 2.72,
+      totalLandedCost: 67466.44,
+      totalLandedCostXCD: 67466.44,
+      totalLandedCostUSD: 24803.84
+    }
+  };
+
+  const dep = calculateEquipmentDepreciation(item);
+  assert.equal(dep.capitalizedCost, 67466.44);
+  assert.equal(dep.annualDepreciation, 6746.64);
+  assert.equal(dep.monthlyDepreciation, 562.22);
+});
+
+test('forecast equipment cash outlay uses imported landed cost basis', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    displayCurrency: 'XCD',
+    exchangeRate: 2.72,
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceOfferings: [{
+      id: 'svc-1',
+      name: 'Session',
+      revenueModel: 'event',
+      unitLabel: 'Sessions',
+      rate: 360,
+      expectedVolume: 36,
+      directCostPerUnitOrJob: 0
+    }],
+    costItems: [{
+      id: 'eq-imported',
+      name: 'Imported Equipment Package',
+      classification: 'equipment',
+      currency: 'XCD',
+      purchaseCost: 32466,
+      amount: 32466,
+      residualValue: 0,
+      usefulLifeYears: 10,
+      purchaseMonth: 2,
+      importDetails: {
+        isImported: true,
+        country: 'saint_lucia',
+        currency: 'XCD',
+        invoiceCurrency: 'USD',
+        exchangeRate: 2.72,
+        totalLandedCost: 67466.44,
+        totalLandedCostXCD: 67466.44,
+        totalLandedCostUSD: 24803.84
+      }
+    }]
+  };
+
+  const forecast = generateStartupFinancialForecast(plan, 'XCD', 2.72);
+  assert.equal(forecast.monthlyYear1[1].cashPurchasesEquipment, 67466.44);
+  assert.equal(forecast.monthlyYear1[1].depreciation, 562.22);
+});
+
+test('currency conversion normalizes legacy whitespace in stored currency codes', () => {
+  assert.equal(convertCurrency(920, 'USD ' as any, 'XCD', 2.72), 2502.4);
+
+  const salary: StartupCostItem = {
+    id: 'salary-legacy',
+    name: 'Staff Salaries',
+    classification: 'operating',
+    currency: 'USD ' as any,
+    monthlyExpenseAmount: 920,
+    amount: 920
+  };
+  assert.equal(normalizeCostItemAmount(salary, 'XCD', 2.72), 2502.4);
 });
 
 test('rental equipment calculation computes utilization, monthly units and rental revenue', () => {

@@ -12,6 +12,21 @@ export const DEFAULT_USD_TO_XCD_RATE = 2.70;
 export const DEFAULT_EXCHANGE_RATE = DEFAULT_USD_TO_XCD_RATE;
 export const DEFAULT_BASE_CURRENCY: CurrencyCode = 'XCD';
 
+/**
+ * Normalize persisted / user-entered currency codes before financial math.
+ * Older records may contain whitespace or display symbols even though the TypeScript
+ * model now uses strict USD/XCD codes.
+ */
+export function coerceCurrencyCode(
+  value: CurrencyCode | string | undefined | null,
+  fallback: CurrencyCode = 'USD'
+): CurrencyCode {
+  const normalized = String(value ?? '').trim().toUpperCase();
+  if (normalized === 'USD' || normalized === 'US$' || normalized === '$') return 'USD';
+  if (normalized === 'XCD' || normalized === 'EC$' || normalized === 'ECD') return 'XCD';
+  return fallback;
+}
+
 
 /**
  * Convert an amount from one currency to another using the specified rate
@@ -23,19 +38,22 @@ export function convertCurrency(
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): number {
   if (amount === undefined || amount === null || isNaN(amount)) return 0;
-  if (from === to) return amount;
+
+  const normalizedFrom = coerceCurrencyCode(from, 'USD');
+  const normalizedTo = coerceCurrencyCode(to, 'USD');
+  if (normalizedFrom === normalizedTo) return roundCurrency(amount);
   
   const validRate = rate > 0 ? rate : DEFAULT_USD_TO_XCD_RATE;
 
-  if (from === 'USD' && to === 'XCD') {
+  if (normalizedFrom === 'USD' && normalizedTo === 'XCD') {
     return roundCurrency(amount * validRate);
   }
 
-  if (from === 'XCD' && to === 'USD') {
+  if (normalizedFrom === 'XCD' && normalizedTo === 'USD') {
     return roundCurrency(amount / validRate);
   }
 
-  return amount;
+  return roundCurrency(amount);
 }
 
 /**
@@ -119,9 +137,9 @@ export function normalizeCostItemToCurrency(
   targetCurrency: CurrencyCode = 'USD',
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): StartupCostItem {
-  const itemCurrency: CurrencyCode = item.currency || targetCurrency;
+  const itemCurrency: CurrencyCode = coerceCurrencyCode(item.currency, targetCurrency);
   if (itemCurrency === targetCurrency) {
-    return { ...item, currency: item.currency || targetCurrency };
+    return { ...item, currency: itemCurrency };
   }
 
   const convert = (val: number | undefined) =>
@@ -177,8 +195,8 @@ export function normalizeGoodsProductToCurrency(
   targetCurrency: CurrencyCode = 'USD',
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): GoodsProduct {
-  const itemCurrency: CurrencyCode = prod.currency || targetCurrency;
-  if (itemCurrency === targetCurrency) return { ...prod, currency: prod.currency || targetCurrency };
+  const itemCurrency: CurrencyCode = coerceCurrencyCode(prod.currency, targetCurrency);
+  if (itemCurrency === targetCurrency) return { ...prod, currency: itemCurrency };
 
   return {
     ...prod,
@@ -196,8 +214,8 @@ export function normalizeServiceOfferingToCurrency(
   targetCurrency: CurrencyCode = 'USD',
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): ServiceOffering {
-  const itemCurrency: CurrencyCode = service.currency || targetCurrency;
-  if (itemCurrency === targetCurrency) return { ...service, currency: service.currency || targetCurrency };
+  const itemCurrency: CurrencyCode = coerceCurrencyCode(service.currency, targetCurrency);
+  if (itemCurrency === targetCurrency) return { ...service, currency: itemCurrency };
 
   return {
     ...service,
@@ -259,6 +277,6 @@ export function normalizeCostItemAmount(
     rawVal = item.amount ?? 0;
   }
 
-  const itemCurrency: CurrencyCode = item.currency || targetCurrency;
+  const itemCurrency: CurrencyCode = coerceCurrencyCode(item.currency, targetCurrency);
   return convertCurrency(rawVal, itemCurrency, targetCurrency, rate);
 }

@@ -27,6 +27,7 @@ import { roundCurrency } from '../../services/startupFinancialsService';
 import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
 import {
   DEFAULT_USD_TO_XCD_RATE,
+  coerceCurrencyCode,
   convertCurrency,
   getCurrencySymbol,
   formatCurrencyAmount
@@ -58,7 +59,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   
   // Cost Item Currency (USD vs XCD)
   const [currency, setCurrency] = useState<CurrencyCode>(
-    initialItem?.currency || defaultCurrency || 'XCD'
+    coerceCurrencyCode(initialItem?.currency, (defaultCurrency ?? 'XCD') as CurrencyCode)
   );
 
   // Import Duties & Landed Shipping State
@@ -69,8 +70,26 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
     !!initialItem?.importDetails?.isImported
   );
 
-  // Equipment fields
-  const [purchaseCost, setPurchaseCost] = useState(initialItem?.purchaseCost?.toString() || initialItem?.amount?.toString() || '1500');
+  // Equipment fields. Imported assets use landed cost as the authoritative capitalized basis.
+  const initialEquipmentCost = (() => {
+    if (initialItem?.importDetails?.isImported) {
+      const imp = initialItem.importDetails;
+      const rate = imp.exchangeRate && imp.exchangeRate > 0 ? imp.exchangeRate : exchangeRate;
+      if (currency === 'USD') {
+        return imp.totalLandedCostUSD ??
+          ((imp.totalLandedCostXCD ?? imp.totalLandedCost) !== undefined
+            ? convertCurrency(imp.totalLandedCostXCD ?? imp.totalLandedCost ?? 0, 'XCD', 'USD', rate)
+            : (initialItem?.purchaseCost ?? initialItem?.amount ?? 0));
+      }
+      return imp.totalLandedCostXCD ??
+        imp.totalLandedCost ??
+        (imp.totalLandedCostUSD !== undefined
+          ? convertCurrency(imp.totalLandedCostUSD, 'USD', 'XCD', rate)
+          : (initialItem?.purchaseCost ?? initialItem?.amount ?? 0));
+    }
+    return initialItem?.purchaseCost ?? initialItem?.amount ?? 1500;
+  })();
+  const [purchaseCost, setPurchaseCost] = useState(initialEquipmentCost.toString());
   const [residualValue, setResidualValue] = useState(initialItem?.residualValue?.toString() || '0');
   const [usefulLifeYears, setUsefulLifeYears] = useState(initialItem?.usefulLifeYears?.toString() || '5');
   const [purchaseMonth, setPurchaseMonth] = useState(initialItem?.purchaseMonth?.toString() || '1');
@@ -194,11 +213,36 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
     };
 
     if (classification === 'equipment') {
-      saved.purchaseCost = pCostNum;
+      const authoritativeEquipmentCost = importDetails?.isImported
+        ? (
+            currency === 'USD'
+              ? (
+                  importDetails.totalLandedCostUSD ??
+                  convertCurrency(
+                    importDetails.totalLandedCostXCD ?? importDetails.totalLandedCost ?? pCostNum,
+                    'XCD',
+                    'USD',
+                    importDetails.exchangeRate || exchangeRate
+                  )
+                )
+              : (
+                  importDetails.totalLandedCostXCD ??
+                  importDetails.totalLandedCost ??
+                  convertCurrency(
+                    importDetails.totalLandedCostUSD ?? pCostNum,
+                    'USD',
+                    'XCD',
+                    importDetails.exchangeRate || exchangeRate
+                  )
+                )
+          )
+        : pCostNum;
+
+      saved.purchaseCost = roundCurrency(authoritativeEquipmentCost);
       saved.residualValue = resValNum;
       saved.usefulLifeYears = usefulLifeNum;
       saved.purchaseMonth = Math.min(12, Math.max(1, parseInt(purchaseMonth) || 1));
-      saved.amount = pCostNum;
+      saved.amount = roundCurrency(authoritativeEquipmentCost);
 
       if (isRentalRevenueGenerator) {
         saved.isRentalRevenueGenerator = true;
@@ -471,10 +515,19 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                     step="0.01"
                     value={purchaseCost}
                     onChange={(e) => setPurchaseCost(e.target.value)}
-                    className="w-full pl-10 pr-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono"
+                    readOnly={!!importDetails?.isImported}
+                    className={`w-full pl-10 pr-3 py-1.5 text-xs border border-stone-200 rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 font-mono ${
+                      importDetails?.isImported ? 'bg-emerald-50 text-emerald-900 cursor-not-allowed' : 'bg-white'
+                    }`}
                   />
                 </div>
-                {renderConversionHint(purchaseCost)}
+                {importDetails?.isImported ? (
+                  <div className="text-[10px] font-semibold text-emerald-700">
+                    Synced to authoritative landed cost. Edit the landed-cost calculation below to change this amount.
+                  </div>
+                ) : (
+                  renderConversionHint(purchaseCost)
+                )}
               </div>
 
               <div className="space-y-1">
@@ -596,7 +649,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                     onApplyLandedCost={(res) => {
                       setImportDetails(res.importDetails);
                       const finalLanded = currency === 'USD'
-                        ? (res.importDetails.totalLandedCostUSD ?? roundCurrency(res.totalLandedCost / 2.70))
+                        ? (res.importDetails.totalLandedCostUSD ?? roundCurrency(res.totalLandedCost / exchangeRate))
                         : (res.importDetails.totalLandedCostXCD ?? res.totalLandedCost);
                       setPurchaseCost(finalLanded.toString());
                       setShowImportCalculator(false);
