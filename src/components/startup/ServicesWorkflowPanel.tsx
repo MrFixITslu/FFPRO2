@@ -1097,7 +1097,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         {/* Service Offerings List */}
         <div className="space-y-2.5">
           {services.map((service) => {
-            const servCurrency = service.currency || 'USD';
+            const servCurrency = service.currency || displayCurrency;
             const normalizedRate = normalizeServiceRate(service);
             const monthlyRev = normalizedRate * Math.max(0, service.expectedVolume ?? 0);
             const isDifferentCurrency = servCurrency !== displayCurrency;
