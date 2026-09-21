@@ -422,8 +422,14 @@ export interface ServiceCapacityCalculationResult {
  * Generalised service capacity calculator for independent staff and equipment resources (Decision 2)
  */
 export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCapacityCalculationResult {
+  const hasExplicitCapacityModules = Boolean(plan?.staff || plan?.equipment);
+
   const defaultStaff = {
-    enabled: plan?.staff?.enabled ?? (plan?.resourceType === 'staff' || !plan?.resourceType || plan?.resourceType === 'both'),
+    enabled: plan?.staff?.enabled ?? (
+      hasExplicitCapacityModules
+        ? false
+        : (plan?.resourceType === 'staff' || !plan?.resourceType || plan?.resourceType === 'both')
+    ),
     resourceCount: plan?.staff?.resourceCount ?? (plan?.resourceType === 'staff' ? (plan.resourceCount || 2) : 2),
     availableHoursPerStaff: plan?.staff?.availableHoursPerStaff ?? (plan?.resourceType === 'staff' ? (plan.availableTimePerResource || 160) : 160),
     targetUtilisationPercent: plan?.staff?.targetUtilisationPercent ?? (plan?.resourceType === 'staff' ? (plan.targetUtilisationPercent ?? 75) : 75),
@@ -431,7 +437,11 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
   };
 
   const defaultEquipment = {
-    enabled: plan?.equipment?.enabled ?? (plan?.resourceType === 'equipment' || plan?.resourceType === 'both'),
+    enabled: plan?.equipment?.enabled ?? (
+      hasExplicitCapacityModules
+        ? false
+        : (plan?.resourceType === 'equipment' || plan?.resourceType === 'both')
+    ),
     resourceCount: plan?.equipment?.resourceCount ?? (plan?.resourceType === 'equipment' ? (plan.resourceCount || 1) : 1),
     availableDaysPerUnit: plan?.equipment?.availableDaysPerUnit ?? (plan?.resourceType === 'equipment' ? (plan.availableTimePerResource || 25) : 25),
     targetUtilisationPercent: plan?.equipment?.targetUtilisationPercent ?? (plan?.resourceType === 'equipment' ? (plan.targetUtilisationPercent ?? 50) : 50),
