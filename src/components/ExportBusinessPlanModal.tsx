@@ -504,12 +504,12 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             </div>
             <div class="meta-row">
               <span class="meta-label">Document Classification:</span>
-              <span class="meta-val" style="color:#0d9488;">Credit Committee Appraisal</span>
+              <span class="meta-val" style="color:#0d9488;">Business Plan &amp; Funding Proposal</span>
             </div>
           </div>
 
           <div class="confidential-pill">
-            STRICTLY CONFIDENTIAL • PROPRIETARY FINANCIAL APPRAISAL
+            CONFIDENTIAL • BUSINESS PLAN &amp; FUNDING PROPOSAL
           </div>
         </div>
 
@@ -528,7 +528,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           <div class="kpi-card">
             <div class="kpi-title">Year 1 Revenue</div>
             <div class="kpi-val">${presentation.year1.revenueFormatted}</div>
-            <div class="kpi-sub">${presentation.headline.volumeYear1.toLocaleString()} Projected Units</div>
+            <div class="kpi-sub">${presentation.headline.volumeYear1.toLocaleString()} ${presentation.headline.volumeMetricLabel}</div>
           </div>
           <div class="kpi-card highlight">
             <div class="kpi-title">Year 1 Operating Profit (EBITDA)</div>
@@ -543,7 +543,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
         <!-- Revenue Streams & Commercial Economics -->
         ${presentation.isServiceBusiness && presentation.revenueStreams.length > 0 ? `
           <h2 class="section-title">Service Offerings & Revenue Model Structure</h2>
-          <p>The operational service matrix establishes pricing tiers, booking units, and direct variable margins:</p>
+          <p>The operational service matrix establishes pricing tiers, service-unit definitions, monthly volume, and direct variable margins:</p>
           <table>
             <thead>
               <tr>
@@ -629,7 +629,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
 
         <!-- Multi-Year Statement of Comprehensive Income -->
         <h2 class="section-title">Multi-Year Statement of Comprehensive Income</h2>
-        <p>Projections grounded in audited operational unit economics scaled across 5 years:</p>
+        <p>Projections are generated from the configured pricing, volume, cost, growth, depreciation, and financing assumptions:</p>
         <table>
           <thead>
             <tr>
@@ -659,44 +659,44 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
               <td class="text-right">${presentation.year5.grossProfitFormatted}</td>
             </tr>
             <tr>
-              <td>Fixed Operating Expenses (OpEx)</td>
+              <td>Operating Expenses (OpEx)</td>
               <td class="text-right">${presentation.year1.operatingExpensesFormatted}</td>
-              <td class="text-right">${presentation.currencySymbol}${Math.round(calculations.y3OpEx).toLocaleString()}</td>
-              <td class="text-right">${presentation.currencySymbol}${Math.round(calculations.y5OpEx).toLocaleString()}</td>
+              <td class="text-right">${presentation.year3.operatingExpensesFormatted}</td>
+              <td class="text-right">${presentation.year5.operatingExpensesFormatted}</td>
             </tr>
             <tr class="highlight-row">
               <td>Operating Profit (EBITDA)</td>
               <td class="text-right">${presentation.year1.ebitdaFormatted}</td>
-              <td class="text-right">${presentation.year3.netProfitFormatted}</td>
-              <td class="text-right">${presentation.year5.netProfitFormatted}</td>
+              <td class="text-right">${presentation.year3.ebitdaFormatted}</td>
+              <td class="text-right">${presentation.year5.ebitdaFormatted}</td>
             </tr>
             <tr>
-              <td>Equipment Depreciation</td>
+              <td>Depreciation</td>
               <td class="text-right">${presentation.year1.depreciationFormatted}</td>
-              <td class="text-right">${presentation.currencySymbol}${Math.round(presentation.year1.depreciation).toLocaleString()}</td>
-              <td class="text-right">${presentation.currencySymbol}${Math.round(presentation.year1.depreciation).toLocaleString()}</td>
+              <td class="text-right">${presentation.year3.depreciationFormatted}</td>
+              <td class="text-right">${presentation.year5.depreciationFormatted}</td>
             </tr>
             <tr class="bold">
-              <td>Net Operating Profit (EBIT)</td>
+              <td>Operating Profit After Depreciation (EBIT)</td>
               <td class="text-right">${presentation.year1.ebitFormatted}</td>
-              <td class="text-right">${presentation.currencySymbol}${Math.round(calculations.y3Net - presentation.year1.depreciation).toLocaleString()}</td>
-              <td class="text-right">${presentation.currencySymbol}${Math.round(calculations.y5Net - presentation.year1.depreciation).toLocaleString()}</td>
+              <td class="text-right">${presentation.year3.ebitFormatted}</td>
+              <td class="text-right">${presentation.year5.ebitFormatted}</td>
             </tr>
-            ${presentation.year1.interest > 0 ? `
+            ${(presentation.year1.interest > 0 || presentation.year3.interest > 0 || presentation.year5.interest > 0) ? `
             <tr>
               <td>Loan Interest Expense</td>
-              <td class="text-right">(${presentation.year1.interestFormatted})</td>
-              <td class="text-right">-</td>
-              <td class="text-right">-</td>
-            </tr>
+              <td class="text-right">${presentation.year1.interestFormatted}</td>
+              <td class="text-right">${presentation.year3.interestFormatted}</td>
+              <td class="text-right">${presentation.year5.interestFormatted}</td>
+            </tr>` : ''}
             <tr class="bold">
               <td>Profit Before Tax (EBT)</td>
               <td class="text-right">${presentation.year1.profitBeforeTaxFormatted}</td>
-              <td class="text-right">-</td>
-              <td class="text-right">-</td>
-            </tr>` : ''}
+              <td class="text-right">${presentation.year3.profitBeforeTaxFormatted}</td>
+              <td class="text-right">${presentation.year5.profitBeforeTaxFormatted}</td>
+            </tr>
             <tr class="bold total-double-line">
-              <td>Net Profit / Bottom Line</td>
+              <td>Net Profit (Pre-Tax Model)</td>
               <td class="text-right">${presentation.year1.netProfitFormatted}</td>
               <td class="text-right">${presentation.year3.netProfitFormatted}</td>
               <td class="text-right">${presentation.year5.netProfitFormatted}</td>
@@ -722,13 +722,13 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
         <!-- Loan Amortization Section -->
         ${presentation.loan ? `
           <h2 class="section-title">Bank Debt Financing & Amortization Schedule</h2>
-          <p><strong>Facility Principal:</strong> ${presentation.currencyCode} ${presentation.loan.principalFormatted} @ ${presentation.loan.annualInterestRate}% p.a. (${presentation.loan.termYears}-Year Term, ${presentation.loan.paymentFrequency} repayments)</p>
+          <p><strong>Facility Principal:</strong> ${presentation.loan.principalFormatted} @ ${presentation.loan.annualInterestRate}% p.a. (${presentation.loan.termYears}-Year Term, ${presentation.loan.paymentFrequency} repayments)</p>
           <p>
             <strong>Upfront Fees:</strong> Negotiation Fee ${presentation.loan.negotiationFeeFormatted} + Insurance ${presentation.loan.insuranceFeeFormatted} = ${presentation.loan.totalFeesFormatted} (${presentation.loan.includeFeesInLoan ? 'Financed in Opening Balance' : 'Out-of-Pocket Cash Payment'}).<br/>
             <strong>Opening Loan Balance:</strong> ${presentation.loan.openingBalanceFormatted} | 
-            <strong>Monthly Debt Service:</strong> ${presentation.loan.monthlyDebtServiceFormatted} | 
+            <strong>Average Monthly Debt Service:</strong> ${presentation.loan.monthlyDebtServiceFormatted} | 
             <strong>Annual Debt Service:</strong> ${presentation.loan.annualDebtServiceFormatted}
-            ${presentation.loan.gracePeriodMonths ? `<br/><strong>Grace Period (Moratorium):</strong> ${presentation.loan.gracePeriodMonths} Month(s) (${presentation.loan.gracePeriodType === 'full_defer' ? 'Full Interest & Principal Deferral' : 'Interest-Only Servicing'}) | <strong>Repayment Start:</strong> ${presentation.loan.firstPaymentDate || 'Month 1'}` : ''}
+            ${presentation.loan.gracePeriodMonths ? `<br/><strong>Grace Period (Moratorium):</strong> ${presentation.loan.gracePeriodMonths} Month(s) (${presentation.loan.gracePeriodType === 'full_defer' ? 'Full payment deferral; accrued interest capitalized' : 'Interest-only servicing'}) | <strong>Schedule Start:</strong> ${presentation.loan.firstPaymentDate || 'Month 1'}` : ''}
           </p>
           <p>
             <strong>Debt Service Coverage Ratio (DSCR):</strong> ${presentation.loan.dscrYear1 > 50 ? 'N/A' : presentation.loan.dscrYear1.toFixed(2) + 'x'} 
@@ -738,7 +738,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
 
         <!-- Formal Authorization Signatures -->
         <h2 class="section-title">Commercial Execution & Endorsement</h2>
-        <p>The undersigned authorized officers certify the operational veracity and financial calculations presented in this proposal:</p>
+        <p>The undersigned confirm that the operating assumptions and supporting information supplied for this proposal have been reviewed for submission:</p>
         <div class="sign-grid">
           <div class="sign-col">
             <div class="sign-name">${preparedBy}</div>
@@ -1044,7 +1044,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
                     <div className="bg-stone-50 border border-stone-200 rounded-lg p-2">
                       <div className="text-[9px] font-bold text-stone-400 uppercase">Year 1 Rev</div>
                       <div className="text-sm font-extrabold text-stone-800">{presentation.year1.revenueFormatted}</div>
-                      <div className="text-[9px] text-stone-500">{presentation.headline.volumeYear1.toLocaleString()} Units</div>
+                      <div className="text-[9px] text-stone-500">{presentation.headline.volumeYear1.toLocaleString()} {presentation.headline.volumeMetricLabel}</div>
                     </div>
                     <div className="bg-emerald-50/70 border border-emerald-150 rounded-lg p-2">
                       <div className="text-[9px] font-bold text-stone-400 uppercase">Year 1 Operating Profit (EBITDA)</div>
@@ -1097,8 +1097,8 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
                       <tr>
                         <td className="p-1.5 text-stone-600">{presentation.isServiceBusiness ? 'Direct Variable Costs' : 'Cost of Goods Sold'}</td>
                         <td className="p-1.5 text-right text-stone-600">{presentation.year1.cogsFormatted}</td>
-                        <td className="p-1.5 text-right text-stone-600">{presentation.currencySymbol}{Math.round(calculations.y3COGS).toLocaleString()}</td>
-                        <td className="p-1.5 text-right text-stone-600">{presentation.currencySymbol}{Math.round(calculations.y5COGS).toLocaleString()}</td>
+                        <td className="p-1.5 text-right text-stone-600">{presentation.year3.cogsFormatted}</td>
+                        <td className="p-1.5 text-right text-stone-600">{presentation.year5.cogsFormatted}</td>
                       </tr>
                       <tr className="bg-stone-50/60 font-semibold">
                         <td className="p-1.5 text-stone-800">Gross Profit / CM</td>
@@ -1107,10 +1107,10 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
                         <td className="p-1.5 text-right text-stone-800">{presentation.year5.grossProfitFormatted}</td>
                       </tr>
                       <tr className="bg-emerald-50/50 text-emerald-900 font-bold">
-                        <td className="p-1.5">Net Operating Profit (EBITDA)</td>
+                        <td className="p-1.5">Operating Profit (EBITDA)</td>
                         <td className="p-1.5 text-right">{presentation.year1.ebitdaFormatted}</td>
-                        <td className="p-1.5 text-right">{presentation.year3.netProfitFormatted}</td>
-                        <td className="p-1.5 text-right">{presentation.year5.netProfitFormatted}</td>
+                        <td className="p-1.5 text-right">{presentation.year3.ebitdaFormatted}</td>
+                        <td className="p-1.5 text-right">{presentation.year5.ebitdaFormatted}</td>
                       </tr>
                     </tbody>
                   </table>
