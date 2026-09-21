@@ -808,6 +808,53 @@ export interface BriefingTopicOption {
   icon: string;
 }
 
+export interface AiNewsItem {
+  id: string;
+  title: string;
+  link: string;
+  source: string;
+  publishedAt: string;
+  timeAgo: string;
+  snippet: string;
+  player: string;
+  category: string;
+  topic?: string;
+  rawContext?: any;
+}
+
+export interface AiStoryGroup {
+  id: string;
+  topicId: string;
+  theme: string;
+  category: string;
+  combinedSummary: string;
+  keyTakeaways?: string[];
+  sources: string[];
+  articleIds: string[];
+  articles: AiNewsItem[];
+  updatedAt?: string;
+}
+
+export interface AiBriefingResponse {
+  briefing: {
+    summary: string;
+    takeaways: string[];
+    provider: 'ollama' | 'gemini' | 'deterministic' | string;
+    model?: string;
+    updatedAt: string;
+    topic?: string;
+  };
+  articles: AiNewsItem[];
+  storyGroups?: AiStoryGroup[];
+  topic?: string;
+  ollamaStatus?: {
+    online: boolean;
+    model: string | null;
+  };
+  playerStats?: Record<string, number>;
+  fetchedAt: string;
+}
+
 export const DEFAULT_BRIEFING_TOPICS: BriefingTopicOption[] = [
   {
     id: 'ai',

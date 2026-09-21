@@ -236,24 +236,25 @@ function extractGoogleNewsCoverage(htmlDesc = '') {
 /**
  * Build an in-depth, fact-dense contextual breakdown in ONE comprehensive paragraph
  * (strictly 85 to 135 words, 4 to 6 informative sentences).
- * CRITICAL: NEVER repeats or paraphrases the heading, leaving full room for deep context
- * so readers can immediately evaluate whether reading the full piece is worth their time.
+ * CRITICAL: Directly matches, explains, and provides substantive context for the specific
+ * headline, while never lazily repeating the heading verbatim.
  */
 function buildSubstantiveParagraphSummary({ title, rawDesc, rawContext = [], source, entity, category, topic, publishedAt }) {
   const cleanTitle = cleanText(title).replace(/\s+-\s+[^-]+$/, '').trim();
-  const cleanTitleLower = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanTitleLower = cleanTitle.toLowerCase();
   const textLower = (cleanTitle + ' ' + (rawDesc || '')).toLowerCase();
   const src = source || 'Primary reporting';
 
-  // 1. Extract valid, non-headline sentences from description or body content
+  // 1. Extract valid non-headline sentences from description or body content
   const cleanedDesc = cleanText(rawDesc || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const rawSentences = cleanedDesc
     .split(/(?<=[.?!])\s+/)
     .map(s => s.trim())
     .filter(s => {
       const sLower = s.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const tLower = cleanTitleLower.replace(/[^a-z0-9]/g, '');
       return s.length > 22 &&
-        !sLower.includes(cleanTitleLower.slice(0, 25)) &&
+        !sLower.includes(tLower.slice(0, 25)) &&
         !s.toLowerCase().includes('click here') &&
         !s.toLowerCase().includes('read more') &&
         !s.toLowerCase().includes('the post') &&
@@ -263,7 +264,7 @@ function buildSubstantiveParagraphSummary({ title, rawDesc, rawContext = [], sou
 
   const bodySentences = rawSentences.map(s => s.replace(/^[A-Z\s]+:\s*/, ''));
 
-  // 2. Extract multi-source coverage perspectives from Google News cluster without repeating headline
+  // 2. Extract multi-source coverage perspectives from Google News cluster
   const multiPerspectives = [];
   if (Array.isArray(rawContext) && rawContext.length > 1) {
     for (let i = 1; i < Math.min(rawContext.length, 3); i++) {
@@ -275,62 +276,101 @@ function buildSubstantiveParagraphSummary({ title, rawDesc, rawContext = [], sou
           .replace(/^[A-Za-z0-9\s]+:\s*/, '')
           .trim();
         const itemHeadingLower = itemHeading.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (!itemHeadingLower.includes(cleanTitleLower.slice(0, 25)) && itemHeading.length > 15) {
+        const tLower = cleanTitleLower.replace(/[^a-z0-9]/g, '');
+        if (!itemHeadingLower.includes(tLower.slice(0, 25)) && itemHeading.length > 15) {
           multiPerspectives.push({ source: item.source || 'Associated outlets', heading: itemHeading });
         }
       }
     }
   }
 
-  // 3. Construct domain-specific deep operational sentences based on story taxonomy
+  // 3. Construct domain-specific deep operational sentences strictly aligned to headline semantics
   let coreMechanics = '';
   let technicalDetail = '';
   let riskOrFriction = '';
   let strategicOutlook = '';
 
-  if (/loss|billion|million|revenue|funding|invest|cost|spend|valuation|profit|fiscal|quarterly|expenditure|capex|margin/i.test(textLower)) {
-    coreMechanics = `Financial disclosures and earnings filings highlight accelerating capital expenditures driven by frontier model training clusters, specialized datacenter leases, and long-term cloud compute commitments.`;
-    technicalDetail = `Institutional investors are tracking unit economics, cash burn velocity, and enterprise software contract values to gauge whether annualized returns justify the massive infrastructure outlays.`;
-    riskOrFriction = `Engineering divisions face pressure to balance multi-billion-dollar compute allocations with operational efficiency as forward debt covenants and equity dilution constraints tighten.`;
-    strategicOutlook = `The detailed balance sheet metrics provide essential clarity into fiscal runway, valuation multiples, and the sustainable investment horizon across the sector over the next four quarters.`;
-  } else if (/hack|breach|vulnerab|security|sandbox|escape|threat|exploit|malicious|cyber|attack|phish|leak|jailbreak/i.test(textLower)) {
-    coreMechanics = `Security audits uncover critical vulnerabilities spanning unpatched development environments, internal model weight containment, and third-party software supply chain dependencies.`;
-    technicalDetail = `Threat intelligence reports indicate that malicious actors are exploiting configuration drifts, credential leakage across staging environments, and unauthorized remote code execution pathways.`;
-    riskOrFriction = `Defensive engineering teams are racing to deploy zero-trust access controls, hardware-backed authentication tokens, and hardened isolation boundaries before automated scanners find exposed endpoints.`;
-    strategicOutlook = `The disclosure highlights persistent friction between aggressive product shipment velocity and enterprise security isolation, delivering vital remediation baselines for infrastructure defenders.`;
-  } else if (/lawmaker|rule|policy|regulat|congress|tsar|czar|force|military|gov|ban|court|antitrust|doj|ftc|sanction|white house/i.test(textLower)) {
-    coreMechanics = `Legislative committees, statutory regulators, and national security bodies are formalizing mandatory compliance frameworks, risk assessments, and executive oversight protocols.`;
-    technicalDetail = `Public filings and hearing transcripts detail specific mandates covering algorithmic auditability, copyrighted training data provenance, and cross-border export restrictions on frontier hardware.`;
-    riskOrFriction = `Industry leadership confronts complex legal exposure and potential statutory penalties if internal safety testing and disclosure protocols fail to meet newly established oversight standards.`;
-    strategicOutlook = `These policy developments establish enforceable operational boundaries that will directly govern commercial deployment licensing, international market access, and government procurement qualification.`;
-  } else if (/battle|race|assistant|agent|launch|release|product|feature|rollout|device|app|interface|browser/i.test(textLower)) {
-    coreMechanics = `Architectural updates transition system workflows toward autonomous multi-step execution, persistent workspace context, and direct API tool-calling capabilities.`;
-    technicalDetail = `Engineering specifications emphasize significant gains in sub-second token latency, multi-modal context comprehension, and automated task verification loops under heavy production loads.`;
-    riskOrFriction = `Deployment trials reveal operational trade-offs between end-to-end task completion rates, compute consumption overheads, and interface reliability across distributed user sessions.`;
-    strategicOutlook = `The comprehensive breakdown delivers actionable insights into comparative benchmark performance, platform ecosystem integrations, and concrete enterprise rollout timelines.`;
-  } else if (/measure|pace|benchmark|eval|reasoning|model|think|cogniti|science|research|paper|abstract|math|gsm8k|humaneval|weights/i.test(textLower)) {
-    coreMechanics = `Technical research findings evaluate empirical reasoning performance, long-horizon planning consistency, and test-time compute scaling across frontier evaluation suites.`;
-    technicalDetail = `Peer-reviewed methodology outlines how specialized reinforcement learning optimizations and chain-of-thought verification algorithms reduce hallucination rates on complex multi-step reasoning tasks.`;
-    riskOrFriction = `Researchers caution that static benchmarks often saturate prematurely, emphasizing the critical need for dynamic, real-world evaluation environments and robust contamination safeguards.`;
-    strategicOutlook = `The published findings establish rigorous engineering baselines that will inform next-generation model pre-training architectures, synthetic dataset generation, and academic peer review.`;
-  } else if (/slow down|ethics|moral|safety|align|pacing|existential|pause|guardrail|containment/i.test(textLower)) {
-    coreMechanics = `Executive deliberations center on verifiable safety containment protocols, comprehensive pre-deployment red-teaming, and voluntary capability ceilings across frontier laboratories.`;
-    technicalDetail = `Policy working papers outline formal trigger conditions where capability thresholds in autonomous replication or cyber-offensive tooling require third-party verification before public deployment.`;
-    riskOrFriction = `Intense commercial competition and international market pressures continue to complicate collective safety commitments as rival organizations race to capture strategic dominance.`;
-    strategicOutlook = `The investigation details exactly where laboratory founders, independent audit groups, and regulatory bodies diverge on acceptable risk management thresholds.`;
-  } else if (/chip|semiconductor|gpu|tpu|nvidia|tsmc|foundry|datacenter|power|energy|nuclear|grid/i.test(textLower)) {
-    coreMechanics = `Supply chain intelligence tracks high-bandwidth memory allocations, semiconductor fabrication yields, and multi-gigawatt power interconnection requests across global datacenter clusters.`;
-    technicalDetail = `Hardware engineers are deploying liquid cooling architectures and customized interconnect fabrics to maximize cluster utilization while mitigating thermal throttling under heavy training runs.`;
-    riskOrFriction = `Physical infrastructure constraints and regional electric utility capacity bottlenecks pose substantial scheduling headwinds for planned multi-gigawatt facility expansions.`;
-    strategicOutlook = `The reporting reveals how architectural hardware efficiency gains and sovereign compute initiatives are reshaping long-term operational roadmaps across global technology infrastructure.`;
+  // Priority A: Existential Risk, Extinction, Catastrophe, 0% Chance, End of World, Doomsday
+  if (/end\s+the\s+world|ends\s+the\s+world|0%\s+chance|zero\s+percent\s+chance|extinction|existential|apocalypse|destroy\s+humanity|threat\s+to\s+humanity|killer\s+robot|p-doom|doomsday|superintelligence\s+risk|human\s+survival/i.test(textLower)) {
+    const speaker = /jensen|huang|nvidia/i.test(textLower) ? 'Nvidia CEO Jensen Huang' :
+      /altman|sam\s+altman|openai/i.test(textLower) ? 'OpenAI leadership' :
+      /musk|elon/i.test(textLower) ? 'Elon Musk' :
+      /hinton|bengio|lecun/i.test(textLower) ? 'Pioneering AI researchers' : 'Industry leadership';
+
+    coreMechanics = `Addressing persistent debates surrounding artificial intelligence safety boundaries, recent public remarks examine whether advanced neural architectures pose catastrophic or existential risks to civilization. ${speaker} firmly rejected apocalyptic extinction scenarios, arguing that commercial systems operate under deterministic engineering constraints and persistent human-in-the-loop governance.`;
+    technicalDetail = `Proponents of this view emphasize that production AI tools function as purpose-built software extensions with bounded runtime permissions, rather than unconstrained self-replicating agents.`;
+    riskOrFriction = `This technological optimism stands in contrast to cautionary appeals from academic alignment scholars and safety researchers who advocate for mandatory pre-deployment verification standards.`;
+    strategicOutlook = `The discussion clarifies key philosophical divisions between infrastructure executives focused on commercial productivity gains and global policymakers evaluating long-term catastrophic risk management.`;
+  }
+  // Priority B: Executive Strategy, Interviews, Keynotes, CEO Forecasts
+  else if (/ceo\s+says|ceo\s+predicts|ceo\s+warns|interview|keynote|fireside|quarterly\s+letter|remarks\s+at/i.test(cleanTitleLower)) {
+    const execName = /huang|jensen/i.test(textLower) ? 'Jensen Huang' :
+      /altman/i.test(textLower) ? 'Sam Altman' :
+      /nadella/i.test(textLower) ? 'Satya Nadella' :
+      /pichai/i.test(textLower) ? 'Sundar Pichai' :
+      /zuckerberg/i.test(textLower) ? 'Mark Zuckerberg' :
+      /amodei/i.test(textLower) ? 'Dario Amodei' : 'Executive leadership';
+
+    coreMechanics = `Dispatches from ${src} detail strategic commentary from ${execName} addressing enterprise adoption curves, capability frontiers, and the operational transition toward autonomous software tooling.`;
+    technicalDetail = `The briefing focuses on real-world execution milestones, customer integration velocity, and balancing capital expenditure allocations against revenue unit economics.`;
+    riskOrFriction = `Enterprise decision-makers are scrutinizing these projections to determine whether declared productivity returns justify multi-million-dollar platform transformation budgets.`;
+    strategicOutlook = `The forward-looking statements provide key directional signals for organizational leaders budgeting compute commitments and software modernization roadmaps over the next fiscal cycle.`;
+  }
+  // Priority C: Legal, Lawsuits, Copyright, Antitrust, DOJ, FTC & Statutory Regulations
+  else if (/lawsuit|sues|suing|court|judge|legal|copyright|infringement|antitrust|doj|ftc|monopoly|regulat|eu\s+ai\s+act|biden|trump|white\s+house|congress|subpoena|investigation/i.test(textLower)) {
+    coreMechanics = `Judicial proceedings and regulatory inquiries detailed by ${src} center on compliance mandates, training data intellectual property rights, and fair competition enforcement.`;
+    technicalDetail = `Statutory briefs and hearing records outline specific concerns regarding algorithmic provenance, non-public data licensing, and exclusive cloud infrastructure partnerships.`;
+    riskOrFriction = `Technology companies face substantial operational exposure, including potential licensing penalties, mandatory architectural disclosures, and cross-border export restrictions.`;
+    strategicOutlook = `The resulting legal precedents will establish enforceable regulatory baselines governing permissible commercial deployment protocols and third-party data governance for years to come.`;
+  }
+  // Priority D: Frontier Models, Reasoning Benchmarks, Architecture & Releases
+  else if (/model|launch|release|unveil|rolls\s+out|gpt|claude|gemini|llama|deepseek|o1|o3|reasoning|benchmark|eval|math|gsm8k|humaneval|weights/i.test(textLower)) {
+    coreMechanics = `Engineering releases and evaluation benchmarks reported by ${src} evaluate empirical reasoning accuracy, test-time inference compute scaling, and chain-of-thought verification across challenging problem domains.`;
+    technicalDetail = `System documentation highlights measurable gains in multi-step task completion, reduced error rates on competitive coding suites, and lower per-token latency during complex reasoning loops.`;
+    riskOrFriction = `Deployment trials underscore architectural trade-offs between dynamic inference computation depth, token expenditure ceilings, and real-time response latency.`;
+    strategicOutlook = `The published findings establish empirical standards that will guide developer platform migrations, API integration budgets, and next-generation workflow orchestration.`;
+  }
+  // Priority E: Cybersecurity, Exploits, Zero-Days, Vulnerabilities & Jailbreaks
+  else if (/hack|breach|vulnerab|security|sandbox|escape|threat|exploit|malicious|cyber|attack|phish|leak|jailbreak/i.test(textLower)) {
+    coreMechanics = `Threat intelligence audits and vulnerability advisories from ${src} document exploit vectors targeting enterprise staging environments, model weight containment, and authentication tokens.`;
+    technicalDetail = `Incident reports detail configuration drifts, prompt injection bypasses, and unauthorized API traversal pathways discovered during adversarial red-teaming evaluations.`;
+    riskOrFriction = `Infrastructure defenders are prioritizing zero-trust isolation boundaries, hardware-enforced authentication, and automated anomaly monitoring across exposed enterprise endpoints.`;
+    strategicOutlook = `The disclosures provide actionable threat-modeling baselines for security operations teams hardening mission-critical production pipelines against emerging digital vulnerabilities.`;
+  }
+  // Priority F: Hardware, Silicon, GPUs, Datacenter Power & Fabrication (strictly when hardware-specific)
+  else if (/semiconductor|chip|gpu|tpu|blackwell|h100|b200|wafer|foundry|tsmc|fab|liquid\s+cooling|datacenter\s+power|power\s+grid|gigawatt|hbm|memory\s+chip/i.test(textLower)) {
+    coreMechanics = `Supply chain intelligence and infrastructure reporting from ${src} track semiconductor packaging yields, high-bandwidth memory allocations, and multi-gigawatt utility interconnection queues.`;
+    technicalDetail = `Hardware engineers are deploying advanced liquid cooling distributions and high-density interconnect switches to mitigate thermal bottlenecks under sustained high-load training runs.`;
+    riskOrFriction = `Regional electrical grid capacity limitations and specialized component delivery lead times continue to impose hard physical constraints on planned facility expansions.`;
+    strategicOutlook = `These physical deployment dynamics dictate real-world cluster commissioning timelines and capital expenditure planning across hyperscale datacenter operators worldwide.`;
+  }
+  // Priority G: Financials, Earnings, Valuations, CapEx & Commercial Growth
+  else if (/loss|billion|million|revenue|funding|invest|cost|spend|valuation|profit|fiscal|quarterly|expenditure|capex|margin/i.test(textLower)) {
+    coreMechanics = `Financial disclosures and market reports from ${src} analyze corporate balance sheet trends, annualized recurring revenues, and infrastructure capital expenditures.`;
+    technicalDetail = `Equity analysts are evaluating cash burn rates, gross software margins, and enterprise contract renewal sizes to assess whether current valuation multiples match economic returns.`;
+    riskOrFriction = `Management teams confront heightened investor scrutiny over monetization timetables as enterprise buyers demand verifiable cost savings from deployed automated solutions.`;
+    strategicOutlook = `The financial metrics provide essential visibility into cash runway longevity, enterprise pricing power, and commercial sustainability over the forthcoming fiscal quarters.`;
+  }
+  // Priority H: Topic-Specific Fallbacks (Weather, Sports, ICT, Finance, Energy)
+  else if (topic === 'weather') {
+    coreMechanics = `Meteorological observations and computer model projections from ${src} analyze atmospheric pressure boundaries, precipitation probability, and regional climate anomalies.`;
+    technicalDetail = `Radar telemetry and satellite data track convective cloud developments, barometric shifts, and wind shear patterns influencing local travel and municipal infrastructure.`;
+    riskOrFriction = `Emergency management agencies are coordinating readiness protocols, advising municipal services and the public on precautionary weather safety measures.`;
+    strategicOutlook = `Extended medium-range atmospheric forecasts offer vital planning guidance for transportation networks, agricultural operations, and regional emergency services.`;
+  } else if (topic === 'sports') {
+    coreMechanics = `Dispatches from ${src} evaluate game outcomes, tactical adjustments, and league standings across competitive tournament brackets and division rivalries.`;
+    technicalDetail = `Performance analytics and coaching staff assessments highlight possession efficiency, rotational roster depth, and high-leverage decision-making under match pressure.`;
+    riskOrFriction = `Training staffs are balancing player conditioning and recovery schedules against congested fixture calendars and playoff qualification thresholds.`;
+    strategicOutlook = `These competitive developments establish critical momentum baselines and strategic matchups heading into upcoming tournament rounds and championship deciders.`;
   } else {
-    coreMechanics = `Field dispatches document strategic realignment and operational restructuring as ${entity} shifts capital allocations and engineering resources to support core platform priorities.`;
-    technicalDetail = `Internal project roadmaps indicate a focused pivot toward automated service delivery, expanded enterprise integration points, and accelerated feature rollout schedules.`;
-    riskOrFriction = `Cross-functional teams are managing tight milestone deliverables while navigating competitive positioning and shifting customer demand across target enterprise verticals.`;
-    strategicOutlook = `The comprehensive breakdown delivers substantive visibility into confirmed delivery timelines, organizational resource commitments, and expected industry ramifications.`;
+    // Universal Headline-Grounded Synthesis: strictly weaves in the clean title and source context
+    coreMechanics = `Reporting from ${src} provides comprehensive coverage on "${cleanTitle}", detailing key operational developments, stakeholder actions, and organizational priorities.`;
+    technicalDetail = `The account outlines the underlying context, technical and organizational mechanisms, and specific decisions driving this development across the sector.`;
+    riskOrFriction = `Industry participants and analysts are evaluating the immediate practical ramifications, monitoring operational friction, adoption timelines, and competitive responses.`;
+    strategicOutlook = `The confirmed reporting delivers actionable clarity on confirmed milestones, strategic commitments, and the broader trajectory of this emerging development.`;
   }
 
-  // 4. Assemble the rich, deep paragraph (never repeating title, double length, 85-135 words)
+  // 4. Assemble the rich, deep paragraph (strictly 85-135 words, directly matched to headline)
   const paragraphParts = [];
 
   if (bodySentences.length >= 2) {
@@ -893,7 +933,7 @@ async function callGeminiWithFallback(prompt, systemInstruction = '') {
 }
 
 /**
- * Enrich reports with in-depth, fact-dense contextual summaries (double length, never repeating heading)
+ * Enrich reports with in-depth, fact-dense contextual summaries (strictly aligned with the headline)
  */
 async function enrichArticlesWithAi(articles = [], topic = 'ai') {
   if (!articles || articles.length === 0) return articles;
@@ -904,10 +944,10 @@ async function enrichArticlesWithAi(articles = [], topic = 'ai') {
 For each news report, write an in-depth, fact-dense contextual breakdown in ONE COMPREHENSIVE PARAGRAPH (strictly 85 to 135 words, 4 to 6 informative sentences).
 
 CRITICAL REQUIREMENTS:
-1. NEVER repeat, paraphrase, or summarize the headline. The headline is already prominently displayed directly above the paragraph. Start IMMEDIATELY with the underlying facts, operational context, specific mechanisms, and background.
-2. Provide substantive depth: include named stakeholders, specific numbers/metrics, technical or financial friction, regulatory stakes, and what this development actually alters in practice.
-3. DOUBLE PARAGRAPH DEPTH: The reader must gain enough background, nuanced technical or business context, and actionable insight to determine whether opening and reading the full article is worth their time.
-4. No generic filler, boilerplate, or cliché phrases (e.g. NEVER write 'featured prominently in recent coverage', 'underscores accelerating technical benchmarks', 'remains accessible through primary dispatch', 'marking a notable development in the space').
+1. DIRECTLY MATCH AND EXPLAIN THE HEADLINE: The summary must directly address, explain, and contextualize what is stated in the headline. If an executive is quoted or asserts a position (e.g. saying there is a 0% chance AI ends the world), explain who made the statement, the rationale they gave, the technological or operational context, contrasting viewpoints from critics or researchers, and what it implies for industry governance.
+2. DO NOT start by lazily repeating the headline word-for-word. Dive directly into the substantive background, mechanisms, and debate.
+3. Provide substantive depth: include named stakeholders, specific numbers/metrics, technical or financial friction, regulatory stakes, and what this development actually alters in practice.
+4. No generic filler, boilerplate, or cliché phrases (e.g. NEVER write 'featured prominently in recent coverage', 'underscores accelerating technical benchmarks', 'remains accessible through primary dispatch').
 
 Reports to analyze:
 ${targetArticles.map((a, idx) => `[Report ${idx + 1}] ID: "${a.id}"
@@ -917,12 +957,12 @@ Context Details: ${typeof a.rawContext === 'object' ? JSON.stringify(a.rawContex
 
 Respond in strictly valid JSON format:
 [
-  { "id": "article-id-here", "summary": "Deep contextual paragraph starting immediately with facts/background (85-135 words)..." }
+  { "id": "article-id-here", "summary": "Direct, fact-dense contextual paragraph matching the headline (85-135 words)..." }
 ]`;
 
     const result = await callGeminiWithFallback(
       prompt,
-      "You write authoritative, in-depth executive news summaries. Never repeat or paraphrase the headline. Start immediately with facts and rich context. Double paragraph depth to 85-135 words so readers can evaluate if reading the full article is worth their time. Always return valid JSON."
+      "You write authoritative, in-depth executive news summaries that directly match and contextualize the specific headline. Start immediately with facts and rich context. Length 85-135 words. Always return valid JSON."
     );
 
     if (result && result.text) {
@@ -947,6 +987,253 @@ Respond in strictly valid JSON format:
   }
 
   return articles;
+}
+
+/**
+ * Clusters similar stories into topical groups and generates a combined executive summary for each cluster with linked stories.
+ */
+async function clusterSimilarArticles(articles = [], topic = 'ai') {
+  if (!articles || articles.length === 0) return [];
+
+  const stopWords = new Set([
+    'the', 'and', 'for', 'with', 'from', 'about', 'after', 'says', 'said', 'into', 'over', 'more',
+    'than', 'this', 'that', 'these', 'those', 'will', 'have', 'been', 'were', 'what', 'when', 'where',
+    'who', 'which', 'why', 'how', 'its', 'their', 'our', 'new', 'top', 'first', 'look', 'amid'
+  ]);
+
+  function getKeywords(text = '') {
+    return text.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w));
+  }
+
+  const clusterBuckets = [];
+
+  for (const article of articles) {
+    const text = (article.title + ' ' + (article.snippet || '') + ' ' + (article.player || '')).toLowerCase();
+    let assignedTheme = '';
+    let assignedCategory = article.category || 'Analysis';
+
+    if (/end\s+the\s+world|0%\s+chance|extinction|existential|catastroph|apocalypse|safety|alignment|guardrail|pause|ethics/i.test(text)) {
+      assignedTheme = 'AI Safety, Existential Risk & Global Alignment';
+      assignedCategory = 'Safety & Governance';
+    } else if (/reasoning|o1|o3|benchmark|claude|gemini|deepseek|llama|model\s+release|weights|math|gsm8k/i.test(text)) {
+      assignedTheme = 'Frontier Reasoning Models & Benchmark Releases';
+      assignedCategory = 'Model Architectures';
+    } else if (/semiconductor|chip|gpu|tpu|blackwell|tsmc|foundry|datacenter|liquid\s+cooling|power\s+grid|gigawatt|fab/i.test(text)) {
+      assignedTheme = 'Semiconductor Infrastructure, Hardware & Datacenter Power';
+      assignedCategory = 'Infrastructure';
+    } else if (/ftc|doj|lawsuit|court|copyright|antitrust|monopoly|biden|trump|congress|regulat|eu\s+ai\s+act/i.test(text)) {
+      assignedTheme = 'AI Policy, Antitrust & Regulatory Scrutiny';
+      assignedCategory = 'Policy & Law';
+    } else if (/enterprise|agent|copilot|assistant|workplace|automation|cloud\s+platform|saas/i.test(text)) {
+      assignedTheme = 'Enterprise Agentic Automation & Workflow Integration';
+      assignedCategory = 'Enterprise Workflows';
+    } else if (topic === 'weather') {
+      if (/storm|hurricane|cyclone|tornado|severe|blizzard|warning|alert/i.test(text)) {
+        assignedTheme = 'Severe Atmospheric Fronts & Active Storm Advisories';
+        assignedCategory = 'Storm Tracking';
+      } else if (/temperature|heat|cold|seasonal|drought|climate|record/i.test(text)) {
+        assignedTheme = 'Regional Climate Anomalies & Seasonal Temperatures';
+        assignedCategory = 'Climate Trends';
+      } else {
+        assignedTheme = 'Meteorological Projections & Atmospheric Forecasts';
+        assignedCategory = 'Forecast Outlook';
+      }
+    } else if (topic === 'sports') {
+      if (/championship|playoff|final|title|tournament|trophy|cup/i.test(text)) {
+        assignedTheme = 'Championship Races & Postseason Standings';
+        assignedCategory = 'Tournament Play';
+      } else if (/trade|contract|signing|transfer|roster|draft|injury/i.test(text)) {
+        assignedTheme = 'Roster Transactions, Signings & Injury Updates';
+        assignedCategory = 'Team Roster';
+      } else {
+        assignedTheme = 'Matchday Analysis, Key Highlights & Tactical Breakdowns';
+        assignedCategory = 'Game Coverage';
+      }
+    } else if (topic === 'finance') {
+      if (/fed|federal\s+reserve|rate|inflation|treasury|yield|cpi|interest/i.test(text)) {
+        assignedTheme = 'Central Bank Policy, Interest Rates & Inflation Trajectory';
+        assignedCategory = 'Macroeconomics';
+      } else if (/stock|nasdaq|s&p|dow|earnings|shares|rally|selloff/i.test(text)) {
+        assignedTheme = 'Equity Markets, Earnings Disclosures & Wall Street Trajectory';
+        assignedCategory = 'Equities';
+      } else {
+        assignedTheme = 'Global Capital Allocations & Market Liquidity';
+        assignedCategory = 'Market Intelligence';
+      }
+    } else if (topic === 'energy') {
+      if (/solar|wind|renewable|clean|green|transition/i.test(text)) {
+        assignedTheme = 'Renewable Generation & Clean Energy Grid Modernization';
+        assignedCategory = 'Renewables';
+      } else if (/battery|storage|ev|electric\s+vehicle|lithium/i.test(text)) {
+        assignedTheme = 'Battery Energy Storage & Electric Mobility Infrastructure';
+        assignedCategory = 'Energy Storage';
+      } else {
+        assignedTheme = 'Utility Grid Interconnections & Power Infrastructure';
+        assignedCategory = 'Power Generation';
+      }
+    } else {
+      assignedTheme = article.player && article.player !== 'Other'
+        ? `${article.player} Strategic Developments & Dispatches`
+        : `Primary Sector Intelligence & Industry Dispatches`;
+      assignedCategory = article.category || 'Strategic Intelligence';
+    }
+
+    const artKeywords = getKeywords(article.title);
+    let matchedBucket = null;
+
+    for (const b of clusterBuckets) {
+      if (b.theme === assignedTheme) {
+        matchedBucket = b;
+        break;
+      }
+      const bKeywords = b.keywords;
+      const common = artKeywords.filter(k => bKeywords.has(k));
+      if (common.length >= 3) {
+        matchedBucket = b;
+        break;
+      }
+    }
+
+    if (matchedBucket) {
+      matchedBucket.articles.push(article);
+      artKeywords.forEach(k => matchedBucket.keywords.add(k));
+    } else {
+      clusterBuckets.push({
+        id: `cluster-${topic}-${clusterBuckets.length + 1}`,
+        theme: assignedTheme,
+        category: assignedCategory,
+        articles: [article],
+        keywords: new Set(artKeywords)
+      });
+    }
+  }
+
+  const storyGroups = [];
+
+  for (const bucket of clusterBuckets) {
+    const groupArticles = bucket.articles;
+    const sources = Array.from(new Set(groupArticles.map(a => a.source).filter(Boolean)));
+    const articleIds = groupArticles.map(a => a.id);
+
+    let combinedSummary = '';
+    let keyTakeaways = [];
+
+    const leadArticle = groupArticles[0];
+    const secondArticle = groupArticles[1];
+    const thirdArticle = groupArticles[2];
+
+    const cleanLeadTitle = leadArticle.title.replace(/\s+-\s+[^-]+$/, '').trim();
+    const cleanSecondTitle = secondArticle ? secondArticle.title.replace(/\s+-\s+[^-]+$/, '').trim() : '';
+
+    if (groupArticles.length === 1) {
+      combinedSummary = leadArticle.snippet || buildSubstantiveParagraphSummary({
+        title: leadArticle.title,
+        rawDesc: leadArticle.snippet,
+        source: leadArticle.source,
+        entity: leadArticle.player,
+        category: leadArticle.category,
+        topic
+      });
+      keyTakeaways = [
+        `${leadArticle.source} reports that ${cleanLeadTitle}.`,
+        `Stakeholders are reviewing operational implications, compliance obligations, and deployment timing.`
+      ];
+    } else {
+      const srcListStr = sources.slice(0, 3).join(', ');
+
+      if (bucket.theme.includes('Safety') || bucket.theme.includes('Existential')) {
+        combinedSummary = `Recent reporting across ${srcListStr} examines public and academic assessments of artificial intelligence existential risk and technological guardrails. In lead coverage, ${leadArticle.source} details "${cleanLeadTitle}", highlighting executive assertions that advanced AI architectures operate within structured tool constraints, bounded permissions, and human oversight rather than posing extinction threats. ${secondArticle ? `Parallel coverage from ${secondArticle.source} explores "${cleanSecondTitle}", examining how governance standards and alignment research evaluate commercial deployment pacing.` : ''} Industry observers note that these contrasting viewpoints illustrate the central tension between infrastructure leaders accelerating commercial rollout and safety researchers advocating for precautionary risk containment.`;
+        keyTakeaways = [
+          `${leadArticle.source}: Executive commentary rejects catastrophic doomsday narratives, citing bounded software controls.`,
+          secondArticle ? `${secondArticle.source}: Regulatory bodies and researchers evaluate formal containment and alignment verifications.` : 'Enterprise leaders balance rapid capability scaling against systematic safety governance.'
+        ];
+      } else if (bucket.theme.includes('Reasoning') || bucket.theme.includes('Model')) {
+        combinedSummary = `Evaluations across ${srcListStr} document significant performance upgrades in frontier reasoning architectures, inference compute scaling, and benchmark accuracy. Lead reporting from ${leadArticle.source} focuses on "${cleanLeadTitle}", tracking improvements in multi-step task completion and automated chain-of-thought verification. ${secondArticle ? `Complementary disclosures from ${secondArticle.source} analyze "${cleanSecondTitle}", underscoring how developer platforms are leveraging lower token latency for production autonomy.` : ''} The aggregate data indicates that test-time inference compute is emerging as the primary differentiator for enterprise software development and complex scientific problem-solving.`;
+        keyTakeaways = [
+          `${leadArticle.source}: Frontier benchmarks show substantial gains in multi-step reasoning and algorithmic problem-solving.`,
+          secondArticle ? `${secondArticle.source}: Test-time inference scaling optimizes accuracy while managing operational token latency.` : 'Developers transition mission-critical tasks toward autonomous reasoning pipelines.'
+        ];
+      } else if (bucket.theme.includes('Semiconductor') || bucket.theme.includes('Hardware')) {
+        combinedSummary = `Cross-industry dispatches across ${srcListStr} examine semiconductor manufacturing yields, high-bandwidth memory supplies, and datacenter energy infrastructure. Coverage led by ${leadArticle.source} reports on "${cleanLeadTitle}", tracking physical buildouts, custom silicon packaging, and utility interconnection queues. ${secondArticle ? `Follow-on analysis from ${secondArticle.source} examines "${cleanSecondTitle}", reviewing how liquid cooling architectures and power grid constraints shape deployment timelines.` : ''} Together, these reports show that regional power availability and fabrication capacity remain the ultimate rate-limiting factors for global compute expansion.`;
+        keyTakeaways = [
+          `${leadArticle.source}: Silicon fabrication and memory packaging yields dictate shipment volumes for next-gen clusters.`,
+          secondArticle ? `${secondArticle.source}: Datacenter operators navigate multi-gigawatt utility interconnection and cooling challenges.` : 'Physical infrastructure constraints increasingly govern commercial deployment roadmaps.'
+        ];
+      } else {
+        combinedSummary = `Comprehensive coverage across ${srcListStr} examines key developments in ${bucket.theme.toLowerCase()}. Lead reporting from ${leadArticle.source} details "${cleanLeadTitle}", addressing underlying operational mechanisms and organizational priorities. ${secondArticle ? `Additional reporting from ${secondArticle.source} covers "${cleanSecondTitle}", providing corroborating evidence on industry implementation.` : ''} ${thirdArticle ? `Further coverage by ${thirdArticle.source} notes additional stakeholder reactions and policy considerations.` : ''} Together, these linked reports offer a multi-angle overview of practical ramifications, commercial milestones, and strategic implications across the domain.`;
+        keyTakeaways = [
+          `${leadArticle.source}: ${cleanLeadTitle}.`,
+          secondArticle ? `${secondArticle.source}: ${cleanSecondTitle}.` : `Stakeholders monitor secondary impacts and operational execution.`
+        ];
+      }
+    }
+
+    storyGroups.push({
+      id: bucket.id,
+      topicId: topic,
+      theme: bucket.theme,
+      category: bucket.category,
+      combinedSummary,
+      keyTakeaways,
+      sources,
+      articleIds,
+      articles: groupArticles,
+      updatedAt: leadArticle.publishedAt || new Date().toISOString()
+    });
+  }
+
+  // Attempt Gemini enrichment for multi-story groups if Gemini is available
+  try {
+    const multiStoryGroups = storyGroups.filter(g => g.articles.length > 1);
+    if (multiStoryGroups.length > 0) {
+      const prompt = `You are an executive news intelligence editor.
+Synthesize each of these groups of related news stories into ONE authoritative combined summary paragraph (strictly 85 to 130 words).
+The combined summary must:
+1. Directly explain what is happening across these grouped reports, synthesizing the different outlets and viewpoints.
+2. Explicitly cite key sources (e.g. "Reporting across ${multiStoryGroups.map(g => g.sources.join(', ')).join(', ')}") and what each reports.
+3. Highlight consensus, contrasting perspectives, and practical consequences.
+4. Do not use generic buzzwords or fluff.
+
+Story Groups:
+${multiStoryGroups.map((g, idx) => `[Group ${idx + 1}] ID: "${g.id}"
+Theme: ${g.theme}
+Articles:
+${g.articles.map(a => `- [${a.source}] ${a.title}\n  Snippet: ${a.snippet}`).join('\n')}`).join('\n\n')}
+
+Respond in valid JSON:
+[
+  { "id": "group-id-here", "combinedSummary": "Authoritative multi-source combined summary paragraph (85-130 words)...", "keyTakeaways": ["Bullet 1", "Bullet 2"] }
+]`;
+
+      const aiRes = await callGeminiWithFallback(
+        prompt,
+        "You write concise, multi-source executive news syntheses that combine related stories into one cohesive paragraph. Always return valid JSON."
+      );
+
+      if (aiRes && aiRes.text) {
+        const jsonMatch = aiRes.text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          for (const item of parsed) {
+            const found = storyGroups.find(g => g.id === item.id);
+            if (found) {
+              if (item.combinedSummary) found.combinedSummary = item.combinedSummary;
+              if (Array.isArray(item.keyTakeaways) && item.keyTakeaways.length > 0) {
+                found.keyTakeaways = item.keyTakeaways.slice(0, 3);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[News Service] Gemini story group enrichment skipped:', err.message);
+  }
+
+  return storyGroups;
 }
 
 /**
@@ -1091,6 +1378,7 @@ export async function getAiNewsBriefing(forceRefresh = false, topic = 'ai') {
 
   const rawArticles = await fetchAllLiveFeeds(normTopic);
   const articles = await enrichArticlesWithAi(rawArticles, normTopic);
+  const storyGroups = await clusterSimilarArticles(articles, normTopic);
   const briefing = await generateExecutiveSynthesis(articles, normTopic);
 
   // Check Ollama status for UI badge
@@ -1112,6 +1400,7 @@ export async function getAiNewsBriefing(forceRefresh = false, topic = 'ai') {
   const result = {
     briefing,
     articles,
+    storyGroups,
     topic: normTopic,
     ollamaStatus,
     playerStats,
@@ -1134,6 +1423,7 @@ export async function getAiNewsBriefing(forceRefresh = false, topic = 'ai') {
 export {
   buildSubstantiveParagraphSummary,
   enrichArticlesWithAi,
+  clusterSimilarArticles,
   generateExecutiveSynthesis,
   fetchAllLiveFeeds
 };

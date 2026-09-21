@@ -6,6 +6,7 @@ import {
   calculateEquipmentDepreciation,
   calculateEquipmentRentalRevenue,
   calculateServiceCapacity,
+  calculateLoanAmortizationSchedule,
   generateStartupFinancialForecast,
   needsBusinessModelClassification
 } from '../src/services/startupFinancialsService.ts';
@@ -145,6 +146,42 @@ test('12-month Year 1 forecast engine isolates equipment cash hit to purchase mo
 
   // Depreciation is NOT subtracted from Cash Flow directly, but full purchase is in Month 1
   assert.ok(m1.cashFlow < m2.cashFlow);
+});
+
+test('calculateLoanAmortizationSchedule correctly calculates PMT, schedule, and DSCR', () => {
+  const result = calculateLoanAmortizationSchedule(
+    {
+      enabled: true,
+      loanAmount: 100000,
+      annualInterestRate: 7.0,
+      termYears: 5,
+      paymentFrequency: 'monthly',
+      negotiationFee: 675,
+      includeFeesInLoan: false,
+      gracePeriodMonths: 0
+    },
+    'USD',
+    2.70,
+    30000 // $30k Year 1 EBITDA
+  );
+
+  assert.ok(result);
+  assert.equal(result.loanAmount, 100000);
+  assert.equal(result.totalFees, 675);
+  assert.equal(result.effectiveLoanAmount, 100000);
+  // PMT for $100k @ 7% APR for 5 years = ~$1,980.12/mo
+  assert.ok(result.periodicPayment > 1950 && result.periodicPayment < 2010);
+  assert.equal(result.totalPayments, 60);
+  assert.equal(result.schedule.length, 60);
+  
+  // Ending balance of final row should be 0
+  assert.equal(result.schedule[59].endingBalance, 0);
+
+  // Annual debt service ~$23,761.44
+  assert.ok(result.annualDebtService > 23000 && result.annualDebtService < 24000);
+  // DSCR = 30000 / 23761 = ~1.26 (adequate)
+  assert.ok(result.dscrYear1 >= 1.25);
+  assert.equal(result.dscrStatus, 'adequate');
 });
 
 test('existing plan without businessModelType flags needsBusinessModelClassification', () => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
   Cpu, 
@@ -23,9 +24,13 @@ import {
   Settings as SettingsIcon,
   AlertCircle,
   Filter,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  Link2,
+  CheckCheck
 } from 'lucide-react';
-import { STORAGE_KEYS as STORAGE_KEYS_GLOBAL, DEFAULT_BRIEFING_TOPICS } from '../types';
+import { STORAGE_KEYS as STORAGE_KEYS_GLOBAL, DEFAULT_BRIEFING_TOPICS, AiStoryGroup } from '../types';
 
 export interface AiNewsItem {
   id: string;
@@ -50,6 +55,7 @@ export interface AiBriefingResponse {
     topic?: string;
   };
   articles: AiNewsItem[];
+  storyGroups?: AiStoryGroup[];
   topic?: string;
   ollamaStatus?: {
     online: boolean;
@@ -122,6 +128,241 @@ function sanitizeSnippetContext(snippet: string = '', title: string = '', source
   }
 
   return s;
+}
+
+/**
+ * Synthesizes a high-contrast combined summary across clustered stories on client if needed
+ */
+function generateClientCombinedSummary(theme: string, articles: AiNewsItem[]): { summary: string; takeaways: string[] } {
+  const sources = Array.from(new Set(articles.map(a => cleanPlainText(a.source)))).filter(Boolean);
+  const snippets = articles.map(a => sanitizeSnippetContext(a.snippet, a.title, a.source)).filter(Boolean);
+
+  let summary = '';
+  if (sources.length > 1) {
+    summary = `Multiple industry outlets including ${sources.slice(0, 3).join(', ')} report key developments regarding ${theme.toLowerCase()}. `;
+  } else {
+    summary = `${sources[0] || 'Reporting wire'} provides targeted coverage regarding ${theme.toLowerCase()}. `;
+  }
+
+  if (snippets.length > 0) {
+    summary += `${snippets[0]} `;
+  }
+  if (snippets.length > 1 && !summary.includes(snippets[1].slice(0, 30))) {
+    summary += `Additionally, related reporting emphasizes that ${snippets[1]}`;
+  }
+
+  const takeaways = articles.slice(0, 3).map(a => {
+    return `${cleanPlainText(a.source)}: ${cleanPlainText(a.title)}`;
+  });
+
+  return { summary: summary.trim(), takeaways };
+}
+
+/**
+ * Clusters articles into coherent topical themes with combined summaries
+ */
+function clusterClientArticles(articles: AiNewsItem[], topicId: string = 'ai'): AiStoryGroup[] {
+  if (!articles || articles.length === 0) return [];
+
+  const t = (topicId || 'ai').toLowerCase();
+  const buckets: {
+    id: string;
+    theme: string;
+    category: string;
+    keywords: string[];
+    articles: AiNewsItem[];
+  }[] = [];
+
+  if (t === 'ai' || t === 'artificial intelligence') {
+    buckets.push(
+      {
+        id: 'ai-safety',
+        theme: 'AI Safety, Existential Risk & Pre-Deployment Alignment',
+        category: 'Safety & Governance',
+        keywords: ['safety', 'existential', 'risk', 'alignment', 'extinction', 'guideline', 'regulation', 'guardrail', 'testing', 'superalignment', 'deepseek', 'ethics', '0% chance'],
+        articles: []
+      },
+      {
+        id: 'ai-reasoning',
+        theme: 'Frontier Reasoning Models & Test-Time Compute Benchmarks',
+        category: 'Model Releases',
+        keywords: ['reasoning', 'benchmark', 'o1', 'o3', 'r1', 'claude', 'gemini', 'gpt-4', 'deepmind', 'llm', 'inference', 'frontier', 'swe-bench', 'test-time'],
+        articles: []
+      },
+      {
+        id: 'ai-hardware',
+        theme: 'Semiconductor Compute, Data Centers & Power Infrastructure',
+        category: 'Hardware & Chips',
+        keywords: ['nvidia', 'blackwell', 'gpu', 'semiconductor', 'datacenter', 'data center', 'chip', 'tpu', 'amd', 'intel', 'h100', 'power grid', 'nuclear', 'energy'],
+        articles: []
+      },
+      {
+        id: 'ai-enterprise',
+        theme: 'Enterprise Agentic Deployment & Developer Toolchains',
+        category: 'Enterprise & Agents',
+        keywords: ['agent', 'enterprise', 'workflow', 'automation', 'productivity', 'software', 'cloud', 'saas', 'copilot', 'coding', 'developer', 'assistant'],
+        articles: []
+      },
+      {
+        id: 'ai-open-source',
+        theme: 'Open Weights & Local Model Infrastructure',
+        category: 'Open Source',
+        keywords: ['open-source', 'open source', 'weights', 'llama', 'mistral', 'hugging face', 'qwen', 'local', 'ollama'],
+        articles: []
+      }
+    );
+  } else if (t === 'ict') {
+    buckets.push(
+      {
+        id: 'ict-security',
+        theme: 'Enterprise Cybersecurity & Zero Trust Defense',
+        category: 'Cybersecurity',
+        keywords: ['security', 'cyber', 'ransomware', 'breach', 'vulnerability', 'zero trust', 'cisa', 'malware', 'firewall'],
+        articles: []
+      },
+      {
+        id: 'ict-telecom',
+        theme: '5G/6G Networks & Connectivity Infrastructure',
+        category: 'Telecom',
+        keywords: ['5g', '6g', 'telecom', 'carrier', 'spectrum', 'satellite', 'broadband', 'starlink', 'fiber', 'network'],
+        articles: []
+      },
+      {
+        id: 'ict-cloud',
+        theme: 'Hyperscale Cloud & Hybrid Infrastructure',
+        category: 'Cloud Architecture',
+        keywords: ['cloud', 'aws', 'azure', 'google cloud', 'kubernetes', 'hybrid', 'serverless', 'database'],
+        articles: []
+      }
+    );
+  } else if (t === 'weather' || t === 'climate') {
+    buckets.push(
+      {
+        id: 'weather-severe',
+        theme: 'Severe Atmospheric Alerts & Storm Systems',
+        category: 'Severe Alerts',
+        keywords: ['storm', 'hurricane', 'tornado', 'blizzard', 'warning', 'advisory', 'flooding', 'cyclone', 'gale'],
+        articles: []
+      },
+      {
+        id: 'weather-climate',
+        theme: 'Macro Climate Patterns & Precipitation Trends',
+        category: 'Climate Trends',
+        keywords: ['climate', 'temperature', 'warming', 'drought', 'rainfall', 'precipitation', 'el nino', 'la nina', 'forecast'],
+        articles: []
+      }
+    );
+  } else if (t === 'sports' || t === 'sport') {
+    buckets.push(
+      {
+        id: 'sports-championship',
+        theme: 'Championship Tournaments & Playoff Standings',
+        category: 'Championships',
+        keywords: ['championship', 'tournament', 'playoffs', 'finals', 'trophy', 'cup', 'super bowl', 'world series'],
+        articles: []
+      },
+      {
+        id: 'sports-league',
+        theme: 'League Match Updates & Franchise Roster Moves',
+        category: 'League Matches',
+        keywords: ['game', 'match', 'win', 'defeat', 'score', 'coach', 'roster', 'trade', 'injury', 'points', 'standings'],
+        articles: []
+      }
+    );
+  } else if (t === 'finance' || t === 'markets') {
+    buckets.push(
+      {
+        id: 'fin-central-banks',
+        theme: 'Central Bank Policy & Macroeconomic Indicators',
+        category: 'Central Banks',
+        keywords: ['federal reserve', 'fed', 'interest rate', 'powell', 'inflation', 'cpi', 'rate cut', 'treasury', 'yield'],
+        articles: []
+      },
+      {
+        id: 'fin-equities',
+        theme: 'Global Equities, Corporate Earnings & Capital Flow',
+        category: 'Equities',
+        keywords: ['stock', 'market', 's&p', 'nasdaq', 'dow', 'rally', 'earnings', 'investor', 'wall street', 'shares'],
+        articles: []
+      }
+    );
+  } else if (t === 'energy') {
+    buckets.push(
+      {
+        id: 'energy-renewables',
+        theme: 'Renewable Power, Solar & Grid Modernization',
+        category: 'Renewables',
+        keywords: ['solar', 'wind', 'renewable', 'clean energy', 'turbine', 'power plant', 'decarbonization', 'green'],
+        articles: []
+      },
+      {
+        id: 'energy-storage-ev',
+        theme: 'Energy Storage & Electric Vehicle Fleet Tech',
+        category: 'Storage & EV',
+        keywords: ['battery', 'storage', 'electric vehicle', 'ev', 'lithium', 'grid', 'charging', 'megapack'],
+        articles: []
+      }
+    );
+  }
+
+  const unassigned: AiNewsItem[] = [];
+
+  for (const article of articles) {
+    const text = `${article.title} ${article.snippet || ''} ${article.category || ''} ${article.player || ''}`.toLowerCase();
+    let placed = false;
+
+    for (const b of buckets) {
+      if (b.keywords.some(k => text.includes(k.toLowerCase()))) {
+        b.articles.push(article);
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
+      unassigned.push(article);
+    }
+  }
+
+  const groups: AiStoryGroup[] = [];
+
+  for (const b of buckets) {
+    if (b.articles.length > 0) {
+      const synth = generateClientCombinedSummary(b.theme, b.articles);
+      const sources = Array.from(new Set(b.articles.map(a => cleanPlainText(a.source)))).filter(Boolean);
+      groups.push({
+        id: b.id,
+        topicId,
+        theme: b.theme,
+        category: b.category,
+        combinedSummary: synth.summary,
+        keyTakeaways: synth.takeaways,
+        sources,
+        articleIds: b.articles.map(a => a.id),
+        articles: b.articles,
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  if (unassigned.length > 0) {
+    const synth = generateClientCombinedSummary('Sector Wire & Market Reports', unassigned);
+    const sources = Array.from(new Set(unassigned.map(a => cleanPlainText(a.source)))).filter(Boolean);
+    groups.push({
+      id: 'general-wire',
+      topicId,
+      theme: 'Industry Wire & Sector Developments',
+      category: 'Wire Dispatches',
+      combinedSummary: synth.summary,
+      keyTakeaways: synth.takeaways,
+      sources,
+      articleIds: unassigned.map(a => a.id),
+      articles: unassigned,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  return groups;
 }
 
 /**
@@ -414,6 +655,10 @@ export const AiNewsBriefing: React.FC = () => {
     ? `Custom: ${topicConfig.customQuery}`
     : (activeTopicPreset?.name || 'Intelligence');
 
+  // Display mode: Grouped Intelligence (combined themes) vs Individual Feed
+  const [displayMode, setDisplayMode] = useState<'grouped' | 'feed'>('grouped');
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+
   // Filtered stories based on View Mode (Active, Kept, Trash), Player, and Search query
   const { filteredArticles, totalActiveCount, totalKeptCount, totalDeletedCount, uniqueEntities } = useMemo(() => {
     const all = data?.articles || [];
@@ -445,6 +690,86 @@ export const AiNewsBriefing: React.FC = () => {
       uniqueEntities: entities
     };
   }, [data?.articles, deletedIds, keptIds, viewMode, selectedPlayer, searchQuery]);
+
+  // Derive unified story groups matching the active filters
+  const effectiveStoryGroups = useMemo(() => {
+    if (!filteredArticles || filteredArticles.length === 0) return [];
+
+    const activeIdSet = new Set(filteredArticles.map(a => a.id));
+
+    // If server provided rich clusters, filter and update them
+    if (data?.storyGroups && data.storyGroups.length > 0) {
+      const mapped = data.storyGroups.map(g => {
+        const matchingArticles = g.articles.filter(a => activeIdSet.has(a.id));
+        if (matchingArticles.length === 0) return null;
+        const distinctSources = Array.from(new Set(matchingArticles.map(a => cleanPlainText(a.source)))).filter(Boolean);
+        return {
+          ...g,
+          articles: matchingArticles,
+          sources: distinctSources,
+          articleIds: matchingArticles.map(a => a.id)
+        };
+      }).filter(Boolean) as AiStoryGroup[];
+
+      if (mapped.length > 0) return mapped;
+    }
+
+    // Fallback: dynamically cluster filtered articles
+    return clusterClientArticles(filteredArticles, effectiveTopic);
+  }, [data?.storyGroups, filteredArticles, effectiveTopic]);
+
+  // Auto-expand first 2 groups on load
+  useEffect(() => {
+    if (effectiveStoryGroups.length > 0) {
+      setExpandedGroupIds(prev => {
+        if (prev.size === 0) {
+          return new Set(effectiveStoryGroups.slice(0, 2).map(g => g.id));
+        }
+        return prev;
+      });
+    }
+  }, [effectiveStoryGroups]);
+
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroupIds(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  const expandAllGroups = () => {
+    setExpandedGroupIds(new Set(effectiveStoryGroups.map(g => g.id)));
+  };
+
+  const collapseAllGroups = () => {
+    setExpandedGroupIds(new Set());
+  };
+
+  const markGroupAsRead = (group: AiStoryGroup) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      group.articles.forEach(a => next.add(a.id));
+      return next;
+    });
+  };
+
+  const keepAllInGroup = (group: AiStoryGroup) => {
+    setKeptIds(prev => {
+      const next = new Set(prev);
+      group.articles.forEach(a => next.add(a.id));
+      return next;
+    });
+    setDeletedIds(prev => {
+      const next = new Set(prev);
+      group.articles.forEach(a => next.delete(a.id));
+      return next;
+    });
+  };
 
   return (
     <section id="ai-industry-briefing" className="executive-card p-6 rounded-xl flex flex-col justify-between lg:col-span-2 space-y-6">
@@ -609,66 +934,123 @@ export const AiNewsBriefing: React.FC = () => {
             </div>
           </div>
 
-          {/* Controls Bar: View Mode Tabs + Entity Filter + Search + Mark All Read */}
+          {/* Controls Bar: Grouped Switch + View Mode Tabs + Entity Filter + Search */}
           <div className="space-y-3 pt-1">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {/* View Mode Tabs (Active, Kept, Trash) */}
-              <div className="flex items-center p-1 bg-stone-100 rounded-xl border border-stone-200/80 w-fit">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('active')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                    viewMode === 'active'
-                      ? 'bg-white text-stone-900 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
-                >
-                  <Newspaper size={13} />
-                  <span>Active Briefing</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-stone-200 font-extrabold text-stone-700 ml-0.5">
-                    {totalActiveCount}
-                  </span>
-                </button>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              {/* Primary Layout Switcher: Grouped Intelligence vs Chronological Feed */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="inline-flex p-1 bg-stone-100/90 rounded-xl border border-stone-200 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode('grouped')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                      displayMode === 'grouped'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Layers size={13} className={displayMode === 'grouped' ? 'text-indigo-600' : ''} />
+                    <span>Grouped Themes</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ml-0.5 ${
+                      displayMode === 'grouped' ? 'bg-indigo-50 text-indigo-700 border border-indigo-150' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {effectiveStoryGroups.length}
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setViewMode('kept')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                    viewMode === 'kept'
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
-                >
-                  <BookmarkCheck size={13} className={viewMode === 'kept' ? 'text-indigo-600' : ''} />
-                  <span>Kept Stories</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ml-0.5 ${
-                    viewMode === 'kept' ? 'bg-indigo-100 text-indigo-700' : 'bg-stone-200 text-stone-700'
-                  }`}>
-                    {totalKeptCount}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode('feed')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                      displayMode === 'feed'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Newspaper size={13} />
+                    <span>Individual Feed</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-extrabold bg-stone-200 text-stone-700 ml-0.5">
+                      {filteredArticles.length}
+                    </span>
+                  </button>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setViewMode('trash')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                    viewMode === 'trash'
-                      ? 'bg-white text-red-600 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
-                >
-                  <Trash2 size={13} className={viewMode === 'trash' ? 'text-red-500' : ''} />
-                  <span>Trash</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ml-0.5 ${
-                    viewMode === 'trash' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'
-                  }`}>
-                    {totalDeletedCount}
-                  </span>
-                </button>
+                {/* View Mode Tabs (Active, Kept, Trash) */}
+                <div className="flex items-center p-1 bg-stone-100/90 rounded-xl border border-stone-200/80">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('active')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                      viewMode === 'active'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <span>Active</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-stone-200 font-extrabold text-stone-700 ml-0.5">
+                      {totalActiveCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('kept')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                      viewMode === 'kept'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <BookmarkCheck size={12} className={viewMode === 'kept' ? 'text-indigo-600' : ''} />
+                    <span>Kept</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ml-0.5 ${
+                      viewMode === 'kept' ? 'bg-indigo-100 text-indigo-700' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {totalKeptCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('trash')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                      viewMode === 'trash'
+                        ? 'bg-white text-red-600 shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Trash2 size={12} className={viewMode === 'trash' ? 'text-red-500' : ''} />
+                    <span>Trash</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ml-0.5 ${
+                      viewMode === 'trash' ? 'bg-red-100 text-red-700' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {totalDeletedCount}
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              {/* Utility Actions: Mark all as read & Restore All in Trash */}
-              <div className="flex items-center gap-2">
+              {/* Utility Actions: Expand/Collapse All & Mark Read */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {displayMode === 'grouped' && effectiveStoryGroups.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={expandAllGroups}
+                      className="px-2 py-1 text-[11px] font-semibold text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 rounded-lg shadow-2xs transition cursor-pointer"
+                    >
+                      Expand All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={collapseAllGroups}
+                      className="px-2 py-1 text-[11px] font-semibold text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 rounded-lg shadow-2xs transition cursor-pointer"
+                    >
+                      Collapse All
+                    </button>
+                  </div>
+                )}
+
                 {viewMode === 'active' && (
                   <button
                     type="button"
@@ -797,10 +1179,311 @@ export const AiNewsBriefing: React.FC = () => {
             </div>
           )}
 
-          {/* Article Cards Grid */}
-          {filteredArticles.length > 0 && (
+          {/* Grouped Intelligence Clusters View */}
+          {displayMode === 'grouped' && effectiveStoryGroups.length > 0 && (
+            <div className="space-y-4">
+              {effectiveStoryGroups.map((group, groupIdx) => {
+                const isExpanded = expandedGroupIds.has(group.id);
+                const allGroupArticlesRead = group.articles.every(a => readIds.has(a.id));
+                const allGroupArticlesKept = group.articles.every(a => keptIds.has(a.id));
+                const distinctSources = group.sources || Array.from(new Set(group.articles.map(a => cleanPlainText(a.source)))).filter(Boolean);
+
+                return (
+                  <motion.div
+                    key={group.id}
+                    id={`story-group-${group.id}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: groupIdx * 0.04 }}
+                    className="p-5 rounded-xl border border-stone-200/90 bg-white hover:border-stone-300 transition-all shadow-2xs flex flex-col gap-4"
+                  >
+                    {/* Group Header: Category, Outlet Badges, Read Indicator */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-stone-100">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md border bg-indigo-50/80 text-indigo-800 border-indigo-200/80 shadow-2xs">
+                          {group.category}
+                        </span>
+
+                        <span className="px-2 py-0.5 text-[10px] font-semibold text-stone-600 bg-stone-100 rounded-md border border-stone-200">
+                          {group.articles.length} {group.articles.length === 1 ? 'Report' : 'Outlets Reporting'}
+                        </span>
+
+                        {allGroupArticlesKept && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-100/90 border border-indigo-200 rounded-md flex items-center gap-1">
+                            <BookmarkCheck size={11} /> Saved
+                          </span>
+                        )}
+
+                        {allGroupArticlesRead ? (
+                          <span className="px-2 py-0.5 text-[10px] font-semibold text-stone-500 bg-stone-100 rounded border border-stone-200 flex items-center gap-1">
+                            <CheckCheck size={11} className="text-stone-500" /> Read
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 rounded flex items-center gap-1 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Unread
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Source Outlets Chips */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] font-medium text-stone-400 mr-1">Sources:</span>
+                        {distinctSources.slice(0, 4).map(src => (
+                          <span
+                            key={src}
+                            className="px-1.5 py-0.5 text-[9.5px] font-medium text-stone-700 bg-stone-100/80 border border-stone-200 rounded"
+                          >
+                            {src}
+                          </span>
+                        ))}
+                        {distinctSources.length > 4 && (
+                          <span className="text-[9.5px] font-semibold text-stone-500">
+                            +{distinctSources.length - 4} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Group Headline: Exactly matches the synthesized theme */}
+                    <div>
+                      <h4 className="text-base font-bold text-stone-950 tracking-tight leading-snug mb-2">
+                        {group.theme}
+                      </h4>
+
+                      {/* Substantive Multi-Source Combined Summary */}
+                      <div className="p-3.5 rounded-lg bg-stone-50/75 border-l-4 border-indigo-500 border-t border-r border-b border-stone-200/60">
+                        <p className="text-[12.5px] text-stone-800 leading-relaxed break-words [overflow-wrap:anywhere]">
+                          {group.combinedSummary}
+                        </p>
+                      </div>
+
+                      {/* Key Takeaways */}
+                      {group.keyTakeaways && group.keyTakeaways.length > 0 && (
+                        <div className="mt-3 pl-1 space-y-1">
+                          <span className="text-[10.5px] font-bold uppercase tracking-wider text-stone-600 block">
+                            Key Synthesis Points:
+                          </span>
+                          <ul className="space-y-1">
+                            {group.keyTakeaways.slice(0, 3).map((pt, pIdx) => (
+                              <li key={pIdx} className="text-[11.5px] text-stone-700 flex items-start gap-1.5 leading-normal">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5" />
+                                <span>{cleanPlainText(pt)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Group Interaction Toolbar: Toggle Drawer & Group Actions */}
+                    <div className="pt-2 border-t border-stone-150 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroupExpanded(group.id)}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100/90 border border-indigo-200/80 px-3 py-1.5 rounded-lg transition cursor-pointer w-fit shadow-2xs"
+                      >
+                        <Link2 size={13} className="text-indigo-600" />
+                        <span>
+                          {isExpanded ? 'Hide' : 'Explore'} {group.articles.length} Linked {group.articles.length === 1 ? 'Report' : 'Reports & Outlets'}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUp size={14} className="text-indigo-600 transition-transform" />
+                        ) : (
+                          <ChevronDown size={14} className="text-indigo-600 transition-transform" />
+                        )}
+                      </button>
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Group Actions */}
+                        {!allGroupArticlesRead && (
+                          <button
+                            type="button"
+                            onClick={() => markGroupAsRead(group)}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-stone-600 hover:text-stone-900 bg-white hover:bg-stone-50 border border-stone-200 rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1"
+                            title="Mark all articles in this group as read"
+                          >
+                            <Eye size={11} className="text-stone-500" />
+                            <span>Mark Group Read</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => keepAllInGroup(group)}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer flex items-center gap-1 ${
+                            allGroupArticlesKept
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                              : 'bg-white hover:bg-stone-50 text-stone-700 border-stone-200'
+                          }`}
+                          title="Save all reports in this theme to Kept"
+                        >
+                          {allGroupArticlesKept ? <Check size={11} /> : <Bookmark size={11} className="text-stone-500" />}
+                          <span>{allGroupArticlesKept ? 'Group Saved' : 'Keep Group'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Animated Expandable Drawer with Individual Linked Stories */}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key={`drawer-${group.id}`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.24, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="pt-3 border-t border-dashed border-stone-200 space-y-3">
+                            <div className="flex items-center justify-between text-[11px] text-stone-500 px-1 font-medium">
+                              <span>Linked Outlets & Direct Coverage</span>
+                              <span>Click any headline or outbound link to view full source</span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {group.articles.map(article => {
+                                const cleanTitle = cleanPlainText(article.title);
+                                const cleanSource = cleanPlainText(article.source);
+                                const cleanSnippet = sanitizeSnippetContext(article.snippet, article.title, article.source);
+                                const isRead = readIds.has(article.id);
+                                const isKept = keptIds.has(article.id);
+                                const isDeleted = deletedIds.has(article.id);
+
+                                return (
+                                  <div
+                                    key={article.id}
+                                    className={`p-3.5 rounded-lg border transition-all flex flex-col justify-between gap-2.5 ${
+                                      isDeleted
+                                        ? 'bg-stone-50/50 border-stone-200 opacity-75'
+                                        : isKept
+                                        ? 'bg-indigo-50/30 border-indigo-200/80 hover:bg-white'
+                                        : isRead
+                                        ? 'bg-stone-50/40 border-stone-200 hover:bg-white'
+                                        : 'bg-stone-50/80 border-stone-200/90 hover:bg-white'
+                                    }`}
+                                  >
+                                    <div>
+                                      {/* Source & Date Header */}
+                                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="font-bold text-[11px] text-stone-800">
+                                            {cleanSource}
+                                          </span>
+                                          <span className="text-[10px] text-stone-400">•</span>
+                                          <span className="text-[10px] font-medium text-stone-500">
+                                            {article.timeAgo}
+                                          </span>
+                                          <span className="px-1.5 py-0.2 text-[9px] font-semibold text-stone-600 bg-white border border-stone-200 rounded">
+                                            {article.player}
+                                          </span>
+                                        </div>
+
+                                        {isKept && (
+                                          <span className="px-1.5 py-0.2 text-[9px] font-bold text-indigo-700 bg-indigo-100 rounded flex items-center gap-0.5">
+                                            <BookmarkCheck size={9} /> Saved
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Story Title linking directly to outlet */}
+                                      <a
+                                        href={article.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => markAsRead(article.id)}
+                                        className="group inline-block"
+                                      >
+                                        <h5 className="text-[13px] font-bold text-stone-900 group-hover:text-indigo-600 transition leading-snug break-words [overflow-wrap:anywhere] flex items-center gap-1">
+                                          <span>{cleanTitle}</span>
+                                          <ArrowUpRight size={13} className="shrink-0 text-stone-400 group-hover:text-indigo-600" />
+                                        </h5>
+                                      </a>
+
+                                      {/* Story Snippet */}
+                                      {cleanSnippet && (
+                                        <p className="text-[11.5px] text-stone-600 leading-relaxed mt-1.5 break-words [overflow-wrap:anywhere]">
+                                          {cleanSnippet}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Action Bar */}
+                                    <div className="pt-2 border-t border-stone-150 flex items-center justify-between gap-2 text-[11px]">
+                                      <a
+                                        href={article.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => markAsRead(article.id)}
+                                        className="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                                      >
+                                        Read full story at {cleanSource} <ArrowUpRight size={11} />
+                                      </a>
+
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {!isDeleted && (
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleReadStatus(article.id)}
+                                            className="px-2 py-0.5 rounded text-[10px] font-semibold text-stone-600 hover:text-stone-900 bg-white border border-stone-200 transition cursor-pointer flex items-center gap-1"
+                                          >
+                                            {isRead ? <EyeOff size={10} /> : <Eye size={10} />}
+                                            <span>{isRead ? 'Unread' : 'Read'}</span>
+                                          </button>
+                                        )}
+
+                                        {!isDeleted ? (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleKeepStory(article.id)}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer border ${
+                                                isKept
+                                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                                  : 'bg-white hover:bg-stone-50 text-stone-700 border-stone-200'
+                                              }`}
+                                            >
+                                              {isKept ? <Check size={10} /> : <Bookmark size={10} className="text-stone-500" />}
+                                              <span>{isKept ? 'Saved' : 'Keep'}</span>
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => deleteStory(article)}
+                                              className="px-1.5 py-0.5 rounded text-[10px] font-bold text-stone-500 hover:text-red-600 bg-white hover:bg-red-50 border border-stone-200 hover:border-red-200 flex items-center gap-1 transition cursor-pointer"
+                                              title="Delete story"
+                                            >
+                                              <Trash2 size={10} />
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => restoreStory(article.id)}
+                                            className="px-2 py-0.5 rounded text-[10px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 border border-amber-200 flex items-center gap-1 transition cursor-pointer"
+                                          >
+                                            <RotateCcw size={10} /> Restore
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Chronological Article Cards Feed Grid */}
+          {displayMode === 'feed' && filteredArticles.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {filteredArticles.map(article => {
+              {filteredArticles.map((article, aIdx) => {
                 const cleanTitle = cleanPlainText(article.title);
                 const cleanSource = cleanPlainText(article.source);
                 const cleanSnippet = sanitizeSnippetContext(article.snippet, article.title, article.source);
@@ -810,9 +1493,12 @@ export const AiNewsBriefing: React.FC = () => {
                 const isDeleted = deletedIds.has(article.id);
 
                 return (
-                  <article
+                  <motion.article
                     key={article.id}
                     id={`news-card-${article.id.slice(0, 18)}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: aIdx * 0.03 }}
                     className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 shadow-2xs ${
                       isDeleted
                         ? 'bg-stone-50/50 border-stone-200 opacity-75'
@@ -873,7 +1559,7 @@ export const AiNewsBriefing: React.FC = () => {
                         </h4>
                       </a>
 
-                      {/* In-Depth Contextual Paragraph (Never repeats heading, double length) */}
+                      {/* In-Depth Contextual Paragraph */}
                       {cleanSnippet && (
                         <p className="text-[12px] text-stone-700 leading-relaxed break-words [overflow-wrap:anywhere]">
                           {cleanSnippet}
@@ -958,7 +1644,7 @@ export const AiNewsBriefing: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  </article>
+                  </motion.article>
                 );
               })}
             </div>
