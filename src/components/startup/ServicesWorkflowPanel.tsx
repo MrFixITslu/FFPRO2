@@ -131,13 +131,33 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     hourlyRate: initialCapacityPlan?.resourceType === 'staff' ? (initialCapacityPlan.hourlyOrDailyRate || 75) : 75
   };
 
-  const equipmentPlan = initialCapacityPlan?.equipment || {
-    enabled: initialCapacityPlan?.resourceType === 'equipment' || initialCapacityPlan?.resourceType === 'both',
-    resourceCount: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.resourceCount || 12) : 12,
-    availableDaysPerUnit: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.availableTimePerResource || 25) : 25,
-    targetUtilisationPercent: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.targetUtilisationPercent ?? 50) : 50,
-    dailyRate: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.hourlyOrDailyRate || 500) : 500
-  };
+  const legacyEquipmentCount = initialCapacityPlan?.resourceType === 'equipment'
+    ? (initialCapacityPlan.resourceCount || 1)
+    : 1;
+  const equipmentPlan = initialCapacityPlan?.equipment
+    ? {
+        ...initialCapacityPlan.equipment,
+        revenueTreatment: initialCapacityPlan.equipment.revenueTreatment ?? 'capacity_only' as const,
+        resourceUnitLabel: initialCapacityPlan.equipment.resourceUnitLabel?.trim() || 'operating units',
+        capacityPerResource: initialCapacityPlan.equipment.capacityPerResource ?? 1,
+        capacityUnitLabel: initialCapacityPlan.equipment.capacityUnitLabel?.trim() || 'capacity units',
+        importUnitsCount:
+          initialCapacityPlan.equipment.importUnitsCount ??
+          initialCapacityPlan.equipment.importDetails?.unitsCount ??
+          initialCapacityPlan.equipment.resourceCount
+      }
+    : {
+        enabled: initialCapacityPlan?.resourceType === 'equipment' || initialCapacityPlan?.resourceType === 'both',
+        resourceCount: legacyEquipmentCount,
+        availableDaysPerUnit: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.availableTimePerResource || 25) : 25,
+        targetUtilisationPercent: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.targetUtilisationPercent ?? 50) : 50,
+        dailyRate: initialCapacityPlan?.resourceType === 'equipment' ? (initialCapacityPlan.hourlyOrDailyRate || 0) : 0,
+        revenueTreatment: 'capacity_only' as const,
+        resourceUnitLabel: 'operating units',
+        capacityPerResource: 1,
+        capacityUnitLabel: 'capacity units',
+        importUnitsCount: legacyEquipmentCount
+      };
 
   const currentPlan: ServiceCapacityPlan = {
     ...initialCapacityPlan,
@@ -181,10 +201,22 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     costPerUnitLanded: number;
     importDetails: ImportDutyCalculation;
   }) => {
+    const procurementUnits = Math.max(
+      1,
+      result.importDetails.unitsCount ?? equipmentPlan.importUnitsCount ?? 1
+    );
+    const supplierFob = result.importDetails.invoiceCurrency === 'USD'
+      ? (result.importDetails.fobCostUSD ?? 0)
+      : (result.importDetails.fobCost ?? 0);
+    const supplierFreight = result.importDetails.invoiceCurrency === 'USD'
+      ? (result.importDetails.shippingFreightUSD ?? 0)
+      : (result.importDetails.shippingFreight ?? 0);
+
     handleUpdateEquipmentPlan({
       hasAcquisitionPlan: true,
-      unitPurchasePrice: result.importDetails.fobCost ? (result.importDetails.fobCost / equipmentPlan.resourceCount) : undefined,
-      shippingFreightPerUnit: result.importDetails.shippingFreight ? (result.importDetails.shippingFreight / equipmentPlan.resourceCount) : undefined,
+      importUnitsCount: procurementUnits,
+      unitPurchasePrice: supplierFob > 0 ? roundCurrency(supplierFob / procurementUnits) : undefined,
+      shippingFreightPerUnit: supplierFreight > 0 ? roundCurrency(supplierFreight / procurementUnits) : undefined,
       importCategory: result.importDetails.category,
       importDetails: result.importDetails
     });
@@ -203,25 +235,27 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     );
 
     const landedAmount = result.importDetails?.totalLandedCostXCD ?? result.totalLandedCost;
+    const revenueTreatment = equipmentPlan.revenueTreatment ?? 'capacity_only';
     const fleetItem: StartupCostItem = {
       id: 'cost-fleet-equipment-asset',
-      name: `${equipmentPlan.resourceCount}x Rental Fleet Units (${result.importDetails.category?.replace('_', ' ').toUpperCase() || 'EQUIPMENT'})`,
+      name: `Imported Equipment Package (${procurementUnits} procurement unit${procurementUnits === 1 ? '' : 's'} • ${result.importDetails.category?.replace('_', ' ').toUpperCase() || 'EQUIPMENT'})`,
       classification: 'equipment',
-      category: 'Fleet & Rental Assets',
-      currency: 'XCD', // Stored in Saint Lucia EC$
+      category: 'Equipment & Operating Assets',
+      currency: 'XCD', // Landed asset value is stored in Saint Lucia EC$
       purchaseCost: landedAmount,
       amount: landedAmount,
       residualValue: roundCurrency(landedAmount * 0.1),
       usefulLifeYears: 4,
       purchaseMonth: 1,
-      isRentalRevenueGenerator: true,
+      isRentalRevenueGenerator: revenueTreatment === 'independent_revenue',
+      rentalRevenueTreatment: revenueTreatment,
       rentalUnitsOwned: equipmentPlan.resourceCount,
       rentalAvailableTimePerUnit: equipmentPlan.availableDaysPerUnit,
       rentalUtilisationPercent: equipmentPlan.targetUtilisationPercent,
-      rentalRatePerUnit: equipmentPlan.dailyRate,
+      rentalRatePerUnit: revenueTreatment === 'independent_revenue' ? equipmentPlan.dailyRate : 0,
       rentalTimeUnit: 'days',
       importDetails: result.importDetails,
-      notes: `Landed asset imported to Saint Lucia (ASYCUDA Tariff: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}). Customs CIF: EC$ ${result.importDetails.cifValue?.toLocaleString()}. Total Duties & Levies: EC$ ${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}. Total Landed Cost: EC$ ${landedAmount.toLocaleString()} (≈ US$ ${roundCurrency(landedAmount / 2.70).toLocaleString()}).`
+      notes: `Landed operating asset imported to Saint Lucia. Procurement quantity: ${procurementUnits}. Deployable operating units: ${equipmentPlan.resourceCount}. Revenue treatment: ${revenueTreatment === 'capacity_only' ? 'capacity only; service revenue modeled separately' : 'independent equipment rental revenue'}. Customs tariff profile: ${result.importDetails.category?.toUpperCase() || 'ELECTRONICS'}. CIF: EC$ ${result.importDetails.cifValue?.toLocaleString()}. Estimated duties & levies: EC$ ${result.importDetails.totalDutiesAndTaxes?.toLocaleString()}. Estimated total landed cost: EC$ ${landedAmount.toLocaleString()} (≈ US$ ${roundCurrency(landedAmount / (result.importDetails.exchangeRate || 2.70)).toLocaleString()}).`
     };
 
     onUpdateCostItems([fleetItem, ...nonFleetItems]);
