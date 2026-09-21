@@ -33,7 +33,12 @@ import { SharedCostItemList } from './SharedCostItemList';
 import { SharedCostItemForm } from './SharedCostItemForm';
 import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
 import { CurrencyToggle } from './CurrencyToggle';
-import { calculateServiceCapacity, roundCurrency } from '../../services/startupFinancialsService';
+import {
+  calculateServiceCapacity,
+  roundCurrency,
+  getDefaultServiceUnitLabel,
+  getServiceOfferingUnitLabel
+} from '../../services/startupFinancialsService';
 import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol, convertCurrency } from '../../services/currencyService';
 
 interface ServicesWorkflowPanelProps {
@@ -226,6 +231,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   // New service form state
   const [newServiceName, setNewServiceName] = useState('');
   const [newRevenueModel, setNewRevenueModel] = useState<ServiceRevenueModel>('project');
+  const [newUnitLabel, setNewUnitLabel] = useState(getDefaultServiceUnitLabel('project'));
   const [newRate, setNewRate] = useState('250.00');
   const [newServiceCurrency, setNewServiceCurrency] = useState<CurrencyCode>(displayCurrency);
   const [newVolume, setNewVolume] = useState('15');
@@ -241,8 +247,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       name: newServiceName.trim(),
       currency: newServiceCurrency,
       revenueModel: newRevenueModel,
-      rate: Math.max(0.01, parseFloat(newRate) || 100),
-      expectedVolume: Math.max(1, parseInt(newVolume) || 10),
+      unitLabel: newUnitLabel.trim() || getDefaultServiceUnitLabel(newRevenueModel),
+      rate: Math.max(0.01, parseFloat(newRate) || 0.01),
+      expectedVolume: Math.max(0, parseInt(newVolume) || 0),
       directCostPerUnitOrJob: Math.max(0, parseFloat(newDirectCost) || 0),
       monthlyGrowthRatePercent: parseFloat(newGrowth) || 0,
       annualGrowthRatePercent: 15
@@ -250,6 +257,8 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
 
     onUpdateServices([...services, newService]);
     setNewServiceName('');
+    setNewRevenueModel('project');
+    setNewUnitLabel(getDefaultServiceUnitLabel('project'));
     setNewRate('250.00');
     setNewServiceCurrency(displayCurrency);
     setNewVolume('15');
@@ -303,25 +312,19 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         return 'Equipment / Facility Rental';
       case 'commission':
         return 'Commission / Success Fee';
+      case 'event':
+        return 'Per Event';
+      case 'package':
+        return 'Package / Bundle';
+      case 'per_participant':
+        return 'Per Participant';
+      default:
+        return 'Service Revenue';
     }
   };
 
-  const getUnitName = (model: ServiceRevenueModel) => {
-    switch (model) {
-      case 'hourly':
-        return 'hours';
-      case 'project':
-        return 'projects';
-      case 'retainer':
-        return 'retainers';
-      case 'subscription':
-        return 'subscribers';
-      case 'rental':
-        return 'rental days';
-      case 'commission':
-        return 'deals';
-    }
-  };
+  const getUnitName = (model: ServiceRevenueModel, customLabel?: string) =>
+    customLabel?.trim() || getDefaultServiceUnitLabel(model);
 
   return (
     <div className="space-y-6">
@@ -973,7 +976,11 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                 <label className="text-[11px] font-bold text-stone-700">Commercial Revenue Model</label>
                 <select
                   value={newRevenueModel}
-                  onChange={(e) => setNewRevenueModel(e.target.value as ServiceRevenueModel)}
+                  onChange={(e) => {
+                    const nextModel = e.target.value as ServiceRevenueModel;
+                    setNewRevenueModel(nextModel);
+                    setNewUnitLabel(getDefaultServiceUnitLabel(nextModel));
+                  }}
                   className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                 >
                   <option value="project">Fixed Project Fee</option>
@@ -982,6 +989,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   <option value="subscription">Recurring Subscription</option>
                   <option value="rental">Equipment / Space Rental</option>
                   <option value="commission">Commission Fee</option>
+                  <option value="event">Per Event</option>
+                  <option value="package">Package / Bundle</option>
+                  <option value="per_participant">Per Participant</option>
                 </select>
               </div>
 
@@ -1006,12 +1016,24 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               </div>
 
               <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Service Unit Label</label>
+                <input
+                  type="text"
+                  value={newUnitLabel}
+                  onChange={(e) => setNewUnitLabel(e.target.value)}
+                  placeholder={getDefaultServiceUnitLabel(newRevenueModel)}
+                  className="w-full px-3 py-1.5 text-xs border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                />
+                <div className="text-[10px] text-stone-400">Examples: bookings, sessions, participants, units, events.</div>
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Initial Monthly Volume ({getUnitName(newRevenueModel)})
+                  Initial Monthly Volume ({newUnitLabel.trim() || getDefaultServiceUnitLabel(newRevenueModel)})
                 </label>
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   value={newVolume}
                   onChange={(e) => setNewVolume(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs font-mono border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
@@ -1077,7 +1099,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
           {services.map((service) => {
             const servCurrency = service.currency || 'USD';
             const normalizedRate = normalizeServiceRate(service);
-            const monthlyRev = normalizedRate * (service.expectedVolume || 1);
+            const monthlyRev = normalizedRate * Math.max(0, service.expectedVolume ?? 0);
             const isDifferentCurrency = servCurrency !== displayCurrency;
 
             return (
@@ -1117,7 +1139,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   <div className="text-[11px] text-stone-500 flex flex-wrap items-center gap-3">
                     <span>Rate: <strong className="font-mono">{currentSymbol} {normalizedRate.toFixed(2)}</strong></span>
                     <span>•</span>
-                    <span>Volume: <strong>{service.expectedVolume || 1} {getUnitName(service.revenueModel)}/mo</strong></span>
+                    <span>Volume: <strong>{service.expectedVolume ?? 0} {getUnitName(service.revenueModel, service.unitLabel)}/mo</strong></span>
                     <span>•</span>
                     <span>Monthly Revenue: <strong className="font-mono text-emerald-800">{currentSymbol} {monthlyRev.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
                   </div>
@@ -1125,14 +1147,26 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
 
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Unit:</label>
+                    <input
+                      type="text"
+                      value={service.unitLabel || getServiceOfferingUnitLabel(service)}
+                      onChange={(e) => handleUpdateServiceField(service.id, 'unitLabel', e.target.value)}
+                      className="w-24 px-2 py-1 text-xs border border-stone-200 bg-white rounded-lg"
+                      title="Label used throughout forecasts and exported business plans"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 text-xs">
                     <label className="text-[10px] text-stone-500">Vol/mo:</label>
                     <input
                       type="number"
-                      min="1"
-                      value={service.expectedVolume || 1}
-                      onChange={(e) =>
-                        handleUpdateServiceField(service.id, 'expectedVolume', parseInt(e.target.value) || 1)
-                      }
+                      min="0"
+                      value={service.expectedVolume ?? 0}
+                      onChange={(e) => {
+                        const parsed = parseInt(e.target.value, 10);
+                        handleUpdateServiceField(service.id, 'expectedVolume', Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+                      }}
                       className="w-18 px-2 py-1 text-xs font-mono border border-stone-200 bg-white rounded-lg"
                     />
                   </div>
