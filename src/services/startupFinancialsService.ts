@@ -284,6 +284,8 @@ export function calculateLandedImportCost(params: {
     insuranceCost: insuranceCostXCD,
     cifValue: cifValueXCD,
     fobCostUSD,
+    shippingFreightUSD,
+    insuranceCostUSD,
     cifValueUSD,
     dutyRatePercent,
     dutyAmount,
