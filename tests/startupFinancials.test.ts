@@ -107,6 +107,9 @@ test('equipment capacity-only mode tracks operating capacity without fabricating
       resourceUnitLabel: 'systems',
       capacityPerResource: 12,
       capacityUnitLabel: 'players',
+      operatingHoursPerDay: 8,
+      serviceUnitDurationHours: 1,
+      capacityServiceOfferingId: 'svc-session',
       importUnitsCount: 12
     }
   });
@@ -114,6 +117,9 @@ test('equipment capacity-only mode tracks operating capacity without fabricating
   assert.equal(result.equipment.totalDays, 30);
   assert.equal(result.equipment.effectiveDays, 10.5);
   assert.equal(result.equipment.simultaneousCapacity, 12);
+  assert.equal(result.equipment.totalOperatingHours, 240);
+  assert.equal(result.equipment.maxServiceUnits, 240);
+  assert.equal(result.equipment.effectiveServiceUnits, 84);
   assert.equal(result.equipment.monthlyRevenue, 0);
   assert.equal(result.totalMonthlyRevenuePotential, 0);
 });
@@ -135,6 +141,97 @@ test('equipment independent-rental mode only creates revenue when explicitly sel
 
   assert.equal(result.equipment.effectiveDays, 40);
   assert.equal(result.equipment.monthlyRevenue, 20000);
+});
+
+test('service capacity validation compares linked session volume against equipment time capacity', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceOfferings: [{
+      id: 'svc-session',
+      name: 'Full House Session',
+      revenueModel: 'event',
+      unitLabel: 'Sessions',
+      rate: 360,
+      expectedVolume: 250,
+      directCostPerUnitOrJob: 30
+    }],
+    serviceCapacityPlan: {
+      equipment: {
+        enabled: true,
+        resourceCount: 1,
+        availableDaysPerUnit: 30,
+        targetUtilisationPercent: 35,
+        dailyRate: 0,
+        revenueTreatment: 'capacity_only',
+        resourceUnitLabel: 'systems',
+        capacityPerResource: 12,
+        capacityUnitLabel: 'players',
+        operatingHoursPerDay: 8,
+        serviceUnitDurationHours: 1,
+        capacityServiceOfferingId: 'svc-session'
+      }
+    }
+  };
+
+  const validation = validateBusinessPlan(plan);
+  assert.ok(validation.issues.some((issue) => issue.id === 'equipment-service-capacity-demand-mismatch'));
+});
+
+test('service capacity validation warns when planned sessions exceed target utilisation but not hard maximum', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'fixed',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceOfferings: [{
+      id: 'svc-session',
+      name: 'Full House Session',
+      revenueModel: 'event',
+      unitLabel: 'Sessions',
+      rate: 360,
+      expectedVolume: 100,
+      directCostPerUnitOrJob: 30
+    }],
+    serviceCapacityPlan: {
+      equipment: {
+        enabled: true,
+        resourceCount: 1,
+        availableDaysPerUnit: 30,
+        targetUtilisationPercent: 35,
+        dailyRate: 0,
+        revenueTreatment: 'capacity_only',
+        resourceUnitLabel: 'systems',
+        capacityPerResource: 12,
+        capacityUnitLabel: 'players',
+        operatingHoursPerDay: 8,
+        serviceUnitDurationHours: 1,
+        capacityServiceOfferingId: 'svc-session'
+      }
+    }
+  };
+
+  const validation = validateBusinessPlan(plan);
+  assert.ok(validation.issues.some((issue) => issue.id === 'equipment-service-capacity-above-target-utilisation'));
+  assert.ok(!validation.issues.some((issue) => issue.id === 'equipment-service-capacity-demand-mismatch'));
 });
 
 test('landed-cost calculator preserves whole-package quote and procurement quantity metadata', () => {
