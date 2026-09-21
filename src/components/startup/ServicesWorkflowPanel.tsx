@@ -998,23 +998,65 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                 </div>
 
                 {/* Equipment Capacity Summary */}
-                <div className="bg-white border border-amber-200/80 rounded-xl p-2.5 text-[11px] flex flex-wrap items-center justify-between gap-2 text-stone-700">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span>Available: <strong>{capacityCalc.equipment.totalDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
-                    <span className="text-stone-300">•</span>
-                    <span>Utilized: <strong className="text-amber-900">{capacityCalc.equipment.effectiveDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
-                    <span className="text-stone-300">•</span>
-                    <span>Simultaneous Capacity: <strong>{capacityCalc.equipment.simultaneousCapacity} {capacityCalc.equipment.capacityUnitLabel}</strong></span>
-                  </div>
-                  {capacityCalc.equipment.revenueTreatment === 'independent_revenue' ? (
-                    <div className="font-bold text-amber-900 font-mono">
-                      Equipment Rental Revenue: <span>{currentSymbol} {capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo</span>
+                <div className="bg-white border border-amber-200/80 rounded-xl p-3 text-[11px] space-y-2 text-stone-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>Available: <strong>{capacityCalc.equipment.totalDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
+                      <span className="text-stone-300">•</span>
+                      <span>Target Utilized: <strong className="text-amber-900">{capacityCalc.equipment.effectiveDays} {capacityCalc.equipment.resourceUnitLabel}-days/mo</strong></span>
+                      <span className="text-stone-300">•</span>
+                      <span>Simultaneous Capacity: <strong>{capacityCalc.equipment.simultaneousCapacity} {capacityCalc.equipment.capacityUnitLabel}</strong></span>
                     </div>
-                  ) : (
-                    <div className="font-bold text-emerald-800">
-                      Capacity Only — revenue is modeled in Service Offerings
+                    {capacityCalc.equipment.revenueTreatment === 'independent_revenue' ? (
+                      <div className="font-bold text-amber-900 font-mono">
+                        Equipment Rental Revenue: <span>{currentSymbol} {capacityCalc.equipment.monthlyRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo</span>
+                      </div>
+                    ) : (
+                      <div className="font-bold text-emerald-800">
+                        Capacity Only — revenue is modeled in Service Offerings
+                      </div>
+                    )}
+                  </div>
+
+                  {capacityCalc.equipment.revenueTreatment === 'capacity_only' && (
+                    <div className="pt-2 border-t border-amber-100 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>
+                        Operating Time: <strong>{capacityCalc.equipment.totalOperatingHours.toLocaleString()} hrs/mo</strong>
+                      </span>
+                      <span className="text-stone-300">•</span>
+                      <span>
+                        Maximum Service Capacity: <strong>{capacityCalc.equipment.maxServiceUnits.toLocaleString()} {capacityServiceUnitLabel}/mo</strong>
+                      </span>
+                      <span className="text-stone-300">•</span>
+                      <span>
+                        At {capacityCalc.equipment.targetUtilisationPercent}% target utilisation: <strong>{capacityCalc.equipment.effectiveServiceUnits.toLocaleString()} {capacityServiceUnitLabel}/mo</strong>
+                      </span>
                     </div>
                   )}
+
+                  {capacityCalc.equipment.revenueTreatment === 'capacity_only' && capacityService ? (
+                    <div className={`rounded-lg px-2.5 py-2 border ${
+                      plannedCapacityLoadPercent > 100
+                        ? 'bg-rose-50 border-rose-200 text-rose-800'
+                        : plannedCapacityLoadPercent > capacityCalc.equipment.targetUtilisationPercent
+                          ? 'bg-amber-50 border-amber-200 text-amber-900'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    }`}>
+                      <strong>{capacityService.name}:</strong>{' '}
+                      {plannedCapacityServiceUnits.toLocaleString()} planned {capacityServiceUnitLabel}/mo
+                      {' • '}
+                      {plannedCapacityLoadPercent.toFixed(1)}% of maximum time capacity
+                      {' • '}
+                      {targetCapacityLoadPercent.toFixed(1)}% of target-utilized capacity
+                      {plannedCapacityLoadPercent > 100 && (
+                        <span className="font-bold"> — planned volume exceeds configured equipment capacity.</span>
+                      )}
+                    </div>
+                  ) : capacityCalc.equipment.revenueTreatment === 'capacity_only' ? (
+                    <div className="rounded-lg px-2.5 py-2 bg-stone-50 border border-stone-200 text-stone-600">
+                      Select a capacity-bound service offering to compare planned monthly volume with available operating capacity.
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Fleet Equipment Acquisition & Landed Import Duty Provisioning */}
@@ -1077,7 +1119,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               </div>
             ) : (
               <div className="py-6 text-center text-xs text-stone-400">
-                Equipment capacity engine disabled. Click the checkbox to activate equipment &amp; fleet rental modeling.
+                Equipment capacity engine disabled. Click the checkbox to activate equipment &amp; operating-capacity planning.
               </div>
             )}
           </div>
