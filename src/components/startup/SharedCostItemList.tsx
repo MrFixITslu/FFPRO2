@@ -18,7 +18,14 @@ import {
 } from 'lucide-react';
 import { CostItemClassification, StartupCostItem } from '../../types';
 import { calculateEquipmentDepreciation, calculateEquipmentRentalRevenue } from '../../services/startupFinancialsService';
-import { CurrencyCode, convertCurrency, DEFAULT_EXCHANGE_RATE, getCurrencySymbol, normalizeCostItemAmount } from '../../services/currencyService';
+import {
+  CurrencyCode,
+  coerceCurrencyCode,
+  convertCurrency,
+  DEFAULT_EXCHANGE_RATE,
+  getCurrencySymbol,
+  normalizeCostItemAmount
+} from '../../services/currencyService';
 import { CurrencyToggle } from './CurrencyToggle';
 
 interface SharedCostItemListProps {
@@ -104,10 +111,43 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
   });
 
   // Convert an item's raw value from its native currency into current displayCurrency
-  const normalizeItemValue = (value: number | undefined, itemCur?: CurrencyCode): number => {
+  const normalizeItemValue = (value: number | undefined, itemCur?: CurrencyCode | string): number => {
     if (value === undefined || isNaN(value)) return 0;
-    const from = itemCur || 'XCD';
+    const from = coerceCurrencyCode(itemCur, currency);
     return convertCurrency(value, from, currency, exchangeRate);
+  };
+
+  const getNativePrimaryAmount = (item: StartupCostItem): number => {
+    if (item.classification === 'equipment') {
+      if (item.importDetails?.isImported) {
+        const nativeCurrency = coerceCurrencyCode(item.currency, currency);
+        if (nativeCurrency === 'USD') {
+          return item.importDetails.totalLandedCostUSD ??
+            convertCurrency(
+              item.importDetails.totalLandedCostXCD ?? item.importDetails.totalLandedCost ?? item.purchaseCost ?? item.amount ?? 0,
+              'XCD',
+              'USD',
+              item.importDetails.exchangeRate || exchangeRate
+            );
+        }
+        return item.importDetails.totalLandedCostXCD ??
+          item.importDetails.totalLandedCost ??
+          convertCurrency(
+            item.importDetails.totalLandedCostUSD ?? item.purchaseCost ?? item.amount ?? 0,
+            'USD',
+            'XCD',
+            item.importDetails.exchangeRate || exchangeRate
+          );
+      }
+      return item.purchaseCost ?? item.amount ?? 0;
+    }
+    if (item.classification === 'stock') {
+      return (item.stockQuantity ?? item.initialStockUnits ?? 1) * (item.stockUnitCost ?? item.unitCost ?? 0);
+    }
+    if (item.classification === 'direct') return item.directCostPerUnitOrJob ?? item.unitCost ?? item.amount ?? 0;
+    if (item.classification === 'operating') return item.monthlyExpenseAmount ?? item.amount ?? 0;
+    if (item.classification === 'setup') return item.setupExpenseAmount ?? item.amount ?? 0;
+    return item.amount ?? 0;
   };
 
   // Calculate high-level summary buckets normalized to displayCurrency
@@ -331,9 +371,16 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredItems.map((item) => {
-            const itemNativeCur: CurrencyCode = item.currency || 'USD';
+            const itemNativeCur: CurrencyCode = coerceCurrencyCode(item.currency, currency);
             const itemSymbol = getCurrencySymbol(itemNativeCur);
             const isDifferentCurrency = itemNativeCur !== currency;
+            const nativePrimaryAmount = getNativePrimaryAmount(item);
+            const convertedPrimaryAmount = convertCurrency(
+              nativePrimaryAmount,
+              itemNativeCur,
+              currency,
+              exchangeRate
+            );
 
             return (
               <div
@@ -374,6 +421,21 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                           </span>
                         )}
                       </div>
+                      {isDifferentCurrency && nativePrimaryAmount > 0 && (
+                        <div className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 text-[9.5px] font-semibold text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1">
+                          <ArrowRightLeft size={10} />
+                          <span>
+                            Native {itemNativeCur}: {itemSymbol} {nativePrimaryAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span>→</span>
+                          <span>
+                            Display {currency}: {currentSymbol} {convertedPrimaryAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-blue-600 font-normal">
+                            @ 1 USD = {exchangeRate} XCD
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
