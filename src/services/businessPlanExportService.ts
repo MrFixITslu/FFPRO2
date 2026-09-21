@@ -17,7 +17,11 @@ import {
   ShadingType
 } from 'docx';
 import { BudgetEvent, StartupPlanDetails, BusinessPlanSections } from '../types';
-import { calculateMonthlyOperatingExpenses } from './startupFinancialsService';
+import {
+  calculateMonthlyOperatingExpenses,
+  generateStartupFinancialForecast,
+  getServiceOfferingUnitLabel
+} from './startupFinancialsService';
 
 export interface BusinessPlanCalculations {
   costOfGoodsSoldUnit: number;
@@ -93,84 +97,54 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
     return sum + ((cost - res) / life);
   }, 0);
 
-  // Check if service-based business logic applies
-  if (isServices && (sd?.serviceOfferings?.length || sd?.serviceCapacityPlan)) {
-    const offerings = sd.serviceOfferings || [];
-    let totalMonthlyServiceRev = 0;
-    let totalMonthlyDirectCosts = 0;
-    let totalMonthlySessions = 0;
+  // Service and hybrid plans use the authoritative forecast engine so currency conversion,
+  // month-over-month growth, financing, and annual targets remain consistent across the app and exports.
+  if (isServices) {
+    const activeCurrency = sd?.displayCurrency || 'USD';
+    const activeRate = sd?.exchangeRate || 2.70;
+    const forecast = generateStartupFinancialForecast(sd, activeCurrency, activeRate);
+    const month1 = forecast.monthlyYear1[0];
+    const y1 = forecast.yearlyProjections.find((p) => p.year === 1) || forecast.yearlyProjections[0];
+    const y3 = forecast.yearlyProjections.find((p) => p.year === 3) || y1;
+    const y5 = forecast.yearlyProjections.find((p) => p.year === 5) || y1;
 
-    offerings.forEach((s) => {
-      const vol = s.expectedVolume || 10;
-      const rate = s.rate || 100;
-      const direct = s.directCostPerUnitOrJob || 0;
-      totalMonthlyServiceRev += vol * rate;
-      totalMonthlyDirectCosts += vol * direct;
-      totalMonthlySessions += vol;
-    });
+    const serviceOfferings = sd?.serviceOfferings || [];
+    const businessModelType = sd?.businessModelType || 'services';
+    const monthlyUnits = businessModelType === 'both'
+      ? (month1?.salesVolumeUnits || 0) + (month1?.billableHoursOrJobs || 0)
+      : (month1?.billableHoursOrJobs || 0);
 
-    // Check equipment rental revenue (only if independent revenue treatment or rental-only)
-    let rentalRevMonthly = 0;
-    const hasOfferings = offerings.length > 0;
-    equipmentItems.forEach((eq) => {
-      const isIndependentRental = eq.rentalRevenueTreatment === 'independent_revenue' ||
-        (Boolean(eq.isRentalRevenueGenerator) && !hasOfferings && eq.rentalRevenueTreatment !== 'capacity_only');
-      if (isIndependentRental && eq.rentalRatePerUnit && eq.rentalUnitsOwned) {
-        const availTime = eq.rentalAvailableTimePerUnit || 25;
-        const util = (eq.rentalUtilisationPercent ?? 50) / 100;
-        const rate = eq.rentalRatePerUnit || 0;
-        rentalRevMonthly += Math.round(eq.rentalUnitsOwned * availTime * util * rate);
-      }
-    });
-
-    totalMonthlyServiceRev += rentalRevMonthly;
-    const monthlyUnits = Math.max(1, totalMonthlySessions);
-    const avgSellingPrice = parseFloat((totalMonthlyServiceRev / monthlyUnits).toFixed(2));
-    const avgDirectCost = parseFloat((totalMonthlyDirectCosts / monthlyUnits).toFixed(2));
+    const monthlyRevenue = month1?.revenue || 0;
+    const monthlyCOGS = month1?.cogs || 0;
+    const monthlyGrossProfit = month1?.grossProfit || 0;
+    const avgSellingPrice = monthlyUnits > 0 ? parseFloat((monthlyRevenue / monthlyUnits).toFixed(2)) : 0;
+    const avgDirectCost = monthlyUnits > 0 ? parseFloat((monthlyCOGS / monthlyUnits).toFixed(2)) : 0;
     const unitContribMargin = parseFloat((avgSellingPrice - avgDirectCost).toFixed(2));
-    const contribMarginPercent = totalMonthlyServiceRev > 0
-      ? Math.round((unitContribMargin / avgSellingPrice) * 100)
+    const grossMarginPercent = monthlyRevenue > 0
+      ? Math.round((monthlyGrossProfit / monthlyRevenue) * 100)
+      : 0;
+    const contribMarginPercent = grossMarginPercent;
+
+    const unitLabels = Array.from(new Set(serviceOfferings.map((s) => getServiceOfferingUnitLabel(s))));
+    const unitLabel = businessModelType === 'both'
+      ? 'Combined Product & Service Units'
+      : (unitLabels.length === 1 ? unitLabels[0] : (unitLabels.length > 1 ? 'Service Units' : 'Service Units'));
+
+    const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
+    const netMarginPercent = monthlyRevenue > 0
+      ? Math.round((monthlyNetOperatingProfit / monthlyRevenue) * 100)
       : 0;
 
-    const primaryOffering = offerings[0];
-    const unitLabel = primaryOffering?.unitLabel || (offerings.length === 1 ? 'Bookings' : 'Bookings / Service Streams');
-
-    const monthlyCOGS = totalMonthlyDirectCosts;
-    const monthlyRevenue = totalMonthlyServiceRev;
-    const monthlyGrossProfit = monthlyRevenue - monthlyCOGS;
-    const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
-    const grossMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyGrossProfit / monthlyRevenue) * 100) : 0;
-    const netMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyNetOperatingProfit / monthlyRevenue) * 100) : 0;
-
-    const g3 = 1 + (sd?.growthRateYear3 || 15) / 100;
-    const g5 = 1 + (sd?.growthRateYear5 || 35) / 100;
-
-    const y1Rev = monthlyRevenue * 12;
-    const y1COGS = monthlyCOGS * 12;
-    const y1Gross = y1Rev - y1COGS;
-    const y1OpEx = monthlyOpExpenses * 12;
-    const y1Net = y1Gross - y1OpEx;
-
-    const y3Rev = y1Rev * g3;
-    const y3COGS = y1COGS * g3;
-    const y3Gross = y3Rev - y3COGS;
-    const y3OpEx = y1OpEx * 1.08;
-    const y3Net = y3Gross - y3OpEx;
-
-    const y5Rev = y1Rev * g5;
-    const y5COGS = y1COGS * g5;
-    const y5Gross = y5Rev - y5COGS;
-    const y5OpEx = y1OpEx * 1.15;
-    const y5Net = y5Gross - y5OpEx;
-
-    // Break-even
-    const beRev = contribMarginPercent > 0 ? Math.round(monthlyOpExpenses / (contribMarginPercent / 100)) : 0;
-    const beUnits = unitContribMargin > 0 ? Math.ceil(monthlyOpExpenses / unitContribMargin) : 0;
+    const y1Ebitda = y1 ? y1.grossProfit - y1.operatingExpenses : 0;
+    const y3Ebitda = y3 ? y3.grossProfit - y3.operatingExpenses : 0;
+    const y5Ebitda = y5 ? y5.grossProfit - y5.operatingExpenses : 0;
 
     return {
       costOfGoodsSoldUnit: avgDirectCost,
       sellingPrice: avgSellingPrice,
-      markupPercent: avgDirectCost > 0 ? parseFloat((((avgSellingPrice - avgDirectCost) / avgDirectCost) * 100).toFixed(1)) : 100,
+      markupPercent: avgDirectCost > 0
+        ? parseFloat((((avgSellingPrice - avgDirectCost) / avgDirectCost) * 100).toFixed(1))
+        : 0,
       monthlyUnits,
       grossMarginPercent,
       netMarginPercent,
@@ -179,21 +153,22 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
       monthlyGrossProfit,
       monthlyOpExpenses,
       monthlyNetOperatingProfit,
-      y1Rev,
-      y3Rev,
-      y5Rev,
-      y1COGS,
-      y3COGS,
-      y5COGS,
-      y1Gross,
-      y3Gross,
-      y5Gross,
-      y1OpEx,
-      y3OpEx,
-      y5OpEx,
-      y1Net,
-      y3Net,
-      y5Net,
+      y1Rev: y1?.revenue || 0,
+      y3Rev: y3?.revenue || 0,
+      y5Rev: y5?.revenue || 0,
+      y1COGS: y1?.cogs || 0,
+      y3COGS: y3?.cogs || 0,
+      y5COGS: y5?.cogs || 0,
+      y1Gross: y1?.grossProfit || 0,
+      y3Gross: y3?.grossProfit || 0,
+      y5Gross: y5?.grossProfit || 0,
+      y1OpEx: y1?.operatingExpenses || 0,
+      y3OpEx: y3?.operatingExpenses || 0,
+      y5OpEx: y5?.operatingExpenses || 0,
+      // These legacy "*Net" fields historically represent operating profit / EBITDA.
+      y1Net: y1Ebitda,
+      y3Net: y3Ebitda,
+      y5Net: y5Ebitda,
       materialsCostPerUnit: avgDirectCost,
       laborCostPerUnit: 0,
       allocatedOverheadPerUnit: 0,
@@ -207,19 +182,20 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
       levyCost: 0,
 
       isServiceBusiness: true,
-      businessModelType: 'services',
+      businessModelType,
       operatingModel: sd?.operatingModel || 'mobile',
       directCostPerUnit: avgDirectCost,
       unitContributionMargin: unitContribMargin,
       contributionMarginPercent: contribMarginPercent,
-      breakEvenRevenueMonthly: beRev,
-      breakEvenUnitsMonthly: beUnits,
-      breakEvenMetricLabel: unitLabel,
+      breakEvenRevenueMonthly: forecast.breakEven.breakEvenRevenueMonthly,
+      breakEvenUnitsMonthly: forecast.breakEven.breakEvenUnitsMonthly,
+      breakEvenMetricLabel: forecast.breakEven.breakEvenMetricLabel || unitLabel,
       revenueUnitLabel: unitLabel,
-      ebitdaYear1: y1Net,
-      ebitYear1: y1Net - totalAnnualDepreciation,
-      depreciationYear1: totalAnnualDepreciation,
-      currencySymbol: sd?.displayCurrency === 'USD' ? 'US$' : 'EC$'
+      ebitdaYear1: y1Ebitda,
+      ebitYear1: y1Ebitda - (y1?.depreciation || 0),
+      depreciationYear1: y1?.depreciation || totalAnnualDepreciation,
+      interestYear1: y1?.loanInterestExpense || 0,
+      currencySymbol: activeCurrency === 'USD' ? 'US$' : 'EC$'
     };
   }
 
