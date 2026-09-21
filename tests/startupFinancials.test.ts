@@ -139,7 +139,7 @@ test('forecast equipment cash outlay uses imported landed cost basis', () => {
   };
 
   const forecast = generateStartupFinancialForecast(plan, 'XCD', 2.72);
-  assert.equal(forecast.monthlyYear1[1].equipmentPurchasesCash, 67466.44);
+  assert.equal(forecast.monthlyYear1[1].cashPurchasesEquipment, 67466.44);
   assert.equal(forecast.monthlyYear1[1].depreciation, 562.22);
 });
 
