@@ -406,9 +406,15 @@ export interface ServiceCapacityCalculationResult {
     resourceUnitLabel: string;
     capacityPerResource: number;
     capacityUnitLabel: string;
+    operatingHoursPerDay: number;
+    serviceUnitDurationHours: number;
+    capacityServiceOfferingId?: string;
     totalDays: number;
     effectiveDays: number;
     simultaneousCapacity: number;
+    totalOperatingHours: number;
+    maxServiceUnits: number;
+    effectiveServiceUnits: number;
     monthlyRevenue: number;
   };
   totalMonthlyRevenuePotential: number;
@@ -449,7 +455,10 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
     revenueTreatment: plan?.equipment?.revenueTreatment ?? 'capacity_only' as 'capacity_only' | 'independent_revenue',
     resourceUnitLabel: plan?.equipment?.resourceUnitLabel?.trim() || 'operating units',
     capacityPerResource: Math.max(0, plan?.equipment?.capacityPerResource ?? 1),
-    capacityUnitLabel: plan?.equipment?.capacityUnitLabel?.trim() || 'capacity units'
+    capacityUnitLabel: plan?.equipment?.capacityUnitLabel?.trim() || 'capacity units',
+    operatingHoursPerDay: Math.max(0, plan?.equipment?.operatingHoursPerDay ?? 8),
+    serviceUnitDurationHours: Math.max(0.01, plan?.equipment?.serviceUnitDurationHours ?? 1),
+    capacityServiceOfferingId: plan?.equipment?.capacityServiceOfferingId
   };
 
   // Calculate Staff Capacity
@@ -461,6 +470,13 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
   const equipTotalDays = defaultEquipment.resourceCount * defaultEquipment.availableDaysPerUnit;
   const equipEffectiveDays = roundCurrency(equipTotalDays * (defaultEquipment.targetUtilisationPercent / 100));
   const equipSimultaneousCapacity = roundCurrency(defaultEquipment.resourceCount * defaultEquipment.capacityPerResource);
+  const equipTotalOperatingHours = roundCurrency(equipTotalDays * defaultEquipment.operatingHoursPerDay);
+  const equipMaxServiceUnits = defaultEquipment.serviceUnitDurationHours > 0
+    ? roundCurrency(equipTotalOperatingHours / defaultEquipment.serviceUnitDurationHours)
+    : 0;
+  const equipEffectiveServiceUnits = roundCurrency(
+    equipMaxServiceUnits * (defaultEquipment.targetUtilisationPercent / 100)
+  );
   const equipMonthlyRevenue =
     defaultEquipment.enabled && defaultEquipment.revenueTreatment === 'independent_revenue'
       ? roundCurrency(equipEffectiveDays * defaultEquipment.dailyRate)
@@ -480,6 +496,9 @@ export function calculateServiceCapacity(plan?: ServiceCapacityPlan): ServiceCap
       totalDays: equipTotalDays,
       effectiveDays: equipEffectiveDays,
       simultaneousCapacity: equipSimultaneousCapacity,
+      totalOperatingHours: equipTotalOperatingHours,
+      maxServiceUnits: equipMaxServiceUnits,
+      effectiveServiceUnits: equipEffectiveServiceUnits,
       monthlyRevenue: equipMonthlyRevenue
     },
     totalMonthlyRevenuePotential: totalMonthlyRevenue,
