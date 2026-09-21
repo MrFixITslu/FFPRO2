@@ -1324,7 +1324,7 @@ export function generateStartupFinancialForecast(
   const averageMonthlyCOGS = totalCogsY1 / 12;
   const contributionMarginRatio = averageMonthlyRevenue > 0
     ? (averageMonthlyRevenue - averageMonthlyCOGS) / averageMonthlyRevenue
-    : 0.5;
+    : 0;
 
   const breakEvenRevenueMonthly = contributionMarginRatio > 0
     ? roundCurrency(averageMonthlyFixedCosts / contributionMarginRatio)
