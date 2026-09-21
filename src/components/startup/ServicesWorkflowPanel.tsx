@@ -141,6 +141,11 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         resourceUnitLabel: initialCapacityPlan.equipment.resourceUnitLabel?.trim() || 'operating units',
         capacityPerResource: initialCapacityPlan.equipment.capacityPerResource ?? 1,
         capacityUnitLabel: initialCapacityPlan.equipment.capacityUnitLabel?.trim() || 'capacity units',
+        operatingHoursPerDay: initialCapacityPlan.equipment.operatingHoursPerDay ?? 8,
+        serviceUnitDurationHours: initialCapacityPlan.equipment.serviceUnitDurationHours ?? 1,
+        capacityServiceOfferingId:
+          initialCapacityPlan.equipment.capacityServiceOfferingId ??
+          (services.length === 1 ? services[0]?.id : undefined),
         importUnitsCount:
           initialCapacityPlan.equipment.importUnitsCount ??
           initialCapacityPlan.equipment.importDetails?.unitsCount ??
@@ -156,6 +161,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
         resourceUnitLabel: 'operating units',
         capacityPerResource: 1,
         capacityUnitLabel: 'capacity units',
+        operatingHoursPerDay: 8,
+        serviceUnitDurationHours: 1,
+        capacityServiceOfferingId: services.length === 1 ? services[0]?.id : undefined,
         importUnitsCount: legacyEquipmentCount
       };
 
@@ -167,6 +175,27 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   };
 
   const capacityCalc = calculateServiceCapacity(currentPlan);
+  const capacityServiceId =
+    equipmentPlan.capacityServiceOfferingId ||
+    (services.length === 1 ? services[0]?.id : undefined);
+  const capacityService = services.find((service) => service.id === capacityServiceId);
+  const capacityServiceUnitLabel = capacityService
+    ? getServiceOfferingUnitLabel(capacityService)
+    : 'service units';
+  const plannedCapacityServiceUnits = Math.max(0, capacityService?.expectedVolume ?? 0);
+  const plannedCapacityLoadPercent = capacityCalc.equipment.maxServiceUnits > 0
+    ? roundCurrency((plannedCapacityServiceUnits / capacityCalc.equipment.maxServiceUnits) * 100)
+    : 0;
+  const targetCapacityLoadPercent = capacityCalc.equipment.effectiveServiceUnits > 0
+    ? roundCurrency((plannedCapacityServiceUnits / capacityCalc.equipment.effectiveServiceUnits) * 100)
+    : 0;
+  const hasDirectCapacityRevenue =
+    (staffPlan.enabled && capacityCalc.staff.monthlyRevenue > 0) ||
+    (
+      equipmentPlan.enabled &&
+      capacityCalc.equipment.revenueTreatment === 'independent_revenue' &&
+      capacityCalc.equipment.monthlyRevenue > 0
+    );
 
   const handleUpdateStaffPlan = (updates: Partial<typeof staffPlan>) => {
     const updatedStaff = { ...staffPlan, ...updates };
@@ -314,6 +343,25 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     onUpdateServices(updated);
   };
 
+  const handleUpdateServiceModel = (id: string, revenueModel: ServiceRevenueModel) => {
+    const updated = services.map((service) => {
+      if (service.id !== id) return service;
+      const currentDefault = getDefaultServiceUnitLabel(service.revenueModel);
+      const shouldRefreshUnitLabel =
+        !service.unitLabel?.trim() ||
+        service.unitLabel.trim().toLowerCase() === currentDefault.toLowerCase();
+
+      return {
+        ...service,
+        revenueModel,
+        unitLabel: shouldRefreshUnitLabel
+          ? getDefaultServiceUnitLabel(revenueModel)
+          : service.unitLabel
+      };
+    });
+    onUpdateServices(updated);
+  };
+
   // Cost items handlers
   const handleSaveCostItem = (item: StartupCostItem) => {
     const exists = costItems.some((i) => i.id === item.id);
@@ -347,7 +395,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       case 'commission':
         return 'Commission / Success Fee';
       case 'event':
-        return 'Per Event';
+        return 'Per Event / Session';
       case 'package':
         return 'Package / Bundle';
       case 'per_participant':
@@ -1095,7 +1143,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   <option value="subscription">Recurring Subscription</option>
                   <option value="rental">Equipment / Space Rental</option>
                   <option value="commission">Commission Fee</option>
-                  <option value="event">Per Event</option>
+                  <option value="event">Per Event / Session</option>
                   <option value="package">Package / Bundle</option>
                   <option value="per_participant">Per Participant</option>
                 </select>
