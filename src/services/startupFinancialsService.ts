@@ -1338,32 +1338,39 @@ export function generateStartupFinancialForecast(
   let breakEvenUnitsMonthly = 0;
 
   if (modelType === 'goods') {
-    metricLabel = goodsType === 'make' ? 'manufactured units' : 'merchandise units';
+    metricLabel = goodsType === 'make' ? 'Manufactured Units' : 'Merchandise Units';
     const firstProduct = goodsProducts[0];
-    unitPrice = firstProduct ? firstProduct.sellingPrice : 25;
-    const cogsUnit = totalSalesUnitsYear1 > 0 ? totalCogsY1 / totalSalesUnitsYear1 : (sd?.cogs || 10);
+    unitPrice = firstProduct?.sellingPrice ?? 0;
+    const cogsUnit = totalSalesUnitsYear1 > 0 ? totalCogsY1 / totalSalesUnitsYear1 : (sd?.cogs ?? 0);
     unitVariableCost = roundCurrency(cogsUnit);
-    const unitContribution = Math.max(0.01, unitPrice - unitVariableCost);
-    breakEvenUnitsMonthly = Math.ceil(averageMonthlyFixedCosts / unitContribution);
+    const unitContribution = unitPrice - unitVariableCost;
+    breakEvenUnitsMonthly = unitContribution > 0
+      ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
+      : 0;
   } else if (modelType === 'services') {
     const firstService = serviceOfferings[0];
     metricLabel = getServiceOfferingUnitLabel(firstService);
 
-    unitPrice = firstService ? firstService.rate : 200;
-    unitVariableCost = firstService?.directCostPerUnitOrJob ?? 25;
-    const unitContribution = Math.max(0.01, unitPrice - unitVariableCost);
-    breakEvenUnitsMonthly = Math.ceil(averageMonthlyFixedCosts / unitContribution);
+    unitPrice = firstService?.rate ?? 0;
+    unitVariableCost = firstService?.directCostPerUnitOrJob ?? 0;
+    const unitContribution = unitPrice - unitVariableCost;
+    breakEvenUnitsMonthly = unitContribution > 0
+      ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
+      : 0;
   } else {
     // Hybrid / Both
-    metricLabel = 'combined client orders & units';
-    unitPrice = averageMonthlyRevenue > 0 && (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1) > 0
-      ? roundCurrency(totalRevenueY1 / (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1))
-      : 50;
-    unitVariableCost = (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1) > 0
-      ? roundCurrency(totalCogsY1 / (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1))
-      : 20;
-    const unitContribution = Math.max(0.01, unitPrice - unitVariableCost);
-    breakEvenUnitsMonthly = Math.ceil(averageMonthlyFixedCosts / unitContribution);
+    metricLabel = 'Combined Product & Service Units';
+    const totalActivityUnits = totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1;
+    unitPrice = averageMonthlyRevenue > 0 && totalActivityUnits > 0
+      ? roundCurrency(totalRevenueY1 / totalActivityUnits)
+      : 0;
+    unitVariableCost = totalActivityUnits > 0
+      ? roundCurrency(totalCogsY1 / totalActivityUnits)
+      : 0;
+    const unitContribution = unitPrice - unitVariableCost;
+    breakEvenUnitsMonthly = unitContribution > 0
+      ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
+      : 0;
   }
 
   const unitContributionMargin = roundCurrency(unitPrice - unitVariableCost);
