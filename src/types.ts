@@ -399,6 +399,8 @@ export interface ImportDutyCalculation {
   invoiceCurrency?: CurrencyCode; // Supplier quote currency (USD or XCD)
   exchangeRate?: number; // Conversion rate used (e.g. 2.70 XCD per USD)
   fobCostUSD?: number;
+  shippingFreightUSD?: number;
+  insuranceCostUSD?: number;
   cifValueUSD?: number;
   totalLandedCostUSD?: number;
   costPerUnitLandedUSD?: number;
