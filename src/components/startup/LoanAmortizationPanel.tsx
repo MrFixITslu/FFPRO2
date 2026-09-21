@@ -51,10 +51,11 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
     annualInterestRate: 7.0,
     termYears: 5,
     paymentFrequency: 'monthly',
-    negotiationFee: 675,
+    negotiationFee: 0,
     insuranceFee: 0,
     includeFeesInLoan: false,
     gracePeriodMonths: 0,
+    gracePeriodType: 'none',
     startDate: new Date().toISOString().split('T')[0]
   };
 
@@ -86,12 +87,14 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
   // Export Amortization Schedule to CSV
   const exportToCSV = () => {
     if (!loanSummary) return;
-    const headers = ['Period No.', 'Payment Date', 'Beginning Balance', 'Interest Paid', 'Principal Repaid', 'Payment Amount', 'Ending Balance', 'Cumulative Interest'];
+    const headers = ['Period No.', 'Payment Date', 'Beginning Balance', 'Interest Accrued', 'Interest Paid', 'Capitalized Interest', 'Principal Repaid', 'Payment Amount', 'Ending Balance', 'Cumulative Interest'];
     const rows = loanSummary.schedule.map(r => [
       r.period,
       r.paymentDate,
       r.beginningBalance.toFixed(2),
+      (r.interestAccrued ?? r.interestPaid).toFixed(2),
       r.interestPaid.toFixed(2),
+      (r.capitalizedInterest ?? 0).toFixed(2),
       r.principalPaid.toFixed(2),
       r.paymentAmount.toFixed(2),
       r.endingBalance.toFixed(2),
@@ -286,7 +289,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
 
               {/* Bank Underwriter Metric Display Cards */}
               {loanSummary && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   {/* Periodic Payment */}
                   <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50/50 rounded-xl border border-amber-200/80 shadow-xs">
                     <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center justify-between">
@@ -301,7 +304,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Total Interest Cost (Bank Profit) */}
+                  {/* Total Interest Expense */}
                   <div className="p-4 bg-gradient-to-br from-indigo-50 to-blue-50/50 rounded-xl border border-indigo-200/80 shadow-xs">
                     <div className="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">
                       Total Interest Expense
@@ -310,20 +313,20 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                       {formatCurrencyAmount(loanSummary.totalInterestPaid, currency)}
                     </div>
                     <div className="text-[11px] font-semibold text-indigo-700 mt-1">
-                      Bank Profit over {loanParams.termYears} years
+                      Total accrued interest over {loanParams.termYears} years
                     </div>
                   </div>
 
-                  {/* Total Repayment */}
+                  {/* Total Financing Cash Outflow */}
                   <div className="p-4 bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl border border-stone-200/80 shadow-xs">
                     <div className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">
-                      Total Repayment Amount
+                      Total Financing Cash Outflow
                     </div>
                     <div className="text-xl font-extrabold text-stone-900 mt-1">
                       {formatCurrencyAmount(loanSummary.totalRepaymentAmount, currency)}
                     </div>
                     <div className="text-[11px] font-semibold text-stone-600 mt-1">
-                      Principal ({formatCurrencyAmount(loanSummary.effectiveLoanAmount, currency)}) + Interest
+                      Scheduled debt payments{!loanParams.includeFeesInLoan && loanSummary.totalFees > 0 ? ' + upfront fees' : ''}
                     </div>
                   </div>
 
@@ -359,7 +362,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-2">
                     <Info className="w-4 h-4 text-indigo-600" />
-                    Bank Fees, Grace Period & Fee Capitalization
+                    Financing Fees, Grace Period & Fee Capitalization
                   </h4>
                 </div>
 
@@ -392,17 +395,45 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      Interest-Only Grace Period
+                      Grace Period Length
                     </label>
                     <select
                       value={loanParams.gracePeriodMonths || 0}
-                      onChange={(e) => updateLoanParams({ gracePeriodMonths: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => {
+                        const months = parseInt(e.target.value, 10) || 0;
+                        updateLoanParams({
+                          gracePeriodMonths: months,
+                          gracePeriodType: months === 0
+                            ? 'none'
+                            : (loanParams.gracePeriodType === 'full_defer' ? 'full_defer' : 'interest_only')
+                        });
+                      }}
                       className="w-full px-2.5 py-1 text-xs bg-white border border-stone-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     >
                       <option value={0}>None (Immediate Repayment)</option>
                       <option value={3}>3 Months Moratorium</option>
                       <option value={6}>6 Months Moratorium</option>
                       <option value={12}>12 Months Moratorium</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                      Grace Period Type
+                    </label>
+                    <select
+                      value={(loanParams.gracePeriodMonths || 0) > 0
+                        ? (loanParams.gracePeriodType === 'full_defer' ? 'full_defer' : 'interest_only')
+                        : 'none'}
+                      disabled={(loanParams.gracePeriodMonths || 0) === 0}
+                      onChange={(e) => updateLoanParams({
+                        gracePeriodType: e.target.value as 'none' | 'interest_only' | 'full_defer'
+                      })}
+                      className="w-full px-2.5 py-1 text-xs bg-white border border-stone-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:bg-stone-100 disabled:text-stone-400"
+                    >
+                      <option value="none">No Grace Period</option>
+                      <option value="interest_only">Interest Only</option>
+                      <option value="full_defer">Full Payment Deferral</option>
                     </select>
                   </div>
 
@@ -430,7 +461,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                         Complete Loan Repayment Ledger ({loanSummary.schedule.length} Periods)
                       </h4>
                       <p className="text-[11px] text-stone-500">
-                        Detailed breakdown showing the exact interest earned by the bank and principal amortized each period.
+                        Detailed breakdown of interest accrued, cash interest paid, capitalized interest, principal repayment, and ending balance.
                       </p>
                     </div>
 
@@ -462,7 +493,9 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                           <th className="py-2.5 px-3">No.</th>
                           <th className="py-2.5 px-3">Payment Date</th>
                           <th className="py-2.5 px-3 text-right">Beginning Balance</th>
+                          <th className="py-2.5 px-3 text-right text-amber-200">Interest Accrued</th>
                           <th className="py-2.5 px-3 text-right text-amber-300">Interest Paid</th>
+                          <th className="py-2.5 px-3 text-right text-orange-300">Capitalized Interest</th>
                           <th className="py-2.5 px-3 text-right text-emerald-300">Principal Repaid</th>
                           <th className="py-2.5 px-3 text-right text-indigo-300">Payment Amount</th>
                           <th className="py-2.5 px-3 text-right">Ending Balance</th>
@@ -475,7 +508,9 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                             <td className="py-2 px-3 font-bold text-stone-500">{row.period}</td>
                             <td className="py-2 px-3 text-stone-600 font-mono text-[11px]">{row.paymentDate}</td>
                             <td className="py-2 px-3 text-right font-mono">{formatCurrencyAmount(row.beginningBalance, currency)}</td>
+                            <td className="py-2 px-3 text-right font-mono text-amber-700">{formatCurrencyAmount(row.interestAccrued ?? row.interestPaid, currency)}</td>
                             <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{formatCurrencyAmount(row.interestPaid, currency)}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-orange-700">{formatCurrencyAmount(row.capitalizedInterest ?? 0, currency)}</td>
                             <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{formatCurrencyAmount(row.principalPaid, currency)}</td>
                             <td className="py-2 px-3 text-right font-mono font-extrabold text-indigo-900">{formatCurrencyAmount(row.paymentAmount, currency)}</td>
                             <td className="py-2 px-3 text-right font-mono text-stone-600">{formatCurrencyAmount(row.endingBalance, currency)}</td>

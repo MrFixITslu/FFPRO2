@@ -119,9 +119,9 @@ export function normalizeCostItemToCurrency(
   targetCurrency: CurrencyCode = 'USD',
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): StartupCostItem {
-  const itemCurrency: CurrencyCode = item.currency || 'USD';
+  const itemCurrency: CurrencyCode = item.currency || targetCurrency;
   if (itemCurrency === targetCurrency) {
-    return { ...item };
+    return { ...item, currency: item.currency || targetCurrency };
   }
 
   const convert = (val: number | undefined) =>
@@ -177,8 +177,8 @@ export function normalizeGoodsProductToCurrency(
   targetCurrency: CurrencyCode = 'USD',
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): GoodsProduct {
-  const itemCurrency: CurrencyCode = prod.currency || 'USD';
-  if (itemCurrency === targetCurrency) return { ...prod };
+  const itemCurrency: CurrencyCode = prod.currency || targetCurrency;
+  if (itemCurrency === targetCurrency) return { ...prod, currency: prod.currency || targetCurrency };
 
   return {
     ...prod,
@@ -196,8 +196,8 @@ export function normalizeServiceOfferingToCurrency(
   targetCurrency: CurrencyCode = 'USD',
   rate: number = DEFAULT_USD_TO_XCD_RATE
 ): ServiceOffering {
-  const itemCurrency: CurrencyCode = service.currency || 'USD';
-  if (itemCurrency === targetCurrency) return { ...service };
+  const itemCurrency: CurrencyCode = service.currency || targetCurrency;
+  if (itemCurrency === targetCurrency) return { ...service, currency: service.currency || targetCurrency };
 
   return {
     ...service,
@@ -259,6 +259,6 @@ export function normalizeCostItemAmount(
     rawVal = item.amount ?? 0;
   }
 
-  const itemCurrency: CurrencyCode = item.currency || 'XCD';
+  const itemCurrency: CurrencyCode = item.currency || targetCurrency;
   return convertCurrency(rawVal, itemCurrency, targetCurrency, rate);
 }

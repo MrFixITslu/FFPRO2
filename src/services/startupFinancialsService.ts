@@ -38,8 +38,28 @@ export function roundCurrency(value: number): number {
  * Cents-safe sum
  */
 export function sumCurrency(...values: (number | undefined)[]): number {
-  const sum = values.reduce<number>((acc, v) => acc + (v || 0), 0);
+  const sum = values.reduce<number>((acc, v) => acc + (v ?? 0), 0);
   return roundCurrency(sum);
+}
+
+export function getDefaultServiceUnitLabel(model?: ServiceRevenueModel): string {
+  switch (model) {
+    case 'hourly': return 'Billable Hours';
+    case 'project': return 'Projects';
+    case 'retainer': return 'Retained Clients';
+    case 'subscription': return 'Subscribers';
+    case 'commission': return 'Deals';
+    case 'rental': return 'Rental Days';
+    case 'event': return 'Events';
+    case 'package': return 'Packages';
+    case 'per_participant': return 'Participants';
+    default: return 'Service Units';
+  }
+}
+
+export function getServiceOfferingUnitLabel(offering?: Pick<ServiceOffering, 'unitLabel' | 'revenueModel'>): string {
+  const customLabel = offering?.unitLabel?.trim();
+  return customLabel || getDefaultServiceUnitLabel(offering?.revenueModel);
 }
 
 export interface DutyPresetRates {
@@ -479,7 +499,11 @@ export function calculateMonthlyOperatingExpenses(sd?: StartupPlanDetails): Mont
     };
   }
 
-  const explicitCostItems = sd.costItems || [];
+  const activeCurrency = sd.displayCurrency || 'USD';
+  const activeRate = sd.exchangeRate || DEFAULT_USD_TO_XCD_RATE;
+  const explicitCostItems = (sd.costItems || []).map((item) =>
+    normalizeCostItemToCurrency(item, activeCurrency, activeRate)
+  );
   const operatingCostItems = explicitCostItems.filter((i) => i.classification === 'operating');
 
   if (operatingCostItems.length > 0) {
@@ -692,7 +716,12 @@ export function calculateLoanAmortizationSchedule(
     return null;
   }
 
-  const rawAmount = params.loanAmount || 0;
+  // Parameters are already stored in the plan's active currency. targetCurrency/exchangeRate are
+  // retained for API compatibility and for callers that display the resulting schedule.
+  void targetCurrency;
+  void exchangeRate;
+
+  const rawAmount = params.loanAmount ?? 0;
   const rawNegFee = params.negotiationFee !== undefined && params.negotiationFee !== null
     ? params.negotiationFee
     : (params.negotiationFeePercent ? (rawAmount * params.negotiationFeePercent) / 100 : 0);
@@ -708,7 +737,7 @@ export function calculateLoanAmortizationSchedule(
   const includeFeesInLoan = params.includeFeesInLoan ?? false;
   const effectiveLoanAmount = includeFeesInLoan ? roundCurrency(loanAmount + totalFees) : loanAmount;
 
-  const annualInterestRate = params.annualInterestRate ?? 7.0; // e.g. 7%
+  const annualInterestRate = Math.max(0, params.annualInterestRate ?? 7.0);
   const termYears = Math.max(1, params.termYears ?? 5);
   const paymentFrequency: PaymentFrequency = params.paymentFrequency || 'monthly';
 
@@ -719,52 +748,91 @@ export function calculateLoanAmortizationSchedule(
   const totalPeriods = termYears * paymentsPerYear;
   const periodInterestRate = (annualInterestRate / 100) / paymentsPerYear;
 
-  const graceMonths = params.gracePeriodMonths || 0;
-  const gracePeriods = Math.round(graceMonths * (paymentsPerYear / 12));
+  const graceMonths = Math.max(0, params.gracePeriodMonths ?? 0);
+  const requestedGracePeriods = Math.round(graceMonths * (paymentsPerYear / 12));
+  const gracePeriods = Math.min(Math.max(0, requestedGracePeriods), Math.max(0, totalPeriods - 1));
   const activeRepaymentPeriods = Math.max(1, totalPeriods - gracePeriods);
-  const gracePeriodType = params.gracePeriodType || (graceMonths > 0 ? 'interest_only' : 'none');
+  const gracePeriodType = gracePeriods > 0
+    ? (params.gracePeriodType === 'full_defer' ? 'full_defer' : 'interest_only')
+    : 'none';
 
-  // Periodic payment calculation (PMT formula)
+  // A full-payment deferral capitalizes accrued interest into the balance.
+  // Compute the post-grace balance first so the regular payment fully amortizes the debt
+  // rather than creating an unintended balloon in the final period.
+  const repaymentOpeningBalance =
+    gracePeriodType === 'full_defer' && gracePeriods > 0 && periodInterestRate > 0
+      ? roundCurrency(effectiveLoanAmount * Math.pow(1 + periodInterestRate, gracePeriods))
+      : effectiveLoanAmount;
+
   let periodicPayment = 0;
   if (periodInterestRate > 0) {
     const factor = Math.pow(1 + periodInterestRate, activeRepaymentPeriods);
-    periodicPayment = roundCurrency(effectiveLoanAmount * (periodInterestRate * factor) / (factor - 1));
+    periodicPayment = roundCurrency(
+      repaymentOpeningBalance * (periodInterestRate * factor) / (factor - 1)
+    );
   } else {
-    periodicPayment = roundCurrency(effectiveLoanAmount / activeRepaymentPeriods);
+    periodicPayment = roundCurrency(repaymentOpeningBalance / activeRepaymentPeriods);
   }
+
+  const parseScheduleDate = (value?: string): Date => {
+    if (!value) return new Date();
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (iso) {
+      return new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+
+  const addMonthsClampedUtc = (base: Date, offset: number): Date => {
+    const day = base.getUTCDate();
+    const firstOfTarget = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + offset, 1));
+    const lastDay = new Date(Date.UTC(
+      firstOfTarget.getUTCFullYear(),
+      firstOfTarget.getUTCMonth() + 1,
+      0
+    )).getUTCDate();
+    firstOfTarget.setUTCDate(Math.min(day, lastDay));
+    return firstOfTarget;
+  };
 
   const schedule: AmortizationScheduleRow[] = [];
   let currentBalance = effectiveLoanAmount;
   let cumulativeInterest = 0;
 
-  const paymentDateStr = params.firstPaymentDate || params.startDate;
-  const startDateObj = paymentDateStr ? new Date(paymentDateStr) : new Date();
+  const paymentDateStr = params.firstPaymentDate || params.startDate || params.disbursementDate;
+  const startDateObj = parseScheduleDate(paymentDateStr);
 
   for (let p = 1; p <= totalPeriods; p++) {
-    const periodDate = new Date(startDateObj);
+    let periodDate: Date;
     if (paymentFrequency === 'monthly') {
-      periodDate.setMonth(periodDate.getMonth() + (p - 1));
-    } else if (paymentFrequency === 'fortnightly') {
-      periodDate.setDate(periodDate.getDate() + (p - 1) * 14);
+      periodDate = addMonthsClampedUtc(startDateObj, p - 1);
     } else {
-      periodDate.setDate(periodDate.getDate() + (p - 1) * 7);
+      periodDate = new Date(startDateObj.getTime());
+      const daysToAdd = (p - 1) * (paymentFrequency === 'fortnightly' ? 14 : 7);
+      periodDate.setUTCDate(periodDate.getUTCDate() + daysToAdd);
     }
     const dateStr = periodDate.toISOString().split('T')[0];
 
     const beginningBalance = currentBalance;
-    const interestPaid = roundCurrency(beginningBalance * periodInterestRate);
+    const interestAccrued = roundCurrency(beginningBalance * periodInterestRate);
 
     let paymentAmount = 0;
+    let interestPaid = interestAccrued;
+    let capitalizedInterest = 0;
     let principalPaid = 0;
+    let endingBalance = beginningBalance;
 
     if (p <= gracePeriods) {
       if (gracePeriodType === 'full_defer') {
         paymentAmount = 0;
-        principalPaid = 0;
+        interestPaid = 0;
+        capitalizedInterest = interestAccrued;
+        endingBalance = roundCurrency(beginningBalance + capitalizedInterest);
       } else {
-        // 'interest_only'
+        // Interest-only grace: interest is paid in cash and principal remains unchanged.
         paymentAmount = interestPaid;
-        principalPaid = 0;
+        endingBalance = beginningBalance;
       }
     } else {
       paymentAmount = periodicPayment;
@@ -774,10 +842,11 @@ export function calculateLoanAmortizationSchedule(
         principalPaid = beginningBalance;
         paymentAmount = roundCurrency(principalPaid + interestPaid);
       }
+
+      endingBalance = Math.max(0, roundCurrency(beginningBalance - principalPaid));
     }
 
-    const endingBalance = Math.max(0, roundCurrency(beginningBalance - principalPaid));
-    cumulativeInterest = roundCurrency(cumulativeInterest + interestPaid);
+    cumulativeInterest = roundCurrency(cumulativeInterest + interestAccrued);
     currentBalance = endingBalance;
 
     schedule.push({
@@ -785,15 +854,22 @@ export function calculateLoanAmortizationSchedule(
       paymentDate: dateStr,
       beginningBalance,
       paymentAmount,
+      interestAccrued,
       interestPaid,
+      capitalizedInterest,
       principalPaid,
       endingBalance,
       cumulativeInterest
     });
   }
 
-  const totalRepaymentAmount = roundCurrency(schedule.reduce((sum, row) => sum + row.paymentAmount, 0) + (includeFeesInLoan ? 0 : totalFees));
-  const totalInterestPaid = roundCurrency(schedule.reduce((sum, row) => sum + row.interestPaid, 0));
+  const totalRepaymentAmount = roundCurrency(
+    schedule.reduce((sum, row) => sum + row.paymentAmount, 0) +
+    (includeFeesInLoan ? 0 : totalFees)
+  );
+  const totalInterestPaid = roundCurrency(
+    schedule.reduce((sum, row) => sum + (row.interestAccrued ?? row.interestPaid), 0)
+  );
 
   const year1Rows = schedule.slice(0, paymentsPerYear);
   const annualDebtService = roundCurrency(year1Rows.reduce((sum, row) => sum + row.paymentAmount, 0));
@@ -883,38 +959,26 @@ export function generateStartupFinancialForecast(
     normalizeGoodsProductToCurrency(p, activeCurrency, activeRate)
   );
   if (goodsProducts.length === 0 && (modelType === 'goods' || modelType === 'both')) {
-    const rawPrice = sd?.cogs ? sd.cogs * (1 + (sd.markup || 50) / 100) : 25;
+    const rawCogs = sd?.cogs ?? 0;
+    const rawPrice = rawCogs > 0 ? rawCogs * (1 + ((sd?.markup ?? 0) / 100)) : 0;
     const defaultPrice = convertCurrency(rawPrice, 'USD', activeCurrency, activeRate);
     goodsProducts = [
       {
         id: 'default-goods-1',
         name: goodsType === 'make' ? 'Core Manufactured Product' : 'Core Resale Merchandise',
         sellingPrice: roundCurrency(defaultPrice),
-        monthlySalesVolume: sd?.monthlyVolume || 500,
-        monthlyGrowthRatePercent: 2, // 2% MoM default
-        annualGrowthRatePercent: sd?.growthRateYear3 || 15
+        monthlySalesVolume: sd?.monthlyVolume ?? 0,
+        monthlyGrowthRatePercent: 0,
+        annualGrowthRatePercent: sd?.growthRateYear3 ?? 0
       }
     ];
   }
 
-  // Baseline Service Offerings (normalized)
-  let serviceOfferings: ServiceOffering[] = (sd?.serviceOfferings || []).map((s) =>
+  // Baseline Service Offerings (normalized).
+  // Do not invent a default service, rate, or volume: missing service inputs must remain visibly incomplete.
+  const serviceOfferings: ServiceOffering[] = (sd?.serviceOfferings || []).map((s) =>
     normalizeServiceOfferingToCurrency(s, activeCurrency, activeRate)
   );
-  if (serviceOfferings.length === 0 && (modelType === 'services' || modelType === 'both')) {
-    serviceOfferings = [
-      {
-        id: 'default-service-1',
-        name: 'Core Service Offering',
-        revenueModel: 'project',
-        rate: convertCurrency(250, 'USD', activeCurrency, activeRate),
-        expectedVolume: 20,
-        monthlyGrowthRatePercent: 2,
-        annualGrowthRatePercent: sd?.growthRateYear3 || 15,
-        directCostPerUnitOrJob: convertCurrency(35, 'USD', activeCurrency, activeRate)
-      }
-    ];
-  }
 
   // Calculate monthly depreciation for equipment
   const equipmentDeprecations = equipmentItems.map((item) => {
@@ -968,9 +1032,10 @@ export function generateStartupFinancialForecast(
     if (modelType === 'services' || modelType === 'both') {
       serviceOfferings.forEach((s) => {
         const growthMoM = (s.monthlyGrowthRatePercent ?? 0) / 100;
-        const volume_m = Math.round((s.expectedVolume || 10) * Math.pow(1 + growthMoM, monthIndex));
+        const baseVolume = Math.max(0, s.expectedVolume ?? 0);
+        const volume_m = Math.round(baseVolume * Math.pow(1 + growthMoM, monthIndex));
         serviceUnits += volume_m;
-        servicesRev += roundCurrency(volume_m * s.rate);
+        servicesRev += roundCurrency(volume_m * Math.max(0, s.rate ?? 0));
       });
     }
 
@@ -1006,7 +1071,8 @@ export function generateStartupFinancialForecast(
     serviceOfferings.forEach((s) => {
       if (s.directCostPerUnitOrJob) {
         const growthMoM = (s.monthlyGrowthRatePercent ?? 0) / 100;
-        const volume_m = Math.round((s.expectedVolume || 10) * Math.pow(1 + growthMoM, monthIndex));
+        const baseVolume = Math.max(0, s.expectedVolume ?? 0);
+        const volume_m = Math.round(baseVolume * Math.pow(1 + growthMoM, monthIndex));
         directCostsTotal += roundCurrency(volume_m * s.directCostPerUnitOrJob);
       }
     });
@@ -1067,14 +1133,16 @@ export function generateStartupFinancialForecast(
 
     let mInterest = 0;
     let mPrincipal = 0;
+    let mDebtServiceCash = 0;
     if (loanSummary && loanSummary.schedule.length > 0) {
       const pPerYear = loanSummary.schedule.length / (sd?.loanParameters?.termYears || 5);
       const pPerMonth = pPerYear / 12;
       const startP = Math.floor((m - 1) * pPerMonth);
       const endP = Math.floor(m * pPerMonth);
       const mRows = loanSummary.schedule.slice(startP, endP);
-      mInterest = roundCurrency(mRows.reduce((sum, r) => sum + r.interestPaid, 0));
+      mInterest = roundCurrency(mRows.reduce((sum, r) => sum + (r.interestAccrued ?? r.interestPaid), 0));
       mPrincipal = roundCurrency(mRows.reduce((sum, r) => sum + r.principalPaid, 0));
+      mDebtServiceCash = roundCurrency(mRows.reduce((sum, r) => sum + r.paymentAmount, 0));
     }
 
     const netProfit = roundCurrency(grossProfit - totalOpEx - activeDepreciation - mInterest);
@@ -1097,8 +1165,7 @@ export function generateStartupFinancialForecast(
       directCostsTotal,
       monthlyRecurringOpEx,
       thisMonthSetupExpenses,
-      mInterest,
-      mPrincipal,
+      mDebtServiceCash,
       loanUpfrontFeeCash
     );
     const monthlyNetCashFlow = roundCurrency(cashInflow - cashOutflow);
@@ -1134,7 +1201,7 @@ export function generateStartupFinancialForecast(
       billableHoursOrJobs: serviceUnits,
       loanInterestExpense: mInterest,
       loanPrincipalRepayment: mPrincipal,
-      totalDebtService: roundCurrency(mInterest + mPrincipal)
+      totalDebtService: mDebtServiceCash
     });
   }
 
@@ -1146,7 +1213,7 @@ export function generateStartupFinancialForecast(
   const totalDeprecY1 = monthlyYear1.reduce((sum, m) => sum + m.depreciation, 0);
   const totalInterestY1 = monthlyYear1.reduce((sum, m) => sum + (m.loanInterestExpense || 0), 0);
   const totalPrincipalY1 = monthlyYear1.reduce((sum, m) => sum + (m.loanPrincipalRepayment || 0), 0);
-  const totalDebtServiceY1 = roundCurrency(totalInterestY1 + totalPrincipalY1);
+  const totalDebtServiceY1 = roundCurrency(monthlyYear1.reduce((sum, m) => sum + (m.totalDebtService || 0), 0));
   const totalNetY1 = roundCurrency(totalGrossY1 - totalOpExY1 - totalDeprecY1 - totalInterestY1);
   const totalCashInflowY1 = monthlyYear1.reduce((sum, m) => sum + m.cashInflow, 0);
   const totalCashOutflowY1 = monthlyYear1.reduce((sum, m) => sum + m.cashOutflow, 0);
@@ -1188,14 +1255,15 @@ export function generateStartupFinancialForecast(
   const growthY5Percent = sd?.growthRateYear5 ?? 35;
 
   for (let year = 2; year <= 5; year++) {
-    // Determine annual revenue growth rate
-    let annualGrowth = growthY3Percent / 100;
-    if (year >= 4) {
-      annualGrowth = (growthY5Percent - growthY3Percent) / 2 / 100;
-    }
+    // growthRateYear3 / growthRateYear5 are cumulative targets relative to Year 1.
+    // Interpolate the in-between years instead of compounding the target percentage every year.
+    let cumulativeGrowthPercent = 0;
+    if (year === 2) cumulativeGrowthPercent = growthY3Percent / 2;
+    else if (year === 3) cumulativeGrowthPercent = growthY3Percent;
+    else if (year === 4) cumulativeGrowthPercent = growthY3Percent + ((growthY5Percent - growthY3Percent) / 2);
+    else cumulativeGrowthPercent = growthY5Percent;
 
-    const prevYear = yearlyProjections[year - 2];
-    const yearRevenue = roundCurrency(prevYear.revenue * (1 + annualGrowth));
+    const yearRevenue = roundCurrency(totalRevenueY1 * (1 + (cumulativeGrowthPercent / 100)));
     // Variable COGS scales with revenue
     const cogsRatio = totalRevenueY1 > 0 ? totalCogsY1 / totalRevenueY1 : 0.4;
     const yearCogs = roundCurrency(yearRevenue * cogsRatio);
@@ -1212,20 +1280,22 @@ export function generateStartupFinancialForecast(
 
     let yearInterest = 0;
     let yearPrincipal = 0;
+    let yearDebtService = 0;
     if (loanSummary && loanSummary.schedule.length > 0) {
       const pPerYear = Math.round(loanSummary.schedule.length / (sd?.loanParameters?.termYears || 5));
       const startP = (year - 1) * pPerYear;
       const endP = Math.min(loanSummary.schedule.length, year * pPerYear);
       const yRows = loanSummary.schedule.slice(startP, endP);
-      yearInterest = roundCurrency(yRows.reduce((sum, r) => sum + r.interestPaid, 0));
+      yearInterest = roundCurrency(yRows.reduce((sum, r) => sum + (r.interestAccrued ?? r.interestPaid), 0));
       yearPrincipal = roundCurrency(yRows.reduce((sum, r) => sum + r.principalPaid, 0));
+      yearDebtService = roundCurrency(yRows.reduce((sum, r) => sum + r.paymentAmount, 0));
     }
 
     const yearNetProfit = roundCurrency(yearGrossProfit - yearOpEx - yearDepreciation - yearInterest);
     const netMargin = yearRevenue > 0 ? roundCurrency((yearNetProfit / yearRevenue) * 100) : 0;
 
     // Cash flow in Year 2+: no new equipment cash outlay unless replacement; depreciation is non-cash
-    const yearCashFlow = roundCurrency(yearRevenue - yearCogs - yearOpEx - yearInterest - yearPrincipal);
+    const yearCashFlow = roundCurrency(yearRevenue - yearCogs - yearOpEx - yearDebtService);
     previousCashBalance = roundCurrency(previousCashBalance + yearCashFlow);
 
     yearlyProjections.push({
@@ -1242,7 +1312,7 @@ export function generateStartupFinancialForecast(
       endingCashBalance: previousCashBalance,
       loanInterestExpense: yearInterest,
       loanPrincipalRepayment: yearPrincipal,
-      totalDebtService: roundCurrency(yearInterest + yearPrincipal)
+      totalDebtService: yearDebtService
     });
   }
 
@@ -1256,7 +1326,7 @@ export function generateStartupFinancialForecast(
   const averageMonthlyCOGS = totalCogsY1 / 12;
   const contributionMarginRatio = averageMonthlyRevenue > 0
     ? (averageMonthlyRevenue - averageMonthlyCOGS) / averageMonthlyRevenue
-    : 0.5;
+    : 0;
 
   const breakEvenRevenueMonthly = contributionMarginRatio > 0
     ? roundCurrency(averageMonthlyFixedCosts / contributionMarginRatio)
@@ -1268,51 +1338,39 @@ export function generateStartupFinancialForecast(
   let breakEvenUnitsMonthly = 0;
 
   if (modelType === 'goods') {
-    metricLabel = goodsType === 'make' ? 'manufactured units' : 'merchandise units';
+    metricLabel = goodsType === 'make' ? 'Manufactured Units' : 'Merchandise Units';
     const firstProduct = goodsProducts[0];
-    unitPrice = firstProduct ? firstProduct.sellingPrice : 25;
-    const cogsUnit = totalSalesUnitsYear1 > 0 ? totalCogsY1 / totalSalesUnitsYear1 : (sd?.cogs || 10);
+    unitPrice = firstProduct?.sellingPrice ?? 0;
+    const cogsUnit = totalSalesUnitsYear1 > 0 ? totalCogsY1 / totalSalesUnitsYear1 : (sd?.cogs ?? 0);
     unitVariableCost = roundCurrency(cogsUnit);
-    const unitContribution = Math.max(0.01, unitPrice - unitVariableCost);
-    breakEvenUnitsMonthly = Math.ceil(averageMonthlyFixedCosts / unitContribution);
+    const unitContribution = unitPrice - unitVariableCost;
+    breakEvenUnitsMonthly = unitContribution > 0
+      ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
+      : 0;
   } else if (modelType === 'services') {
     const firstService = serviceOfferings[0];
-    const revModel = firstService?.revenueModel || 'project';
-    if (firstService?.unitLabel) {
-      metricLabel = firstService.unitLabel;
-    } else if (revModel === 'hourly') {
-      metricLabel = 'billable hours';
-    } else if (revModel === 'retainer') {
-      metricLabel = 'monthly retained clients';
-    } else if (revModel === 'subscription') {
-      metricLabel = 'active subscribers';
-    } else if (revModel === 'rental') {
-      metricLabel = 'rental days / units';
-    } else if (revModel === 'event') {
-      metricLabel = 'events';
-    } else if (revModel === 'package') {
-      metricLabel = 'packages';
-    } else if (revModel === 'per_participant') {
-      metricLabel = 'participants';
-    } else {
-      metricLabel = 'completed projects';
-    }
+    metricLabel = getServiceOfferingUnitLabel(firstService);
 
-    unitPrice = firstService ? firstService.rate : 200;
-    unitVariableCost = firstService?.directCostPerUnitOrJob ?? 25;
-    const unitContribution = Math.max(0.01, unitPrice - unitVariableCost);
-    breakEvenUnitsMonthly = Math.ceil(averageMonthlyFixedCosts / unitContribution);
+    unitPrice = firstService?.rate ?? 0;
+    unitVariableCost = firstService?.directCostPerUnitOrJob ?? 0;
+    const unitContribution = unitPrice - unitVariableCost;
+    breakEvenUnitsMonthly = unitContribution > 0
+      ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
+      : 0;
   } else {
     // Hybrid / Both
-    metricLabel = 'combined client orders & units';
-    unitPrice = averageMonthlyRevenue > 0 && (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1) > 0
-      ? roundCurrency(totalRevenueY1 / (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1))
-      : 50;
-    unitVariableCost = (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1) > 0
-      ? roundCurrency(totalCogsY1 / (totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1))
-      : 20;
-    const unitContribution = Math.max(0.01, unitPrice - unitVariableCost);
-    breakEvenUnitsMonthly = Math.ceil(averageMonthlyFixedCosts / unitContribution);
+    metricLabel = 'Combined Product & Service Units';
+    const totalActivityUnits = totalSalesUnitsYear1 + totalServiceHoursOrJobsYear1;
+    unitPrice = averageMonthlyRevenue > 0 && totalActivityUnits > 0
+      ? roundCurrency(totalRevenueY1 / totalActivityUnits)
+      : 0;
+    unitVariableCost = totalActivityUnits > 0
+      ? roundCurrency(totalCogsY1 / totalActivityUnits)
+      : 0;
+    const unitContribution = unitPrice - unitVariableCost;
+    breakEvenUnitsMonthly = unitContribution > 0
+      ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
+      : 0;
   }
 
   const unitContributionMargin = roundCurrency(unitPrice - unitVariableCost);

@@ -17,7 +17,11 @@ import {
   ShadingType
 } from 'docx';
 import { BudgetEvent, StartupPlanDetails, BusinessPlanSections } from '../types';
-import { calculateMonthlyOperatingExpenses } from './startupFinancialsService';
+import {
+  calculateMonthlyOperatingExpenses,
+  generateStartupFinancialForecast,
+  getServiceOfferingUnitLabel
+} from './startupFinancialsService';
 
 export interface BusinessPlanCalculations {
   costOfGoodsSoldUnit: number;
@@ -93,84 +97,54 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
     return sum + ((cost - res) / life);
   }, 0);
 
-  // Check if service-based business logic applies
-  if (isServices && (sd?.serviceOfferings?.length || sd?.serviceCapacityPlan)) {
-    const offerings = sd.serviceOfferings || [];
-    let totalMonthlyServiceRev = 0;
-    let totalMonthlyDirectCosts = 0;
-    let totalMonthlySessions = 0;
+  // Service and hybrid plans use the authoritative forecast engine so currency conversion,
+  // month-over-month growth, financing, and annual targets remain consistent across the app and exports.
+  if (isServices) {
+    const activeCurrency = sd?.displayCurrency || 'USD';
+    const activeRate = sd?.exchangeRate || 2.70;
+    const forecast = generateStartupFinancialForecast(sd, activeCurrency, activeRate);
+    const month1 = forecast.monthlyYear1[0];
+    const y1 = forecast.yearlyProjections.find((p) => p.year === 1) || forecast.yearlyProjections[0];
+    const y3 = forecast.yearlyProjections.find((p) => p.year === 3) || y1;
+    const y5 = forecast.yearlyProjections.find((p) => p.year === 5) || y1;
 
-    offerings.forEach((s) => {
-      const vol = s.expectedVolume || 10;
-      const rate = s.rate || 100;
-      const direct = s.directCostPerUnitOrJob || 0;
-      totalMonthlyServiceRev += vol * rate;
-      totalMonthlyDirectCosts += vol * direct;
-      totalMonthlySessions += vol;
-    });
+    const serviceOfferings = sd?.serviceOfferings || [];
+    const businessModelType = sd?.businessModelType || 'services';
+    const monthlyUnits = businessModelType === 'both'
+      ? (month1?.salesVolumeUnits || 0) + (month1?.billableHoursOrJobs || 0)
+      : (month1?.billableHoursOrJobs || 0);
 
-    // Check equipment rental revenue (only if independent revenue treatment or rental-only)
-    let rentalRevMonthly = 0;
-    const hasOfferings = offerings.length > 0;
-    equipmentItems.forEach((eq) => {
-      const isIndependentRental = eq.rentalRevenueTreatment === 'independent_revenue' ||
-        (Boolean(eq.isRentalRevenueGenerator) && !hasOfferings && eq.rentalRevenueTreatment !== 'capacity_only');
-      if (isIndependentRental && eq.rentalRatePerUnit && eq.rentalUnitsOwned) {
-        const availTime = eq.rentalAvailableTimePerUnit || 25;
-        const util = (eq.rentalUtilisationPercent ?? 50) / 100;
-        const rate = eq.rentalRatePerUnit || 0;
-        rentalRevMonthly += Math.round(eq.rentalUnitsOwned * availTime * util * rate);
-      }
-    });
-
-    totalMonthlyServiceRev += rentalRevMonthly;
-    const monthlyUnits = Math.max(1, totalMonthlySessions);
-    const avgSellingPrice = parseFloat((totalMonthlyServiceRev / monthlyUnits).toFixed(2));
-    const avgDirectCost = parseFloat((totalMonthlyDirectCosts / monthlyUnits).toFixed(2));
+    const monthlyRevenue = month1?.revenue || 0;
+    const monthlyCOGS = month1?.cogs || 0;
+    const monthlyGrossProfit = month1?.grossProfit || 0;
+    const avgSellingPrice = monthlyUnits > 0 ? parseFloat((monthlyRevenue / monthlyUnits).toFixed(2)) : 0;
+    const avgDirectCost = monthlyUnits > 0 ? parseFloat((monthlyCOGS / monthlyUnits).toFixed(2)) : 0;
     const unitContribMargin = parseFloat((avgSellingPrice - avgDirectCost).toFixed(2));
-    const contribMarginPercent = totalMonthlyServiceRev > 0
-      ? Math.round((unitContribMargin / avgSellingPrice) * 100)
+    const grossMarginPercent = monthlyRevenue > 0
+      ? Math.round((monthlyGrossProfit / monthlyRevenue) * 100)
+      : 0;
+    const contribMarginPercent = grossMarginPercent;
+
+    const unitLabels = Array.from(new Set(serviceOfferings.map((s) => getServiceOfferingUnitLabel(s))));
+    const unitLabel = businessModelType === 'both'
+      ? 'Combined Product & Service Units'
+      : (unitLabels.length === 1 ? unitLabels[0] : (unitLabels.length > 1 ? 'Service Units' : 'Service Units'));
+
+    const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
+    const netMarginPercent = monthlyRevenue > 0
+      ? Math.round((monthlyNetOperatingProfit / monthlyRevenue) * 100)
       : 0;
 
-    const primaryOffering = offerings[0];
-    const unitLabel = primaryOffering?.unitLabel || (offerings.length === 1 ? 'Bookings' : 'Bookings / Service Streams');
-
-    const monthlyCOGS = totalMonthlyDirectCosts;
-    const monthlyRevenue = totalMonthlyServiceRev;
-    const monthlyGrossProfit = monthlyRevenue - monthlyCOGS;
-    const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
-    const grossMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyGrossProfit / monthlyRevenue) * 100) : 0;
-    const netMarginPercent = monthlyRevenue > 0 ? Math.round((monthlyNetOperatingProfit / monthlyRevenue) * 100) : 0;
-
-    const g3 = 1 + (sd?.growthRateYear3 || 15) / 100;
-    const g5 = 1 + (sd?.growthRateYear5 || 35) / 100;
-
-    const y1Rev = monthlyRevenue * 12;
-    const y1COGS = monthlyCOGS * 12;
-    const y1Gross = y1Rev - y1COGS;
-    const y1OpEx = monthlyOpExpenses * 12;
-    const y1Net = y1Gross - y1OpEx;
-
-    const y3Rev = y1Rev * g3;
-    const y3COGS = y1COGS * g3;
-    const y3Gross = y3Rev - y3COGS;
-    const y3OpEx = y1OpEx * 1.08;
-    const y3Net = y3Gross - y3OpEx;
-
-    const y5Rev = y1Rev * g5;
-    const y5COGS = y1COGS * g5;
-    const y5Gross = y5Rev - y5COGS;
-    const y5OpEx = y1OpEx * 1.15;
-    const y5Net = y5Gross - y5OpEx;
-
-    // Break-even
-    const beRev = contribMarginPercent > 0 ? Math.round(monthlyOpExpenses / (contribMarginPercent / 100)) : 0;
-    const beUnits = unitContribMargin > 0 ? Math.ceil(monthlyOpExpenses / unitContribMargin) : 0;
+    const y1Ebitda = y1 ? y1.grossProfit - y1.operatingExpenses : 0;
+    const y3Ebitda = y3 ? y3.grossProfit - y3.operatingExpenses : 0;
+    const y5Ebitda = y5 ? y5.grossProfit - y5.operatingExpenses : 0;
 
     return {
       costOfGoodsSoldUnit: avgDirectCost,
       sellingPrice: avgSellingPrice,
-      markupPercent: avgDirectCost > 0 ? parseFloat((((avgSellingPrice - avgDirectCost) / avgDirectCost) * 100).toFixed(1)) : 100,
+      markupPercent: avgDirectCost > 0
+        ? parseFloat((((avgSellingPrice - avgDirectCost) / avgDirectCost) * 100).toFixed(1))
+        : 0,
       monthlyUnits,
       grossMarginPercent,
       netMarginPercent,
@@ -179,21 +153,22 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
       monthlyGrossProfit,
       monthlyOpExpenses,
       monthlyNetOperatingProfit,
-      y1Rev,
-      y3Rev,
-      y5Rev,
-      y1COGS,
-      y3COGS,
-      y5COGS,
-      y1Gross,
-      y3Gross,
-      y5Gross,
-      y1OpEx,
-      y3OpEx,
-      y5OpEx,
-      y1Net,
-      y3Net,
-      y5Net,
+      y1Rev: y1?.revenue || 0,
+      y3Rev: y3?.revenue || 0,
+      y5Rev: y5?.revenue || 0,
+      y1COGS: y1?.cogs || 0,
+      y3COGS: y3?.cogs || 0,
+      y5COGS: y5?.cogs || 0,
+      y1Gross: y1?.grossProfit || 0,
+      y3Gross: y3?.grossProfit || 0,
+      y5Gross: y5?.grossProfit || 0,
+      y1OpEx: y1?.operatingExpenses || 0,
+      y3OpEx: y3?.operatingExpenses || 0,
+      y5OpEx: y5?.operatingExpenses || 0,
+      // These legacy "*Net" fields historically represent operating profit / EBITDA.
+      y1Net: y1Ebitda,
+      y3Net: y3Ebitda,
+      y5Net: y5Ebitda,
       materialsCostPerUnit: avgDirectCost,
       laborCostPerUnit: 0,
       allocatedOverheadPerUnit: 0,
@@ -207,19 +182,20 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
       levyCost: 0,
 
       isServiceBusiness: true,
-      businessModelType: 'services',
+      businessModelType,
       operatingModel: sd?.operatingModel || 'mobile',
       directCostPerUnit: avgDirectCost,
       unitContributionMargin: unitContribMargin,
       contributionMarginPercent: contribMarginPercent,
-      breakEvenRevenueMonthly: beRev,
-      breakEvenUnitsMonthly: beUnits,
-      breakEvenMetricLabel: unitLabel,
+      breakEvenRevenueMonthly: forecast.breakEven.breakEvenRevenueMonthly,
+      breakEvenUnitsMonthly: forecast.breakEven.breakEvenUnitsMonthly,
+      breakEvenMetricLabel: forecast.breakEven.breakEvenMetricLabel || unitLabel,
       revenueUnitLabel: unitLabel,
-      ebitdaYear1: y1Net,
-      ebitYear1: y1Net - totalAnnualDepreciation,
-      depreciationYear1: totalAnnualDepreciation,
-      currencySymbol: sd?.displayCurrency === 'USD' ? 'US$' : 'EC$'
+      ebitdaYear1: y1Ebitda,
+      ebitYear1: y1Ebitda - (y1?.depreciation || 0),
+      depreciationYear1: y1?.depreciation || totalAnnualDepreciation,
+      interestYear1: y1?.loanInterestExpense || 0,
+      currencySymbol: activeCurrency === 'USD' ? 'US$' : 'EC$'
     };
   }
 
@@ -481,6 +457,36 @@ export async function generateBusinessPlanDocx(
   const preparedBy = bp.preparedBy || 'Project Executive';
   const prepDate = bp.preparedDate || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const targetAgency = bp.fundingAgencyOrBank || 'Commercial Lending & Development Agency';
+  const activeCurrency = sd.displayCurrency || 'USD';
+  const activeRate = sd.exchangeRate || 2.70;
+  const currencySymbol = calc.currencySymbol || (activeCurrency === 'XCD' ? 'EC$' : 'US$');
+  const isServicePlan = Boolean(calc.isServiceBusiness);
+  const isHybridPlan = sd.businessModelType === 'both';
+  const financialForecast = generateStartupFinancialForecast(sd, activeCurrency, activeRate);
+  const projectionFor = (yearNumber: number) =>
+    financialForecast.yearlyProjections.find((p) => p.year === yearNumber) ?? financialForecast.yearlyProjections[0]!;
+  const statementFor = (yearNumber: number) => {
+    const projection = projectionFor(yearNumber);
+    const ebitda = projection.grossProfit - projection.operatingExpenses;
+    const depreciation = projection.depreciation || 0;
+    const ebit = ebitda - depreciation;
+    const interest = projection.loanInterestExpense || 0;
+    const profitBeforeTax = ebit - interest;
+    return { ...projection, ebitda, depreciation, ebit, interest, profitBeforeTax };
+  };
+  const y1Statement = statementFor(1);
+  const y3Statement = statementFor(3);
+  const y5Statement = statementFor(5);
+  const year1Volume = financialForecast.monthlyYear1.reduce((sum, month) => {
+    if (sd.businessModelType === 'both') return sum + month.salesVolumeUnits + month.billableHoursOrJobs;
+    return sum + (isServicePlan ? month.billableHoursOrJobs : month.salesVolumeUnits);
+  }, 0);
+  const serviceUnitLabel = calc.revenueUnitLabel || 'Service Units';
+  const volumeLabel = sd.businessModelType === 'both'
+    ? 'Combined Product & Service Units'
+    : (isServicePlan ? serviceUnitLabel : 'Units Sold');
+  const money = (value: number) => `${currencySymbol}${Math.round(value).toLocaleString()}`;
+  const money2 = (value: number) => `${currencySymbol}${value.toFixed(2)}`;
 
   const docChildren: (Paragraph | Table)[] = [];
 
@@ -614,24 +620,24 @@ export async function generateBusinessPlanDocx(
         new TableRow({
           children: [
             createTableCell([
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'RETAIL SALE PRICE', size: 16, color: COLOR_MUTED, bold: true })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${calc.finalSuggestedPrice.toFixed(2)}`, size: 28, bold: true, color: COLOR_PRIMARY })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.markupPercent}% Target Markup`, size: 16, color: COLOR_SECONDARY })] })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: isServicePlan ? (sd.businessModelType === 'both' ? 'BLENDED REVENUE / UNIT' : 'SERVICE RATE / AVG VALUE') : 'RETAIL SALE PRICE', size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: money2(calc.finalSuggestedPrice), size: 28, bold: true, color: COLOR_PRIMARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: isServicePlan ? `${calc.contributionMarginPercent ?? calc.grossMarginPercent}% Contribution Margin` : `${calc.markupPercent}% Target Markup`, size: 16, color: COLOR_SECONDARY })] })
             ], false, 25, AlignmentType.CENTER, { isHighlight: true }),
             createTableCell([
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'UNIT COGS', size: 16, color: COLOR_MUTED, bold: true })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${calc.costOfGoodsSoldUnit.toFixed(2)}`, size: 28, bold: true, color: COLOR_PRIMARY })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.grossMarginPercent}% Gross Margin`, size: 16, color: COLOR_MUTED })] })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: isHybridPlan ? 'BLENDED DIRECT COST / UNIT' : (isServicePlan ? 'DIRECT COST / SERVICE UNIT' : 'UNIT COGS'), size: 16, color: COLOR_MUTED, bold: true })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: money2(calc.costOfGoodsSoldUnit), size: 28, bold: true, color: COLOR_PRIMARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.grossMarginPercent}% ${isServicePlan ? 'Contribution' : 'Gross'} Margin`, size: 16, color: COLOR_MUTED })] })
             ], false, 25, AlignmentType.CENTER),
             createTableCell([
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'YEAR 1 REVENUE', size: 16, color: COLOR_MUTED, bold: true })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${Math.round(calc.y1Rev).toLocaleString()}`, size: 28, bold: true, color: COLOR_PRIMARY })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${Math.round(calc.monthlyUnits * 12).toLocaleString()} Units/Yr`, size: 16, color: COLOR_MUTED })] })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: money(y1Statement.revenue), size: 28, bold: true, color: COLOR_PRIMARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${year1Volume.toLocaleString()} ${volumeLabel}/Yr`, size: 16, color: COLOR_MUTED })] })
             ], false, 25, AlignmentType.CENTER),
             createTableCell([
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'YEAR 1 EBITDA', size: 16, color: COLOR_MUTED, bold: true })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `$${Math.round(calc.y1Net).toLocaleString()}`, size: 28, bold: true, color: COLOR_SECONDARY })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${calc.netMarginPercent}% Operating Margin`, size: 16, color: COLOR_SECONDARY, bold: true })] })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: money(y1Statement.ebitda), size: 28, bold: true, color: COLOR_SECONDARY })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${y1Statement.revenue > 0 ? Math.round((y1Statement.ebitda / y1Statement.revenue) * 100) : 0}% EBITDA Margin`, size: 16, color: COLOR_SECONDARY, bold: true })] })
             ], false, 25, AlignmentType.CENTER, { isHighlight: true })
           ]
         })
@@ -692,18 +698,23 @@ export async function generateBusinessPlanDocx(
   addSection('Startup Requirements & Initial Capitalization', bp.startupRequirements);
 
   // =========================================================================
-  // FINANCIAL SECTION: Costing & Unit Pricing Structure
+  // FINANCIAL SECTION: Pricing / Unit Economics
   // =========================================================================
   docChildren.push(
-    createSectionHeading('Product Costing & Interactive Unit Pricing', String(sectionIndex++)),
-    createParagraph('The following pricing model establishes the cost of goods sold (COGS), labor allocation, overhead sharing, and calculated retail selling price per unit based on commercial accounting principles:')
+    createSectionHeading(
+      isHybridPlan ? 'Hybrid Revenue & Unit Economics' : (isServicePlan ? 'Service Pricing & Unit Economics' : 'Product Costing & Unit Pricing'),
+      String(sectionIndex++)
+    ),
+    createParagraph(isHybridPlan
+      ? 'The following unit economics summarize the combined product-and-service revenue model, blended direct costs, contribution margin, and break-even basis from the configured assumptions.'
+      : (isServicePlan
+        ? 'The following unit economics summarize the configured service rate, direct variable cost, contribution margin, and break-even basis using the service-unit label selected for the business.'
+        : 'The following pricing model summarizes direct product cost, labor allocation, overhead allocation, and calculated selling price from the configured assumptions.'))
   );
 
-  // Quoted Raw Materials Table
   const productionItems = sd.productionItems || [];
-  if (productionItems.length > 0) {
+  if ((!isServicePlan || isHybridPlan) && productionItems.length > 0) {
     docChildren.push(createSubHeading('Direct Materials & Supplier Quoted Inputs'));
-
     const itemRows: TableRow[] = [
       new TableRow({
         children: [
@@ -716,41 +727,73 @@ export async function generateBusinessPlanDocx(
       })
     ];
 
-    productionItems.forEach(item => {
-      itemRows.push(
-        new TableRow({
-          children: [
-            createTableCell(item.name || 'Component'),
-            createTableCell(item.description || item.supplier || '-'),
-            createTableCell(String(item.quantity || 1), false, undefined, AlignmentType.RIGHT),
-            createTableCell(`$${(item.unitCost || item.cost || 0).toFixed(2)}`, false, undefined, AlignmentType.RIGHT),
-            createTableCell(`$${(item.cost || 0).toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
-          ]
-        })
-      );
+    productionItems.forEach((item) => {
+      itemRows.push(new TableRow({
+        children: [
+          createTableCell(item.name || 'Component'),
+          createTableCell(item.description || item.supplier || '-'),
+          createTableCell(String(item.quantity || 1), false, undefined, AlignmentType.RIGHT),
+          createTableCell(money2(item.unitCost || item.cost || 0), false, undefined, AlignmentType.RIGHT),
+          createTableCell(money2(item.cost || 0), false, undefined, AlignmentType.RIGHT)
+        ]
+      }));
     });
 
-    const totalBatchCost = productionItems.reduce((s, it) => s + (it.cost || 0), 0);
-    itemRows.push(
-      new TableRow({
-        children: [
-          createTableCell('Total Material Inputs (Batch Yield)', true, 70),
-          createTableCell('', true, 0),
-          createTableCell('', true, 0),
-          createTableCell('', true, 0),
-          createTableCell(`$${totalBatchCost.toFixed(2)}`, true, 30, AlignmentType.RIGHT)
-        ]
-      })
-    );
-
-    docChildren.push(new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: itemRows
-    }), new Paragraph({ spacing: { after: 180 } }));
+    const totalBatchCost = productionItems.reduce((sum, item) => sum + (item.cost || 0), 0);
+    itemRows.push(new TableRow({
+      children: [
+        createTableCell('Total Material Inputs (Batch Yield)', true, 80),
+        createTableCell(money2(totalBatchCost), true, 20, AlignmentType.RIGHT)
+      ]
+    }));
+    docChildren.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: itemRows }));
+    docChildren.push(new Paragraph({ spacing: { after: 180 } }));
   }
 
-  // Unit Economics Receipt Table
-  const unitBreakdownRows: TableRow[] = [
+  const unitBreakdownRows: TableRow[] = isServicePlan ? [
+    new TableRow({
+      children: [
+        createTableCell(isHybridPlan ? 'Hybrid Unit Economics' : 'Service Unit Economics', true, 60),
+        createTableCell('Value', true, 40, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell(isHybridPlan ? 'Combined Activity Unit Label' : 'Service Unit Label'),
+        createTableCell(serviceUnitLabel, false, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell(isHybridPlan ? 'Average Revenue per Combined Unit' : 'Average Revenue / Rate per Service Unit'),
+        createTableCell(money2(calc.finalSuggestedPrice), false, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell(isHybridPlan ? 'Blended Direct Cost per Combined Unit' : 'Direct Variable Cost per Service Unit'),
+        createTableCell(money2(calc.costOfGoodsSoldUnit), false, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Contribution Margin', true),
+        createTableCell(money2(calc.unitContributionMargin ?? (calc.finalSuggestedPrice - calc.costOfGoodsSoldUnit)), true, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Contribution Margin %'),
+        createTableCell(`${calc.contributionMarginPercent ?? calc.grossMarginPercent}%`, true, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Monthly Break-Even Volume'),
+        createTableCell(`${calc.breakEvenUnitsMonthly || 0} ${calc.breakEvenMetricLabel || serviceUnitLabel}`, true, undefined, AlignmentType.RIGHT)
+      ]
+    })
+  ] : [
     new TableRow({
       children: [
         createTableCell('Unit Pricing Parameter', true, 60),
@@ -760,69 +803,61 @@ export async function generateBusinessPlanDocx(
     new TableRow({
       children: [
         createTableCell('Raw Material Cost per Unit'),
-        createTableCell(`$${calc.materialsCostPerUnit.toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(money2(calc.materialsCostPerUnit), false, undefined, AlignmentType.RIGHT)
       ]
     }),
-    ...(calc.contingencyPercent > 0 ? [
-      new TableRow({
-        children: [
-          createTableCell(`Material Contingency Buffer (${calc.contingencyPercent}%)`),
-          createTableCell(`+$${((calc.materialsCostPerUnit * calc.contingencyPercent) / 100).toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
-        ]
-      })
-    ] : []),
+    ...(calc.contingencyPercent > 0 ? [new TableRow({
+      children: [
+        createTableCell(`Material Contingency Buffer (${calc.contingencyPercent}%)`),
+        createTableCell(`+${money2((calc.materialsCostPerUnit * calc.contingencyPercent) / 100)}`, false, undefined, AlignmentType.RIGHT)
+      ]
+    })] : []),
     new TableRow({
       children: [
         createTableCell('Direct Labor Cost per Unit'),
-        createTableCell(`+$${calc.laborCostPerUnit.toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(`+${money2(calc.laborCostPerUnit)}`, false, undefined, AlignmentType.RIGHT)
       ]
     }),
-    ...(calc.allocatedOverheadPerUnit > 0 ? [
-      new TableRow({
-        children: [
-          createTableCell('Allocated Fixed Monthly Overhead per Unit'),
-          createTableCell(`+$${calc.allocatedOverheadPerUnit.toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
-        ]
-      })
-    ] : []),
+    ...(calc.allocatedOverheadPerUnit > 0 ? [new TableRow({
+      children: [
+        createTableCell('Allocated Fixed Monthly Overhead per Unit'),
+        createTableCell(`+${money2(calc.allocatedOverheadPerUnit)}`, false, undefined, AlignmentType.RIGHT)
+      ]
+    })] : []),
     new TableRow({
       children: [
         createTableCell('Calculated Cost of Goods Sold (COGS)', true),
-        createTableCell(`$${calc.costOfGoodsSoldUnit.toFixed(2)}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell(money2(calc.costOfGoodsSoldUnit), true, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
         createTableCell(`Target Unit Profit Markup (${calc.markupPercent}%)`),
-        createTableCell(`+$${calc.calculatedProfitPerUnit.toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(`+${money2(calc.calculatedProfitPerUnit)}`, false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
         createTableCell('Determined Pre-Tax Retail Price', true),
-        createTableCell(`$${calc.preTaxSellingPrice.toFixed(2)}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell(money2(calc.preTaxSellingPrice), true, undefined, AlignmentType.RIGHT)
       ]
     }),
-    ...(calc.includeLevy ? [
-      new TableRow({
-        children: [
-          createTableCell('Health & Safety Legal Levy (2.5%)'),
-          createTableCell(`+$${calc.levyCost.toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
-        ]
-      })
-    ] : []),
-    ...(calc.includeVat ? [
-      new TableRow({
-        children: [
-          createTableCell('Value Added Tax (VAT 12.5%)'),
-          createTableCell(`+$${calc.vatCost.toFixed(2)}`, false, undefined, AlignmentType.RIGHT)
-        ]
-      })
-    ] : []),
+    ...(calc.includeLevy ? [new TableRow({
+      children: [
+        createTableCell('Health & Security Levy (2.5%)'),
+        createTableCell(`+${money2(calc.levyCost)}`, false, undefined, AlignmentType.RIGHT)
+      ]
+    })] : []),
+    ...(calc.includeVat ? [new TableRow({
+      children: [
+        createTableCell('Value Added Tax (VAT 12.5%)'),
+        createTableCell(`+${money2(calc.vatCost)}`, false, undefined, AlignmentType.RIGHT)
+      ]
+    })] : []),
     new TableRow({
       children: [
         createTableCell('FINAL INVOICE / SALE PRICE', true),
-        createTableCell(`$${calc.finalSuggestedPrice.toFixed(2)}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell(money2(calc.finalSuggestedPrice), true, undefined, AlignmentType.RIGHT)
       ]
     })
   ];
@@ -837,12 +872,11 @@ export async function generateBusinessPlanDocx(
   // =========================================================================
   docChildren.push(
     createSectionHeading('Monthly Operating Expenses & Projections', String(sectionIndex++)),
-    createParagraph('The following schedule outlines recurring fixed overhead expenditures required to maintain business continuity:')
+    createParagraph('The following schedule outlines recurring operating commitments used by the financial forecast:')
   );
 
   const opexResult = calculateMonthlyOperatingExpenses(sd);
   const monthlyTotalOpEx = opexResult.totalMonthlyOperatingExpenses;
-
   const opexRows: TableRow[] = [
     new TableRow({
       children: [
@@ -854,15 +888,15 @@ export async function generateBusinessPlanDocx(
     ...opexResult.operatingExpensesBreakdown.map((item) => new TableRow({
       children: [
         createTableCell(item.name),
-        createTableCell(`$${item.amount.toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${(item.amount * 12).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(money(item.amount), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(item.amount * 12), false, undefined, AlignmentType.RIGHT)
       ]
     })),
     new TableRow({
       children: [
-        createTableCell('TOTAL FIXED OPERATING OVERHEAD', true),
-        createTableCell(`$${monthlyTotalOpEx.toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${(monthlyTotalOpEx * 12).toLocaleString()}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell('TOTAL RECURRING OPERATING OVERHEAD', true),
+        createTableCell(money(monthlyTotalOpEx), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(monthlyTotalOpEx * 12), true, undefined, AlignmentType.RIGHT)
       ]
     })
   ];
@@ -872,89 +906,106 @@ export async function generateBusinessPlanDocx(
     rows: opexRows
   }), new Paragraph({ spacing: { after: 240 } }));
 
-  // Multi-Year P&L Statement
   docChildren.push(
-    createSubHeading('Multi-Year Profit & Loss Projections (Commercial Credit Evaluation)'),
-    createParagraph('Prepared under standard commercial bank criteria modeling 5-year growth trajectory:')
+    createSubHeading('Multi-Year Profit & Loss Projections'),
+    createParagraph('Projections are generated from the configured revenue, direct-cost, operating-expense, growth, depreciation, and financing assumptions:')
   );
-
-  const y1Depr = calc.depreciationYear1 || 0;
-  const y1Ebitda = calc.y1Net;
-  const y1Ebit = Math.round(y1Ebitda - y1Depr);
-  const y3Ebit = Math.round(calc.y3Net - y1Depr);
-  const y5Ebit = Math.round(calc.y5Net - y1Depr);
 
   const pnlRows: TableRow[] = [
     new TableRow({
       children: [
         createTableCell('Profit & Loss Statement Line', true, 40),
         createTableCell('Year 1', true, 20, AlignmentType.RIGHT),
-        createTableCell(`Year 3 (+${sd.growthRateYear3 || 50}% Vol)`, true, 20, AlignmentType.RIGHT),
-        createTableCell(`Year 5 (+${sd.growthRateYear5 || 100}% Vol)`, true, 20, AlignmentType.RIGHT)
+        createTableCell('Year 3', true, 20, AlignmentType.RIGHT),
+        createTableCell('Year 5', true, 20, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Gross Revenue (Unit Sales x Price)', true),
-        createTableCell(`$${Math.round(calc.y1Rev).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y3Rev).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y5Rev).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell('Gross Operating Revenue', true),
+        createTableCell(money(y1Statement.revenue), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.revenue), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.revenue), false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Cost of Goods Sold (COGS)'),
-        createTableCell(`$${Math.round(calc.y1COGS).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y3COGS).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y5COGS).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(isHybridPlan ? 'Direct Product & Service Costs' : (isServicePlan ? 'Direct Variable Service Costs' : 'Cost of Goods Sold (COGS)')),
+        createTableCell(money(y1Statement.cogs), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.cogs), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.cogs), false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Gross Profit Margin', true),
-        createTableCell(`$${Math.round(calc.y1Gross).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y3Gross).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y5Gross).toLocaleString()}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell(isServicePlan ? 'Gross Profit / Contribution Margin' : 'Gross Profit', true),
+        createTableCell(money(y1Statement.grossProfit), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.grossProfit), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.grossProfit), true, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Operating Expenses (Fixed & Variable)'),
-        createTableCell(`$${Math.round(calc.y1OpEx).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y3OpEx).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y5OpEx).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell('Operating Expenses (OpEx)'),
+        createTableCell(money(y1Statement.operatingExpenses), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.operatingExpenses), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.operatingExpenses), false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
         createTableCell('Operating Profit (EBITDA)', true),
-        createTableCell(`$${Math.round(y1Ebitda).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y3Net).toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(calc.y5Net).toLocaleString()}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell(money(y1Statement.ebitda), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.ebitda), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.ebitda), true, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
         createTableCell('Depreciation'),
-        createTableCell(`$${Math.round(y1Depr).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(y1Depr).toLocaleString()}`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${Math.round(y1Depr).toLocaleString()}`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(money(y1Statement.depreciation), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.depreciation), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.depreciation), false, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
-        createTableCell('Net Operating Profit (EBIT)', true),
-        createTableCell(`$${y1Ebit.toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${y3Ebit.toLocaleString()}`, true, undefined, AlignmentType.RIGHT),
-        createTableCell(`$${y5Ebit.toLocaleString()}`, true, undefined, AlignmentType.RIGHT)
+        createTableCell('Operating Profit After Depreciation (EBIT)', true),
+        createTableCell(money(y1Statement.ebit), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.ebit), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.ebit), true, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Loan Interest Expense'),
+        createTableCell(money(y1Statement.interest), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.interest), false, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.interest), false, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Profit Before Tax (EBT)', true),
+        createTableCell(money(y1Statement.profitBeforeTax), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.profitBeforeTax), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.profitBeforeTax), true, undefined, AlignmentType.RIGHT)
+      ]
+    }),
+    new TableRow({
+      children: [
+        createTableCell('Net Profit (Pre-Tax Model)', true),
+        createTableCell(money(y1Statement.netProfit), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y3Statement.netProfit), true, undefined, AlignmentType.RIGHT),
+        createTableCell(money(y5Statement.netProfit), true, undefined, AlignmentType.RIGHT)
       ]
     }),
     new TableRow({
       children: [
         createTableCell('EBITDA Margin %'),
-        createTableCell(`${calc.netMarginPercent}%`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`${calc.y3Rev > 0 ? Math.round((calc.y3Net / calc.y3Rev) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT),
-        createTableCell(`${calc.y5Rev > 0 ? Math.round((calc.y5Net / calc.y5Rev) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT)
+        createTableCell(`${y1Statement.revenue > 0 ? Math.round((y1Statement.ebitda / y1Statement.revenue) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT),
+        createTableCell(`${y3Statement.revenue > 0 ? Math.round((y3Statement.ebitda / y3Statement.revenue) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT),
+        createTableCell(`${y5Statement.revenue > 0 ? Math.round((y5Statement.ebitda / y5Statement.revenue) * 100) : 0}%`, false, undefined, AlignmentType.RIGHT)
       ]
     })
   ];
