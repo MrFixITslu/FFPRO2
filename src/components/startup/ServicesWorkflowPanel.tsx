@@ -865,7 +865,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       />
                       <span className="absolute right-2.5 top-1.5 text-xs text-stone-400 font-bold">%</span>
                     </div>
-                    <p className="text-[10px] text-stone-500">Share of available operating days expected to be in use.</p>
+                    <p className="text-[10px] text-stone-500">Share of available operating time expected to be in use.</p>
                   </div>
 
                   {/* Equipment Field 4: Resource Label */}
@@ -909,6 +909,63 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     />
                     <p className="text-[10px] text-stone-500">Describes what one operating unit can support at the same time.</p>
                   </div>
+
+                  {equipmentPlan.revenueTreatment === 'capacity_only' && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-stone-700">Operating Hours per Day</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          value={equipmentPlan.operatingHoursPerDay ?? 8}
+                          onChange={(e) => handleUpdateEquipmentPlan({
+                            operatingHoursPerDay: Math.max(0, Math.min(24, parseFloat(e.target.value) || 0))
+                          })}
+                          className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        />
+                        <p className="text-[10px] text-stone-500">Scheduled operating hours available on each operating day.</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-stone-700">Service Unit Duration (Hours)</label>
+                        <input
+                          type="number"
+                          min="0.25"
+                          max="24"
+                          step="0.25"
+                          value={equipmentPlan.serviceUnitDurationHours ?? 1}
+                          onChange={(e) => handleUpdateEquipmentPlan({
+                            serviceUnitDurationHours: Math.max(0.25, Math.min(24, parseFloat(e.target.value) || 0.25))
+                          })}
+                          className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        />
+                        <p className="text-[10px] text-stone-500">Time consumed by one session, booking, appointment, or other capacity-bound service unit.</p>
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-bold text-stone-700">Capacity-Bound Service Offering</label>
+                        <select
+                          value={capacityServiceId || ''}
+                          onChange={(e) => handleUpdateEquipmentPlan({
+                            capacityServiceOfferingId: e.target.value || undefined
+                          })}
+                          className="w-full px-3 py-1.5 text-xs font-semibold border border-stone-200 bg-white rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                        >
+                          <option value="">Select service offering</option>
+                          {services.map((service) => (
+                            <option key={service.id} value={service.id}>
+                              {service.name} — {service.expectedVolume ?? 0} {getServiceOfferingUnitLabel(service)}/mo
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-stone-500">
+                          Links planned service volume to this equipment's time capacity without creating a second revenue stream.
+                        </p>
+                      </div>
+                    </>
+                  )}
 
                   {equipmentPlan.revenueTreatment === 'independent_revenue' && (
                     <div 
