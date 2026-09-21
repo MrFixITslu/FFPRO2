@@ -391,7 +391,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       case 'subscription':
         return 'Recurring Subscription';
       case 'rental':
-        return 'Equipment / Facility Rental';
+        return 'Equipment / Facility Rental (Direct Hire)';
       case 'commission':
         return 'Commission / Success Fee';
       case 'event':
@@ -1051,6 +1051,11 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                       {plannedCapacityLoadPercent > 100 && (
                         <span className="font-bold"> — planned volume exceeds configured equipment capacity.</span>
                       )}
+                      {capacityService.revenueModel === 'rental' && (
+                        <div className="mt-1.5 text-[10.5px] font-medium">
+                          This linked service is classified as a direct rental. If the customer is buying a managed session/booking rather than taking possession of the equipment, change its model below to <strong>Event / Session</strong> and set the Unit label to <strong>Sessions</strong> or <strong>Bookings</strong>.
+                        </div>
+                      )}
                     </div>
                   ) : capacityCalc.equipment.revenueTreatment === 'capacity_only' ? (
                     <div className="rounded-lg px-2.5 py-2 bg-stone-50 border border-stone-200 text-stone-600">
@@ -1255,7 +1260,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   <option value="hourly">Hourly Billing</option>
                   <option value="retainer">Monthly Retainer</option>
                   <option value="subscription">Recurring Subscription</option>
-                  <option value="rental">Equipment / Space Rental</option>
+                  <option value="rental">Equipment / Space Rental (Direct Hire)</option>
                   <option value="commission">Commission Fee</option>
                   <option value="event">Per Event / Session</option>
                   <option value="package">Package / Bundle</option>
