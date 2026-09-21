@@ -51,7 +51,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
     annualInterestRate: 7.0,
     termYears: 5,
     paymentFrequency: 'monthly',
-    negotiationFee: 675,
+    negotiationFee: 0,
     insuranceFee: 0,
     includeFeesInLoan: false,
     gracePeriodMonths: 0,
