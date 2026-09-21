@@ -27,6 +27,7 @@ import { roundCurrency } from '../../services/startupFinancialsService';
 import { ImportLandedCostCalculator } from './ImportLandedCostCalculator';
 import {
   DEFAULT_USD_TO_XCD_RATE,
+  coerceCurrencyCode,
   convertCurrency,
   getCurrencySymbol,
   formatCurrencyAmount
@@ -58,7 +59,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   
   // Cost Item Currency (USD vs XCD)
   const [currency, setCurrency] = useState<CurrencyCode>(
-    initialItem?.currency || defaultCurrency || 'XCD'
+    coerceCurrencyCode(initialItem?.currency, defaultCurrency || 'XCD')
   );
 
   // Import Duties & Landed Shipping State
