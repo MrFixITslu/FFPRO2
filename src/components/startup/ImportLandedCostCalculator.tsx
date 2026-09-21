@@ -61,21 +61,45 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
   const [category, setCategory] = useState<ImportDutyCategory>(
     initialImportDetails?.category || initialCategory || 'electronics'
   );
-  const [unitsCount, setUnitsCount] = useState<string>(
-    initialUnitsCount?.toString() || '1'
+  const [quoteEntryMode, setQuoteEntryMode] = useState<'per_unit' | 'package_total'>(
+    initialImportDetails?.quoteEntryMode || 'per_unit'
   );
+  const [unitsCount, setUnitsCount] = useState<string>(
+    (initialImportDetails?.unitsCount ?? initialUnitsCount)?.toString() || '1'
+  );
+  const storedExchangeRate = initialImportDetails?.exchangeRate || 2.70;
+  const initialInvoiceFob = invoiceCurrency === 'USD'
+    ? (initialImportDetails?.fobCostUSD ?? ((initialImportDetails?.fobCost ?? 0) / storedExchangeRate))
+    : (initialImportDetails?.fobCost ?? 0);
   const [unitFobCost, setUnitFobCost] = useState<string>(
-    initialImportDetails?.fobCostUSD && initialUnitsCount
-      ? (initialImportDetails.fobCostUSD / (initialUnitsCount || 1)).toString()
-      : initialImportDetails?.fobCost && initialUnitsCount
-      ? (initialImportDetails.fobCost / (initialUnitsCount || 1) / (invoiceCurrency === 'USD' ? 2.70 : 1)).toString()
+    initialInvoiceFob > 0
+      ? (initialInvoiceFob / Math.max(1, initialImportDetails?.unitsCount ?? initialUnitsCount ?? 1)).toString()
       : initialFobUnitCost?.toString() || '500'
   );
+  const [packageFobCost, setPackageFobCost] = useState<string>(
+    initialInvoiceFob > 0
+      ? initialInvoiceFob.toString()
+      : roundCurrency((initialFobUnitCost || 0) * Math.max(1, initialUnitsCount || 1)).toString()
+  );
   const [shippingFreight, setShippingFreight] = useState<string>(
-    initialImportDetails?.shippingFreight?.toString() || initialShippingTotal?.toString() || '250'
+    invoiceCurrency === 'USD'
+      ? (
+          initialImportDetails?.shippingFreightUSD?.toString() ||
+          (initialImportDetails?.shippingFreight
+            ? roundCurrency(initialImportDetails.shippingFreight / storedExchangeRate).toString()
+            : initialShippingTotal?.toString() || '250')
+        )
+      : (initialImportDetails?.shippingFreight?.toString() || initialShippingTotal?.toString() || '250')
   );
   const [insuranceCost, setInsuranceCost] = useState<string>(
-    initialImportDetails?.insuranceCost?.toString() || ''
+    invoiceCurrency === 'USD'
+      ? (
+          initialImportDetails?.insuranceCostUSD?.toString() ||
+          (initialImportDetails?.insuranceCost
+            ? roundCurrency(initialImportDetails.insuranceCost / storedExchangeRate).toString()
+            : '')
+        )
+      : (initialImportDetails?.insuranceCost?.toString() || '')
   );
   const [portBrokerageFee, setPortBrokerageFee] = useState<string>(
     initialImportDetails?.portAndBrokerageFee?.toString() || '324' // Default EC$ 324 (~US$ 120)
@@ -105,12 +129,30 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
 
   const unitsNum = Math.max(1, parseFloat(unitsCount) || 1);
   const unitFobNum = Math.max(0, parseFloat(unitFobCost) || 0);
-  const totalFobCost = roundCurrency(unitFobNum * unitsNum);
+  const packageFobNum = Math.max(0, parseFloat(packageFobCost) || 0);
+  const totalFobCost = quoteEntryMode === 'package_total'
+    ? roundCurrency(packageFobNum)
+    : roundCurrency(unitFobNum * unitsNum);
   const shippingNum = Math.max(0, parseFloat(shippingFreight) || 0);
   const insuranceNum = insuranceCost !== '' ? Math.max(0, parseFloat(insuranceCost) || 0) : undefined;
   const portFeeNum = Math.max(0, parseFloat(portBrokerageFee) || 0);
 
   const currentPreset = SAINT_LUCIA_DUTY_PRESETS[category] || SAINT_LUCIA_DUTY_PRESETS.electronics;
+
+  const handleInvoiceCurrencyChange = (nextCurrency: CurrencyCode) => {
+    if (nextCurrency === invoiceCurrency) return;
+    const factor = nextCurrency === 'XCD' ? 2.70 : (1 / 2.70);
+    const convertInput = (value: string) => {
+      if (value.trim() === '') return '';
+      return roundCurrency((parseFloat(value) || 0) * factor).toString();
+    };
+
+    setUnitFobCost((value) => convertInput(value));
+    setPackageFobCost((value) => convertInput(value));
+    setShippingFreight((value) => convertInput(value));
+    setInsuranceCost((value) => convertInput(value));
+    setInvoiceCurrency(nextCurrency);
+  };
 
   const calculationResult = calculateLandedImportCost({
     fobCost: totalFobCost,
@@ -126,7 +168,8 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
     customEnvRate: isCustomMode ? parseFloat(customEnv) || 0 : undefined,
     customVatRate: isCustomMode ? parseFloat(customVat) || 0 : undefined,
     portAndBrokerageFee: portFeeNum,
-    unitsCount: unitsNum
+    unitsCount: unitsNum,
+    quoteEntryMode
   });
 
   const effectiveTaxOnCif = calculationResult.cifValue > 0
@@ -208,7 +251,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-stone-200 shrink-0">
           <button
             type="button"
-            onClick={() => setInvoiceCurrency('USD')}
+            onClick={() => handleInvoiceCurrencyChange('USD')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               invoiceCurrency === 'USD'
                 ? 'bg-blue-600 text-white shadow-xs'
@@ -219,7 +262,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
           </button>
           <button
             type="button"
-            onClick={() => setInvoiceCurrency('XCD')}
+            onClick={() => handleInvoiceCurrencyChange('XCD')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               invoiceCurrency === 'XCD'
                 ? 'bg-emerald-600 text-white shadow-xs'
@@ -231,12 +274,46 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         </div>
       </div>
 
+      {/* Supplier Quote Entry Mode */}
+      <div className="bg-white border border-stone-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <label className="text-xs font-bold text-stone-800">Supplier Quote Entry</label>
+          <p className="text-[11px] text-stone-500 mt-0.5">
+            Use <strong>Whole Package</strong> when the supplier quotes one complete system/bundle; use <strong>Per Unit</strong> for identical separately priced items.
+          </p>
+        </div>
+        <div className="flex items-center gap-1 bg-stone-50 p-1 rounded-xl border border-stone-200 shrink-0">
+          <button
+            type="button"
+            onClick={() => setQuoteEntryMode('package_total')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              quoteEntryMode === 'package_total'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white'
+            }`}
+          >
+            Whole Package
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuoteEntryMode('per_unit')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              quoteEntryMode === 'per_unit'
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white'
+            }`}
+          >
+            Per Unit
+          </button>
+        </div>
+      </div>
+
       {/* Commodity Category Profile Selector */}
       <div className="space-y-1.5">
         <label className="text-[11px] font-bold text-stone-800 flex items-center justify-between">
           <span>Import Commodity & Tariff Profile</span>
           <span className="text-[10px] font-normal text-emerald-700 font-mono">
-            Est. Duties + Levies + VAT: ~{isCustomMode ? 'Custom' : `${currentPreset.effectiveRatePercent}%`} on CIF
+            Estimated duties + levies + VAT: ~{isCustomMode ? 'Custom' : `${currentPreset.effectiveRatePercent}%`} on CIF
           </span>
         </label>
         <select
@@ -252,6 +329,9 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         </select>
         <p className="text-[10.5px] text-stone-500 italic">
           {currentPreset.description}
+        </p>
+        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+          Planning estimate only. Final duty, levy, VAT and concession treatment depends on Customs classification, documentary evidence and any approved concessions.
         </p>
       </div>
 
@@ -273,7 +353,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
 
         <div className="space-y-1">
           <label className="text-[10.5px] font-bold text-stone-700">
-            FOB Unit Price ({invSym})
+            {quoteEntryMode === 'package_total' ? `Package FOB Total (${invSym})` : `FOB Unit Price (${invSym})`}
           </label>
           <div className="relative">
             <span className="absolute left-2.5 top-1.5 text-xs text-stone-400">{invSym}</span>
@@ -281,14 +361,16 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
               type="number"
               min="0"
               step="0.01"
-              value={unitFobCost}
-              onChange={(e) => setUnitFobCost(e.target.value)}
+              value={quoteEntryMode === 'package_total' ? packageFobCost : unitFobCost}
+              onChange={(e) => quoteEntryMode === 'package_total'
+                ? setPackageFobCost(e.target.value)
+                : setUnitFobCost(e.target.value)}
               className="w-full pl-8 pr-2 py-1.5 text-xs border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:border-emerald-600"
-              placeholder="500"
+              placeholder={quoteEntryMode === 'package_total' ? '15000' : '500'}
             />
           </div>
           <div className="text-[9.5px] text-stone-400">
-            Total FOB: {invSym}{totalFobCost.toLocaleString()}
+            {quoteEntryMode === 'package_total' ? 'Complete supplier package before freight' : `Total FOB: ${invSym}${totalFobCost.toLocaleString()}`}
             {invoiceCurrency === 'USD' && (
               <span className="text-stone-500 font-mono"> (≈ EC$ {(totalFobCost * 2.70).toLocaleString()})</span>
             )}
@@ -441,7 +523,7 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-800/70 pb-2.5">
           <div>
             <div className="text-[11px] font-mono text-emerald-300 uppercase tracking-wide flex items-center gap-1.5">
-              <span>Official Landed Cost Output (Saint Lucia ASYCUDA)</span>
+              <span>Estimated Landed Cost Output (Saint Lucia ASYCUDA basis)</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-800/80 text-emerald-200">XCD / EC$</span>
             </div>
             <div className="text-xl font-extrabold text-white mt-0.5 flex flex-wrap items-baseline gap-2">
@@ -477,7 +559,9 @@ export const ImportLandedCostCalculator: React.FC<ImportLandedCostCalculatorProp
             <div className="text-[9px] text-emerald-400">
               {invoiceCurrency === 'USD' 
                 ? `≈ EC$ ${calculationResult.fobCost.toLocaleString()} (at 2.70)` 
-                : `${unitsNum} × EC$ ${unitFobNum.toLocaleString()}`
+                : (quoteEntryMode === 'package_total'
+                  ? 'Whole package invoice'
+                  : `${unitsNum} × EC$ ${unitFobNum.toLocaleString()}`)
               }
             </div>
           </div>

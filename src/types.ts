@@ -367,6 +367,8 @@ export type CurrencyCode = 'USD' | 'XCD';
 
 export interface ImportDutyCalculation {
   isImported?: boolean;
+  unitsCount?: number;
+  quoteEntryMode?: 'per_unit' | 'package_total';
   country?: 'saint_lucia' | 'caricom' | 'custom';
   category?: ImportDutyCategory;
   currency?: CurrencyCode; // Currency in which FOB/Freight is input (USD or XCD)
@@ -397,6 +399,8 @@ export interface ImportDutyCalculation {
   invoiceCurrency?: CurrencyCode; // Supplier quote currency (USD or XCD)
   exchangeRate?: number; // Conversion rate used (e.g. 2.70 XCD per USD)
   fobCostUSD?: number;
+  shippingFreightUSD?: number;
+  insuranceCostUSD?: number;
   cifValueUSD?: number;
   totalLandedCostUSD?: number;
   costPerUnitLandedUSD?: number;
@@ -497,16 +501,23 @@ export interface StaffCapacityDetails {
 
 export interface EquipmentCapacityDetails {
   enabled: boolean;
-  resourceCount: number; // Active equipment / fleet units count
-  availableDaysPerUnit: number; // Monthly rental days per unit (e.g. 25)
+  resourceCount: number; // Deployable operating systems/assets, not component count within a system
+  availableDaysPerUnit: number; // Available operating days per deployable unit per month
   targetUtilisationPercent: number; // e.g. 50%
-  dailyRate: number; // $/day
+  dailyRate: number; // $/day when equipment is independently rented
+
+  // Capacity vs. revenue treatment
+  revenueTreatment?: 'capacity_only' | 'independent_revenue';
+  resourceUnitLabel?: string; // e.g. "systems", "vehicles", "machines"
+  capacityPerResource?: number; // e.g. 12 players supported by one laser-tag system
+  capacityUnitLabel?: string; // e.g. "players", "guests", "seats"
 
   // Asset Acquisition & Import Duties Provision
   hasAcquisitionPlan?: boolean;
-  unitPurchasePrice?: number; // FOB price per unit
-  shippingFreightPerUnit?: number; // Shipping/freight per unit
-  insurancePerUnit?: number; // Insurance per unit (defaults to 1% FOB if omitted)
+  importUnitsCount?: number; // Procurement/import quantity; intentionally separate from deployable system count
+  unitPurchasePrice?: number; // FOB price per imported unit
+  shippingFreightPerUnit?: number; // Shipping/freight per imported unit
+  insurancePerUnit?: number; // Insurance per imported unit (defaults to 1% FOB if omitted)
   importCategory?: ImportDutyCategory;
   importDetails?: ImportDutyCalculation;
   amortizationMonths?: number; // e.g. 12, 24, 36 months to amortize capital outlay into monthly overhead
