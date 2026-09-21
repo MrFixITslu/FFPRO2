@@ -334,7 +334,16 @@ export interface OperatingExpenseItem {
 
 export type BusinessModelType = 'goods' | 'services' | 'both';
 export type GoodsBusinessType = 'make' | 'resell';
-export type ServiceRevenueModel = 'hourly' | 'project' | 'retainer' | 'subscription' | 'commission' | 'rental';
+export type ServiceRevenueModel = 
+  | 'hourly' 
+  | 'project' 
+  | 'retainer' 
+  | 'subscription' 
+  | 'commission' 
+  | 'rental'
+  | 'event'
+  | 'package'
+  | 'per_participant';
 
 export type CostItemClassification = 
   | 'equipment'   // Reusable Equipment (Cash on purchase, straight-line depreciation over useful life)
@@ -414,6 +423,7 @@ export interface StartupCostItem {
   
   // Equipment Rental Revenue Generator (Decision 2)
   isRentalRevenueGenerator?: boolean;
+  rentalRevenueTreatment?: 'capacity_only' | 'independent_revenue';
   rentalUnitsOwned?: number;
   rentalAvailableTimePerUnit?: number; // e.g. 30 days or 160 hours per month
   rentalUtilisationPercent?: number;  // e.g. 60%
@@ -466,6 +476,7 @@ export interface ServiceOffering {
   name: string;
   currency?: CurrencyCode;
   revenueModel: ServiceRevenueModel;
+  unitLabel?: string; // e.g. "bookings", "sessions", "guests", "participants", "events", "packages"
   rate: number; // hourly rate, project fee, monthly retainer, subscription fee, rental daily/hourly rate
   monthlyCapacityUnits?: number; // hours, projects, clients, subscribers, rental days
   expectedVolume?: number; // expected monthly units/hours/clients
@@ -633,11 +644,16 @@ export interface LoanParameters {
   annualInterestRate: number;     // e.g. 7.0 for 7% APR
   termYears: number;              // e.g. 5 years
   paymentFrequency: PaymentFrequency;
-  startDate?: string;             // Payment start date (e.g. YYYY-MM-DD)
+  startDate?: string;             // Payment start date (e.g. YYYY-MM-DD) - legacy alias
+  disbursementDate?: string;      // Loan disbursement date (e.g. YYYY-MM-DD)
+  firstPaymentDate?: string;      // First scheduled payment date (e.g. YYYY-MM-DD)
   negotiationFee?: number;        // Upfront processing fee (e.g. $675)
+  negotiationFeePercent?: number; // Upfront processing fee % (e.g. 1.5%)
   insuranceFee?: number;          // Loan insurance fee
+  insuranceFeePercent?: number;   // Loan insurance fee % (e.g. 0.5%)
   includeFeesInLoan?: boolean;    // Add fees to principal balance
   gracePeriodMonths?: number;     // Moratorium months (interest-only or deferred)
+  gracePeriodType?: 'none' | 'interest_only' | 'full_defer'; // Type of grace period
 }
 
 export interface AmortizationScheduleRow {
@@ -663,6 +679,9 @@ export interface LoanAmortizationSummary {
   annualDebtService: number;
   dscrYear1: number;
   dscrStatus: 'strong' | 'adequate' | 'tight' | 'insufficient';
+  dscrNumerator?: number;
+  dscrDenominator?: number;
+  dscrBasis?: string; // e.g. 'EBITDA'
   schedule: AmortizationScheduleRow[];
 }
 

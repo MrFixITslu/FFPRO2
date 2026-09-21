@@ -76,7 +76,7 @@ export interface BusinessPlanCalculations {
 }
 
 export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPlanCalculations => {
-  const isServices = sd?.businessModelType === 'services';
+  const isServices = sd?.businessModelType === 'services' || sd?.businessModelType === 'both' || Boolean(sd?.serviceOfferings && sd.serviceOfferings.length > 0);
 
   // Extract operating expenses
   const rent = sd?.rent || 0;
@@ -121,10 +121,13 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
       totalMonthlySessions += vol;
     });
 
-    // Check equipment rental revenue
+    // Check equipment rental revenue (only if independent revenue treatment or rental-only)
     let rentalRevMonthly = 0;
+    const hasOfferings = offerings.length > 0;
     equipmentItems.forEach((eq) => {
-      if (eq.isRentalRevenueGenerator && eq.rentalRatePerUnit && eq.rentalUnitsOwned) {
+      const isIndependentRental = eq.rentalRevenueTreatment === 'independent_revenue' ||
+        (Boolean(eq.isRentalRevenueGenerator) && !hasOfferings && eq.rentalRevenueTreatment !== 'capacity_only');
+      if (isIndependentRental && eq.rentalRatePerUnit && eq.rentalUnitsOwned) {
         const availTime = eq.rentalAvailableTimePerUnit || 25;
         const util = (eq.rentalUtilisationPercent ?? 50) / 100;
         const rate = eq.rentalRatePerUnit || 0;
@@ -140,6 +143,9 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
     const contribMarginPercent = totalMonthlyServiceRev > 0
       ? Math.round((unitContribMargin / avgSellingPrice) * 100)
       : 0;
+
+    const primaryOffering = offerings[0];
+    const unitLabel = primaryOffering?.unitLabel || (offerings.length === 1 ? 'Bookings' : 'Bookings / Service Streams');
 
     const monthlyCOGS = totalMonthlyDirectCosts;
     const monthlyRevenue = totalMonthlyServiceRev;
@@ -220,8 +226,8 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
       contributionMarginPercent: contribMarginPercent,
       breakEvenRevenueMonthly: beRev,
       breakEvenUnitsMonthly: beUnits,
-      breakEvenMetricLabel: 'Bookings / Sessions',
-      revenueUnitLabel: 'Sessions / Jobs',
+      breakEvenMetricLabel: unitLabel,
+      revenueUnitLabel: unitLabel,
       ebitdaYear1: y1Net,
       ebitYear1: y1Net - totalAnnualDepreciation,
       depreciationYear1: totalAnnualDepreciation,

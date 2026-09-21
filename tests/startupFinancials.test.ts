@@ -12,6 +12,9 @@ import {
 } from '../src/services/startupFinancialsService.ts';
 import { computeStartupCalculations } from '../src/services/businessPlanExportService.ts';
 import { normalizeCostItemAmount, DEFAULT_BASE_CURRENCY } from '../src/services/currencyService.ts';
+import { buildBusinessPlanPresentation } from '../src/services/businessPlanPresentationService.ts';
+import { validateBusinessPlan } from '../src/services/businessPlanValidationService.ts';
+import { formatBusinessPlanMarkdownToHtml } from '../src/utils/businessPlanRichText.ts';
 import { StartupCostItem, StartupPlanDetails } from '../src/types.ts';
 
 test('cents-safe rounding and summation prevents floating point loss', () => {
@@ -269,5 +272,163 @@ test('existing plan without businessModelType flags needsBusinessModelClassifica
   assert.equal(needsBusinessModelClassification(undefined), true);
   assert.equal(needsBusinessModelClassification({ cogs: 10 } as any), true);
   assert.equal(needsBusinessModelClassification({ businessModelType: 'goods' } as any), false);
+});
+
+test('buildBusinessPlanPresentation correctly models service offerings, fees and loan disclosures', () => {
+  const servicePlan: StartupPlanDetails = {
+    businessModelType: 'services',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 10,
+    growthRateYear3: 15,
+    growthRateYear5: 20,
+    displayCurrency: 'XCD',
+    exchangeRate: 2.70,
+    rent: 1500,
+    salaries: 3000,
+    marketing: 500,
+    utilities: 300,
+    otherExpenses: 200,
+    serviceOfferings: [
+      {
+        id: 'svc-1',
+        name: 'VIP Private Party',
+        revenueModel: 'event',
+        rate: 800,
+        expectedVolume: 10,
+        directCostPerUnitOrJob: 100
+      }
+    ],
+    loanParameters: {
+      enabled: true,
+      loanAmount: 50000,
+      annualInterestRate: 8.5,
+      termYears: 5,
+      paymentFrequency: 'monthly',
+      negotiationFeePercent: 1.5,
+      insuranceFeePercent: 0.5,
+      includeFeesInLoan: true
+    }
+  };
+
+  const calc = computeStartupCalculations(servicePlan);
+  const presentation = buildBusinessPlanPresentation(servicePlan, calc);
+
+  assert.equal(presentation.isServiceBusiness, true);
+  assert.equal(presentation.currencyCode, 'XCD');
+  assert.equal(presentation.currencySymbol, 'EC$');
+  assert.equal(presentation.revenueStreams.length, 1);
+  assert.equal(presentation.revenueStreams[0].name, 'VIP Private Party');
+  assert.equal(presentation.revenueStreams[0].unitLabel, 'Events');
+  assert.equal(presentation.revenueStreams[0].monthlyRevenue, 8000);
+  assert.equal(presentation.revenueStreams[0].contributionMargin, 700);
+  assert.equal(presentation.revenueStreams[0].contributionMarginPercent, 88);
+
+  assert.ok(presentation.loan);
+  assert.equal(presentation.loan.principal, 50000);
+  // Total fees = 1.5% + 0.5% = 2.0% = $1,000 -> opening balance = $51,000
+  assert.equal(presentation.loan.openingBalance, 51000);
+  assert.equal(presentation.loan.totalFees, 1000);
+  assert.ok(presentation.loan.dscrYear1 > 0);
+  assert.equal(presentation.loan.dscrStatus, 'adequate');
+});
+
+test('validateBusinessPlan assesses narrative completeness, loan viability and returns proper status', () => {
+  const incompletePlan: StartupPlanDetails = {
+    businessModelType: 'goods',
+    cogs: 10,
+    markup: 50,
+    monthlyVolume: 100,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 10,
+    growthRateYear5: 15
+  };
+
+  const incompleteStatus = validateBusinessPlan(incompletePlan);
+  assert.ok(incompleteStatus.completionPercent < 30);
+  assert.equal(incompleteStatus.status, 'draft');
+
+  const completeBusinessPlanSections: Record<string, string> = {
+    companyName: 'Island Laser Sports',
+    preparedBy: 'Managing Director',
+    fundingAgencyOrBank: 'Saint Lucia Development Bank',
+    executiveSummary: 'Island Laser Sports is a premier entertainment hub.',
+    businessDescription: 'High quality tactical recreation.',
+    businessObjectives: 'Attain 30% local market share in 24 months.',
+    problemOpportunity: 'Growing demand for experiential entertainment in Saint Lucia.',
+    targetMarket: 'Youth, corporate groups, and tourists.',
+    customerProfile: 'Tech-savvy teens and active adults.',
+    marketAnalysis: 'Tourism entertainment sector growing at 8% annually.',
+    competitorAnalysis: 'Limited direct competition in laser tag sector.',
+    competitiveAdvantage: 'Exclusive outdoor and indoor arenas with wireless phasers.',
+    productsServices: 'Laser tag combat simulation experiences.',
+    businessModel: 'Direct-to-consumer bookings and corporate retreats.',
+    revenueModel: 'Per-game admissions and private event packages.',
+    marketingSalesStrategy: 'Social media, hotel partnerships, and event sponsorships.',
+    operationsPlan: 'Operating 6 days a week with certified safety instructors.',
+    equipmentTechRequirements: '32 laser phasers, mesh network nodes, and scoring displays.',
+    suppliers: 'Direct manufacturer partnerships for gear maintenance.',
+    managementStaffing: 'Experienced entertainment manager and 4 part-time coordinators.',
+    startupRequirements: 'EC$100,000 initial capital for facility fit-out and hardware.',
+    financialRequirements: 'EC$50,000 equity injection and EC$50,000 debt facility.',
+    salesRevenueProjectionsNotes: 'Projecting 50 private party bookings monthly in Year 1.',
+    operatingCostsNotes: 'Fixed overhead capped at EC$3,000 monthly.',
+    fundingRequirements: 'Seeking EC$50,000 capital expenditure loan.',
+    useOfFunds: 'Procurement of laser tag fleet and mobile obstacle course.',
+    implementationPlan: 'Setup and launch within 60 days of funding approval.',
+    milestonesNotes: 'Break-even projected at Month 3.',
+    risksMitigation: 'Comprehensive liability insurance and equipment warranties.',
+    conclusion: 'Island Laser Sports represents an exceptional commercial opportunity.'
+  };
+
+  const completePlan: StartupPlanDetails = {
+    businessModelType: 'services',
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 50,
+    growthRateYear3: 15,
+    growthRateYear5: 20,
+    displayCurrency: 'XCD',
+    serviceOfferings: [
+      {
+        id: 'svc-1',
+        name: 'Standard Package',
+        revenueModel: 'package',
+        rate: 200,
+        expectedVolume: 50,
+        directCostPerUnitOrJob: 30
+      }
+    ],
+    rent: 1000,
+    salaries: 2000,
+    marketing: 200,
+    utilities: 300,
+    otherExpenses: 100,
+    businessPlan: completeBusinessPlanSections as any
+  };
+
+  const completeStatus = validateBusinessPlan(completePlan);
+  assert.ok(completeStatus.completionPercent >= 90);
+  assert.equal(completeStatus.status, 'bank_ready');
+});
+
+test('formatBusinessPlanMarkdownToHtml safely parses bold, italics, lists and headings', () => {
+  const markdown = `
+### Market Highlights
+* Point 1 with **strong evidence**
+* Point 2 with *growth potential*
+
+This is a regular narrative paragraph.
+  `;
+
+  const html = formatBusinessPlanMarkdownToHtml(markdown);
+  assert.ok(html.includes('Market Highlights'));
+  assert.ok(html.includes('<li>Point 1 with <strong>strong evidence</strong></li>'));
+  assert.ok(html.includes('<em>growth potential</em>'));
+  assert.ok(html.includes('<p class="text-stone-700 text-xs leading-relaxed mb-2">This is a regular narrative paragraph.</p>'));
 });
 

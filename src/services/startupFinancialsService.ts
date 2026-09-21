@@ -549,8 +549,12 @@ export function calculateLoanAmortizationSchedule(
   }
 
   const rawAmount = params.loanAmount || 0;
-  const rawNegFee = params.negotiationFee || 0;
-  const rawInsFee = params.insuranceFee || 0;
+  const rawNegFee = params.negotiationFee !== undefined && params.negotiationFee !== null
+    ? params.negotiationFee
+    : (params.negotiationFeePercent ? (rawAmount * params.negotiationFeePercent) / 100 : 0);
+  const rawInsFee = params.insuranceFee !== undefined && params.insuranceFee !== null
+    ? params.insuranceFee
+    : (params.insuranceFeePercent ? (rawAmount * params.insuranceFeePercent) / 100 : 0);
 
   const loanAmount = roundCurrency(rawAmount);
   const negotiationFee = roundCurrency(rawNegFee);
@@ -574,6 +578,7 @@ export function calculateLoanAmortizationSchedule(
   const graceMonths = params.gracePeriodMonths || 0;
   const gracePeriods = Math.round(graceMonths * (paymentsPerYear / 12));
   const activeRepaymentPeriods = Math.max(1, totalPeriods - gracePeriods);
+  const gracePeriodType = params.gracePeriodType || (graceMonths > 0 ? 'interest_only' : 'none');
 
   // Periodic payment calculation (PMT formula)
   let periodicPayment = 0;
@@ -588,7 +593,8 @@ export function calculateLoanAmortizationSchedule(
   let currentBalance = effectiveLoanAmount;
   let cumulativeInterest = 0;
 
-  const startDateObj = params.startDate ? new Date(params.startDate) : new Date();
+  const paymentDateStr = params.firstPaymentDate || params.startDate;
+  const startDateObj = paymentDateStr ? new Date(paymentDateStr) : new Date();
 
   for (let p = 1; p <= totalPeriods; p++) {
     const periodDate = new Date(startDateObj);
@@ -608,8 +614,14 @@ export function calculateLoanAmortizationSchedule(
     let principalPaid = 0;
 
     if (p <= gracePeriods) {
-      paymentAmount = interestPaid;
-      principalPaid = 0;
+      if (gracePeriodType === 'full_defer') {
+        paymentAmount = 0;
+        principalPaid = 0;
+      } else {
+        // 'interest_only'
+        paymentAmount = interestPaid;
+        principalPaid = 0;
+      }
     } else {
       paymentAmount = periodicPayment;
       principalPaid = roundCurrency(paymentAmount - interestPaid);
@@ -661,6 +673,9 @@ export function calculateLoanAmortizationSchedule(
     annualDebtService,
     dscrYear1,
     dscrStatus,
+    dscrNumerator: year1Ebitda,
+    dscrDenominator: annualDebtService,
+    dscrBasis: 'EBITDA',
     schedule
   };
 }
@@ -815,10 +830,16 @@ export function generateStartupFinancialForecast(
       });
     }
 
-    // Rental Revenue from Equipment (Decision 2)
+    // Rental Revenue from Equipment (Revenue Source vs Capacity Separation)
+    // Equipment only generates P&L revenue if explicitly marked as 'independent_revenue',
+    // or legacy isRentalRevenueGenerator === true with NO service offerings present.
     let rentalRev = 0;
+    const hasServiceOfferings = (sd?.serviceOfferings && sd.serviceOfferings.length > 0) || (modelType === 'services' && (sd?.serviceOfferings?.length || 0) > 0);
     equipmentItems.forEach((eq) => {
-      if (eq.isRentalRevenueGenerator && (eq.purchaseMonth ?? 1) <= m) {
+      const isIndependentRental = eq.rentalRevenueTreatment === 'independent_revenue' ||
+        (Boolean(eq.isRentalRevenueGenerator) && !hasServiceOfferings && eq.rentalRevenueTreatment !== 'capacity_only');
+
+      if (isIndependentRental && (eq.purchaseMonth ?? 1) <= m) {
         const rentCalc = calculateEquipmentRentalRevenue(eq);
         rentalRev += rentCalc.monthlyRentalRevenue;
       }
@@ -1113,7 +1134,9 @@ export function generateStartupFinancialForecast(
   } else if (modelType === 'services') {
     const firstService = serviceOfferings[0];
     const revModel = firstService?.revenueModel || 'project';
-    if (revModel === 'hourly') {
+    if (firstService?.unitLabel) {
+      metricLabel = firstService.unitLabel;
+    } else if (revModel === 'hourly') {
       metricLabel = 'billable hours';
     } else if (revModel === 'retainer') {
       metricLabel = 'monthly retained clients';
@@ -1121,6 +1144,12 @@ export function generateStartupFinancialForecast(
       metricLabel = 'active subscribers';
     } else if (revModel === 'rental') {
       metricLabel = 'rental days / units';
+    } else if (revModel === 'event') {
+      metricLabel = 'events';
+    } else if (revModel === 'package') {
+      metricLabel = 'packages';
+    } else if (revModel === 'per_participant') {
+      metricLabel = 'participants';
     } else {
       metricLabel = 'completed projects';
     }
