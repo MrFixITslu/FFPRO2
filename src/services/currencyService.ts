@@ -259,6 +259,6 @@ export function normalizeCostItemAmount(
     rawVal = item.amount ?? 0;
   }
 
-  const itemCurrency: CurrencyCode = item.currency || 'XCD';
+  const itemCurrency: CurrencyCode = item.currency || targetCurrency;
   return convertCurrency(rawVal, itemCurrency, targetCurrency, rate);
 }
