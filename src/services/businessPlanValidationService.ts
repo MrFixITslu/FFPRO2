@@ -105,7 +105,7 @@ export function validateBusinessPlan(
         category: 'pricing',
         title: 'No Service Offerings Defined',
         message: 'No service offerings or rate tiers have been configured.',
-        actionableRecommendation: 'Add at least one service offering with rate, unit label, and volume in Services Workflow.'
+        actionableRecommendation: 'Add at least one service offering with a rate, service-unit label, and monthly volume.'
       });
     } else {
       offerings.forEach((s, idx) => {
@@ -133,19 +133,19 @@ export function validateBusinessPlan(
       });
     }
 
-    // High markup / margin check
     if (calculations.markupPercent > 500 && calculations.costOfGoodsSoldUnit > 0) {
       issues.push({
         id: 'high-service-markup',
         type: 'info',
         category: 'pricing',
         title: 'High Contribution Margin Ratio',
-        message: `Calculated service contribution margin is ${calculations.contributionMarginPercent}%. Ensure staff direct labor or direct event expenses are captured.`,
+        message: `Calculated service contribution margin is ${calculations.contributionMarginPercent}%. Ensure direct labor and service-specific variable expenses are captured.`,
         actionableRecommendation: 'Review direct labor, consumables, and other job-specific costs for each service unit.'
       });
     }
 
-    // Capacity vs Demand checks only compare compatible units and only when the user configured capacity.
+    // Only compare demand with capacity when the user explicitly configured capacity,
+    // and compare compatible units rather than mixing participants/projects with fleet-days.
     if (details?.serviceCapacityPlan) {
       const capacity = calculateServiceCapacity(details.serviceCapacityPlan);
       const hourlyDemand = offerings
@@ -187,7 +187,7 @@ export function validateBusinessPlan(
         type: 'error',
         category: 'loan',
         title: 'Loan Amount Must Be Greater Than Zero',
-        message: 'The commercial credit facility is enabled but has a $0 principal balance.',
+        message: `The commercial credit facility is enabled but has a ${calculations.currencySymbol || 'EC$'}0 principal balance.`,
         actionableRecommendation: 'Enter the requested loan principal amount in Loan Amortization.'
       });
     }
@@ -215,12 +215,11 @@ export function validateBusinessPlan(
       });
     }
 
-    // DSCR Check
     const loanSummary = calculateLoanAmortizationSchedule(
       lp,
       details.displayCurrency || 'XCD',
       details.exchangeRate || 2.70,
-      calculations.ebitdaYear1 || calculations.y1Net
+      calculations.ebitdaYear1 ?? calculations.y1Net
     );
 
     if (loanSummary) {
@@ -239,7 +238,7 @@ export function validateBusinessPlan(
           type: 'warning',
           category: 'loan',
           title: 'DSCR Tight (<1.25x Screening Threshold)',
-          message: `Year 1 simplified DSCR is ${loanSummary.dscrYear1.toFixed(2)}x using EBITDA / scheduled debt service. Some lenders use higher internal thresholds.`,
+          message: `Year 1 simplified DSCR is ${loanSummary.dscrYear1.toFixed(2)}x using EBITDA / scheduled debt service. Lender-specific thresholds may differ.`,
           actionableRecommendation: 'Review the lender-specific DSCR requirement and consider more equity, lower debt, or revised repayment terms.'
         });
       }
@@ -249,7 +248,11 @@ export function validateBusinessPlan(
   // 5. Operating Expenses Reconciliation Rule
   const opexData = calculateMonthlyOperatingExpenses(details);
   const sumBreakdown = roundCurrency(opexData.operatingExpensesBreakdown.reduce((sum, item) => sum + item.amount, 0));
-  const forecast = generateStartupFinancialForecast(details);
+  const forecast = generateStartupFinancialForecast(
+    details,
+    details?.displayCurrency || 'USD',
+    details?.exchangeRate || 2.70
+  );
   const forecastMonthlyOpEx = forecast.monthlyYear1[0]?.recurringExpenses ?? 0;
   const calcMonthlyOpEx = calculations.monthlyOpExpenses ?? 0;
 
@@ -259,7 +262,7 @@ export function validateBusinessPlan(
       type: 'error',
       category: 'forecast',
       title: 'Operating Expense Reconciliation Discrepancy',
-      message: `The sum of recurring operating expense rows (${calculations.currencySymbol || 'EC
+      message: `The sum of recurring operating expense rows (${calculations.currencySymbol || 'EC$'}${sumBreakdown.toLocaleString()}/mo) does not match the recurring forecast overhead (${calculations.currencySymbol || 'EC$'}${forecastMonthlyOpEx.toLocaleString()}/mo).`,
       actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
     });
   }
@@ -273,193 +276,27 @@ export function validateBusinessPlan(
     .filter((sentence) => /\b(revenue|sales|turnover|income)\b/i.test(sentence))
     .join(' ');
 
-  // Compare only currency figures mentioned in a revenue/sales context so loan and funding amounts
-  // in the executive summary do not create false "revenue mismatch" warnings.
   const currencyMatches = revenueNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
   if (currencyMatches && currencyMatches.length > 0) {
     const y1Rev = calculations.y1Rev;
+    const activeCurrency = details?.displayCurrency || 'USD';
     let foundCloseMatch = false;
+
     currencyMatches.forEach((matchStr) => {
+      const explicitlyXcd = matchStr.trim().startsWith('EC$');
+      const explicitlyUsd = matchStr.trim().startsWith('US$');
+      if ((activeCurrency === 'XCD' && explicitlyUsd) || (activeCurrency === 'USD' && explicitlyXcd)) return;
+
       const numStr = matchStr.replace(/[^0-9.]/g, '');
       const numVal = parseFloat(numStr);
-      if (numVal > 10000) {
-        // If within 20% of Year 1 revenue, mark matched
-        if (Math.abs(numVal - y1Rev) / y1Rev < 0.25) {
-          foundCloseMatch = true;
-        }
+      if (numVal > 10000 && y1Rev > 0 && Math.abs(numVal - y1Rev) / y1Rev < 0.25) {
+        foundCloseMatch = true;
       }
     });
 
-    // If narrative specifically mentions high numbers far from computed revenue, flag warning
-    if (!foundCloseMatch && y1Rev > 0 && combinedNarrative.length > 200) {
+    if (!foundCloseMatch && y1Rev > 0 && revenueNarrative.length > 100) {
       narrativeDiscrepancies.push(
-        `Financial narrative mentions figures that differ from computed Year 1 revenue (${calculations.currencySymbol || 'EC$'}${calculations.y1Rev.toLocaleString()}).`
-      );
-    }
-  }
-
-  // Determine Overall Status
-  const hasBlockingErrors = issues.some((i) => i.type === 'error');
-  const warningsCount = issues.filter((i) => i.type === 'warning').length;
-
-  let status: BusinessPlanReadinessStatus = 'draft';
-  let statusLabel = 'Draft Plan';
-  let score = 0;
-
-  // Base score on section completion (max 60 pts) and validation checks (max 40 pts)
-  const sectionScore = Math.round((completedSectionsCount / totalSectionsCount) * 60);
-  let validationScore = 40;
-  if (hasBlockingErrors) validationScore -= 30;
-  validationScore -= Math.min(20, warningsCount * 5);
-  validationScore = Math.max(0, validationScore);
-
-  score = Math.min(100, Math.max(0, sectionScore + validationScore));
-
-  if (hasBlockingErrors || completionPercent < 30) {
-    status = 'draft';
-    statusLabel = 'Draft (Incomplete)';
-  } else if (completionPercent < 75 || warningsCount > 2) {
-    status = 'needs_review';
-    statusLabel = 'Needs Review';
-  } else if (completionPercent < 90 || warningsCount > 0) {
-    status = 'ready_for_financial_review';
-    statusLabel = 'Ready for Financial Review';
-  } else {
-    status = 'bank_ready';
-    statusLabel = 'Ready for Lender Review';
-  }
-
-  return {
-    status,
-    statusLabel,
-    score,
-    completedSectionsCount,
-    totalSectionsCount,
-    completionPercent,
-    issues,
-    hasBlockingErrors,
-    warningsCount,
-    narrativeFinancialDiscrepancies: narrativeDiscrepancies
-  };
-}
-}${sumBreakdown.toLocaleString()}/mo) does not match the recurring forecast overhead (${calculations.currencySymbol || 'EC
-      actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
-    });
-  }
-
-  // 6. Narrative vs Financials Consistency Check
-  const execSummary = bp.executiveSummary || '';
-  const finNotes = bp.salesRevenueProjectionsNotes || '';
-  const combinedNarrative = `${execSummary} ${finNotes}`;
-  const revenueNarrative = combinedNarrative
-    .split(/(?<=[.!?])\s+/)
-    .filter((sentence) => /\b(revenue|sales|turnover|income)\b/i.test(sentence))
-    .join(' ');
-
-  // Compare only currency figures mentioned in a revenue/sales context so loan and funding amounts
-  // in the executive summary do not create false "revenue mismatch" warnings.
-  const currencyMatches = revenueNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
-  if (currencyMatches && currencyMatches.length > 0) {
-    const y1Rev = calculations.y1Rev;
-    let foundCloseMatch = false;
-    currencyMatches.forEach((matchStr) => {
-      const numStr = matchStr.replace(/[^0-9.]/g, '');
-      const numVal = parseFloat(numStr);
-      if (numVal > 10000) {
-        // If within 20% of Year 1 revenue, mark matched
-        if (Math.abs(numVal - y1Rev) / y1Rev < 0.25) {
-          foundCloseMatch = true;
-        }
-      }
-    });
-
-    // If narrative specifically mentions high numbers far from computed revenue, flag warning
-    if (!foundCloseMatch && y1Rev > 0 && combinedNarrative.length > 200) {
-      narrativeDiscrepancies.push(
-        `Financial narrative mentions figures that differ from computed Year 1 revenue (${calculations.currencySymbol || 'EC$'}${calculations.y1Rev.toLocaleString()}).`
-      );
-    }
-  }
-
-  // Determine Overall Status
-  const hasBlockingErrors = issues.some((i) => i.type === 'error');
-  const warningsCount = issues.filter((i) => i.type === 'warning').length;
-
-  let status: BusinessPlanReadinessStatus = 'draft';
-  let statusLabel = 'Draft Plan';
-  let score = 0;
-
-  // Base score on section completion (max 60 pts) and validation checks (max 40 pts)
-  const sectionScore = Math.round((completedSectionsCount / totalSectionsCount) * 60);
-  let validationScore = 40;
-  if (hasBlockingErrors) validationScore -= 30;
-  validationScore -= Math.min(20, warningsCount * 5);
-  validationScore = Math.max(0, validationScore);
-
-  score = Math.min(100, Math.max(0, sectionScore + validationScore));
-
-  if (hasBlockingErrors || completionPercent < 30) {
-    status = 'draft';
-    statusLabel = 'Draft (Incomplete)';
-  } else if (completionPercent < 75 || warningsCount > 2) {
-    status = 'needs_review';
-    statusLabel = 'Needs Review';
-  } else if (completionPercent < 90 || warningsCount > 0) {
-    status = 'ready_for_financial_review';
-    statusLabel = 'Ready for Financial Review';
-  } else {
-    status = 'bank_ready';
-    statusLabel = 'Ready for Lender Review';
-  }
-
-  return {
-    status,
-    statusLabel,
-    score,
-    completedSectionsCount,
-    totalSectionsCount,
-    completionPercent,
-    issues,
-    hasBlockingErrors,
-    warningsCount,
-    narrativeFinancialDiscrepancies: narrativeDiscrepancies
-  };
-}
-}${forecastMonthlyOpEx.toLocaleString()}/mo).`,
-      actionableRecommendation: 'Ensure operating cost items and overhead fields are correctly aligned without double-counting.'
-    });
-  }
-
-  // 6. Narrative vs Financials Consistency Check
-  const execSummary = bp.executiveSummary || '';
-  const finNotes = bp.salesRevenueProjectionsNotes || '';
-  const combinedNarrative = `${execSummary} ${finNotes}`;
-  const revenueNarrative = combinedNarrative
-    .split(/(?<=[.!?])\s+/)
-    .filter((sentence) => /\b(revenue|sales|turnover|income)\b/i.test(sentence))
-    .join(' ');
-
-  // Compare only currency figures mentioned in a revenue/sales context so loan and funding amounts
-  // in the executive summary do not create false "revenue mismatch" warnings.
-  const currencyMatches = revenueNarrative.match(/(?:EC\$|US\$|\$)\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,8})/g);
-  if (currencyMatches && currencyMatches.length > 0) {
-    const y1Rev = calculations.y1Rev;
-    let foundCloseMatch = false;
-    currencyMatches.forEach((matchStr) => {
-      const numStr = matchStr.replace(/[^0-9.]/g, '');
-      const numVal = parseFloat(numStr);
-      if (numVal > 10000) {
-        // If within 20% of Year 1 revenue, mark matched
-        if (Math.abs(numVal - y1Rev) / y1Rev < 0.25) {
-          foundCloseMatch = true;
-        }
-      }
-    });
-
-    // If narrative specifically mentions high numbers far from computed revenue, flag warning
-    if (!foundCloseMatch && y1Rev > 0 && combinedNarrative.length > 200) {
-      narrativeDiscrepancies.push(
-        `Financial narrative mentions figures that differ from computed Year 1 revenue (${calculations.currencySymbol || 'EC$'}${calculations.y1Rev.toLocaleString()}).`
+        `Financial narrative mentions revenue figures that differ from computed Year 1 revenue (${calculations.currencySymbol || 'EC$'}${calculations.y1Rev.toLocaleString()}).`
       );
     }
   }
