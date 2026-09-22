@@ -216,7 +216,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               referrerPolicy="no-referrer"
               className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Verification Required</p>
+            <p className="text-indigo-600 text-xs font-bold uppercase tracking-wider mt-1">Verification Required</p>
           </div>
 
           <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4 text-center">
@@ -237,7 +237,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             </div>
 
             {resendSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed animate-in fade-in">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold leading-relaxed animate-in fade-in">
                 <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> {resendSuccess}
               </div>
             )}
@@ -253,7 +253,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 type="button"
                 disabled={resendLoading}
                 onClick={() => handleResendFromAlert(unverifiedEmail || email)}
-                className="w-full py-2.5 bg-stone-50 hover:bg-stone-100 text-stone-800 font-bold rounded-xl shadow-2xs transition-all active:scale-98 disabled:opacity-50 text-[10px] uppercase tracking-wider border border-stone-200 cursor-pointer"
+                className="w-full py-2.5 bg-stone-50 hover:bg-stone-100 text-stone-800 font-bold rounded-xl shadow-2xs transition-all active:scale-98 disabled:opacity-50 text-xs uppercase tracking-wider border border-stone-200 cursor-pointer"
               >
                 {resendLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -267,7 +267,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => { setMode('login'); setError(null); setUnverifiedEmail(null); setResendSuccess(null); }}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 text-[10px] uppercase tracking-wider cursor-pointer"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 text-xs uppercase tracking-wider cursor-pointer"
               >
                 Back to Sign In
               </button>
@@ -295,19 +295,19 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               referrerPolicy="no-referrer"
               className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Security</p>
+            <p className="text-indigo-600 text-xs font-bold uppercase tracking-wider mt-1">Fire Finance Pro Account Security</p>
           </div>
 
           <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
             {resendSuccess ? (
               <div className="text-center space-y-4">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold leading-relaxed">
                   <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> {resendSuccess}
                 </div>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setResendSuccess(null); setError(null); }}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-[10px] cursor-pointer"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-xs cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -318,12 +318,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   Enter your registered email address to receive a fresh verification link.
                 </p>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
+                  <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
                   <input
                     type="email"
+                    aria-label="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                     placeholder="you@example.com"
                     autoComplete="email"
                     required
@@ -337,14 +338,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px] cursor-pointer"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-xs cursor-pointer"
                 >
                   {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Send Verification Link <i className="fas fa-chevron-right text-[9px]"></i></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(null); }}
-                  className="w-full text-center text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
+                  className="w-full text-center text-xs font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -373,19 +374,19 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               referrerPolicy="no-referrer"
               className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
+            <p className="text-indigo-600 text-xs font-bold uppercase tracking-wider mt-1">Manage your money and projects</p>
           </div>
 
           <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
             {resetDone ? (
               <div className="text-center space-y-4">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold leading-relaxed">
                   <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> Your password has been reset. You can now log in with your new password.
                 </div>
                 <button
                   type="button"
                   onClick={() => onResetHandled && onResetHandled()}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-[10px] cursor-pointer"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-xs cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -393,12 +394,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             ) : (
               <form onSubmit={handleResetSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">New Password</label>
+                  <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">New Password</label>
                   <input
                     type="password"
+                    aria-label="New password"
                     value={resetPassword}
                     onChange={(e) => setResetPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                     placeholder="••••••••"
                     autoComplete="new-password"
                     minLength={8}
@@ -406,12 +408,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Confirm New Password</label>
+                  <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Confirm New Password</label>
                   <input
                     type="password"
+                    aria-label="Confirm new password"
                     value={resetConfirmPassword}
                     onChange={(e) => setResetConfirmPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                     placeholder="••••••••"
                     autoComplete="new-password"
                     minLength={8}
@@ -426,14 +429,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px] cursor-pointer"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-xs cursor-pointer"
                 >
                   {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Set New Password <i className="fas fa-chevron-right text-[9px]"></i></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => onResetHandled && onResetHandled()}
-                  className="w-full text-center text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
+                  className="w-full text-center text-xs font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -462,19 +465,19 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               referrerPolicy="no-referrer"
               className="h-12 w-auto max-w-[240px] mx-auto my-3 object-contain filter drop-shadow-xs"
             />
-            <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">Fire Finance Pro Secure Gateway</p>
+            <p className="text-indigo-600 text-xs font-bold uppercase tracking-wider mt-1">Manage your money and projects</p>
           </div>
 
           <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
             {forgotSent ? (
               <div className="text-center space-y-4">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold leading-relaxed">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold leading-relaxed">
                   <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> If an account exists for that email, a reset link has been sent. The link expires in 45 minutes.
                 </div>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setForgotSent(false); setError(null); }}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-[10px] cursor-pointer"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 uppercase tracking-wider text-xs cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -483,12 +486,13 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <form onSubmit={handleForgotSubmit} className="space-y-4">
                 <p className="text-stone-600 text-[11px] leading-relaxed">Enter your account email and we'll send you a link to reset your password.</p>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
+                  <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
                   <input
                     type="email"
+                    aria-label="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                    className="w-full px-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                     placeholder="you@example.com"
                     autoComplete="email"
                     required
@@ -502,14 +506,14 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-[10px] cursor-pointer"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 uppercase tracking-wider text-xs cursor-pointer"
                 >
                   {loading ? <i className="fas fa-circle-notch fa-spin text-xs"></i> : <>Send Reset Link <i className="fas fa-chevron-right text-[9px]"></i></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(null); }}
-                  className="w-full text-center text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
+                  className="w-full text-center text-xs font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
                 >
                   Back to Sign In
                 </button>
@@ -537,10 +541,11 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             className="h-16 sm:h-20 w-auto max-w-[320px] mx-auto mb-3 object-contain filter drop-shadow-xs"
           />
           <h1 className="text-xl font-bold text-stone-900 tracking-tight">Fire Finance Pro</h1>
-          <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider mt-1">FIRE FINANCE PRO SECURE GATEWAY</p>
+          <p className="text-indigo-600 text-xs font-bold uppercase tracking-wider mt-1">Manage your money and projects</p>
         </div>
 
         <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-sm space-y-4">
+          {availableProviders.includes('google') && <>
           <div className="space-y-2">
             <OAuthButton
               provider="google"
@@ -556,18 +561,21 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             <div className="flex-1 h-px bg-stone-200" /> or use email <div className="flex-1 h-px bg-stone-200" />
           </div>
 
+          </>}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
+              <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Email</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                   <i className="fas fa-envelope"></i>
                 </span>
                 <input
                   type="email"
+                    aria-label="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                  className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                   placeholder="you@example.com"
                   autoComplete="email"
                   required
@@ -577,7 +585,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
 
             {mode === 'register' && (
               <div>
-                <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Username <span className="text-stone-400 normal-case">(optional)</span></label>
+                <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Username <span className="text-stone-400 normal-case">(optional)</span></label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                     <i className="fas fa-user"></i>
@@ -586,7 +594,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                    className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                     placeholder="Username"
                     autoComplete="username"
                   />
@@ -595,16 +603,17 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             )}
 
             <div>
-              <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Password</label>
+              <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1 ml-0.5">Password</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                   <i className="fas fa-lock"></i>
                 </span>
                 <input
                   type="password"
+                    aria-label="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-xs placeholder-stone-400 shadow-2xs"
+                  className="w-full pl-9.5 pr-3.5 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl outline-none font-semibold text-stone-900 transition-all text-sm placeholder-stone-400 shadow-2xs"
                   placeholder="••••••••"
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   minLength={8}
@@ -616,7 +625,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                   <button
                     type="button"
                     onClick={() => { setMode('forgot'); setError(null); }}
-                    className="text-[10px] font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition"
+                    className="text-xs font-bold text-stone-500 uppercase tracking-wider hover:text-indigo-600 transition"
                   >
                     Forgot password?
                   </button>
@@ -635,7 +644,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                     type="button"
                     disabled={resendLoading}
                     onClick={() => handleResendFromAlert(unverifiedEmail)}
-                    className="w-full mt-1.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 rounded-lg font-bold text-[10px] uppercase tracking-wider transition disabled:opacity-50"
+                    className="w-full mt-1.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 rounded-lg font-bold text-xs uppercase tracking-wider transition disabled:opacity-50"
                   >
                     {resendLoading ? 'Sending link...' : `Resend verification link to ${unverifiedEmail}`}
                   </button>
@@ -644,7 +653,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             )}
 
             {resendSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[10px] font-semibold text-center leading-relaxed">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold text-center leading-relaxed">
                 <i className="fas fa-check-circle mr-1.5 text-emerald-600"></i> {resendSuccess}
               </div>
             )}
@@ -657,7 +666,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               {loading ? (
                 <i className="fas fa-circle-notch fa-spin text-xs"></i>
               ) : mode === 'login' ? (
-                <>Decrypt &amp; Enter <i className="fas fa-chevron-right text-[9px]"></i></>
+                <>Sign in <i className="fas fa-chevron-right text-[9px]"></i></>
               ) : (
                 <>Create Account <i className="fas fa-chevron-right text-[9px]"></i></>
               )}
@@ -668,7 +677,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
             <button
               type="button"
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); setUnverifiedEmail(null); setResendSuccess(null); }}
-              className="w-full text-center text-[10px] font-bold text-stone-600 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
+              className="w-full text-center text-xs font-bold text-stone-600 uppercase tracking-wider hover:text-indigo-600 transition cursor-pointer"
             >
               {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
             </button>
@@ -676,7 +685,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => { setMode('resend'); setError(null); setResendSuccess(null); }}
-                className="w-full text-center text-[10px] font-medium text-stone-500 hover:text-stone-800 transition cursor-pointer"
+                className="w-full text-center text-xs font-medium text-stone-500 hover:text-stone-800 transition cursor-pointer"
               >
                 Didn't receive verification email?
               </button>
@@ -685,9 +694,9 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
         </div>
 
         <p className="mt-6 text-center text-stone-400 text-[9px] font-bold uppercase tracking-wider">
-          Auth-Shield v2.0 • OAuth2 + bcrypt
+          Your finances. Your plans. One place.
         </p>
-        <p className="mt-2 text-center text-[10px] text-stone-500">
+        <p className="mt-2 text-center text-xs text-stone-500">
           <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition">Terms of Service</a>
           <span className="mx-1.5">·</span>
           <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 transition">Privacy Policy</a>
@@ -725,7 +734,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => setConfigTab('env')}
-                className={`flex-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                className={`flex-1 py-2.5 text-center text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
                   configTab === 'env'
                     ? 'border-indigo-600 text-indigo-700 bg-white'
                     : 'border-transparent text-stone-600 hover:text-stone-900 hover:bg-stone-50'
@@ -736,7 +745,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
               <button
                 type="button"
                 onClick={() => setConfigTab('docker')}
-                className={`flex-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                className={`flex-1 py-2.5 text-center text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
                   configTab === 'docker'
                     ? 'border-indigo-600 text-indigo-700 bg-white'
                     : 'border-transparent text-stone-600 hover:text-stone-900 hover:bg-stone-50'
@@ -754,7 +763,7 @@ const Login: React.FC<Props> = ({ onAuthenticated, initialEmail, initialMode, re
                     To enable <strong>Continue with {selectedProvider === 'google' ? 'Google' : 'Apple'}</strong> on your live deployment, register your application on the developer portal and configure the following environment variables:
                   </p>
 
-                  <div className="bg-stone-950 p-3.5 rounded-xl border border-stone-800 font-mono text-[10px] text-emerald-400 space-y-1 select-all leading-relaxed">
+                  <div className="bg-stone-950 p-3.5 rounded-xl border border-stone-800 font-mono text-xs text-emerald-400 space-y-1 select-all leading-relaxed">
                     {selectedProvider === 'google' && (
                       <>
                         <div className="text-stone-400"># Google Cloud Console OAuth Client</div>
@@ -875,7 +884,7 @@ server {
                   setShowConfigHelp(false);
                   setSelectedProvider(null);
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-[10px] uppercase tracking-wider transition-all cursor-pointer shadow-xs"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs"
               >
                 Got it, Thanks!
               </button>

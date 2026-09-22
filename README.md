@@ -40,6 +40,8 @@ Open the newly created `.env` file and configure the settings:
 The app is fully dockerized for instant deployments. It uses a multi-stage `Dockerfile` to minimize size and optimize start speeds.
 
 ### Start the Application
+Ensure `proxy_network` exists (`docker network inspect proxy_network`); create it with `docker network create proxy_network` only on a new host. Set `POSTGRES_PASSWORD`, `SESSION_SECRET`, `DATA_ENCRYPTION_KEY` and `FRONTEND_URL` in `.env`. Existing installations must retain their actual password and key. Configure SMTP for verification and account recovery, and provider credentials for optional integrations.
+
 To build and start the container in the background:
 ```bash
 docker compose up -d --build
@@ -97,8 +99,6 @@ sudo systemctl reload openresty
 
 ## 💾 Backups & Persistence
 
-The application databases are automatically persisted in the `./data` directory on the host machine. 
-*   **Database**: `./data/database.json`
-*   **Encryption Key**: `./data/encryption.key`
+Production records and sessions are stored in PostgreSQL, in the persistent `ffpro2_pgdata` volume. The `./data` directory holds the encryption key and any file-backed artifacts; `database.json` is only a development fallback.
 
-To backup your user data, simply copy the `./data` directory to a secure off-site location.
+Back up PostgreSQL with `pg_dump`, the `./data` directory, and your deployment `.env`. Keep the encryption key with protected backups: the database alone cannot restore encrypted records. Test restoration into an isolated database. Never run `docker compose down -v` on a live installation.

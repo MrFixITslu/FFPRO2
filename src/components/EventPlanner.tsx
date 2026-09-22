@@ -1744,7 +1744,7 @@ const EventPlanner: React.FC<Props> = ({
       {showAddForm && !selectedEventId && (
         <div className="p-6 bg-white border border-stone-200 rounded-2xl shadow-sm animate-in zoom-in-95 mb-6 space-y-6">
           <div>
-            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-3">Select Planning Framework</label>
+            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-3">Choose Project Type</label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button 
                 type="button"
@@ -3694,7 +3694,7 @@ const EventPlanner: React.FC<Props> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-200">
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-stone-800">
-                    Active Planning Frameworks
+                    Active Projects
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
                     {activeEvents.length}
@@ -3732,8 +3732,8 @@ const EventPlanner: React.FC<Props> = ({
 
               {activeEvents.length === 0 ? (
                 <div className="p-10 text-center bg-white border border-stone-200 rounded-xl shadow-xs">
-                  <p className="text-stone-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Frameworks</p>
-                  <p className="text-stone-500 text-xs max-w-sm mx-auto mb-4">Start a new project plan, event framework, or budget roadmap.</p>
+                  <p className="text-stone-300 uppercase font-bold text-[9px] tracking-wider mb-2">No Active Projects</p>
+                  <p className="text-stone-500 text-xs max-w-sm mx-auto mb-4">Create a project to plan costs, organise tasks and track progress.</p>
                   <button onClick={() => setShowAddForm(true)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[9px] uppercase tracking-wider rounded-lg shadow-xs transition-colors inline-flex items-center gap-1.5">
                     <Plus size={12} />
                     <span>Start New Project</span>
@@ -3924,7 +3924,7 @@ const EventPlanner: React.FC<Props> = ({
                       </span>
                     </div>
                     <p className="text-[10px] text-stone-400 font-medium">
-                      Completed & archived frameworks. You can reopen any project anytime to resume planning.
+                      Completed and archived projects. You can reopen any project anytime to resume planning.
                     </p>
                   </div>
                 </div>
@@ -4302,7 +4302,7 @@ const EventPlanner: React.FC<Props> = ({
                     {/* Converting state menu */}
                     {isConverting ? (
                       <div className="pt-2 border-t border-stone-100 space-y-1.5 animate-in slide-in-from-bottom-1 duration-150">
-                        <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Select Planning Framework:</p>
+                        <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Choose Project Type:</p>
                         <div className="grid grid-cols-3 gap-1">
                           <button
                             onClick={() => handleConvertIdeaToPlan(idea, 'event')}

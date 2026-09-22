@@ -1,3 +1,4 @@
+import { calculateGoodsPricing } from './goodsPricingService';
 import {
   StartupPlanDetails,
   StartupCostItem,
@@ -231,8 +232,8 @@ export function calculateLandedImportCost(params: {
 
   const rawFob = Math.max(0, params.fobCost || 0);
   const rawFreight = Math.max(0, params.shippingFreight || 0);
-  const rawInsurance = params.insuranceCost !== undefined && params.insuranceCost > 0
-    ? params.insuranceCost
+  const rawInsurance = params.insuranceCost !== undefined
+    ? Math.max(0, params.insuranceCost)
     : (rawFob > 0 ? roundCurrency(rawFob * 0.01) : 0);
 
   // If supplier quotes in USD, convert to Saint Lucia statutory customs CIF in EC$
@@ -860,7 +861,7 @@ export function calculateLoanAmortizationSchedule(
   if (paymentFrequency === 'fortnightly') paymentsPerYear = 26;
   if (paymentFrequency === 'weekly') paymentsPerYear = 52;
 
-  const totalPeriods = termYears * paymentsPerYear;
+  const totalPeriods = Math.max(1, Math.round(termYears * paymentsPerYear));
   const periodInterestRate = (annualInterestRate / 100) / paymentsPerYear;
 
   const graceMonths = Math.max(0, params.gracePeriodMonths ?? 0);
@@ -1049,17 +1050,19 @@ export function generateStartupFinancialForecast(
   const activeCurrency: CurrencyCode = targetCurrency || sd?.displayCurrency || 'USD';
   const activeRate: number = targetExchangeRate || sd?.exchangeRate || DEFAULT_USD_TO_XCD_RATE;
 
-  const modelType: BusinessModelType = sd?.businessModelType || 'goods';
+  const modelType: BusinessModelType = sd?.businessModelType || (sd?.serviceOfferings?.length ? 'services' : 'goods');
+  const sourceCurrency = sd?.displayCurrency || 'USD';
+  const legacyPricing = calculateGoodsPricing(sd, calculateMonthlyOperatingExpenses(sd).monthlyTotal);
   const goodsType = sd?.goodsType || 'make';
   
   // Extract and normalize all cost items into active display currency
   const rawCostItems = extractUnifiedCostItems(sd);
   const costItems = rawCostItems.map((item) =>
-    normalizeCostItemToCurrency(item, activeCurrency, activeRate)
+    normalizeCostItemToCurrency({ ...item, currency: item.currency || sourceCurrency }, activeCurrency, activeRate)
   );
 
   const startingCash = sd?.startingCash !== undefined
-    ? convertCurrency(sd.startingCash, 'USD', activeCurrency, activeRate)
+    ? convertCurrency(sd.startingCash, sourceCurrency, activeCurrency, activeRate)
     : 0;
 
   // 1. Group cost items by classification
@@ -1071,17 +1074,16 @@ export function generateStartupFinancialForecast(
 
   // Baseline Goods Products (normalized)
   let goodsProducts: GoodsProduct[] = (sd?.goodsProducts || []).map((p) =>
-    normalizeGoodsProductToCurrency(p, activeCurrency, activeRate)
+    normalizeGoodsProductToCurrency({ ...p, currency: p.currency || sourceCurrency }, activeCurrency, activeRate)
   );
   if (goodsProducts.length === 0 && (modelType === 'goods' || modelType === 'both')) {
-    const rawCogs = sd?.cogs ?? 0;
-    const rawPrice = rawCogs > 0 ? rawCogs * (1 + ((sd?.markup ?? 0) / 100)) : 0;
-    const defaultPrice = convertCurrency(rawPrice, 'USD', activeCurrency, activeRate);
+    const defaultPrice = convertCurrency(legacyPricing.sellingPrice, sourceCurrency, activeCurrency, activeRate);
     goodsProducts = [
       {
         id: 'default-goods-1',
         name: goodsType === 'make' ? 'Core Manufactured Product' : 'Core Resale Merchandise',
         sellingPrice: roundCurrency(defaultPrice),
+        unitCost: convertCurrency(legacyPricing.costOfGoodsSoldUnit, sourceCurrency, activeCurrency, activeRate),
         monthlySalesVolume: sd?.monthlyVolume ?? 0,
         monthlyGrowthRatePercent: 0,
         annualGrowthRatePercent: sd?.growthRateYear3 ?? 0
@@ -1091,8 +1093,8 @@ export function generateStartupFinancialForecast(
 
   // Baseline Service Offerings (normalized).
   // Do not invent a default service, rate, or volume: missing service inputs must remain visibly incomplete.
-  const serviceOfferings: ServiceOffering[] = (sd?.serviceOfferings || []).map((s) =>
-    normalizeServiceOfferingToCurrency(s, activeCurrency, activeRate)
+  const serviceOfferings: ServiceOffering[] = (modelType === 'goods' ? [] : (sd?.serviceOfferings || [])).map((s) =>
+    normalizeServiceOfferingToCurrency({ ...s, currency: s.currency || sourceCurrency }, activeCurrency, activeRate)
   );
 
   // Calculate monthly depreciation for equipment
@@ -1106,7 +1108,8 @@ export function generateStartupFinancialForecast(
       purchaseCost,
       monthlyDepreciation: dep.monthlyDepreciation,
       annualDepreciation: dep.annualDepreciation,
-      usefulLifeYears: dep.usefulLifeYears
+      usefulLifeYears: dep.usefulLifeYears,
+      depreciableBase: dep.depreciableBase
     };
   });
 
@@ -1114,18 +1117,32 @@ export function generateStartupFinancialForecast(
   const monthlyYear1: MonthlyForecastMonth[] = [];
 
   let runningCashBalance = startingCash;
-  let runningInventoryUnits = stockItems.reduce((sum, s) => sum + (s.initialStockUnits ?? s.stockQuantity ?? 100), 0);
-  let averageStockUnitCost = stockItems.length > 0
-    ? stockItems.reduce((sum, s) => sum + (s.stockUnitCost ?? 10), 0) / stockItems.length
-    : (sd?.cogs || 10);
-  let runningInventoryValue = roundCurrency(runningInventoryUnits * averageStockUnitCost);
+  // Inventory is purchased in month 1, never also counted as opening stock.
+  const initialStockUnits = stockItems.reduce((sum, item) => sum + Math.max(0, item.initialStockUnits ?? item.stockQuantity ?? 0), 0);
+  const initialStockCost = roundCurrency(stockItems.reduce((sum, item) => sum + Math.max(0, item.initialStockUnits ?? item.stockQuantity ?? 0) * Math.max(0, item.stockUnitCost ?? item.unitCost ?? 0), 0));
+  const averageStockUnitCost = initialStockUnits > 0 ? initialStockCost / initialStockUnits : convertCurrency(sd?.cogs ?? 0, sourceCurrency, activeCurrency, activeRate);
+  let runningInventoryUnits = 0;
+  let runningInventoryValue = 0;
+  // Cumulative rounding ensures the depreciable base is neither exceeded nor left partly unallocated.
+  const depreciationBetween = (eq: typeof equipmentDeprecations[number], from: number, to: number) => {
+    const lifeMonths = Math.max(1, Math.round(eq.usefulLifeYears * 12));
+    const cumulative = (month: number) => roundCurrency(eq.depreciableBase * Math.min(lifeMonths, Math.max(0, month - eq.purchaseMonth + 1)) / lifeMonths);
+    return roundCurrency(cumulative(to) - cumulative(from - 1));
+  };
 
   let totalSalesUnitsYear1 = 0;
   let totalServiceHoursOrJobsYear1 = 0;
   let totalServiceBookingEquivalentsYear1 = 0;
 
   // Calculate Loan Amortization Summary if enabled
-  const loanSummary = calculateLoanAmortizationSchedule(sd?.loanParameters, activeCurrency, activeRate);
+  const loanParameters = sd?.loanParameters;
+  const convertLoanMoney = (amount: number | undefined) => amount === undefined ? undefined : convertCurrency(amount, sourceCurrency, activeCurrency, activeRate);
+  const loanSummary = calculateLoanAmortizationSchedule(loanParameters ? {
+    ...loanParameters,
+    loanAmount: convertLoanMoney(loanParameters.loanAmount)!,
+    negotiationFee: convertLoanMoney(loanParameters.negotiationFee),
+    insuranceFee: convertLoanMoney(loanParameters.insuranceFee)
+  } : undefined, activeCurrency, activeRate);
 
   for (let m = 1; m <= 12; m++) {
     const monthIndex = m - 1;
@@ -1134,11 +1151,13 @@ export function generateStartupFinancialForecast(
     // 1. Revenue Calculations
     let goodsRev = 0;
     let goodsUnits = 0;
+    let productCogs = 0;
     if (modelType === 'goods' || modelType === 'both') {
       goodsProducts.forEach((p) => {
         const growthMoM = (p.monthlyGrowthRatePercent ?? 0) / 100;
         const volume_m = Math.round(p.monthlySalesVolume * Math.pow(1 + growthMoM, monthIndex));
         goodsUnits += volume_m;
+        productCogs += roundCurrency(volume_m * Math.max(0, p.unitCost ?? p.cogs ?? averageStockUnitCost));
         goodsRev += roundCurrency(volume_m * p.sellingPrice);
       });
     }
@@ -1223,31 +1242,19 @@ export function generateStartupFinancialForecast(
     if (goodsUnits > 0) {
       stockConsumedUnits = goodsUnits;
     }
-    const stockCogs = roundCurrency(stockConsumedUnits * averageStockUnitCost);
+    const stockCogs = roundCurrency(productCogs);
     const totalCOGS = sumCurrency(stockCogs, directCostsTotal);
     const grossProfit = roundCurrency(totalRevenue - totalCOGS);
     const grossMarginPercent = totalRevenue > 0 ? roundCurrency((grossProfit / totalRevenue) * 100) : 0;
 
     // Stock Purchases for Cash Flow:
-    let stockPurchasesCash = 0;
-    if (m === 1) {
-      // Initial inventory purchase
-      stockPurchasesCash = stockItems.reduce(
-        (sum, s) => sum + roundCurrency((s.initialStockUnits ?? s.stockQuantity ?? 100) * (s.stockUnitCost ?? 10)),
-        0
-      );
-      if (stockPurchasesCash === 0 && (modelType === 'goods' || modelType === 'both')) {
-        stockPurchasesCash = roundCurrency(goodsUnits * averageStockUnitCost * 1.5);
-      }
-    } else {
-      // Monthly restock matching expected consumption
-      stockPurchasesCash = roundCurrency(stockConsumedUnits * averageStockUnitCost);
-    }
-
-    // Update inventory balance
-    const stockPurchasedUnits = averageStockUnitCost > 0 ? Math.round(stockPurchasesCash / averageStockUnitCost) : stockConsumedUnits;
-    runningInventoryUnits = Math.max(0, runningInventoryUnits + stockPurchasedUnits - stockConsumedUnits);
-    runningInventoryValue = roundCurrency(runningInventoryUnits * averageStockUnitCost);
+    // Replenish the value consumed; initial inventory is working capital, not an extra P&L expense.
+    const openingPurchase = m === 1 && modelType !== 'services' ? initialStockCost : 0;
+    const availableInventory = runningInventoryValue + openingPurchase;
+    const replenishment = m === 1 ? Math.max(0, stockCogs - availableInventory) : stockCogs;
+    const stockPurchasesCash = roundCurrency(openingPurchase + replenishment);
+    runningInventoryValue = roundCurrency(Math.max(0, availableInventory + replenishment - stockCogs));
+    runningInventoryUnits = averageStockUnitCost > 0 ? roundCurrency(runningInventoryValue / averageStockUnitCost) : 0;
 
     // 3. Operating Expenses (Recurring + One-Time)
     let monthlyRecurringOpEx = recurringOpExItems.reduce(
@@ -1255,7 +1262,7 @@ export function generateStartupFinancialForecast(
       0
     );
     // Legacy fallback if recurringOpExItems was empty
-    if (monthlyRecurringOpEx === 0 && sd) {
+    if (recurringOpExItems.length === 0 && sd) {
       const customTotal = (sd.customExpenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
       monthlyRecurringOpEx = sumCurrency(sd.rent, sd.salaries, sd.utilities, sd.marketing, sd.otherExpenses, customTotal);
     }
@@ -1270,7 +1277,7 @@ export function generateStartupFinancialForecast(
     // 4. Depreciation & Loan Interest
     const activeDepreciation = equipmentDeprecations
       .filter((eq) => eq.purchaseMonth <= m)
-      .reduce((sum, eq) => sum + eq.monthlyDepreciation, 0);
+      .reduce((sum, eq) => sum + depreciationBetween(eq, m, m), 0);
 
     let mInterest = 0;
     let mPrincipal = 0;
@@ -1299,7 +1306,7 @@ export function generateStartupFinancialForecast(
       loanUpfrontFeeCash = loanSummary.totalFees;
     }
 
-    const cashInflow = totalRevenue + (m === 1 && loanSummary ? loanSummary.effectiveLoanAmount : 0);
+    const cashInflow = totalRevenue + (m === 1 && loanSummary ? loanSummary.loanAmount : 0);
     const cashOutflow = sumCurrency(
       cashEquipmentPurchases,
       stockPurchasesCash,
@@ -1365,6 +1372,8 @@ export function generateStartupFinancialForecast(
   // Recalculate DSCR with Year 1 Net Operating Income (EBITDA = Gross Profit - OpEx)
   const year1Ebitda = roundCurrency(totalGrossY1 - totalOpExY1);
   if (loanSummary && totalDebtServiceY1 > 0) {
+    loanSummary.dscrNumerator = year1Ebitda;
+    loanSummary.dscrDenominator = totalDebtServiceY1;
     loanSummary.dscrYear1 = roundCurrency(year1Ebitda / totalDebtServiceY1);
     if (loanSummary.dscrYear1 < 1.0) loanSummary.dscrStatus = 'insufficient';
     else if (loanSummary.dscrYear1 < 1.25) loanSummary.dscrStatus = 'tight';
@@ -1417,8 +1426,7 @@ export function generateStartupFinancialForecast(
 
     // Full annual depreciation for equipment that is still within useful life
     const yearDepreciation = equipmentDeprecations
-      .filter((eq) => year <= eq.usefulLifeYears)
-      .reduce((sum, eq) => sum + eq.annualDepreciation, 0);
+      .reduce((sum, eq) => sum + depreciationBetween(eq, (year - 1) * 12 + 1, year * 12), 0);
 
     let yearInterest = 0;
     let yearPrincipal = 0;
@@ -1482,7 +1490,7 @@ export function generateStartupFinancialForecast(
   if (modelType === 'goods') {
     metricLabel = goodsType === 'make' ? 'Manufactured Units' : 'Merchandise Units';
     const firstProduct = goodsProducts[0];
-    unitPrice = firstProduct?.sellingPrice ?? 0;
+    unitPrice = totalSalesUnitsYear1 > 0 ? totalRevenueY1 / totalSalesUnitsYear1 : (firstProduct?.sellingPrice ?? 0);
     const cogsUnit = totalSalesUnitsYear1 > 0 ? totalCogsY1 / totalSalesUnitsYear1 : (sd?.cogs ?? 0);
     unitVariableCost = roundCurrency(cogsUnit);
     const unitContribution = unitPrice - unitVariableCost;
@@ -1503,7 +1511,8 @@ export function generateStartupFinancialForecast(
       const firstService = serviceOfferings[0];
       metricLabel = getServiceOfferingUnitLabel(firstService);
       unitPrice = firstService?.rate ?? 0;
-      unitVariableCost = firstService?.directCostPerUnitOrJob ?? 0;
+      unitVariableCost = totalServiceHoursOrJobsYear1 > 0 ? totalCogsY1 / totalServiceHoursOrJobsYear1 : 0;
+      unitPrice = totalServiceHoursOrJobsYear1 > 0 ? totalRevenueY1 / totalServiceHoursOrJobsYear1 : unitPrice;
     }
 
     const unitContribution = unitPrice - unitVariableCost;
