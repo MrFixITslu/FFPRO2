@@ -110,9 +110,14 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
 
     const serviceOfferings = sd?.serviceOfferings || [];
     const businessModelType = sd?.businessModelType || 'services';
+    const useBlendedBookingBasis = businessModelType === 'services' && serviceOfferings.length > 1;
     const monthlyUnits = businessModelType === 'both'
-      ? (month1?.salesVolumeUnits || 0) + (month1?.billableHoursOrJobs || 0)
-      : (month1?.billableHoursOrJobs || 0);
+      ? (month1?.salesVolumeUnits || 0) + (month1?.serviceBookingEquivalents || month1?.billableHoursOrJobs || 0)
+      : (
+          useBlendedBookingBasis
+            ? (month1?.serviceBookingEquivalents || 0)
+            : (month1?.billableHoursOrJobs || 0)
+        );
 
     const monthlyRevenue = month1?.revenue || 0;
     const monthlyCOGS = month1?.cogs || 0;
@@ -128,7 +133,11 @@ export const computeStartupCalculations = (sd?: StartupPlanDetails): BusinessPla
     const unitLabels = Array.from(new Set(serviceOfferings.map((s) => getServiceOfferingUnitLabel(s))));
     const unitLabel = businessModelType === 'both'
       ? 'Combined Product & Service Units'
-      : (unitLabels.length === 1 ? unitLabels[0] : (unitLabels.length > 1 ? 'Service Units' : 'Service Units'));
+      : (
+          useBlendedBookingBasis
+            ? 'Blended Bookings / Sessions'
+            : (unitLabels.length === 1 ? unitLabels[0] : 'Service Units')
+        );
 
     const monthlyNetOperatingProfit = monthlyGrossProfit - monthlyOpExpenses;
     const netMarginPercent = monthlyRevenue > 0

@@ -63,6 +63,32 @@ export function getServiceOfferingUnitLabel(offering?: Pick<ServiceOffering, 'un
   return customLabel || getDefaultServiceUnitLabel(offering?.revenueModel);
 }
 
+export function getServiceUnitsPerBooking(
+  offering?: Pick<ServiceOffering, 'revenueModel' | 'unitsPerBooking'>,
+  plan?: StartupPlanDetails
+): number {
+  if (!offering) return 1;
+  if (offering.unitsPerBooking !== undefined && offering.unitsPerBooking > 0) {
+    return offering.unitsPerBooking;
+  }
+
+  if (offering.revenueModel === 'per_participant') {
+    const equipmentCapacity = plan?.serviceCapacityPlan?.equipment?.capacityPerResource;
+    if (equipmentCapacity !== undefined && equipmentCapacity > 0) return equipmentCapacity;
+  }
+
+  return 1;
+}
+
+export function getServiceBookingEquivalents(
+  offering: Pick<ServiceOffering, 'revenueModel' | 'unitsPerBooking'>,
+  billedVolume: number,
+  plan?: StartupPlanDetails
+): number {
+  const unitsPerBooking = getServiceUnitsPerBooking(offering, plan);
+  return unitsPerBooking > 0 ? roundCurrency(Math.max(0, billedVolume) / unitsPerBooking) : 0;
+}
+
 export interface DutyPresetRates {
   label: string;
   shortLabel: string;
@@ -1096,6 +1122,7 @@ export function generateStartupFinancialForecast(
 
   let totalSalesUnitsYear1 = 0;
   let totalServiceHoursOrJobsYear1 = 0;
+  let totalServiceBookingEquivalentsYear1 = 0;
 
   // Calculate Loan Amortization Summary if enabled
   const loanSummary = calculateLoanAmortizationSchedule(sd?.loanParameters, activeCurrency, activeRate);
@@ -1118,14 +1145,17 @@ export function generateStartupFinancialForecast(
 
     let servicesRev = 0;
     let serviceUnits = 0;
+    let serviceBookingEquivalents = 0;
     if (modelType === 'services' || modelType === 'both') {
       serviceOfferings.forEach((s) => {
         const growthMoM = (s.monthlyGrowthRatePercent ?? 0) / 100;
         const baseVolume = Math.max(0, s.expectedVolume ?? 0);
         const volume_m = Math.round(baseVolume * Math.pow(1 + growthMoM, monthIndex));
         serviceUnits += volume_m;
+        serviceBookingEquivalents += getServiceBookingEquivalents(s, volume_m, sd);
         servicesRev += roundCurrency(volume_m * Math.max(0, s.rate ?? 0));
       });
+      serviceBookingEquivalents = roundCurrency(serviceBookingEquivalents);
     }
 
     // Rental Revenue from Equipment (Revenue Source vs Capacity Separation)
@@ -1146,13 +1176,35 @@ export function generateStartupFinancialForecast(
     const totalRevenue = sumCurrency(goodsRev, servicesRev, rentalRev);
     totalSalesUnitsYear1 += goodsUnits;
     totalServiceHoursOrJobsYear1 += serviceUnits;
+    totalServiceBookingEquivalentsYear1 = roundCurrency(
+      totalServiceBookingEquivalentsYear1 + serviceBookingEquivalents
+    );
 
     // 2. COGS & Direct Cost Calculations
     // Direct cost items
     let directCostsTotal = 0;
     directCostItems.forEach((dc) => {
       const perUnit = dc.directCostPerUnitOrJob ?? dc.unitCost ?? 0;
-      const applicableVolume = goodsUnits > 0 ? goodsUnits : (serviceUnits > 0 ? serviceUnits : 1);
+      const basis = dc.directCostBasis ?? (
+        modelType === 'services' || modelType === 'both'
+          ? 'per_booking'
+          : 'per_revenue_unit'
+      );
+
+      let applicableVolume = 0;
+      if (modelType === 'services') {
+        applicableVolume = basis === 'per_booking'
+          ? serviceBookingEquivalents
+          : serviceUnits;
+      } else if (modelType === 'goods') {
+        applicableVolume = goodsUnits;
+      } else {
+        // Hybrid models retain goods-unit behavior and use booking equivalents for service-side shared job costs.
+        applicableVolume = basis === 'per_booking'
+          ? serviceBookingEquivalents + goodsUnits
+          : serviceUnits + goodsUnits;
+      }
+
       directCostsTotal += roundCurrency(perUnit * applicableVolume);
     });
 
@@ -1288,6 +1340,7 @@ export function generateStartupFinancialForecast(
       endingInventoryUnits: runningInventoryUnits,
       salesVolumeUnits: goodsUnits,
       billableHoursOrJobs: serviceUnits,
+      serviceBookingEquivalents,
       loanInterestExpense: mInterest,
       loanPrincipalRepayment: mPrincipal,
       totalDebtService: mDebtServiceCash
@@ -1437,11 +1490,22 @@ export function generateStartupFinancialForecast(
       ? Math.ceil(averageMonthlyFixedCosts / unitContribution)
       : 0;
   } else if (modelType === 'services') {
-    const firstService = serviceOfferings[0];
-    metricLabel = getServiceOfferingUnitLabel(firstService);
+    const hasMultipleOfferings = serviceOfferings.length > 1;
+    const hasPerBookingSharedCosts = directCostItems.some(
+      (item) => (item.directCostBasis ?? 'per_booking') === 'per_booking'
+    );
 
-    unitPrice = firstService?.rate ?? 0;
-    unitVariableCost = firstService?.directCostPerUnitOrJob ?? 0;
+    if ((hasMultipleOfferings || hasPerBookingSharedCosts) && totalServiceBookingEquivalentsYear1 > 0) {
+      metricLabel = 'Blended Bookings / Sessions';
+      unitPrice = roundCurrency(totalRevenueY1 / totalServiceBookingEquivalentsYear1);
+      unitVariableCost = roundCurrency(totalCogsY1 / totalServiceBookingEquivalentsYear1);
+    } else {
+      const firstService = serviceOfferings[0];
+      metricLabel = getServiceOfferingUnitLabel(firstService);
+      unitPrice = firstService?.rate ?? 0;
+      unitVariableCost = firstService?.directCostPerUnitOrJob ?? 0;
+    }
+
     const unitContribution = unitPrice - unitVariableCost;
     breakEvenUnitsMonthly = unitContribution > 0
       ? Math.ceil(averageMonthlyFixedCosts / unitContribution)

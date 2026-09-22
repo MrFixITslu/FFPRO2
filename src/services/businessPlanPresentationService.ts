@@ -307,15 +307,35 @@ export function buildBusinessPlanPresentation(
   }
 
   const baselineMonth = forecast.monthlyYear1[0];
+  const useBlendedBookingBasis = businessModelType === 'services' && offerings.length > 1;
   const year1Volume = forecast.monthlyYear1.reduce((sum, month) => {
-    if (businessModelType === 'both') return sum + month.salesVolumeUnits + month.billableHoursOrJobs;
-    return sum + (isServiceBusiness ? month.billableHoursOrJobs : month.salesVolumeUnits);
+    if (businessModelType === 'both') {
+      return sum + month.salesVolumeUnits + (month.serviceBookingEquivalents || month.billableHoursOrJobs);
+    }
+    if (isServiceBusiness) {
+      return sum + (
+        useBlendedBookingBasis
+          ? (month.serviceBookingEquivalents || 0)
+          : month.billableHoursOrJobs
+      );
+    }
+    return sum + month.salesVolumeUnits;
   }, 0);
   const monthlyVolume = businessModelType === 'both'
-    ? (baselineMonth?.salesVolumeUnits || 0) + (baselineMonth?.billableHoursOrJobs || 0)
-    : (isServiceBusiness ? (baselineMonth?.billableHoursOrJobs || 0) : (baselineMonth?.salesVolumeUnits || 0));
+    ? (baselineMonth?.salesVolumeUnits || 0) + (baselineMonth?.serviceBookingEquivalents || baselineMonth?.billableHoursOrJobs || 0)
+    : (
+        isServiceBusiness
+          ? (
+              useBlendedBookingBasis
+                ? (baselineMonth?.serviceBookingEquivalents || 0)
+                : (baselineMonth?.billableHoursOrJobs || 0)
+            )
+          : (baselineMonth?.salesVolumeUnits || 0)
+      );
   const serviceLabels = Array.from(new Set(offerings.map((s) => getServiceOfferingUnitLabel(s))));
-  const serviceVolumeLabel = serviceLabels.length === 1 ? serviceLabels[0] : 'Service Units';
+  const serviceVolumeLabel = useBlendedBookingBasis
+    ? 'Blended Bookings / Sessions'
+    : (serviceLabels.length === 1 ? serviceLabels[0] : 'Service Units');
   const resolvedVolumeLabel = businessModelType === 'both'
     ? 'Combined Product & Service Units'
     : (isServiceBusiness ? serviceVolumeLabel : 'Units Sold');

@@ -195,6 +195,110 @@ test('generalised service capacity handles both staff and equipment resources', 
   assert.equal(staffPlan.monthlyRevenuePotential, 18000);
 });
 
+test('mixed service pricing applies shared booking costs to booking equivalents, not participant headcount', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'mobile',
+    displayCurrency: 'XCD',
+    exchangeRate: 2.72,
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceCapacityPlan: {
+      equipment: {
+        enabled: true,
+        resourceCount: 1,
+        availableDaysPerUnit: 30,
+        targetUtilisationPercent: 35,
+        dailyRate: 0,
+        revenueTreatment: 'capacity_only',
+        resourceUnitLabel: 'systems',
+        capacityPerResource: 12,
+        capacityUnitLabel: 'players',
+        operatingHoursPerDay: 8,
+        serviceUnitDurationHours: 1
+      }
+    },
+    serviceOfferings: [
+      { id: 'quick', name: 'Quick Battle', revenueModel: 'per_participant', unitLabel: 'Participants', rate: 30, expectedVolume: 25, monthlyGrowthRatePercent: 0 },
+      { id: 'hour', name: 'Battle Hour', revenueModel: 'per_participant', unitLabel: 'Participants', rate: 50, expectedVolume: 20, monthlyGrowthRatePercent: 0 },
+      { id: 'bday1', name: 'Birthday Strike', revenueModel: 'event', unitLabel: 'Sessions', rate: 450, expectedVolume: 5, monthlyGrowthRatePercent: 0 },
+      { id: 'bday2', name: 'Birthday Battle', revenueModel: 'event', unitLabel: 'Sessions', rate: 650, expectedVolume: 2, monthlyGrowthRatePercent: 0 },
+      { id: 'bday3', name: 'Ultimate Birthday Tournament', revenueModel: 'event', unitLabel: 'Sessions', rate: 850, expectedVolume: 2, monthlyGrowthRatePercent: 0 },
+      { id: 'corp1', name: 'Corporate Team Battle', revenueModel: 'event', unitLabel: 'Sessions', rate: 800, expectedVolume: 1, monthlyGrowthRatePercent: 0 },
+      { id: 'corp2', name: 'Corporate Tournament', revenueModel: 'event', unitLabel: 'Sessions', rate: 1200, expectedVolume: 1, monthlyGrowthRatePercent: 0 },
+      { id: 'resort', name: 'Resort Guest Experience', revenueModel: 'per_participant', unitLabel: 'Participants', rate: 54.34, expectedVolume: 24, monthlyGrowthRatePercent: 0 },
+      { id: 'community', name: 'Community / Festival Play', revenueModel: 'per_participant', unitLabel: 'Participants', rate: 20, expectedVolume: 144, monthlyGrowthRatePercent: 0 }
+    ],
+    costItems: [
+      { id: 'operator', name: 'Event Operator', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 10 },
+      { id: 'field', name: 'Field Operator', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 8 },
+      { id: 'vehicle', name: 'Vehicle Rental', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 80 },
+      { id: 'manager', name: 'Manager', classification: 'operating', currency: 'XCD', monthlyExpenseAmount: 3000 }
+    ]
+  };
+
+  const forecast = generateStartupFinancialForecast(plan, 'XCD', 2.72);
+  const month1 = forecast.monthlyYear1[0];
+
+  assert.equal(month1.revenue, 13184.16);
+  assert.equal(month1.serviceBookingEquivalents, 28.75);
+  assert.equal(month1.cashDirectCosts, 2817.5);
+  assert.equal(month1.cogs, 2817.5);
+  assert.equal(month1.grossProfit, 10366.66);
+  assert.ok(month1.grossMarginPercent > 78);
+  assert.equal(forecast.breakEven.breakEvenMetricLabel, 'Blended Bookings / Sessions');
+  assert.ok(forecast.breakEven.breakEvenRevenueMonthly > 0);
+  assert.ok(forecast.breakEven.breakEvenUnitsMonthly > 0);
+});
+
+test('direct cost can intentionally scale per participant/revenue unit', () => {
+  const plan: StartupPlanDetails = {
+    businessModelType: 'services',
+    operatingModel: 'mobile',
+    displayCurrency: 'XCD',
+    exchangeRate: 2.72,
+    cogs: 0,
+    markup: 0,
+    monthlyVolume: 0,
+    rent: 0,
+    salaries: 0,
+    marketing: 0,
+    utilities: 0,
+    otherExpenses: 0,
+    growthRateYear3: 0,
+    growthRateYear5: 0,
+    serviceCapacityPlan: {
+      equipment: {
+        enabled: true,
+        resourceCount: 1,
+        availableDaysPerUnit: 30,
+        targetUtilisationPercent: 35,
+        dailyRate: 0,
+        revenueTreatment: 'capacity_only',
+        capacityPerResource: 12
+      }
+    },
+    serviceOfferings: [
+      { id: 'play', name: 'Play', revenueModel: 'per_participant', unitLabel: 'Participants', rate: 30, expectedVolume: 24, monthlyGrowthRatePercent: 0 }
+    ],
+    costItems: [
+      { id: 'consumable', name: 'Participant Consumable', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 5, directCostBasis: 'per_revenue_unit' }
+    ]
+  };
+
+  const forecast = generateStartupFinancialForecast(plan, 'XCD', 2.72);
+  assert.equal(forecast.monthlyYear1[0].serviceBookingEquivalents, 2);
+  assert.equal(forecast.monthlyYear1[0].cashDirectCosts, 120);
+});
+
 test('equipment capacity-only mode tracks operating capacity without fabricating rental revenue', () => {
   const result = calculateServiceCapacity({
     equipment: {

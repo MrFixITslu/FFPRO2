@@ -543,11 +543,14 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
 
                     {item.classification === 'direct' && (() => {
                       const directCostDisplay = normalizeItemValue(item.directCostPerUnitOrJob ?? 0, item.currency);
+                      const basis = item.directCostBasis || 'per_booking';
 
                       return (
                         <div className="space-y-1 text-[11px] text-stone-600 font-mono">
                           <div className="flex justify-between">
-                            <span className="font-sans">Direct Cost per Sale/Job:</span>
+                            <span className="font-sans">
+                              {basis === 'per_booking' ? 'Direct Cost per Booking/Job:' : 'Direct Cost per Revenue Unit:'}
+                            </span>
                             <span className="font-bold text-stone-900">
                               {currentSymbol} {directCostDisplay.toFixed(2)}
                               {isDifferentCurrency && (
@@ -558,7 +561,9 @@ export const SharedCostItemList: React.FC<SharedCostItemListProps> = ({
                             </span>
                           </div>
                           <div className="text-[10px] text-stone-400 font-sans">
-                            Automatically multiplies by monthly sales volume or billable services.
+                            {basis === 'per_booking'
+                              ? 'Scales with booking/session equivalents, not participant headcount.'
+                              : 'Scales with billed participants/units.'}
                           </div>
                         </div>
                       );

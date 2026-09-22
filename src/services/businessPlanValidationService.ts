@@ -130,6 +130,29 @@ export function validateBusinessPlan(
             actionableRecommendation: `Specify the target monthly number of ${unitLabel.toLowerCase()}.`
           });
         }
+
+        const serviceLevelCost = Math.max(0, s.directCostPerUnitOrJob ?? 0);
+        if (s.rate > 0 && serviceLevelCost >= s.rate) {
+          issues.push({
+            id: `service-unit-cost-exceeds-rate-${idx}`,
+            type: 'error',
+            category: 'pricing',
+            title: `Service-Level Cost Eliminates Margin on "${s.name || `Service #${idx + 1}`}"`,
+            message: `The service-level variable cost (${calculations.currencySymbol || ''}${serviceLevelCost.toFixed(2)}) is greater than or equal to the billing rate (${calculations.currencySymbol || ''}${s.rate.toFixed(2)}).`,
+            actionableRecommendation: 'Set this field to only the package-specific cost per billed unit. Shared staff/transport costs should be entered once in the direct-cost ledger using a per-booking basis.'
+          });
+        }
+
+        if ((s.monthlyGrowthRatePercent ?? 0) > 0) {
+          issues.push({
+            id: `service-monthly-growth-active-${idx}`,
+            type: 'info',
+            category: 'forecast',
+            title: `Monthly Growth Active on "${s.name || `Service #${idx + 1}`}"`,
+            message: `This offering is set to grow ${s.monthlyGrowthRatePercent}% every month during Year 1, so the annual forecast is higher than 12 × the starting monthly volume.`,
+            actionableRecommendation: 'Keep Year 1 monthly growth at 0% unless this ramp is intentional; longer-term Year 3 and Year 5 growth targets are modeled separately.'
+          });
+        }
       });
     }
 

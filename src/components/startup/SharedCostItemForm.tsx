@@ -120,6 +120,9 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
   const [directCostPerUnitOrJob, setDirectCostPerUnitOrJob] = useState(
     initialItem?.directCostPerUnitOrJob?.toString() || initialItem?.unitCost?.toString() || '15'
   );
+  const [directCostBasis, setDirectCostBasis] = useState<'per_booking' | 'per_revenue_unit'>(
+    initialItem?.directCostBasis || 'per_booking'
+  );
 
   // Recurring Operating Expense fields
   const [monthlyExpenseAmount, setMonthlyExpenseAmount] = useState(
@@ -265,6 +268,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
     } else if (classification === 'direct') {
       const perJob = Math.max(0, parseFloat(directCostPerUnitOrJob) || 0);
       saved.directCostPerUnitOrJob = perJob;
+      saved.directCostBasis = directCostBasis;
       saved.unitCost = perJob;
       saved.amount = perJob;
     } else if (classification === 'operating') {
@@ -915,7 +919,7 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Direct Cost Amount per Unit / Job ({currentSymbol})
+                  Direct Cost Amount ({currentSymbol})
                 </label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-2.5 text-xs font-semibold text-stone-500">{currentSymbol}</span>
@@ -931,8 +935,19 @@ export const SharedCostItemForm: React.FC<SharedCostItemFormProps> = ({
                 {renderConversionHint(directCostPerUnitOrJob)}
               </div>
 
-              <div className="flex items-center text-xs text-stone-500 pt-5">
-                This variable cost automatically scales with monthly sales volume or billable service volume.
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-stone-700">Cost Basis</label>
+                <select
+                  value={directCostBasis}
+                  onChange={(e) => setDirectCostBasis(e.target.value as 'per_booking' | 'per_revenue_unit')}
+                  className="w-full px-3 py-2 text-xs border border-stone-200 bg-white rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                >
+                  <option value="per_booking">Per Booking / Session / Job</option>
+                  <option value="per_revenue_unit">Per Revenue Unit / Participant</option>
+                </select>
+                <div className="text-[10px] text-stone-500">
+                  Use per booking for transport, event staff, setup/teardown and other costs incurred once for each booking. Use per revenue unit for consumables or costs incurred for every participant/unit sold.
+                </div>
               </div>
             </div>
           </div>

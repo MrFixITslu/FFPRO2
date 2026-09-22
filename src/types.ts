@@ -345,6 +345,8 @@ export type ServiceRevenueModel =
   | 'package'
   | 'per_participant';
 
+export type DirectCostBasis = 'per_booking' | 'per_revenue_unit';
+
 export type CostItemClassification = 
   | 'equipment'   // Reusable Equipment (Cash on purchase, straight-line depreciation over useful life)
   | 'stock'       // Stock / Raw Materials (Cash on purchase, COGS upon sale, carries inventory)
@@ -444,6 +446,7 @@ export interface StartupCostItem {
 
   // Cost per Sale / Service (Direct variable cost)
   directCostPerUnitOrJob?: number;
+  directCostBasis?: DirectCostBasis; // per booking/job or per billed revenue unit/participant
 
   // Recurring Operating Expense fields
   monthlyExpenseAmount?: number;
@@ -484,6 +487,7 @@ export interface ServiceOffering {
   rate: number; // hourly rate, project fee, monthly retainer, subscription fee, rental daily/hourly rate
   monthlyCapacityUnits?: number; // hours, projects, clients, subscribers, rental days
   expectedVolume?: number; // expected monthly units/hours/clients
+  unitsPerBooking?: number; // for per-participant/unit pricing: average billed units consumed by one booking/session
   utilisationPercent?: number; // %
   monthlyGrowthRatePercent?: number; // month-over-month growth % in Year 1
   annualGrowthRatePercent?: number;  // annual growth % for Years 2-5
@@ -572,6 +576,7 @@ export interface MonthlyForecastMonth {
   // Breakdown by items
   salesVolumeUnits: number;
   billableHoursOrJobs: number;
+  serviceBookingEquivalents?: number;
   // Debt Service
   loanInterestExpense?: number;
   loanPrincipalRepayment?: number;
