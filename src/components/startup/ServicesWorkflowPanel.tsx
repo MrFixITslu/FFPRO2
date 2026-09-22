@@ -37,7 +37,8 @@ import {
   calculateServiceCapacity,
   roundCurrency,
   getDefaultServiceUnitLabel,
-  getServiceOfferingUnitLabel
+  getServiceOfferingUnitLabel,
+  getServiceUnitsPerBooking
 } from '../../services/startupFinancialsService';
 import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol, convertCurrency } from '../../services/currencyService';
 
@@ -298,8 +299,11 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
   const [newRate, setNewRate] = useState('250.00');
   const [newServiceCurrency, setNewServiceCurrency] = useState<CurrencyCode>(displayCurrency);
   const [newVolume, setNewVolume] = useState('15');
-  const [newDirectCost, setNewDirectCost] = useState('25.00');
-  const [newGrowth, setNewGrowth] = useState('2.0');
+  const [newDirectCost, setNewDirectCost] = useState('0.00');
+  const [newUnitsPerBooking, setNewUnitsPerBooking] = useState(
+    Math.max(1, equipmentPlan.capacityPerResource ?? 1).toString()
+  );
+  const [newGrowth, setNewGrowth] = useState('0.0');
 
   const handleAddService = (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,9 +317,12 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
       unitLabel: newUnitLabel.trim() || getDefaultServiceUnitLabel(newRevenueModel),
       rate: Math.max(0.01, parseFloat(newRate) || 0.01),
       expectedVolume: Math.max(0, parseInt(newVolume) || 0),
+      unitsPerBooking: newRevenueModel === 'per_participant'
+        ? Math.max(1, parseFloat(newUnitsPerBooking) || 1)
+        : 1,
       directCostPerUnitOrJob: Math.max(0, parseFloat(newDirectCost) || 0),
       monthlyGrowthRatePercent: parseFloat(newGrowth) || 0,
-      annualGrowthRatePercent: 15
+      annualGrowthRatePercent: 0
     };
 
     onUpdateServices([...services, newService]);
@@ -325,7 +332,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
     setNewRate('250.00');
     setNewServiceCurrency(displayCurrency);
     setNewVolume('15');
-    setNewDirectCost('25.00');
+    setNewDirectCost('0.00');
+    setNewUnitsPerBooking(Math.max(1, equipmentPlan.capacityPerResource ?? 1).toString());
+    setNewGrowth('0.0');
     setShowAddService(false);
   };
 
@@ -1313,9 +1322,26 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                 />
               </div>
 
+              {newRevenueModel === 'per_participant' && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700">Average Participants per Booking</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={newUnitsPerBooking}
+                    onChange={(e) => setNewUnitsPerBooking(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs font-mono border border-stone-200 bg-white rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                  <div className="text-[10px] text-stone-400">
+                    Used to convert participant volume into booking/session equivalents for shared booking costs.
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-stone-700">
-                  Direct Cost per Unit ({getCurrencySymbol(newServiceCurrency)})
+                  Direct Cost per Revenue Unit ({getCurrencySymbol(newServiceCurrency)})
                 </label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1.5 text-xs text-stone-400 font-bold font-mono">
@@ -1334,7 +1360,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-stone-700">MoM Growth Rate (%)</label>
+                <label className="text-[11px] font-bold text-stone-700">Year 1 Monthly Growth (%)</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -1477,6 +1503,46 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                         handleUpdateServiceField(service.id, 'rate', parseFloat(e.target.value) || 0)
                       }
                       className="w-20 px-2 py-1 text-xs font-bold font-mono border border-stone-200 bg-white rounded-lg"
+                    />
+                  </div>
+
+                  {service.revenueModel === 'per_participant' && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <label className="text-[10px] text-stone-500">Pax/Booking:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={getServiceUnitsPerBooking(service, { serviceCapacityPlan: currentPlan } as any)}
+                        onChange={(e) =>
+                          handleUpdateServiceField(
+                            service.id,
+                            'unitsPerBooking',
+                            Math.max(1, parseFloat(e.target.value) || 1)
+                          )
+                        }
+                        className="w-16 px-2 py-1 text-xs font-mono border border-stone-200 bg-white rounded-lg"
+                        title="Average participants served by one booking/session"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Growth %:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={service.monthlyGrowthRatePercent ?? 0}
+                      onChange={(e) =>
+                        handleUpdateServiceField(
+                          service.id,
+                          'monthlyGrowthRatePercent',
+                          Math.max(0, parseFloat(e.target.value) || 0)
+                        )
+                      }
+                      className="w-16 px-2 py-1 text-xs font-mono border border-stone-200 bg-white rounded-lg"
+                      title="Monthly Year 1 growth. Keep at 0% unless you intentionally want the monthly volume to ramp."
                     />
                   </div>
 
