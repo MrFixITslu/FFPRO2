@@ -48,6 +48,7 @@ import { BusinessModelClassifier } from './startup/BusinessModelClassifier';
 import { GoodsWorkflowPanel } from './startup/GoodsWorkflowPanel';
 import { ServicesWorkflowPanel } from './startup/ServicesWorkflowPanel';
 import { StartupFinancialSummary } from './startup/StartupFinancialSummary';
+import BusinessCopilotPanel from './BusinessCopilotPanel';
 import { extractUnifiedCostItems, needsBusinessModelClassification } from '../services/startupFinancialsService';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -2868,6 +2869,13 @@ const EventPlanner: React.FC<Props> = ({
 
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
+                  <BusinessCopilotPanel
+                    startupDetails={sd}
+                    projectId={selectedEvent.sharedProjectId || selectedEvent.id}
+                    businessName={selectedEvent.name}
+                    section={businessPlanSubTab}
+                  />
+
                   {/* Guided Workflow Stepper Header */}
                   <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-xs space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-stone-150 pb-4">
