@@ -3,7 +3,9 @@ import {
   BusinessCopilotContext,
   BusinessCopilotResponse
 } from '../../shared/businessCopilotTypes';
+import type { StartupPlanDetails } from '../types';
 import { askBusinessCopilot } from '../services/businessCopilotService';
+import { runBusinessScenario } from '../services/businessScenarioService';
 
 export interface BusinessCopilotMessage {
   role: 'user' | 'assistant';
@@ -11,7 +13,10 @@ export interface BusinessCopilotMessage {
   response?: BusinessCopilotResponse;
 }
 
-export function useBusinessCopilot(context: BusinessCopilotContext) {
+export function useBusinessCopilot(
+  context: BusinessCopilotContext,
+  startupDetails?: StartupPlanDetails
+) {
   const [messages, setMessages] = useState<BusinessCopilotMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +39,26 @@ export function useBusinessCopilot(context: BusinessCopilotContext) {
         }))
       });
 
+      if (response.mode === 'scenario' && response.scenarioIntent && startupDetails) {
+        try {
+          response.scenarioResult = runBusinessScenario(
+            startupDetails,
+            response.scenarioIntent
+          );
+          response.message = 'Scenario calculated using the current FFPRO plan as the baseline. Your saved plan has not been changed.';
+        } catch (scenarioError: any) {
+          const detail = scenarioError?.message || 'The scenario could not be calculated.';
+          response.observations = [
+            ...(response.observations || []),
+            {
+              severity: 'error',
+              text: detail
+            }
+          ];
+          response.message = `I understood the what-if request, but FFPRO could not run it: ${detail}`;
+        }
+      }
+
       setMessages((current) => [
         ...current,
         {
@@ -50,7 +75,7 @@ export function useBusinessCopilot(context: BusinessCopilotContext) {
     } finally {
       setLoading(false);
     }
-  }, [context, loading, messages]);
+  }, [context, loading, messages, startupDetails]);
 
   const clear = useCallback(() => {
     setMessages([]);
