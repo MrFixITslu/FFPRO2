@@ -133,12 +133,15 @@ export function validateBusinessPlan(
 
         const serviceLevelCost = Math.max(0, s.directCostPerUnitOrJob ?? 0);
         if (s.rate > 0 && serviceLevelCost >= s.rate) {
+          const serviceCurrency = s.currency || details?.displayCurrency || 'USD';
+          const serviceCurrencySymbol = serviceCurrency === 'XCD' ? 'EC$' : 'US$';
+
           issues.push({
             id: `service-unit-cost-exceeds-rate-${idx}`,
             type: 'error',
             category: 'pricing',
             title: `Service-Level Cost Eliminates Margin on "${s.name || `Service #${idx + 1}`}"`,
-            message: `The service-level variable cost (${calculations.currencySymbol || ''}${serviceLevelCost.toFixed(2)}) is greater than or equal to the billing rate (${calculations.currencySymbol || ''}${s.rate.toFixed(2)}).`,
+            message: `The service-level variable cost (${serviceCurrencySymbol}${serviceLevelCost.toFixed(2)}) is greater than or equal to the billing rate (${serviceCurrencySymbol}${s.rate.toFixed(2)}).`,
             actionableRecommendation: 'Set this field to only the package-specific cost per billed unit. Shared staff/transport costs should be entered once in the direct-cost ledger using a per-booking basis.'
           });
         }
