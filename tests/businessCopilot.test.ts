@@ -267,9 +267,7 @@ test('supported named-service scenarios bypass external AI providers', async () 
   const change = response.scenarioIntent?.changes[0];
   assert.ok(change);
   assert.equal(change.target, 'service');
-  if (change.target !== 'service') {
-    assert.fail('Expected a service scenario change.');
-  }
+  assert.ok('targetId' in change);
 
   assert.equal(change.targetId, 'svc-quick');
   assert.equal(change.field, 'rate');
@@ -302,9 +300,7 @@ test('local scenario parser handles the exact Quick Battle prompt without an API
   assert.ok(intent);
   const change = intent.changes[0];
   assert.equal(change.target, 'service');
-  if (change.target !== 'service') {
-    assert.fail('Expected local parser to produce a service change.');
-  }
+  assert.ok('targetId' in change);
   assert.equal(change.targetId, 'svc-quick');
   assert.equal(change.field, 'rate');
   assert.equal(change.value, 35);
