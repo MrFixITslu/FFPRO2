@@ -1356,6 +1356,9 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                   />
                 </div>
                 {renderConversionHint(newDirectCost, newServiceCurrency)}
+                <div className="text-[10px] text-stone-400">
+                  Use only for package-specific cost per billed unit. Shared transport/staff costs should be entered once in the cost ledger with the correct booking basis.
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -1440,6 +1443,16 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                     <span>Volume: <strong>{service.expectedVolume ?? 0} {getUnitName(service.revenueModel, service.unitLabel)}/mo</strong></span>
                     <span>•</span>
                     <span>Monthly Revenue: <strong className="font-mono text-emerald-800">{currentSymbol} {monthlyRev.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+                    {(service.directCostPerUnitOrJob ?? 0) > 0 && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          Service-Level Cost: <strong className="font-mono text-amber-700">
+                            {currentSymbol} {convertCurrency(service.directCostPerUnitOrJob ?? 0, servCurrency, displayCurrency, exchangeRate).toFixed(2)}/{getUnitName(service.revenueModel, service.unitLabel)}
+                          </strong>
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1502,6 +1515,25 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                         handleUpdateServiceField(service.id, 'rate', parseFloat(e.target.value) || 0)
                       }
                       className="w-20 px-2 py-1 text-xs font-bold font-mono border border-stone-200 bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 text-xs">
+                    <label className="text-[10px] text-stone-500">Unit Cost:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={service.directCostPerUnitOrJob ?? 0}
+                      onChange={(e) =>
+                        handleUpdateServiceField(
+                          service.id,
+                          'directCostPerUnitOrJob',
+                          Math.max(0, parseFloat(e.target.value) || 0)
+                        )
+                      }
+                      className="w-16 px-2 py-1 text-xs font-mono border border-stone-200 bg-white rounded-lg"
+                      title="Package-specific variable cost per billed unit. Do not duplicate shared per-booking costs from the ledger."
                     />
                   </div>
 
