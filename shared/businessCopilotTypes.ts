@@ -147,6 +147,82 @@ export interface BusinessCopilotProposal {
   };
 }
 
+export type BusinessScenarioChange =
+  | {
+      target: 'service';
+      targetId: string;
+      field: 'rate' | 'expectedVolume' | 'unitsPerBooking' | 'monthlyGrowthRatePercent' | 'directCostPerUnitOrJob';
+      value: number;
+    }
+  | {
+      target: 'cost';
+      targetId: string;
+      field: 'directCostPerUnitOrJob' | 'monthlyExpenseAmount';
+      value: number;
+    }
+  | {
+      target: 'cost';
+      targetId: string;
+      field: 'directCostBasis';
+      value: 'per_booking' | 'per_revenue_unit';
+    }
+  | {
+      target: 'capacity';
+      field:
+        | 'resourceCount'
+        | 'availableDaysPerUnit'
+        | 'targetUtilisationPercent'
+        | 'operatingHoursPerDay'
+        | 'serviceUnitDurationHours'
+        | 'capacityPerResource';
+      value: number;
+    }
+  | {
+      target: 'loan';
+      field: 'loanAmount' | 'annualInterestRate' | 'termYears' | 'gracePeriodMonths';
+      value: number;
+    };
+
+export interface BusinessScenarioIntent {
+  title: string;
+  summary?: string;
+  changes: BusinessScenarioChange[];
+}
+
+export interface BusinessScenarioMetric {
+  key: string;
+  label: string;
+  before: number;
+  after: number;
+  delta: number;
+  deltaPercent?: number;
+  format: 'currency' | 'percent' | 'number';
+  suffix?: string;
+}
+
+export interface BusinessScenarioResult {
+  title: string;
+  summary?: string;
+  currency: 'USD' | 'XCD';
+  planUnchanged: true;
+  changes: Array<BusinessScenarioChange & {
+    targetLabel: string;
+    before: number | string;
+  }>;
+  metrics: BusinessScenarioMetric[];
+  validation: {
+    beforeErrors: number;
+    afterErrors: number;
+    beforeWarnings: number;
+    afterWarnings: number;
+    newIssues: Array<{
+      type: 'error' | 'warning' | 'info';
+      title: string;
+      message: string;
+    }>;
+  };
+}
+
 export interface BusinessCopilotResponse {
   message: string;
   mode: BusinessCopilotMode;
@@ -155,6 +231,8 @@ export interface BusinessCopilotResponse {
   sources?: BusinessCopilotSource[];
   proposals?: BusinessCopilotProposal[];
   suggestedPrompts?: string[];
+  scenarioIntent?: BusinessScenarioIntent;
+  scenarioResult?: BusinessScenarioResult;
   provider?: 'ollama' | 'gemini' | 'deterministic';
   model?: string;
 }
