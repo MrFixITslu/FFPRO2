@@ -198,7 +198,7 @@ export function buildBusinessPlanPresentation(
   const exchangeRate = details?.exchangeRate || 2.70;
 
   const isServiceBusiness = details?.businessModelType === 'services' || calculations.isServiceBusiness;
-  const businessModelType = details?.businessModelType || 'services';
+  const businessModelType = details?.businessModelType || (calculations.isServiceBusiness ? 'services' : 'goods');
   const operatingModel = details?.operatingModel || 'mobile';
 
   const fmt = (amt?: number) => formatCurrencyAmount(amt ?? 0, currencyCode);

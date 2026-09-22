@@ -1139,3 +1139,90 @@ This is a regular narrative paragraph.
   assert.ok(html.includes('<p class="text-stone-700 text-xs leading-relaxed mb-2">This is a regular narrative paragraph.</p>'));
 });
 
+
+test('goods calculations, forecast and report reconcile using product-specific costs', () => {
+  const plan = { businessModelType: 'goods', displayCurrency: 'USD', goodsProducts: [
+    { id: 'a', name: 'A', sellingPrice: 30, unitCost: 10, monthlySalesVolume: 10 },
+    { id: 'b', name: 'B', sellingPrice: 100, unitCost: 70, monthlySalesVolume: 5 }
+  ], rent: 200, growthRateYear3: 0, growthRateYear5: 0 } as StartupPlanDetails;
+  const forecast = generateStartupFinancialForecast(plan);
+  const calc = computeStartupCalculations(plan);
+  const report = buildBusinessPlanPresentation(plan);
+  assert.equal(forecast.monthlyYear1[0].revenue, 800);
+  assert.equal(forecast.monthlyYear1[0].cogs, 450);
+  assert.equal(calc.monthlyRevenue, 800);
+  assert.equal(calc.monthlyCOGS, 450);
+  assert.equal(report.year1.revenue, calc.y1Rev);
+  assert.equal(report.year3.revenue, calc.y1Rev);
+  assert.equal(forecast.breakEven.breakEvenUnitsMonthly, 9);
+});
+
+test('goods zero inputs and absent plans never fabricate sales or costs', () => {
+  const plan = { businessModelType: 'goods', cogs: 0, markup: 0, monthlyVolume: 0, laborHours: 0, growthRateYear3: 0, growthRateYear5: 0 } as StartupPlanDetails;
+  for (const input of [plan, undefined]) {
+    assert.equal(computeStartupCalculations(input).y1Rev, 0);
+    assert.equal(generateStartupFinancialForecast(input).totalsYear1.cogs, 0);
+  }
+});
+
+test('initial inventory is purchased once and valued using a quantity-weighted average', () => {
+  const plan = { businessModelType: 'goods', goodsProducts: [{ id: 'p', name: 'P', sellingPrice: 50, monthlySalesVolume: 10 }], costItems: [
+    { id: 'a', name: 'A', classification: 'stock', initialStockUnits: 10, stockUnitCost: 10 },
+    { id: 'b', name: 'B', classification: 'stock', initialStockUnits: 30, stockUnitCost: 20 }
+  ] } as StartupPlanDetails;
+  const month = generateStartupFinancialForecast(plan).monthlyYear1[0];
+  assert.equal(month.cashPurchasesStock, 700);
+  assert.equal(month.cogs, 175);
+  assert.equal(month.endingInventoryValue, 525);
+  assert.equal(month.endingInventoryUnits, 30);
+});
+
+test('financed fees increase debt without inflating available loan cash', () => {
+  const plan = { businessModelType: 'services', loanParameters: { enabled: true, loanAmount: 10000, negotiationFee: 500, insuranceFee: 100, annualInterestRate: 0, termYears: 1, includeFeesInLoan: true } } as StartupPlanDetails;
+  const forecast = generateStartupFinancialForecast(plan);
+  assert.equal(forecast.loanSummary?.effectiveLoanAmount, 10600);
+  assert.equal(forecast.monthlyYear1[0].cashInflow, 10000);
+  assert.equal(forecast.totalsYear1.totalDebtService, 10600);
+});
+
+test('late asset purchase depreciates over its full life with exact final cents', () => {
+  const plan = { businessModelType: 'services', costItems: [{ id: 'a', name: 'Asset', classification: 'equipment', purchaseCost: 1000, residualValue: 100, usefulLifeYears: 1, purchaseMonth: 12 }] } as StartupPlanDetails;
+  const forecast = generateStartupFinancialForecast(plan);
+  assert.equal(forecast.yearlyProjections[0].depreciation, 75);
+  assert.equal(forecast.yearlyProjections[1].depreciation, 825);
+  assert.equal(forecast.yearlyProjections[2].depreciation, 0);
+  assert.equal(forecast.yearlyProjections.reduce((sum, year) => sum + year.depreciation, 0), 900);
+});
+
+test('explicit zero operating ledger suppresses stale legacy expenses', () => {
+  const plan = { businessModelType: 'services', rent: 999, costItems: [{ id: 'a', name: 'No rent', classification: 'operating', monthlyExpenseAmount: 0 }] } as StartupPlanDetails;
+  assert.equal(generateStartupFinancialForecast(plan).totalsYear1.operatingExpenses, 0);
+  assert.equal(computeStartupCalculations(plan).monthlyOpExpenses, 0);
+});
+
+test('service-only plan does not buy goods stock, goods-only plan ignores inactive service costs', () => {
+  const base = { serviceOfferings: [{ id: 's', name: 'Service', rate: 100, expectedVolume: 10, directCostPerUnitOrJob: 50 }], costItems: [{ id: 'stock', name: 'Stock', classification: 'stock', initialStockUnits: 100, stockUnitCost: 10 }] };
+  assert.equal(generateStartupFinancialForecast({ ...base, businessModelType: 'services' } as StartupPlanDetails).monthlyYear1[0].cashPurchasesStock, 0);
+  assert.equal(generateStartupFinancialForecast({ ...base, businessModelType: 'goods' } as StartupPlanDetails).monthlyYear1[0].cogs, 0);
+});
+
+test('forecast currency conversion includes untagged items, opening cash and financing exactly once', () => {
+  const plan = { businessModelType: 'services', displayCurrency: 'XCD', startingCash: 270, serviceOfferings: [{ id: 's', name: 'S', rate: 270, expectedVolume: 1 }], costItems: [{ id: 'eq', name: 'E', currency: 'XCD', classification: 'equipment', purchaseCost: 270, usefulLifeYears: 1 }], loanParameters: { enabled: true, loanAmount: 2700, annualInterestRate: 0, termYears: 1 } } as StartupPlanDetails;
+  const forecast = generateStartupFinancialForecast(plan, 'USD', 2.7);
+  assert.equal(forecast.monthlyYear1[0].revenue, 100);
+  assert.equal(forecast.monthlyYear1[0].cashPurchasesEquipment, 100);
+  assert.equal(forecast.loanSummary?.loanAmount, 1000);
+  assert.equal(roundCurrency(forecast.monthlyYear1[0].endingCashBalance - forecast.monthlyYear1[0].cashFlow), 100);
+});
+
+test('explicit zero insurance is retained in landed-cost estimate', () => {
+  assert.equal(calculateLandedImportCost({ fobCost: 1000, insuranceCost: 0 }).insuranceCostUSD, 0);
+});
+
+test('legacy goods sales taxes are excluded from forecast revenue', () => {
+  const plan = { businessModelType: 'goods', productionItems: [{ id: 'p', name: 'Material', cost: 100 }], derivedUnits: 10, laborHours: 0, desiredProfitType: 'percentage', desiredProfitValue: 50, contingencyPercent: 0, monthlyVolume: 10, includeVat: true } as StartupPlanDetails;
+  const calc = computeStartupCalculations(plan);
+  assert.equal(calc.preTaxSellingPrice, 15);
+  assert.equal(calc.finalSuggestedPrice, 16.88);
+  assert.equal(calc.monthlyRevenue, 150);
+});

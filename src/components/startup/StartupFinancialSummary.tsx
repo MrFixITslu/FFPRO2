@@ -130,7 +130,7 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
 
         <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs">
           <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">
-            Year 1 Net Profit
+            Year 1 Profit Before Tax
           </div>
           <div className={`text-lg font-extrabold mt-1 ${isProfitableYear1 ? 'text-emerald-800' : 'text-rose-600'}`}>
             {fmt(totalsYear1.netProfit)}
@@ -198,7 +198,7 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
           <div className="p-4 rounded-xl bg-stone-50 border border-stone-200/80 space-y-1">
             <div className="text-[11px] font-semibold text-stone-500">Break-Even Sales Volume</div>
             <div className="text-base font-extrabold text-emerald-800">
-              {breakEven.breakEvenUnitsMonthly.toLocaleString()} <span className="text-xs font-semibold text-stone-600">{breakEven.breakEvenMetricLabel}/mo</span>
+              {breakEven.averageContributionMarginPercent > 0 ? breakEven.breakEvenUnitsMonthly.toLocaleString() : 'Not achievable'} <span className="text-xs font-semibold text-stone-600">{breakEven.breakEvenMetricLabel}/mo</span>
             </div>
             <div className="text-[10.5px] text-stone-400">
               Minimum commercial volume to cover all fixed costs
@@ -208,10 +208,10 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
           <div className="p-4 rounded-xl bg-stone-50 border border-stone-200/80 space-y-1">
             <div className="text-[11px] font-semibold text-stone-500">Break-Even Revenue</div>
             <div className="text-base font-extrabold text-stone-900">
-              {fmt(breakEven.breakEvenRevenueMonthly)}/mo
+              {breakEven.averageContributionMarginPercent > 0 ? `${fmt(breakEven.breakEvenRevenueMonthly)}/mo` : 'No positive contribution margin'}
             </div>
             <div className="text-[10.5px] text-stone-400">
-              Monthly turnover required to achieve $0.00 Net Profit
+              Monthly revenue to cover recurring overhead and depreciation before interest and tax
             </div>
           </div>
 
@@ -374,7 +374,7 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
 
                   <tr className="bg-stone-100/90 font-bold border-t-2 border-stone-300">
                     <td className="py-2.5 px-3 sticky left-0 bg-stone-100 z-10 text-stone-900">
-                      Net Profit (P&amp;L)
+                      Profit Before Tax
                     </td>
                     {monthlyYear1.map((m) => (
                       <td
@@ -578,7 +578,7 @@ export const StartupFinancialSummary: React.FC<StartupFinancialSummaryProps> = (
                 </>
               )}
               <tr className="bg-stone-100 font-bold">
-                <td className="py-2 px-3 text-stone-900">Net Profit (EBT)</td>
+                <td className="py-2 px-3 text-stone-900">Profit Before Tax (EBT)</td>
                 {yearlyProjections.map((y) => (
                   <td
                     key={y.year}

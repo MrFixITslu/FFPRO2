@@ -1,3 +1,9 @@
+import DOMPurify from 'dompurify';
+const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
+import { AccessibleDialog } from './AccessibleDialog';
+import { BUSINESS_PLAN_ASSUMPTIONS } from '../services/businessPlanAssumptions';
+import { generateStartupFinancialForecast } from '../services/startupFinancialsService';
+import { formatCurrencyAmount } from '../services/currencyService';
 import React, { useState } from 'react';
 import {
   FileText,
@@ -39,17 +45,12 @@ interface ExportBusinessPlanModalProps {
   onExportPnlToDocuments?: () => Promise<void>;
 }
 
-export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = ({
-  isOpen,
-  onClose,
-  selectedEvent,
-  calculations,
-  currentUser,
-  onUpdateBusinessPlanMeta,
-  onExportPnlToDocuments
-}) => {
-  if (!isOpen || !selectedEvent) return null;
+export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (props) =>
+  props.isOpen && props.selectedEvent ? <ExportBusinessPlanContent key={props.selectedEvent.id} {...props} /> : null;
 
+const ExportBusinessPlanContent: React.FC<ExportBusinessPlanModalProps> = ({
+  onClose, selectedEvent, calculations, currentUser, onUpdateBusinessPlanMeta, onExportPnlToDocuments
+}) => {
   const sd = selectedEvent?.startupDetails || {};
   const bp: BusinessPlanSections = sd?.businessPlan || {};
 
@@ -70,7 +71,9 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
 
   // Presentation & Validation Models
   const presentation = buildBusinessPlanPresentation(sd, calculations);
-  const validation = validateBusinessPlan(sd, calculations);
+  const validation = validateBusinessPlan({ ...sd, businessPlan: { ...bp, companyName, preparedBy, fundingAgencyOrBank: fundingAgency, contactEmail, contactPhone, businessAddress, preparedDate } }, calculations);
+  const forecast = generateStartupFinancialForecast(sd);
+  const money = (amount: number) => formatCurrencyAmount(amount, presentation.currencyCode);
 
   const handleSaveMeta = () => {
     onUpdateBusinessPlanMeta({
@@ -141,7 +144,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
       return;
     }
 
-    const title = `${companyName} - Commercial Business Plan & Funding Proposal`;
+    const title = `${escapeHtml(companyName)} - Commercial Business Plan & Funding Proposal`;
 
     // Dynamic sequential section numbering (only non-empty sections get numbered)
     const sectionList: Array<{ title: string; html: string }> = [];
@@ -199,7 +202,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>${title}</title>
+        <title>${escapeHtml(title)}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
           
@@ -452,7 +455,11 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             .no-print-bar { display: none !important; }
             .narrative-content p { text-align: left; word-spacing: normal; }
             .page-break { page-break-after: always; break-after: page; }
-            table, tr, .kpi-grid, .kpi-card, .meta-box, .sign-grid, .narrative-section { page-break-inside: avoid; break-inside: avoid; }
+            tr, .kpi-card, .meta-box, .sign-grid { page-break-inside: avoid; break-inside: avoid; }
+            table, .narrative-section { break-inside: auto; }
+            thead { display: table-header-group; }
+            h2, h3 { break-after: avoid; }
+            p { orphans: 3; widows: 3; }
           }
         </style>
       </head>
@@ -462,7 +469,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             <div style="font-weight: 800; font-size: 14px;">Commercial Print & PDF Ready</div>
             <div style="font-size: 11px; color: #94a3b8;">Choose "Save as PDF" in destination printer to export clean high-resolution document</div>
           </div>
-          <button class="print-btn" onclick="window.print()">
+          <button class="print-btn">
             🖨️ Print / Save as PDF
           </button>
         </div>
@@ -470,7 +477,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
         <div class="cover">
           <div>
             <div class="cover-badge">Commercial Funding Proposal</div>
-            <h1>${companyName}</h1>
+            <h1>${escapeHtml(companyName)}</h1>
             <h2 class="cover-subtitle">Comprehensive Business Plan & Financial Projections</h2>
             <div class="cover-divider"></div>
           </div>
@@ -478,11 +485,11 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           <div class="meta-box">
             <div class="meta-row">
               <span class="meta-label">Target Financial Institution:</span>
-              <span class="meta-val">${fundingAgency}</span>
+              <span class="meta-val">${escapeHtml(fundingAgency)}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">Prepared & Endorsed By:</span>
-              <span class="meta-val">${preparedBy}</span>
+              <span class="meta-val">${escapeHtml(preparedBy)}</span>
             </div>
             ${contactEmail || contactPhone ? `
             <div class="meta-row">
@@ -492,11 +499,11 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             ${businessAddress ? `
             <div class="meta-row">
               <span class="meta-label">Commercial Location:</span>
-              <span class="meta-val">${businessAddress}</span>
+              <span class="meta-val">${escapeHtml(businessAddress)}</span>
             </div>` : ''}
             <div class="meta-row">
               <span class="meta-label">Date of Submission:</span>
-              <span class="meta-val">${preparedDate}</span>
+              <span class="meta-val">${escapeHtml(preparedDate)}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">Operating Currency:</span>
@@ -531,7 +538,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
             <div class="kpi-sub">${presentation.headline.volumeYear1.toLocaleString()} ${presentation.headline.volumeMetricLabel}</div>
           </div>
           <div class="kpi-card highlight">
-            <div class="kpi-title">Year 1 Operating Profit (EBITDA)</div>
+            <div class="kpi-title">Year 1 EBITDA</div>
             <div class="kpi-val">${presentation.year1.ebitdaFormatted}</div>
             <div class="kpi-sub">${presentation.year1.revenue > 0 ? Math.round((presentation.year1.ebitda / presentation.year1.revenue) * 100) : 0}% EBITDA Margin</div>
           </div>
@@ -665,7 +672,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
               <td class="text-right">${presentation.year5.operatingExpensesFormatted}</td>
             </tr>
             <tr class="highlight-row">
-              <td>Operating Profit (EBITDA)</td>
+              <td>EBITDA</td>
               <td class="text-right">${presentation.year1.ebitdaFormatted}</td>
               <td class="text-right">${presentation.year3.ebitdaFormatted}</td>
               <td class="text-right">${presentation.year5.ebitdaFormatted}</td>
@@ -695,18 +702,19 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
               <td class="text-right">${presentation.year3.profitBeforeTaxFormatted}</td>
               <td class="text-right">${presentation.year5.profitBeforeTaxFormatted}</td>
             </tr>
-            <tr class="bold total-double-line">
-              <td>Net Profit (Pre-Tax Model)</td>
-              <td class="text-right">${presentation.year1.netProfitFormatted}</td>
-              <td class="text-right">${presentation.year3.netProfitFormatted}</td>
-              <td class="text-right">${presentation.year5.netProfitFormatted}</td>
-            </tr>
+
           </tbody>
         </table>
 
+        <h2 class="section-title">Year 1 Cash Flow</h2>
+        <p>All amounts in ${presentation.currencyCode}. Cash receipts include financing; depreciation is a non-cash expense.</p>
+        <table><thead><tr><th>Period</th><th class="text-right">Receipts</th><th class="text-right">Payments</th><th class="text-right">Net movement</th><th class="text-right">Closing cash</th></tr></thead>
+        <tbody>${forecast.monthlyYear1.map(month => `<tr><td>Month ${month.month}</td><td class="text-right">${money(month.cashInflow)}</td><td class="text-right">${money(month.cashOutflow)}</td><td class="text-right">${money(month.cashFlow)}</td><td class="text-right">${money(month.endingCashBalance)}</td></tr>`).join('')}</tbody></table>
+        <h2 class="section-title">Forecast Assumptions</h2>
+        <ul>${BUSINESS_PLAN_ASSUMPTIONS.map(note => `<li>${note}</li>`).join('')}</ul>
         <!-- Break-Even Analysis Summary -->
         <h2 class="section-title">Break-Even Operational Thresholds</h2>
-        <p>Minimum monthly volume required to fully cover all operating overhead:</p>
+        <p>Operating break-even covers recurring overhead and depreciation before finance costs and tax. A positive contribution margin is required:</p>
         <table>
           <thead>
             <tr><th>Metric</th><th class="text-right">Threshold Requirement</th></tr>
@@ -714,8 +722,8 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           <tbody>
             <tr><td>Monthly Operating Overhead to Cover</td><td class="text-right">${presentation.operatingExpensesMonthlyFormatted}</td></tr>
             <tr><td>Average Contribution Margin Ratio</td><td class="text-right">${presentation.breakEven.contributionMarginPercent}%</td></tr>
-            <tr class="bold"><td>Monthly Break-Even Revenue</td><td class="text-right">${presentation.breakEven.monthlyRevenueFormatted}</td></tr>
-            <tr class="highlight-row total-double-line"><td>Monthly Break-Even Volume</td><td class="text-right">${presentation.breakEven.monthlyUnits} ${presentation.breakEven.metricLabel}</td></tr>
+            <tr class="bold"><td>Monthly Break-Even Revenue</td><td class="text-right">${presentation.breakEven.contributionMarginPercent > 0 ? presentation.breakEven.monthlyRevenueFormatted : 'Not achievable at current margins'}</td></tr>
+            <tr class="highlight-row total-double-line"><td>Monthly Break-Even Volume</td><td class="text-right">${presentation.breakEven.contributionMarginPercent > 0 ? `${presentation.breakEven.monthlyUnits} ${escapeHtml(presentation.breakEven.metricLabel)}` : 'Not achievable at current margins'}</td></tr>
           </tbody>
         </table>
 
@@ -741,13 +749,13 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
         <p>The undersigned confirm that the operating assumptions and supporting information supplied for this proposal have been reviewed for submission:</p>
         <div class="sign-grid">
           <div class="sign-col">
-            <div class="sign-name">${preparedBy}</div>
+            <div class="sign-name">${escapeHtml(preparedBy)}</div>
             <div class="sign-role">Principal Executive / Managing Director</div>
-            <div class="sign-date">Date: ${preparedDate}</div>
+            <div class="sign-date">Date: ${escapeHtml(preparedDate)}</div>
           </div>
           <div class="sign-col">
             <div class="sign-name">Authorized Lending Representative</div>
-            <div class="sign-role">${fundingAgency}</div>
+            <div class="sign-role">${escapeHtml(fundingAgency)}</div>
             <div class="sign-date">Date: ________________________</div>
           </div>
         </div>
@@ -756,8 +764,10 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
     `;
 
     printWindow.document.open();
-    printWindow.document.write(docHtml);
-    printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
+    printWindow.document.write(DOMPurify.sanitize(docHtml, { WHOLE_DOCUMENT: true, ADD_TAGS: ['style'] }));
+    const printButton = printWindow.document.querySelector('.print-btn');
+    printButton?.addEventListener('click', () => printWindow.print());
+    printWindow.onload = () => { printWindow.focus(); };
     printWindow.document.close();
   };
 
@@ -776,7 +786,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <AccessibleDialog label="Export business plan" onClose={onClose}>
       <div className="bg-white border border-stone-200 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
@@ -810,6 +820,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close business plan export"
             className="w-8 h-8 rounded-lg hover:bg-stone-200 text-stone-400 hover:text-stone-700 flex items-center justify-center transition-colors"
           >
             <X size={18} />
@@ -1047,7 +1058,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
                       <div className="text-[9px] text-stone-500">{presentation.headline.volumeYear1.toLocaleString()} {presentation.headline.volumeMetricLabel}</div>
                     </div>
                     <div className="bg-emerald-50/70 border border-emerald-150 rounded-lg p-2">
-                      <div className="text-[9px] font-bold text-stone-400 uppercase">Year 1 Operating Profit (EBITDA)</div>
+                      <div className="text-[9px] font-bold text-stone-400 uppercase">Year 1 EBITDA</div>
                       <div className="text-sm font-extrabold text-emerald-800">{presentation.year1.ebitdaFormatted}</div>
                       <div className="text-[9px] text-emerald-700">{presentation.year1.revenue > 0 ? Math.round((presentation.year1.ebitda / presentation.year1.revenue) * 100) : 0}% EBITDA Margin</div>
                     </div>
@@ -1107,7 +1118,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
                         <td className="p-1.5 text-right text-stone-800">{presentation.year5.grossProfitFormatted}</td>
                       </tr>
                       <tr className="bg-emerald-50/50 text-emerald-900 font-bold">
-                        <td className="p-1.5">Operating Profit (EBITDA)</td>
+                        <td className="p-1.5">EBITDA</td>
                         <td className="p-1.5 text-right">{presentation.year1.ebitdaFormatted}</td>
                         <td className="p-1.5 text-right">{presentation.year3.ebitdaFormatted}</td>
                         <td className="p-1.5 text-right">{presentation.year5.ebitdaFormatted}</td>
@@ -1147,6 +1158,7 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close business plan export"
             className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 transition-colors"
           >
             Close
@@ -1173,6 +1185,6 @@ export const ExportBusinessPlanModal: React.FC<ExportBusinessPlanModalProps> = (
         </div>
 
       </div>
-    </div>
+    </AccessibleDialog>
   );
 };

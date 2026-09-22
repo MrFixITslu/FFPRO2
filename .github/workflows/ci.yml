@@ -35,3 +35,6 @@ jobs:
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=moderate
       - run: docker build -t ffpro2-ci .
+      - run: node scripts/production-smoke.mjs
+        env:
+          TEST_DATABASE_URL: postgresql://ffpro_test:ci-only-password@localhost:5432/ffpro_test

@@ -174,6 +174,7 @@ export function normalizeCostItemToCurrency(
 
   return {
     ...item,
+    currency: targetCurrency,
     purchaseCost: convert(item.purchaseCost),
     residualValue: convert(item.residualValue),
     amount: convert(item.amount),
@@ -200,6 +201,7 @@ export function normalizeGoodsProductToCurrency(
 
   return {
     ...prod,
+    currency: targetCurrency,
     sellingPrice: convertCurrency(prod.sellingPrice, itemCurrency, targetCurrency, rate),
     unitCost: prod.unitCost !== undefined ? convertCurrency(prod.unitCost, itemCurrency, targetCurrency, rate) : undefined,
     costItems: prod.costItems?.map((ci) => normalizeCostItemToCurrency(ci, targetCurrency, rate))
@@ -219,6 +221,7 @@ export function normalizeServiceOfferingToCurrency(
 
   return {
     ...service,
+    currency: targetCurrency,
     rate: convertCurrency(service.rate, itemCurrency, targetCurrency, rate),
     directCostPerUnitOrJob:
       service.directCostPerUnitOrJob !== undefined

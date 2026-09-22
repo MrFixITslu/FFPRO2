@@ -52,7 +52,7 @@ services:
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
 
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
-      # Host is the Docker service name "postgres", resolved over proxy_network.
+      # Host is the Docker service name "postgres", resolved over database_internal.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to the existing database password}@postgres:5432/${POSTGRES_DB:-fire_finance}
 
       # Gemini AI Integration

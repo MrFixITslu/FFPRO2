@@ -119,7 +119,7 @@ async function bootstrap() {
     const status = Number(err.status || err.statusCode) || 500;
     res.status(status >= 400 && status < 600 ? status : 500).json({ error: status < 500 ? (err.publicMessage || 'Invalid request.') : 'Request failed. Please retry.' });
   });
-  const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+  const port = process.env.PORT ? Number(process.env.PORT) : (production ? 3010 : 3000);
   const server = app.listen(port, '0.0.0.0', () => console.log(`FFPRO2 running on port ${port}`));
   const pushTimer=startPushScheduler();
   const fundingJob = startFundingResearchScheduler();
