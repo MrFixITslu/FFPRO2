@@ -236,6 +236,7 @@ function parseScenarioNumber(message) {
         const last = all[all.length - 1];
         return last ? [last[1], last[2]] : [];
       })();
+
   if (!matches[0]) return undefined;
   let number = Number(String(matches[0]).replace(/,/g, ''));
   if (!Number.isFinite(number)) return undefined;
@@ -417,7 +418,7 @@ function deterministicFallback(message, context) {
     };
   }
 
-  const currency = context.business?.displayCurrency === 'XCD' ? 'EC
+  const currency = context.business?.displayCurrency === 'XCD' ? 'EC$' : 'US$';
   const errors = context.validation?.errors || [];
   const warnings = context.validation?.warnings || [];
   const year1 = context.forecast?.year1 || {};
@@ -513,197 +514,5 @@ export const __businessCopilotTest = {
   normalizeResponse,
   normalizeScenarioIntent,
   inferDeterministicScenarioIntent,
-  deterministicFallback
-};
- : 'US
-  const errors = context.validation?.errors || [];
-  const warnings = context.validation?.warnings || [];
-  const year1 = context.forecast?.year1 || {};
-  const breakEven = context.forecast?.breakEven || {};
-
-  const parts = [];
-  if (errors.length > 0) {
-    parts.push(`FFPRO currently has ${errors.length} validation error${errors.length === 1 ? '' : 's'}. The first is: ${errors[0].title} — ${errors[0].message}`);
-  } else if (warnings.length > 0) {
-    parts.push(`FFPRO currently has ${warnings.length} validation warning${warnings.length === 1 ? '' : 's'}. The first is: ${warnings[0].title} — ${warnings[0].message}`);
-  } else {
-    parts.push('The deterministic FFPRO checks do not currently report an error or warning in the supplied context.');
-  }
-
-  if (Number.isFinite(Number(year1.revenue))) {
-    parts.push(`Year 1 revenue is ${currency}${Number(year1.revenue).toLocaleString()} and Year 1 net profit is ${currency}${Number(year1.netProfit || 0).toLocaleString()}.`);
-  }
-  if (Number.isFinite(Number(breakEven.breakEvenRevenueMonthly))) {
-    parts.push(`Monthly break-even revenue is ${currency}${Number(breakEven.breakEvenRevenueMonthly).toLocaleString()}.`);
-  }
-
-  return {
-    message: parts.join(' '),
-    mode: /check|audit|issue|error|wrong|problem/i.test(message) ? 'audit' : 'explain',
-    observations: [
-      ...errors.slice(0, 3).map((issue) => ({ severity: 'error', text: `${issue.title}: ${issue.message}` })),
-      ...warnings.slice(0, 3).map((issue) => ({ severity: 'warning', text: `${issue.title}: ${issue.message}` }))
-    ],
-    calculations: [],
-    sources: [
-      { type: 'forecast', label: 'FFPRO deterministic forecast' },
-      { type: 'validation', label: 'FFPRO validation engine' }
-    ],
-    proposals: [],
-    suggestedPrompts: [
-      'Explain my Year 1 revenue',
-      'Check this plan for inconsistencies',
-      'Explain my break-even result'
-    ],
-    provider: 'deterministic'
-  };
-}
-
-export async function generateBusinessCopilotResponse({ message, context, history }) {
-  const cleanMessage = boundedString(message, MAX_MESSAGE_CHARS)?.trim();
-  if (!cleanMessage) {
-    throw Object.assign(new Error('Message is required.'), { status: 400, publicMessage: 'Message is required.' });
-  }
-
-  const cleanContext = sanitizeContext(context);
-  const cleanHistory = sanitizeHistory(history);
-  const system = buildSystemPrompt();
-  const prompt = buildPrompt(cleanMessage, cleanContext, cleanHistory);
-
-  try {
-    const response = await ollamaGenerateJSON({
-      prompt,
-      system,
-      temperature: 0.15
-    });
-    const normalized = normalizeResponse(response, 'ollama');
-    if (normalized) return normalized;
-  } catch (error) {
-    console.warn('[business-copilot] Ollama unavailable:', error?.message || error);
-  }
-
-  const geminiKey = getGeminiKey();
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: system,
-          responseMimeType: 'application/json'
-        }
-      });
-      const parsed = JSON.parse((response.text || '').trim());
-      const normalized = normalizeResponse(parsed, 'gemini', 'gemini-2.5-flash');
-      if (normalized) return normalized;
-    } catch (error) {
-      console.warn('[business-copilot] Gemini unavailable:', error?.message || error);
-    }
-  }
-
-  return deterministicFallback(cleanMessage, cleanContext);
-}
-
-export const __businessCopilotTest = {
-  sanitizeContext,
-  sanitizeHistory,
-  normalizeResponse,
-  deterministicFallback
-};
-;
-  const errors = context.validation?.errors || [];
-  const warnings = context.validation?.warnings || [];
-  const year1 = context.forecast?.year1 || {};
-  const breakEven = context.forecast?.breakEven || {};
-
-  const parts = [];
-  if (errors.length > 0) {
-    parts.push(`FFPRO currently has ${errors.length} validation error${errors.length === 1 ? '' : 's'}. The first is: ${errors[0].title} — ${errors[0].message}`);
-  } else if (warnings.length > 0) {
-    parts.push(`FFPRO currently has ${warnings.length} validation warning${warnings.length === 1 ? '' : 's'}. The first is: ${warnings[0].title} — ${warnings[0].message}`);
-  } else {
-    parts.push('The deterministic FFPRO checks do not currently report an error or warning in the supplied context.');
-  }
-
-  if (Number.isFinite(Number(year1.revenue))) {
-    parts.push(`Year 1 revenue is ${currency}${Number(year1.revenue).toLocaleString()} and Year 1 net profit is ${currency}${Number(year1.netProfit || 0).toLocaleString()}.`);
-  }
-  if (Number.isFinite(Number(breakEven.breakEvenRevenueMonthly))) {
-    parts.push(`Monthly break-even revenue is ${currency}${Number(breakEven.breakEvenRevenueMonthly).toLocaleString()}.`);
-  }
-
-  return {
-    message: parts.join(' '),
-    mode: /check|audit|issue|error|wrong|problem/i.test(message) ? 'audit' : 'explain',
-    observations: [
-      ...errors.slice(0, 3).map((issue) => ({ severity: 'error', text: `${issue.title}: ${issue.message}` })),
-      ...warnings.slice(0, 3).map((issue) => ({ severity: 'warning', text: `${issue.title}: ${issue.message}` }))
-    ],
-    calculations: [],
-    sources: [
-      { type: 'forecast', label: 'FFPRO deterministic forecast' },
-      { type: 'validation', label: 'FFPRO validation engine' }
-    ],
-    proposals: [],
-    suggestedPrompts: [
-      'Explain my Year 1 revenue',
-      'Check this plan for inconsistencies',
-      'Explain my break-even result'
-    ],
-    provider: 'deterministic'
-  };
-}
-
-export async function generateBusinessCopilotResponse({ message, context, history }) {
-  const cleanMessage = boundedString(message, MAX_MESSAGE_CHARS)?.trim();
-  if (!cleanMessage) {
-    throw Object.assign(new Error('Message is required.'), { status: 400, publicMessage: 'Message is required.' });
-  }
-
-  const cleanContext = sanitizeContext(context);
-  const cleanHistory = sanitizeHistory(history);
-  const system = buildSystemPrompt();
-  const prompt = buildPrompt(cleanMessage, cleanContext, cleanHistory);
-
-  try {
-    const response = await ollamaGenerateJSON({
-      prompt,
-      system,
-      temperature: 0.15
-    });
-    const normalized = normalizeResponse(response, 'ollama');
-    if (normalized) return normalized;
-  } catch (error) {
-    console.warn('[business-copilot] Ollama unavailable:', error?.message || error);
-  }
-
-  const geminiKey = getGeminiKey();
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: system,
-          responseMimeType: 'application/json'
-        }
-      });
-      const parsed = JSON.parse((response.text || '').trim());
-      const normalized = normalizeResponse(parsed, 'gemini', 'gemini-2.5-flash');
-      if (normalized) return normalized;
-    } catch (error) {
-      console.warn('[business-copilot] Gemini unavailable:', error?.message || error);
-    }
-  }
-
-  return deterministicFallback(cleanMessage, cleanContext);
-}
-
-export const __businessCopilotTest = {
-  sanitizeContext,
-  sanitizeHistory,
-  normalizeResponse,
   deterministicFallback
 };
