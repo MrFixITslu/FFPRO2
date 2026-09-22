@@ -238,9 +238,9 @@ test('mixed service pricing applies shared booking costs to booking equivalents,
       { id: 'community', name: 'Community / Festival Play', revenueModel: 'per_participant', unitLabel: 'Participants', rate: 20, expectedVolume: 144, monthlyGrowthRatePercent: 0 }
     ],
     costItems: [
-      { id: 'operator', name: 'Event Operator', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 10, directCostBasis: 'per_booking' },
-      { id: 'field', name: 'Field Operator', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 8, directCostBasis: 'per_booking' },
-      { id: 'vehicle', name: 'Vehicle Rental', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 80, directCostBasis: 'per_booking' },
+      { id: 'operator', name: 'Event Operator', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 10 },
+      { id: 'field', name: 'Field Operator', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 8 },
+      { id: 'vehicle', name: 'Vehicle Rental', classification: 'direct', currency: 'XCD', directCostPerUnitOrJob: 80 },
       { id: 'manager', name: 'Manager', classification: 'operating', currency: 'XCD', monthlyExpenseAmount: 3000 }
     ]
   };
