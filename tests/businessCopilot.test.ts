@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { buildBusinessCopilotContext } from '../src/services/businessCopilotContext.ts';
 import { runBusinessScenario } from '../src/services/businessScenarioService.ts';
 import { inferLocalBusinessScenarioIntent } from '../src/services/businessScenarioIntentService.ts';
+import { answerDeterministicCopilotQuickAction } from '../src/services/businessCopilotDeterministicService.ts';
 import {
   __businessCopilotTest,
   generateBusinessCopilotResponse
@@ -304,6 +305,206 @@ test('local scenario parser handles the exact Quick Battle prompt without an API
   assert.equal(change.targetId, 'svc-quick');
   assert.equal(change.field, 'rate');
   assert.equal(change.value, 35);
+});
+
+test('deterministic cost audit answers the actual double-counting question', () => {
+  const response = answerDeterministicCopilotQuickAction(
+    'Find any double-counted or misclassified costs.',
+    {
+      location: { page: 'costing' },
+      business: {
+        displayCurrency: 'XCD',
+        exchangeRate: 2.72
+      },
+      services: [
+        {
+          id: 'quick',
+          name: 'Quick Battle',
+          revenueModel: 'per_participant',
+          unitLabel: 'Participants',
+          currency: 'XCD',
+          rate: 30,
+          expectedVolume: 25,
+          directCostPerUnitOrJob: 30
+        },
+        {
+          id: 'resort',
+          name: 'Resort Guest Experience',
+          revenueModel: 'per_participant',
+          unitLabel: 'Participants',
+          currency: 'USD',
+          rate: 20,
+          expectedVolume: 24,
+          directCostPerUnitOrJob: 25
+        }
+      ],
+      costs: [
+        {
+          id: 'operator',
+          name: 'Event Operator',
+          classification: 'direct',
+          currency: 'XCD',
+          amount: 10,
+          directCostBasis: 'per_booking'
+        },
+        {
+          id: 'vehicle',
+          name: 'Vehicle Rental',
+          classification: 'direct',
+          currency: 'XCD',
+          amount: 80,
+          directCostBasis: 'per_booking'
+        }
+      ],
+      validation: {
+        errors: [
+          {
+            id: 'quick-margin',
+            title: 'Service-Level Cost Eliminates Margin on "Quick Battle"',
+            message: 'The service-level variable cost (EC$30.00) is greater than or equal to the billing rate (EC$30.00).'
+          }
+        ],
+        warnings: [],
+        info: []
+      }
+    }
+  );
+
+  assert.ok(response);
+  assert.equal(response.mode, 'audit');
+  assert.match(response.message, /double-counting risk/i);
+  assert.match(response.message, /service-level Unit Cost/i);
+  assert.ok(response.observations?.some((item) => /Quick Battle/.test(item.text)));
+  assert.ok(response.calculations?.some((item) => /Vehicle Rental/.test(item.label)));
+});
+
+test('deterministic break-even answer explains the formula instead of repeating generic validation', () => {
+  const response = answerDeterministicCopilotQuickAction(
+    'Explain my break-even result',
+    {
+      location: { page: 'forecast' },
+      business: {
+        displayCurrency: 'XCD',
+        exchangeRate: 2.72
+      },
+      forecast: {
+        breakEven: {
+          monthlyFixedCosts: 3000,
+          averageContributionMarginPercent: 49.56,
+          breakEvenRevenueMonthly: 6052.85,
+          breakEvenUnitsMonthly: 14,
+          breakEvenMetricLabel: 'Blended Bookings / Sessions',
+          unitPrice: 450,
+          unitVariableCost: 227,
+          unitContributionMargin: 223,
+          safetyMarginPercent: 54
+        }
+      },
+      validation: {
+        errors: [],
+        warnings: [],
+        info: []
+      }
+    }
+  );
+
+  assert.ok(response);
+  assert.equal(response.mode, 'explain');
+  assert.match(response.message, /EC\$6,052\.85/);
+  assert.match(response.message, /EC\$3,000/);
+  assert.ok(response.calculations?.some((item) => /3,000/.test(item.formula || '')));
+  assert.ok(response.calculations?.some((item) => /Break-even volume/.test(item.label)));
+});
+
+test('deterministic Year 1 revenue answer breaks revenue down by service and growth', () => {
+  const response = answerDeterministicCopilotQuickAction(
+    'Explain my Year 1 revenue',
+    {
+      location: { page: 'forecast' },
+      business: {
+        displayCurrency: 'XCD',
+        exchangeRate: 2.72
+      },
+      services: [
+        {
+          id: 'quick',
+          name: 'Quick Battle',
+          revenueModel: 'per_participant',
+          unitLabel: 'Participants',
+          currency: 'XCD',
+          rate: 30,
+          expectedVolume: 25,
+          monthlyGrowthRatePercent: 0
+        },
+        {
+          id: 'birthday',
+          name: 'Birthday Strike',
+          revenueModel: 'event',
+          unitLabel: 'Sessions',
+          currency: 'XCD',
+          rate: 450,
+          expectedVolume: 5,
+          monthlyGrowthRatePercent: 2
+        }
+      ],
+      forecast: {
+        year1: {
+          revenue: 40000
+        }
+      },
+      validation: {
+        errors: [],
+        warnings: [],
+        info: []
+      }
+    }
+  );
+
+  assert.ok(response);
+  assert.equal(response.mode, 'explain');
+  assert.ok(response.calculations?.some((item) => item.label === 'Quick Battle'));
+  assert.ok(response.calculations?.some((item) => item.label === 'Birthday Strike'));
+  assert.ok(response.observations?.some((item) => /compound monthly/i.test(item.text)));
+});
+
+test('deterministic plan audit returns validation issues without unrelated repeated boilerplate', () => {
+  const response = answerDeterministicCopilotQuickAction(
+    'Check this plan for inconsistencies',
+    {
+      location: { page: 'plan' },
+      business: {
+        displayCurrency: 'XCD',
+        exchangeRate: 2.72
+      },
+      forecast: {
+        year1: {
+          revenue: 414564.96,
+          netProfit: 175127.18,
+          netMarginPercent: 42.2
+        }
+      },
+      validation: {
+        errors: [{
+          id: 'pricing-error',
+          title: 'Service-Level Cost Eliminates Margin on "Quick Battle"',
+          message: 'The service-level cost equals the rate.'
+        }],
+        warnings: [{
+          id: 'growth-warning',
+          title: 'Monthly Growth Active',
+          message: 'A service compounds monthly.'
+        }],
+        info: []
+      }
+    }
+  );
+
+  assert.ok(response);
+  assert.equal(response.mode, 'audit');
+  assert.match(response.message, /1 error/);
+  assert.match(response.message, /1 warning/);
+  assert.ok(response.observations?.some((item) => /Quick Battle/.test(item.text)));
+  assert.ok(response.observations?.some((item) => /Monthly Growth Active/.test(item.text)));
 });
 
 test('server context sanitizer bounds narrative and normalizes unsafe shapes', () => {
