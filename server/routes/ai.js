@@ -15,6 +15,7 @@ import {
 } from '../services/ollamaService.js';
 import { parseQuoteTextDeterministic } from '../services/quoteParser.js';
 import { generateProjectCardImage } from '../services/cardImageGenerator.js';
+import { generateBusinessCopilotResponse } from '../services/businessCopilotService.js';
 
 const router = Router();
 
@@ -512,6 +513,27 @@ router.post('/parse', async (req, res) => {
   } catch (error) {
     console.error('Gemini AI Error:', error?.message || error);
     res.status(500).json({ error: 'Failed to process request with AI service.' });
+  }
+});
+
+// FFPRO Business Copilot — read-only business-plan assistant.
+// The client sends a bounded deterministic context snapshot; this endpoint never mutates plan state.
+router.post('/business-copilot', async (req, res) => {
+  try {
+    const { message, context, history } = req.body || {};
+    const response = await generateBusinessCopilotResponse({
+      message,
+      context,
+      history
+    });
+    res.json(response);
+  } catch (error) {
+    const status = Number(error?.status || error?.statusCode) || 500;
+    if (status >= 400 && status < 500) {
+      return res.status(status).json({ error: error?.publicMessage || error?.message || 'Invalid request.' });
+    }
+    console.error('[business-copilot]', error?.message || error);
+    res.status(500).json({ error: 'FFPRO Copilot could not process this request.' });
   }
 });
 
