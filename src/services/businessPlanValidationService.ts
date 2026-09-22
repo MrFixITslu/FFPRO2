@@ -396,8 +396,7 @@ export function validateBusinessPlan(
     warningsCount,
     narrativeFinancialDiscrepancies: narrativeDiscrepancies
   };
-}
- : 'US
+} : 'US
 
         if ((s.monthlyGrowthRatePercent ?? 0) > 0) {
           issues.push({
@@ -659,8 +658,7 @@ export function validateBusinessPlan(
     warningsCount,
     narrativeFinancialDiscrepancies: narrativeDiscrepancies
   };
-}
-;
+};
 
           issues.push({
             id: `service-unit-cost-exceeds-rate-${idx}`,
