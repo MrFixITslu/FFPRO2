@@ -1,3 +1,4 @@
+import { formatDebtServiceCoverage } from '../services/debtServiceCoverage';
 import DOMPurify from 'dompurify';
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
 import { AccessibleDialog } from './AccessibleDialog';
@@ -739,8 +740,8 @@ const ExportBusinessPlanContent: React.FC<ExportBusinessPlanModalProps> = ({
             ${presentation.loan.gracePeriodMonths ? `<br/><strong>Grace Period (Moratorium):</strong> ${presentation.loan.gracePeriodMonths} Month(s) (${presentation.loan.gracePeriodType === 'full_defer' ? 'Full payment deferral; accrued interest capitalized' : 'Interest-only servicing'}) | <strong>Schedule Start:</strong> ${presentation.loan.firstPaymentDate || 'Month 1'}` : ''}
           </p>
           <p>
-            <strong>Debt Service Coverage Ratio (DSCR):</strong> ${presentation.loan.dscrYear1 > 50 ? 'N/A' : presentation.loan.dscrYear1.toFixed(2) + 'x'} 
-            (${presentation.loan.dscrStatus.toUpperCase()}) — <em>Basis: Year 1 EBITDA / Year 1 Debt Service</em>.
+            <strong>Debt Service Coverage Ratio (DSCR):</strong> ${formatDebtServiceCoverage(presentation.loan.dscrYear1)}
+            (${presentation.loan.dscrStatus.replace('_', ' ').toUpperCase()}) — <em>Basis: Year 1 EBITDA / Year 1 Debt Service</em>.
           </p>
         ` : ''}
 

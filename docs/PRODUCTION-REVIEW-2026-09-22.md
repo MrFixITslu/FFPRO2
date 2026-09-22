@@ -26,7 +26,7 @@ Base: `34e25c9` on `main`. This change fixes reproducible defects. It does not c
 
 ## Deployment acceptance still required
 
-The local container has no usable PostgreSQL or Docker service. GitHub CI is configured to run PostgreSQL integration tests and build Docker. Check its result before release. Existing production data, reverse proxy, SMTP delivery, Google consent, device notifications, load and disaster recovery cannot be validated from this checkout.
+The original review passed GitHub CI, including PostgreSQL integration tests, Docker build and a running production-container smoke test (run 35711910355). PR #13 was merged as `691161b`. Each subsequent revision must pass these gates before release. Existing production data, reverse proxy, SMTP delivery, Google consent, device notifications, load and disaster recovery cannot be validated from this checkout.
 
 Financial outputs are planning estimates, not audited financial statements. Income tax, VAT cash settlement, receivables/payables, detailed manufacturing bills of materials, post-Year-1 replacement capital expenditure and exact calendar loan-payment allocation are not implemented in this model. These limitations are now disclosed in both report formats. Import tariff presets still require classification and current-rate verification; no blanket claim of statutory accuracy is made.
 
@@ -39,3 +39,11 @@ Reference checks: [IFRS property plant and equipment guidance](https://www.ifrs.
 3. Rebuild with `docker compose up -d --build`; verify `/api/health` and the acceptance checks in `PRODUCTION-READINESS.md`.
 4. Compare an existing goods plan and a service plan against their source quotations. Corrected financial totals may differ from previous exports.
 5. Keep the prior image and database backup for rollback. Do not delete the PostgreSQL volume.
+
+## Follow-up: loan coverage and repayment edge cases
+
+- A year without debt payments now has a null DSCR and “not applicable” status, instead of the fabricated 99x/strong result. Forecasts preserve the actual EBITDA numerator even during full deferral; scenario comparisons omit undefined ratios.
+- Legitimate ratios above 50x display normally. Coverage screening compares the unrounded ratio, avoiding false upgrades at 1.00x, 1.25x and 1.50x boundaries.
+- The repayment formula remains stable for very small positive rates. Post-deferral payments use the same cent-rounded capitalized balance as the actual schedule.
+- The loan panel uses borrower-facing wording, a wrapping header, an accessible expand/collapse control, and lender-supplied rate/term guidance. Scenario profit labels explicitly say before tax.
+- Local validation: TypeScript, production build and all 81 tests passed, including five additional regression tests for these cases. Chromium checks at 1440px and 390px passed for high-ratio and deferred-payment display, expand/collapse, and horizontal overflow. Visual review found and corrected the clipped mobile schedule toolbar. Deployment-dependent limitations above still apply.

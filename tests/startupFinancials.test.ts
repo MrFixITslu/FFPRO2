@@ -1226,3 +1226,57 @@ test('legacy goods sales taxes are excluded from forecast revenue', () => {
   assert.equal(calc.finalSuggestedPrice, 16.88);
   assert.equal(calc.monthlyRevenue, 150);
 });
+
+test('DSCR retains high ratios and classifies exact thresholds before display rounding', async () => {
+  const { calculateDebtServiceCoverage, formatDebtServiceCoverage } = await import('../src/services/debtServiceCoverage.ts');
+  for (const [ebitda, status] of [[999.99, 'insufficient'], [1000, 'tight'], [1249.99, 'tight'], [1250, 'adequate'], [1499.99, 'adequate'], [1500, 'strong']] as const) {
+    const coverage = calculateDebtServiceCoverage(ebitda, 1000);
+    assert.equal(coverage.dscrStatus, status);
+    assert.equal(coverage.dscrYear1, ebitda / 1000);
+  }
+  const loan = calculateLoanAmortizationSchedule({ enabled: true, loanAmount: 1200, annualInterestRate: 0, termYears: 1, paymentFrequency: 'monthly' }, 'USD', 2.7, 120000)!;
+  assert.equal(loan.dscrYear1, 100);
+  assert.equal(formatDebtServiceCoverage(loan.dscrYear1), '100.00x');
+});
+
+test('a fully deferred first year has no DSCR and no false insufficient or strong rating', async () => {
+  const { formatDebtServiceCoverage } = await import('../src/services/debtServiceCoverage.ts');
+  const plan = {
+    businessModelType: 'services', displayCurrency: 'USD',
+    serviceOfferings: [{ id: 's', name: 'Service', rate: 100, expectedVolume: 10 }],
+    loanParameters: { enabled: true, loanAmount: 12000, annualInterestRate: 7, termYears: 3, paymentFrequency: 'monthly', gracePeriodMonths: 12, gracePeriodType: 'full_defer' }
+  } as StartupPlanDetails;
+  const forecast = generateStartupFinancialForecast(plan);
+  const loan = forecast.loanSummary!;
+  assert.equal(loan.annualDebtService, 0);
+  assert.equal(loan.dscrYear1, null);
+  assert.equal(loan.dscrStatus, 'not_applicable');
+  assert.equal(loan.dscrNumerator, 12000);
+  assert.equal(loan.dscrDenominator, 0);
+  assert.match(formatDebtServiceCoverage(loan.dscrYear1), /no Year 1 debt payments/);
+  assert.equal(buildBusinessPlanPresentation(plan).loan?.dscrYear1, null);
+  const validation = validateBusinessPlan(plan);
+  assert.ok(!validation.issues.some(issue => issue.id.startsWith('loan-dscr-')));
+});
+
+test('a near-zero positive loan rate retains regular principal repayments', () => {
+  const loan = calculateLoanAmortizationSchedule({ enabled: true, loanAmount: 12000, annualInterestRate: 1e-14, termYears: 1, paymentFrequency: 'monthly' })!;
+  assert.equal(loan.periodicPayment, 1000);
+  assert.equal(loan.totalRepaymentAmount, 12000);
+  assert.equal(loan.totalInterestPaid, 0);
+  assert.ok(loan.schedule.every(row => row.paymentAmount === 1000));
+  assert.equal(loan.schedule.at(-1)?.endingBalance, 0);
+});
+
+test('post-grace regular payment uses the actual cent-rounded capitalized balance', () => {
+  const loan = calculateLoanAmortizationSchedule({ enabled: true, loanAmount: 1000.01, annualInterestRate: 7.25, termYears: 3, paymentFrequency: 'monthly', gracePeriodMonths: 13, gracePeriodType: 'full_defer' })!;
+  const opening = loan.schedule[13].beginningBalance;
+  const rate = 0.0725 / 12;
+  const expectedPayment = roundCurrency(opening * rate / (1 - Math.pow(1 + rate, -23)));
+  assert.equal(loan.periodicPayment, expectedPayment);
+  for (const row of loan.schedule) {
+    assert.equal(row.endingBalance, roundCurrency(row.beginningBalance + (row.capitalizedInterest || 0) - row.principalPaid));
+    assert.equal(row.paymentAmount, roundCurrency(row.interestPaid + row.principalPaid));
+  }
+  assert.equal(loan.schedule.at(-1)?.endingBalance, 0);
+});

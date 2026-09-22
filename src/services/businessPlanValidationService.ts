@@ -285,7 +285,7 @@ export function validateBusinessPlan(
     );
 
     if (loanSummary) {
-      if (loanSummary.dscrYear1 < 1.0) {
+      if (loanSummary.dscrStatus === 'insufficient') {
         issues.push({
           id: 'loan-dscr-insufficient',
           type: 'error',
@@ -294,7 +294,7 @@ export function validateBusinessPlan(
           message: `Year 1 simplified DSCR is ${loanSummary.dscrYear1.toFixed(2)}x using EBITDA / scheduled debt service.`,
           actionableRecommendation: 'Increase revenue, trim operating overhead, increase equity/grant funding, or revise loan terms.'
         });
-      } else if (loanSummary.dscrYear1 < 1.25) {
+      } else if (loanSummary.dscrStatus === 'tight') {
         issues.push({
           id: 'loan-dscr-tight',
           type: 'warning',
