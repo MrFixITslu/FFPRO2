@@ -262,9 +262,17 @@ test('supported named-service scenarios bypass external AI providers', async () 
 
   assert.equal(response.provider, 'deterministic');
   assert.equal(response.mode, 'scenario');
-  assert.equal(response.scenarioIntent?.changes[0].targetId, 'svc-quick');
-  assert.equal(response.scenarioIntent?.changes[0].field, 'rate');
-  assert.equal(response.scenarioIntent?.changes[0].value, 35);
+
+  const change = response.scenarioIntent?.changes[0];
+  assert.ok(change);
+  assert.equal(change.target, 'service');
+  if (change.target !== 'service') {
+    assert.fail('Expected a service scenario change.');
+  }
+
+  assert.equal(change.targetId, 'svc-quick');
+  assert.equal(change.field, 'rate');
+  assert.equal(change.value, 35);
 });
 
 test('server context sanitizer bounds narrative and normalizes unsafe shapes', () => {
