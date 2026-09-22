@@ -37,8 +37,7 @@ import {
   calculateServiceCapacity,
   roundCurrency,
   getDefaultServiceUnitLabel,
-  getServiceOfferingUnitLabel,
-  getServiceUnitsPerBooking
+  getServiceOfferingUnitLabel
 } from '../../services/startupFinancialsService';
 import { DEFAULT_USD_TO_XCD_RATE, getCurrencySymbol, convertCurrency } from '../../services/currencyService';
 
@@ -1513,7 +1512,7 @@ export const ServicesWorkflowPanel: React.FC<ServicesWorkflowPanelProps> = ({
                         type="number"
                         min="1"
                         step="1"
-                        value={getServiceUnitsPerBooking(service, { serviceCapacityPlan: currentPlan } as any)}
+                        value={service.unitsPerBooking ?? Math.max(1, equipmentPlan.capacityPerResource ?? 1)}
                         onChange={(e) =>
                           handleUpdateServiceField(
                             service.id,
