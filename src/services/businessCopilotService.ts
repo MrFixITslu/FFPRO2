@@ -12,9 +12,17 @@ export async function askBusinessCopilot(
     body: JSON.stringify(request)
   });
 
-  const body = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  let body: any = {};
+  try {
+    body = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    body = {};
+  }
+
   if (!response.ok) {
-    throw new Error(body.error || 'FFPRO Copilot request failed.');
+    const detail = body.error || rawText?.trim() || response.statusText || 'Request failed';
+    throw new Error(`FFPRO Copilot request failed (${response.status}): ${detail}`);
   }
   return body as BusinessCopilotResponse;
 }
