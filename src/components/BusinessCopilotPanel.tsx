@@ -104,6 +104,10 @@ const BusinessCopilotPanel: React.FC<BusinessCopilotPanelProps> = ({
     clear
   } = useBusinessCopilot(context);
 
+  const issueCount =
+    (context.validation?.errors.length || 0) +
+    (context.validation?.warnings.length || 0);
+
   useEffect(() => {
     if (!isOpen) return;
     requestAnimationFrame(() => {
@@ -135,7 +139,11 @@ const BusinessCopilotPanel: React.FC<BusinessCopilotPanelProps> = ({
         </span>
         <span className="text-left">
           <span className="block text-xs font-extrabold leading-tight">FFPRO Copilot</span>
-          <span className="block text-[9px] text-stone-400 font-semibold mt-0.5">Read-only plan assistant</span>
+          <span className="block text-[9px] text-stone-400 font-semibold mt-0.5">
+            {issueCount > 0
+              ? `${issueCount} plan issue${issueCount === 1 ? '' : 's'} to review`
+              : 'Read-only plan assistant'}
+          </span>
         </span>
       </button>
     );
