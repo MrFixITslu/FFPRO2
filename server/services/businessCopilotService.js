@@ -470,6 +470,25 @@ export async function generateBusinessCopilotResponse({ message, context, histor
 
   const cleanContext = sanitizeContext(context);
   const cleanHistory = sanitizeHistory(history);
+
+  // Fast-path deterministic what-if requests before any external model call.
+  // This keeps supported scenarios available even when Ollama/Gemini is slow,
+  // unavailable, or blocked by an upstream proxy timeout.
+  const deterministicScenario = inferDeterministicScenarioIntent(cleanMessage, cleanContext);
+  if (deterministicScenario) {
+    return {
+      message: 'Scenario identified. FFPRO will calculate the financial impact from the current saved plan; the saved plan will remain unchanged.',
+      mode: 'scenario',
+      observations: [],
+      calculations: [],
+      sources: [{ type: 'plan', label: 'Current FFPRO plan inputs' }],
+      proposals: [],
+      scenarioIntent: deterministicScenario,
+      suggestedPrompts: ['Compare another price scenario', 'Explain the break-even impact'],
+      provider: 'deterministic'
+    };
+  }
+
   const system = buildSystemPrompt();
   const prompt = buildPrompt(cleanMessage, cleanContext, cleanHistory);
 

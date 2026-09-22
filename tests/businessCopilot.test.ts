@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 
 import { buildBusinessCopilotContext } from '../src/services/businessCopilotContext.ts';
 import { runBusinessScenario } from '../src/services/businessScenarioService.ts';
-import { __businessCopilotTest } from '../server/services/businessCopilotService.js';
+import {
+  __businessCopilotTest,
+  generateBusinessCopilotResponse
+} from '../server/services/businessCopilotService.js';
 import type { StartupPlanDetails } from '../src/types.ts';
 
 test('business copilot context is built from deterministic forecast and validation outputs', () => {
@@ -233,6 +236,43 @@ test('deterministic Copilot fallback can identify a simple named service what-if
   assert.equal(response.scenarioIntent?.changes[0].targetId, 'svc-quick');
   assert.equal(response.scenarioIntent?.changes[0].field, 'rate');
   assert.equal(response.scenarioIntent?.changes[0].value, 35);
+});
+
+test('supported named-service scenarios bypass external AI providers', async () => {
+  const context = {
+    location: { page: 'costing' },
+    business: { displayCurrency: 'XCD', exchangeRate: 2.72 },
+    services: [{
+      id: 'svc-quick',
+      name: 'Quick Battle',
+      revenueModel: 'per_participant',
+      unitLabel: 'Participants',
+      currency: 'XCD',
+      rate: 30,
+      expectedVolume: 25
+    }],
+    validation: { errors: [], warnings: [], info: [] }
+  };
+
+  const response = await generateBusinessCopilotResponse({
+    message: 'What if Quick Battle goes from EC$30 to EC$35?',
+    context,
+    history: []
+  });
+
+  assert.equal(response.provider, 'deterministic');
+  assert.equal(response.mode, 'scenario');
+
+  const change = response.scenarioIntent?.changes[0];
+  assert.ok(change);
+  assert.equal(change.target, 'service');
+  if (change.target !== 'service') {
+    assert.fail('Expected a service scenario change.');
+  }
+
+  assert.equal(change.targetId, 'svc-quick');
+  assert.equal(change.field, 'rate');
+  assert.equal(change.value, 35);
 });
 
 test('server context sanitizer bounds narrative and normalizes unsafe shapes', () => {
