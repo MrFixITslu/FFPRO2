@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { buildBusinessCopilotContext } from '../src/services/businessCopilotContext.ts';
 import { runBusinessScenario } from '../src/services/businessScenarioService.ts';
+import { inferLocalBusinessScenarioIntent } from '../src/services/businessScenarioIntentService.ts';
 import {
   __businessCopilotTest,
   generateBusinessCopilotResponse
@@ -266,10 +267,40 @@ test('supported named-service scenarios bypass external AI providers', async () 
   const change = response.scenarioIntent?.changes[0];
   assert.ok(change);
   assert.equal(change.target, 'service');
-  if (change.target !== 'service') {
-    assert.fail('Expected a service scenario change.');
-  }
+  assert.ok('targetId' in change);
 
+  assert.equal(change.targetId, 'svc-quick');
+  assert.equal(change.field, 'rate');
+  assert.equal(change.value, 35);
+});
+
+test('local scenario parser handles the exact Quick Battle prompt without an API request', () => {
+  const context = {
+    location: { page: 'costing' },
+    business: {
+      displayCurrency: 'XCD' as const,
+      exchangeRate: 2.72
+    },
+    services: [{
+      id: 'svc-quick',
+      name: 'Quick Battle',
+      revenueModel: 'per_participant',
+      unitLabel: 'Participants',
+      currency: 'XCD' as const,
+      rate: 30,
+      expectedVolume: 25
+    }]
+  };
+
+  const intent = inferLocalBusinessScenarioIntent(
+    '“What if Quick Battle goes from EC$30 to EC$35?”',
+    context
+  );
+
+  assert.ok(intent);
+  const change = intent.changes[0];
+  assert.equal(change.target, 'service');
+  assert.ok('targetId' in change);
   assert.equal(change.targetId, 'svc-quick');
   assert.equal(change.field, 'rate');
   assert.equal(change.value, 35);

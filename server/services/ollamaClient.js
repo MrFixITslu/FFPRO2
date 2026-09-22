@@ -11,13 +11,19 @@ export async function checkOllamaHealth() {
 /**
  * Calls the local model via unified ollamaService.
  */
-export async function ollamaGenerate({ prompt, system, jsonMode = true, temperature = 0.1 }) {
+export async function ollamaGenerate({
+  prompt,
+  system,
+  jsonMode = true,
+  temperature = 0.1,
+  timeoutMs = parseInt(process.env.OLLAMA_REQUEST_TIMEOUT_MS || '60000', 10)
+}) {
   const res = await serviceGenerateOllama({
     prompt,
     system,
     jsonFormat: jsonMode,
     temperature,
-    timeoutMs: parseInt(process.env.OLLAMA_REQUEST_TIMEOUT_MS || '60000', 10)
+    timeoutMs
   });
   return res.text || '';
 }
@@ -26,10 +32,21 @@ export async function ollamaGenerate({ prompt, system, jsonMode = true, temperat
  * Runs a JSON-mode generation and parses the result, retrying ONCE with a
  * shorter, more constrained prompt if the first attempt doesn't parse.
  */
-export async function ollamaGenerateJSON({ prompt, system, temperature = 0.1 }) {
+export async function ollamaGenerateJSON({
+  prompt,
+  system,
+  temperature = 0.1,
+  timeoutMs = 6000
+}) {
   for (const attemptPrompt of [prompt, buildConstrainedRetryPrompt(prompt)]) {
     try {
-      const raw = await ollamaGenerate({ prompt: attemptPrompt, system, jsonMode: true, temperature });
+      const raw = await ollamaGenerate({
+        prompt: attemptPrompt,
+        system,
+        jsonMode: true,
+        temperature,
+        timeoutMs
+      });
       const parsed = safeParseJSON(raw);
       if (parsed !== null) return parsed;
     } catch (err) {

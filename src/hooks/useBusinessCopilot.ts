@@ -6,6 +6,7 @@ import {
 import type { StartupPlanDetails } from '../types';
 import { askBusinessCopilot } from '../services/businessCopilotService';
 import { runBusinessScenario } from '../services/businessScenarioService';
+import { inferLocalBusinessScenarioIntent } from '../services/businessScenarioIntentService';
 
 export interface BusinessCopilotMessage {
   role: 'user' | 'assistant';
@@ -30,6 +31,46 @@ export function useBusinessCopilot(
     setMessages((current) => [...current, { role: 'user', content: text }]);
 
     try {
+      const localScenarioIntent = startupDetails
+        ? inferLocalBusinessScenarioIntent(text, context)
+        : undefined;
+
+      if (localScenarioIntent && startupDetails) {
+        const scenarioResult = runBusinessScenario(
+          startupDetails,
+          localScenarioIntent
+        );
+
+        const response: BusinessCopilotResponse = {
+          message: 'Scenario calculated locally using the current FFPRO plan as the baseline. Your saved plan has not been changed.',
+          mode: 'scenario',
+          observations: [],
+          calculations: [],
+          sources: [{
+            type: 'forecast',
+            label: 'FFPRO deterministic forecast engine'
+          }],
+          proposals: [],
+          scenarioIntent: localScenarioIntent,
+          scenarioResult,
+          suggestedPrompts: [
+            'Compare another scenario',
+            'Explain the break-even impact'
+          ],
+          provider: 'deterministic'
+        };
+
+        setMessages((current) => [
+          ...current,
+          {
+            role: 'assistant',
+            content: response.message,
+            response
+          }
+        ]);
+        return response;
+      }
+
       const response = await askBusinessCopilot({
         message: text,
         context,

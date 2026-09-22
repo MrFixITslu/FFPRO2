@@ -13,6 +13,17 @@ function getGeminiKey() {
   return key;
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(Object.assign(new Error(`${label} timed out.`), { code: 'ETIMEDOUT' }));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 function boundedString(value, max = 400) {
   if (value === undefined || value === null) return undefined;
   return String(value).slice(0, max);
@@ -496,7 +507,8 @@ export async function generateBusinessCopilotResponse({ message, context, histor
     const response = await ollamaGenerateJSON({
       prompt,
       system,
-      temperature: 0.15
+      temperature: 0.15,
+      timeoutMs: 6000
     });
     const normalized = normalizeResponse(response, 'ollama', undefined, cleanContext);
     if (normalized) return normalized;
@@ -508,14 +520,18 @@ export async function generateBusinessCopilotResponse({ message, context, histor
   if (geminiKey) {
     try {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: system,
-          responseMimeType: 'application/json'
-        }
-      });
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            systemInstruction: system,
+            responseMimeType: 'application/json'
+          }
+        }),
+        6000,
+        'Gemini Copilot request'
+      );
       const parsed = JSON.parse((response.text || '').trim());
       const normalized = normalizeResponse(parsed, 'gemini', 'gemini-2.5-flash', cleanContext);
       if (normalized) return normalized;
