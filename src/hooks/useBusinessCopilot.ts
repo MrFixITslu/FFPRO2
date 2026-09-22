@@ -7,6 +7,7 @@ import type { StartupPlanDetails } from '../types';
 import { askBusinessCopilot } from '../services/businessCopilotService';
 import { runBusinessScenario } from '../services/businessScenarioService';
 import { inferLocalBusinessScenarioIntent } from '../services/businessScenarioIntentService';
+import { answerDeterministicCopilotQuickAction } from '../services/businessCopilotDeterministicService';
 
 export interface BusinessCopilotMessage {
   role: 'user' | 'assistant';
@@ -69,6 +70,19 @@ export function useBusinessCopilot(
           }
         ]);
         return response;
+      }
+
+      const localAnswer = answerDeterministicCopilotQuickAction(text, context);
+      if (localAnswer) {
+        setMessages((current) => [
+          ...current,
+          {
+            role: 'assistant',
+            content: localAnswer.message,
+            response: localAnswer
+          }
+        ]);
+        return localAnswer;
       }
 
       const response = await askBusinessCopilot({
