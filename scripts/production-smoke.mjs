@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 
 const container = `ffpro-smoke-${randomBytes(6).toString('hex')}`;
 const port = 3198;
@@ -15,9 +16,22 @@ const child = spawn('docker', ['run', '--rm', '--name', container, '--network', 
 let logs = '';
 child.stdout.on('data', data => { logs += data; });
 child.stderr.on('data', data => { logs += data; });
-const request = (path, headers = {}) => fetch(`http://127.0.0.1:${port}${path}`, {
-  headers: { Host: host, ...headers }, signal: AbortSignal.timeout(3000)
+// Use the low-level HTTP client so the proxy Host header is preserved. Fetch may
+// replace forbidden Host headers with the connection hostname on newer Node releases.
+const request = (path, headers = {}) => new Promise((resolve, reject) => {
+  const req = httpRequest({ hostname: '127.0.0.1', port, path, headers: { Host: host, ...headers } }, res => {
+    const chunks = [];
+    res.on('data', chunk => chunks.push(chunk));
+    res.on('end', () => resolve(new Response(Buffer.concat(chunks), {
+      status: res.statusCode, headers: Object.fromEntries(Object.entries(res.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : value ?? '']))
+    })));
+    res.on('error', reject);
+  });
+  req.setTimeout(3000, () => req.destroy(new Error('Smoke request timed out')));
+  req.on('error', reject);
+  req.end();
 });
+
 try {
   let ready = false;
   for (let attempt = 0; attempt < 60; attempt++) {
@@ -27,7 +41,7 @@ try {
   }
   assert.ok(ready, `Production health endpoint did not become ready: ${logs}`);
   const home = await request('/');
-  assert.equal(home.status, 200);
+  assert.equal(home.status, 200, `Homepage response: ${await home.clone().text()}`);
   assert.match(home.headers.get('content-type'), /text\/html/);
   const html = await home.text();
   const asset = html.match(/src="(\/assets\/[^" ]+\.js)"/)?.[1];
