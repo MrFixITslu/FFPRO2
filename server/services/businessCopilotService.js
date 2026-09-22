@@ -139,7 +139,158 @@ function normalizeMode(value) {
   return ['explain', 'audit', 'scenario', 'action'].includes(value) ? value : 'explain';
 }
 
-function normalizeResponse(value, provider, model) {
+const SERVICE_SCENARIO_FIELDS = new Set([
+  'rate',
+  'expectedVolume',
+  'unitsPerBooking',
+  'monthlyGrowthRatePercent',
+  'directCostPerUnitOrJob'
+]);
+
+const COST_SCENARIO_FIELDS = new Set([
+  'directCostPerUnitOrJob',
+  'monthlyExpenseAmount',
+  'directCostBasis'
+]);
+
+const CAPACITY_SCENARIO_FIELDS = new Set([
+  'resourceCount',
+  'availableDaysPerUnit',
+  'targetUtilisationPercent',
+  'operatingHoursPerDay',
+  'serviceUnitDurationHours',
+  'capacityPerResource'
+]);
+
+const LOAN_SCENARIO_FIELDS = new Set([
+  'loanAmount',
+  'annualInterestRate',
+  'termYears',
+  'gracePeriodMonths'
+]);
+
+function normalizeScenarioIntent(value, context) {
+  if (!value || typeof value !== 'object') return undefined;
+
+  const title = boundedString(value.title, 180);
+  const rawChanges = sanitizeList(value.changes, 12);
+  if (!title || rawChanges.length === 0) return undefined;
+
+  const serviceIds = new Set((context?.services || []).map((item) => item.id).filter(Boolean));
+  const costIds = new Set((context?.costs || []).map((item) => item.id).filter(Boolean));
+  const changes = [];
+
+  for (const raw of rawChanges) {
+    const target = boundedString(raw?.target, 30);
+    const field = boundedString(raw?.field, 80);
+
+    if (target === 'service' && SERVICE_SCENARIO_FIELDS.has(field)) {
+      const targetId = boundedString(raw?.targetId, 120);
+      const numeric = boundedNumber(raw?.value);
+      if (!targetId || !serviceIds.has(targetId) || numeric === undefined) continue;
+      changes.push({ target, targetId, field, value: numeric });
+      continue;
+    }
+
+    if (target === 'cost' && COST_SCENARIO_FIELDS.has(field)) {
+      const targetId = boundedString(raw?.targetId, 120);
+      if (!targetId || !costIds.has(targetId)) continue;
+
+      if (field === 'directCostBasis') {
+        if (raw?.value === 'per_booking' || raw?.value === 'per_revenue_unit') {
+          changes.push({ target, targetId, field, value: raw.value });
+        }
+      } else {
+        const numeric = boundedNumber(raw?.value);
+        if (numeric !== undefined) changes.push({ target, targetId, field, value: numeric });
+      }
+      continue;
+    }
+
+    if (target === 'capacity' && CAPACITY_SCENARIO_FIELDS.has(field)) {
+      const numeric = boundedNumber(raw?.value);
+      if (numeric !== undefined) changes.push({ target, field, value: numeric });
+      continue;
+    }
+
+    if (target === 'loan' && LOAN_SCENARIO_FIELDS.has(field)) {
+      const numeric = boundedNumber(raw?.value);
+      if (numeric !== undefined) changes.push({ target, field, value: numeric });
+    }
+  }
+
+  if (changes.length === 0) return undefined;
+  return {
+    title,
+    summary: boundedString(value.summary, 500),
+    changes
+  };
+}
+
+function parseScenarioNumber(message) {
+  const toMatch = /\bto\s+(?:ec\$|us\$|\$)?\s*([\d,.]+)\s*([kKmM])?/i.exec(message);
+  const matches = toMatch
+    ? [toMatch[1], toMatch[2]]
+    : (() => {
+        const all = [...message.matchAll(/(?:ec\$|us\$|\$)?\s*([\d,.]+)\s*([kKmM])?/gi)];
+        const last = all[all.length - 1];
+        return last ? [last[1], last[2]] : [];
+      })();
+
+  if (!matches[0]) return undefined;
+  let number = Number(String(matches[0]).replace(/,/g, ''));
+  if (!Number.isFinite(number)) return undefined;
+  if (String(matches[1] || '').toLowerCase() === 'k') number *= 1000;
+  if (String(matches[1] || '').toLowerCase() === 'm') number *= 1000000;
+  return number;
+}
+
+function inferDeterministicScenarioIntent(message, context) {
+  const lower = message.toLowerCase();
+  if (!/(what if|scenario|increase|decrease|raise|lower|change|set|double|halve|reduce|borrow|loan)/i.test(message)) {
+    return undefined;
+  }
+
+  const service = (context.services || []).find((item) =>
+    item?.name && lower.includes(String(item.name).toLowerCase())
+  );
+
+  if (service) {
+    let field = 'rate';
+    if (/(volume|participants|sessions|bookings|events|packages|clients|guests)/i.test(message)) field = 'expectedVolume';
+    if (/(growth|mom)/i.test(message)) field = 'monthlyGrowthRatePercent';
+    if (/(pax|participants per booking|units per booking)/i.test(message)) field = 'unitsPerBooking';
+    if (/(direct cost|unit cost|variable cost)/i.test(message)) field = 'directCostPerUnitOrJob';
+
+    const current = Number(service[field] ?? 0);
+    let value = parseScenarioNumber(message);
+    if (/\bdouble\b/i.test(message)) value = current * 2;
+    if (/\bhalve\b|\bhalf\b/i.test(message)) value = current / 2;
+
+    if (Number.isFinite(value)) {
+      return {
+        title: `${service.name}: ${field} scenario`,
+        summary: `Temporary what-if change for ${service.name}.`,
+        changes: [{ target: 'service', targetId: service.id, field, value }]
+      };
+    }
+  }
+
+  if (/(borrow|loan)/i.test(message)) {
+    const value = parseScenarioNumber(message);
+    if (Number.isFinite(value)) {
+      return {
+        title: 'Loan amount scenario',
+        summary: 'Temporary change to the planned loan amount.',
+        changes: [{ target: 'loan', field: 'loanAmount', value }]
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeResponse(value, provider, model, context = {}) {
   if (!value || typeof value !== 'object') return null;
   const message = boundedString(value.message, 6000);
   if (!message) return null;
@@ -166,6 +317,7 @@ function normalizeResponse(value, provider, model) {
     })),
     // Read-only MVP: proposals are intentionally suppressed server-side.
     proposals: [],
+    scenarioIntent: normalizeScenarioIntent(value.scenarioIntent, context),
     suggestedPrompts: sanitizeList(value.suggestedPrompts, 5)
       .map((item) => boundedString(item, 180))
       .filter(Boolean),
@@ -187,10 +339,17 @@ AUTHORITATIVE DATA RULES:
 - If plan data conflicts with a document summary, identify the conflict; do not choose a winner unless the user explicitly tells you which source is authoritative.
 - Never claim a lender, bank, grant agency, or investor has approved or will approve a plan.
 
-READ-ONLY MVP RULES:
-- You cannot modify the plan.
-- Do not claim that you applied, saved, updated, or changed anything.
-- For scenario questions, explain directionally using the supplied facts. Do not invent recalculated scenario totals because the scenario engine is not yet connected.
+READ-ONLY + SCENARIO RULES:
+- You cannot modify the saved plan.
+- Do not claim that you applied, saved, updated, or permanently changed anything.
+- A deterministic FFPRO scenario engine is connected on the client. For a what-if question, return mode "scenario" and a scenarioIntent describing ONLY the requested temporary changes. Do NOT invent or estimate the scenario's financial totals yourself.
+- Use exact service/cost target IDs from CURRENT FFPRO CONTEXT. Never invent target IDs.
+- For a request such as "double X", calculate the proposed field value from the current context value and put that explicit value in scenarioIntent.
+- If the target or requested field is ambiguous, omit scenarioIntent and ask one concise clarification question.
+- Supported service fields: rate, expectedVolume, unitsPerBooking, monthlyGrowthRatePercent, directCostPerUnitOrJob.
+- Supported cost fields: directCostPerUnitOrJob, monthlyExpenseAmount, directCostBasis.
+- Supported equipment-capacity fields: resourceCount, availableDaysPerUnit, targetUtilisationPercent, operatingHoursPerDay, serviceUnitDurationHours, capacityPerResource.
+- Supported loan fields: loanAmount, annualInterestRate, termYears, gracePeriodMonths.
 - You may recommend a specific field change, but describe it as a recommendation only.
 
 RESPONSE STYLE:
@@ -212,6 +371,18 @@ Return ONLY one valid JSON object with this shape:
   "sources": [
     {"type":"plan|forecast|validation|document|user|ai","label":"...","documentId":"optional"}
   ],
+  "scenarioIntent": {
+    "title": "only when mode is scenario and the request is unambiguous",
+    "summary": "optional",
+    "changes": [
+      {
+        "target": "service|cost|capacity|loan",
+        "targetId": "required only for service/cost; exact ID from context",
+        "field": "one supported field",
+        "value": "number or direct-cost basis string"
+      }
+    ]
+  },
   "suggestedPrompts": ["...", "..."]
 }
 
@@ -232,6 +403,21 @@ Answer only from the supplied context plus general explanatory knowledge. If the
 }
 
 function deterministicFallback(message, context) {
+  const scenarioIntent = inferDeterministicScenarioIntent(message, context);
+  if (scenarioIntent) {
+    return {
+      message: 'I identified a temporary what-if change. FFPRO will calculate the financial impact using the saved plan as the baseline; the saved plan will remain unchanged.',
+      mode: 'scenario',
+      observations: [],
+      calculations: [],
+      sources: [{ type: 'plan', label: 'Current FFPRO plan inputs' }],
+      proposals: [],
+      scenarioIntent,
+      suggestedPrompts: ['Compare another price scenario', 'Explain the break-even impact'],
+      provider: 'deterministic'
+    };
+  }
+
   const currency = context.business?.displayCurrency === 'XCD' ? 'EC$' : 'US$';
   const errors = context.validation?.errors || [];
   const warnings = context.validation?.warnings || [];
@@ -293,7 +479,7 @@ export async function generateBusinessCopilotResponse({ message, context, histor
       system,
       temperature: 0.15
     });
-    const normalized = normalizeResponse(response, 'ollama');
+    const normalized = normalizeResponse(response, 'ollama', undefined, cleanContext);
     if (normalized) return normalized;
   } catch (error) {
     console.warn('[business-copilot] Ollama unavailable:', error?.message || error);
@@ -312,7 +498,7 @@ export async function generateBusinessCopilotResponse({ message, context, histor
         }
       });
       const parsed = JSON.parse((response.text || '').trim());
-      const normalized = normalizeResponse(parsed, 'gemini', 'gemini-2.5-flash');
+      const normalized = normalizeResponse(parsed, 'gemini', 'gemini-2.5-flash', cleanContext);
       if (normalized) return normalized;
     } catch (error) {
       console.warn('[business-copilot] Gemini unavailable:', error?.message || error);
@@ -326,5 +512,7 @@ export const __businessCopilotTest = {
   sanitizeContext,
   sanitizeHistory,
   normalizeResponse,
+  normalizeScenarioIntent,
+  inferDeterministicScenarioIntent,
   deterministicFallback
 };
