@@ -51,6 +51,8 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
       - V79_PLATFORM_SHARED_SECRET=${V79_PLATFORM_SHARED_SECRET:-}
+      - V79_HUB_EVENT_URL=${V79_HUB_EVENT_URL:-http://v79-hub:3040/api/platform/events}
+      - V79_HUB_EVENT_SECRET=${V79_HUB_EVENT_SECRET:-}
 
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
       # Host is the Docker service name "postgres", resolved over database_internal.

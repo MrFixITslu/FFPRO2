@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { encryptForUser, decryptForUser } from '../crypto.js';
 import { realtimeHub } from '../realtime.js';
 import rateLimit from 'express-rate-limit';
+import { queueFinanceSnapshotEvent, wakePlatformEventPump } from '../platformEvents.js';
 
 const router = Router();
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB limit
@@ -104,7 +105,9 @@ router.put('/', async (req, res) => {
              updated_at = now()`,
       [req.user.id, ciphertext, iv, authTag, newVersion]
     );
+    await queueFinanceSnapshotEvent(client, req.user.id, newVersion, data);
     await client.query('COMMIT');
+    wakePlatformEventPump();
     realtimeHub.broadcastUserDataUpdate(req.user.id, {
       version: newVersion,
       updatedAt: new Date().toISOString(),
@@ -136,7 +139,8 @@ router.delete('/', async (req, res) => {
     const empty={transactions:[],recurringExpenses:[],recurringIncomes:[],savingGoals:[],investmentGoals:[],categoryBudgets:{},bankConnections:[],investments:[],events:[],calendarItems:[],contacts:[],ideas:[],financialLogs:[],cashOpeningBalance:0,lastUpdated:new Date().toISOString()};
     const {ciphertext,iv,authTag}=encryptForUser(req.user.id,empty);
     await client.query(`INSERT INTO user_data (user_id,ciphertext,iv,auth_tag,version,updated_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(user_id) DO UPDATE SET ciphertext=EXCLUDED.ciphertext,iv=EXCLUDED.iv,auth_tag=EXCLUDED.auth_tag,version=EXCLUDED.version,updated_at=now()`,[req.user.id,ciphertext,iv,authTag,version]);
-    await client.query('COMMIT');realtimeHub.broadcastUserDataUpdate(req.user.id,{version,updatedAt:empty.lastUpdated});
+    await queueFinanceSnapshotEvent(client, req.user.id, version, empty);
+    await client.query('COMMIT');wakePlatformEventPump();realtimeHub.broadcastUserDataUpdate(req.user.id,{version,updatedAt:empty.lastUpdated});
     res.json({ok:true,version});
   } catch(error) {if(client)await client.query('ROLLBACK');throw error;}finally{client?.release();}
 });

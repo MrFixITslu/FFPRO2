@@ -100,6 +100,24 @@ if (hasPostgres) {
       );
     `);
   }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS platform_event_outbox (
+        id TEXT PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TIMESTAMP WITH TIME ZONE,
+        last_error TEXT,
+        sent_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+      );
+    `);
+  }).then(() => {
+    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_platform_event_outbox_pending ON platform_event_outbox(status, next_attempt_at, created_at);`);
+  }).then(() => {
     // Shared, multi-user projects (Planning Hub plans that have been shared
     // with collaborators). Kept separate from the per-user encrypted blob
     // above because more than one account needs to read/write this data.
@@ -275,7 +293,8 @@ if (!realPool && !fs.existsSync(DB_FILE)) {
     project_invites: [],
     project_messages: [],
     password_reset_tokens: [],
-    system_files: []
+    system_files: [],
+    platform_event_outbox: []
   }, null, 2));
 }
 
@@ -402,6 +421,7 @@ function readDB() {
     parsed.project_messages ||= [];
     parsed.password_reset_tokens ||= [];
     parsed.system_files ||= [];
+    parsed.platform_event_outbox ||= [];
     if (!parsed.funding_opportunities || parsed.funding_opportunities.length === 0) {
       parsed.funding_opportunities = getDefaultFundingOpportunities();
     }
@@ -801,6 +821,60 @@ export const pool = {
         writeDB(db);
       }
       return { rows: [] };
+    }
+
+    // V79 Hub platform event outbox
+    if (cleanSql.startsWith('INSERT INTO platform_event_outbox')) {
+      if (!db.platform_event_outbox) db.platform_event_outbox = [];
+      const [id, userId, eventType, occurredAt, payloadJson, nextAttemptAt, createdAt] = params;
+      if (!db.platform_event_outbox.some(item => item.id === id)) {
+        db.platform_event_outbox.push({
+          id,
+          user_id: userId,
+          event_type: eventType,
+          occurred_at: occurredAt,
+          payload_json: payloadJson,
+          status: 'pending',
+          attempts: 0,
+          next_attempt_at: nextAttemptAt,
+          last_error: null,
+          sent_at: null,
+          created_at: createdAt,
+        });
+        writeDB(db);
+      }
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (cleanSql.includes('FROM platform_event_outbox') && cleanSql.includes("status='pending'")) {
+      const now = Date.parse(params[0]);
+      const rows = (db.platform_event_outbox || [])
+        .filter(item => item.status === 'pending' && (!item.next_attempt_at || Date.parse(item.next_attempt_at) <= now))
+        .sort((a, b) => Date.parse(a.created_at || 0) - Date.parse(b.created_at || 0))
+        .slice(0, 25)
+        .map(item => ({ ...item }));
+      return { rows };
+    }
+
+    if (cleanSql.startsWith("UPDATE platform_event_outbox SET status='sent'")) {
+      const [sentAt, id] = params;
+      const item = (db.platform_event_outbox || []).find(row => row.id === id);
+      if (item) { item.status = 'sent'; item.sent_at = sentAt; item.last_error = null; writeDB(db); }
+      return { rows: [], rowCount: item ? 1 : 0 };
+    }
+
+    if (cleanSql.startsWith("UPDATE platform_event_outbox SET status='failed'")) {
+      const [error, id] = params;
+      const item = (db.platform_event_outbox || []).find(row => row.id === id);
+      if (item) { item.status = 'failed'; item.attempts = Number(item.attempts || 0) + 1; item.last_error = error; writeDB(db); }
+      return { rows: [], rowCount: item ? 1 : 0 };
+    }
+
+    if (cleanSql.startsWith('UPDATE platform_event_outbox SET attempts=')) {
+      const [attempts, nextAttemptAt, error, id] = params;
+      const item = (db.platform_event_outbox || []).find(row => row.id === id);
+      if (item) { item.attempts = attempts; item.next_attempt_at = nextAttemptAt; item.last_error = error; writeDB(db); }
+      return { rows: [], rowCount: item ? 1 : 0 };
     }
 
     // 28. Transactions & DDL statements (BEGIN, COMMIT, ROLLBACK, CREATE TABLE, etc.)
