@@ -29,11 +29,13 @@ import notificationsRoutes from './server/routes/notifications.js';
 import filesRoutes from './server/routes/files.js';
 import aiNewsRoutes from './server/routes/aiNews.js';
 import platformRoutes from './server/routes/platform.js';
+import { startPlatformEventPump } from './server/platformEvents.js';
 
 async function bootstrap() {
   await databaseReady;
   await initSecuritySchema();
   await initPush();
+  startPlatformEventPump();
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
