@@ -27,7 +27,8 @@ import legalRoutes from './server/routes/legal.js';
 import fundingRoutes from './server/routes/funding.js';
 import notificationsRoutes from './server/routes/notifications.js';
 import filesRoutes from './server/routes/files.js';
-import aiNewsRoutes from './server/routes/aiNews.js';\nimport platformRoutes from './server/routes/platform.js';
+import aiNewsRoutes from './server/routes/aiNews.js';
+import platformRoutes from './server/routes/platform.js';
 
 async function bootstrap() {
   await databaseReady;
@@ -87,7 +88,8 @@ async function bootstrap() {
   const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
   app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
   // Apple form_post is not enabled until it can use an isolated SameSite=None state cookie.
-  app.use('/api/platform', platformRoutes);\n  app.use('/api', sameOriginOnly, csrfProtection);
+  app.use('/api/platform', platformRoutes);
+  app.use('/api', sameOriginOnly, csrfProtection);
   app.use('/api/auth', authRoutes);
   app.use('/api/data', dataRoutes);
   app.use('/api/ai', aiRoutes);
