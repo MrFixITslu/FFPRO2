@@ -82,7 +82,7 @@ router.get("/summary/:userId", async (req, res) => {
     let updatedAt = null;
     if (dataResult.rows[0]) {
       const row = dataResult.rows[0];
-      data = decryptForUser(userId, {
+      data = decryptForUser(user.id, {
         ciphertext: row.ciphertext,
         iv: row.iv,
         authTag: row.auth_tag,
