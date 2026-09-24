@@ -344,7 +344,9 @@ const App: React.FC = () => {
   }, []);
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/);
-    return match ? match[1] : null;
+    const token = match ? match[1] : sessionStorage.getItem('ffpro_pending_invite');
+    if (match?.[1]) sessionStorage.setItem('ffpro_pending_invite', match[1]);
+    return token || null;
   });
 
   // Password-reset link from the emailed URL: /reset-password?token=...
@@ -369,6 +371,7 @@ const App: React.FC = () => {
   };
 
   const clearInviteRoute = () => {
+    sessionStorage.removeItem('ffpro_pending_invite');
     window.history.replaceState({}, '', '/');
     setInviteToken(null);
   };
@@ -435,6 +438,11 @@ const App: React.FC = () => {
       .finally(() => { if (!cancelled) setAuthChecked(true); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!authChecked || authUser) return;
+    window.location.replace('/api/platform/start');
+  }, [authChecked, authUser]);
 
   // Fetch and poll real-time market prices from our public endpoint
   useEffect(() => {
@@ -1318,7 +1326,7 @@ const App: React.FC = () => {
           <div className="text-center">
             <i className="fas fa-circle-notch fa-spin text-indigo-500 text-3xl"></i>
             <p className="mt-4 text-sm text-stone-500">Checking your V79 Hub finance access…</p>
-            {(() => { window.location.replace('/api/platform/start'); return null; })()}
+            <span className="sr-only">Redirecting to V79 Hub</span>
           </div>
         </main>
       ) : (
