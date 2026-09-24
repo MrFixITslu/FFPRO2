@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { assertFinanceAccountAvailable } from './accountLinkGuard.js';
 import { databaseReady, realPool, readDB, writeDB } from "./db.js";
 
 function clean(value) {
@@ -85,9 +86,7 @@ export async function provisionHubFinanceOwner(hubSession) {
           if (process.env.V79_ALLOW_EMAIL_ACCOUNT_LINK !== "1") {
             throw new Error("An existing FFPRO account uses this email. Explicit account-link migration is required before Hub access.");
           }
-          if (byEmail.hub_organization_id && byEmail.hub_organization_id !== hubOrganizationId) {
-            throw new Error("This FFPRO account is already linked to another V79 organisation.");
-          }
+          assertFinanceAccountAvailable(byEmail, hubUserId, hubOrganizationId);
           user = (await client.query(
             `UPDATE users
              SET hub_user_id=$1,hub_organization_id=$2,hub_finance_owner=TRUE,display_name=COALESCE(display_name,$3),last_login_at=NOW()
@@ -137,6 +136,7 @@ export async function provisionHubFinanceOwner(hubSession) {
       if (process.env.V79_ALLOW_EMAIL_ACCOUNT_LINK !== "1") {
         throw new Error("An existing FFPRO account uses this email. Explicit account-link migration is required before Hub access.");
       }
+      assertFinanceAccountAvailable(byEmail, hubUserId, hubOrganizationId);
       user = byEmail;
     }
   }
