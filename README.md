@@ -42,6 +42,8 @@ The app is fully dockerized for instant deployments. It uses a multi-stage `Dock
 ### Start the Application
 Ensure `proxy_network` exists (`docker network inspect proxy_network`); create it with `docker network create proxy_network` only on a new host. Set `POSTGRES_PASSWORD`, `SESSION_SECRET`, `DATA_ENCRYPTION_KEY` and `FRONTEND_URL` in `.env`. Existing installations must retain their actual password and key. Configure SMTP for verification and account recovery, and provider credentials for optional integrations.
 
+The Compose service also sets `FFPRO_INTERNAL_HOST=fire-finance-app:3010` for the Hub's signed summary endpoint on `proxy_network`. `FRONTEND_URL` remains the public HTTPS origin (`https://ffpro.v79sl.com`). Only that signed summary route accepts the internal Host header; browser, login and launch routes continue to require the public host. The Hub's `FFPRO_BASE_URL` should remain `http://fire-finance-app:3010` and `FFPRO_PUBLIC_URL` should be `https://ffpro.v79sl.com`.
+
 To build and start the container in the background:
 ```bash
 docker compose up -d --build

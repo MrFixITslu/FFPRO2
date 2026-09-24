@@ -97,6 +97,7 @@ services:
 
       # Base Application URLs (required canonical public HTTPS origin)
       - FRONTEND_URL=${FRONTEND_URL:?Set the canonical HTTPS app origin}
+      - FFPRO_INTERNAL_HOST=fire-finance-app:3010
     volumes:
       # Persistent local data directory for encryption key + session store.
       - ./data:/app/data
