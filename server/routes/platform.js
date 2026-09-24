@@ -56,22 +56,25 @@ function sumTransactions(transactions, predicate) {
 }
 
 router.get("/summary/:userId", async (req, res) => {
-  const userId = String(req.params.userId || "").trim();
-  if (!/^[0-9a-fA-F-]{36}$/.test(userId)) {
-    return res.status(400).json({ error: "Invalid FFPRO user identifier." });
+  const subject = String(req.params.userId || "").trim();
+  if (!/^[A-Za-z0-9._:@-]{1,180}$/.test(subject)) {
+    return res.status(400).json({ error: "Invalid FFPRO subject identifier." });
   }
 
   try {
+    const isUuid = /^[0-9a-fA-F-]{36}$/.test(subject);
     const userResult = await pool.query(
-      "SELECT id, email, username, display_name, avatar_url FROM users WHERE id = $1",
-      [userId]
+      isUuid
+        ? "SELECT id, email, username, display_name, avatar_url, hub_organization_id FROM users WHERE id = $1"
+        : "SELECT id, email, username, display_name, avatar_url, hub_organization_id FROM users WHERE hub_organization_id = $1 AND hub_finance_owner=TRUE LIMIT 1",
+      [subject]
     );
     const user = userResult.rows[0];
     if (!user) return res.status(404).json({ error: "FFPRO user not found." });
 
     const dataResult = await pool.query(
       "SELECT ciphertext, iv, auth_tag, version, updated_at FROM user_data WHERE user_id = $1",
-      [userId]
+      [user.id]
     );
 
     let data = {};
