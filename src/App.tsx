@@ -1103,6 +1103,7 @@ const App: React.FC = () => {
     setCloudError(null);
     setCloudLastSyncTime(null);
     setAuthUser(null);
+    window.location.assign('/api/platform/start');
   };
 
   const logFinancialActivity = useCallback((action: string, details?: string) => {
@@ -1313,7 +1314,13 @@ const App: React.FC = () => {
         }}>Download my changes and load the latest saved copy</button></>}
       </div>}
       {!isAuthenticated ? (
-        <Login onAuthenticated={handleAuthenticated} resetToken={resetToken} onResetHandled={clearResetRoute} initialBanner={authBanner} />
+        <main className="fixed inset-0 z-[200] bg-white flex items-center justify-center">
+          <div className="text-center">
+            <i className="fas fa-circle-notch fa-spin text-indigo-500 text-3xl"></i>
+            <p className="mt-4 text-sm text-stone-500">Checking your V79 Hub finance access…</p>
+            {(() => { window.location.replace('/api/platform/start'); return null; })()}
+          </div>
+        </main>
       ) : (
         <>
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
