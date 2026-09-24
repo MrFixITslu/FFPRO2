@@ -49,12 +49,17 @@ async function deliver(row) {
   if (!platformEventsConfigured()) return "disabled";
   let payload = {};
   try { payload = typeof row.payload_json === "string" ? JSON.parse(row.payload_json) : (row.payload_json || {}); } catch {}
+  const identityResult = await pool.query(
+    "SELECT hub_organization_id FROM users WHERE id = $1",
+    [row.user_id]
+  ).catch(() => ({ rows: [] }));
+  const hubOrganizationId = identityResult.rows?.[0]?.hub_organization_id || null;
   const event = {
     id: row.id,
     type: row.event_type,
     version: 1,
     occurredAt: new Date(row.occurred_at).toISOString(),
-    organizationRef: String(row.hub_organization_id || row.user_id),
+    organizationRef: String(hubOrganizationId || row.user_id),
     subjectId: String(row.user_id),
     payload,
   };
@@ -86,9 +91,8 @@ export async function flushPlatformEvents() {
   try {
     const now = new Date().toISOString();
     const { rows } = await pool.query(
-      `SELECT o.id,o.user_id,o.event_type,o.occurred_at,o.payload_json,o.attempts,u.hub_organization_id
-       FROM platform_event_outbox o
-       LEFT JOIN users u ON u.id=o.user_id
+      `SELECT id,user_id,event_type,occurred_at,payload_json,attempts
+       FROM platform_event_outbox
        WHERE status='pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $1)
        ORDER BY created_at ASC LIMIT 25`,
       [now]
