@@ -66,6 +66,17 @@ if (hasPostgres) {
     );
   `).then(() => {
     return realPool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS hub_user_id TEXT,
+        ADD COLUMN IF NOT EXISTS hub_organization_id TEXT,
+        ADD COLUMN IF NOT EXISTS hub_finance_owner BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_user
+        ON users(hub_user_id) WHERE hub_user_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_finance_owner
+        ON users(hub_organization_id) WHERE hub_organization_id IS NOT NULL AND hub_finance_owner=TRUE;
+    `);
+  }).then(() => {
+    return realPool.query(`
       CREATE TABLE IF NOT EXISTS oauth_accounts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -449,6 +460,26 @@ export const pool = {
 
     const db = readDB();
     const cleanSql = sql.replace(/\s+/g, ' ').trim();
+
+    // Hub-managed identity lookups used by FFPRO platform summaries/events.
+    if (cleanSql.includes('FROM users WHERE hub_organization_id =') && cleanSql.includes('hub_finance_owner')) {
+      const hubOrgId = params[0];
+      const user = db.users.find(u => u.hub_organization_id === hubOrgId && u.hub_finance_owner === true);
+      return { rows: user ? [user] : [] };
+    }
+    if (cleanSql.includes('SELECT hub_organization_id FROM users WHERE id =')) {
+      const id = params[0];
+      const user = db.users.find(u => u.id === id);
+      return { rows: user ? [{ hub_organization_id: user.hub_organization_id || null }] : [] };
+    }
+    if (cleanSql.includes('SELECT id, email, username, display_name, avatar_url, hub_organization_id FROM users WHERE id =')) {
+      const id = params[0];
+      const user = db.users.find(u => u.id === id);
+      return { rows: user ? [{
+        id:user.id,email:user.email,username:user.username,display_name:user.display_name,
+        avatar_url:user.avatar_url,hub_organization_id:user.hub_organization_id || null
+      }] : [] };
+    }
 
     // 1. SELECT id, email, username, display_name, avatar_url FROM users WHERE id = $1
     if (cleanSql.includes('SELECT id, email, username, display_name, avatar_url FROM users WHERE id =')) {

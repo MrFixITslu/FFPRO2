@@ -49,12 +49,17 @@ async function deliver(row) {
   if (!platformEventsConfigured()) return "disabled";
   let payload = {};
   try { payload = typeof row.payload_json === "string" ? JSON.parse(row.payload_json) : (row.payload_json || {}); } catch {}
+  const identityResult = await pool.query(
+    "SELECT hub_organization_id FROM users WHERE id = $1",
+    [row.user_id]
+  ).catch(() => ({ rows: [] }));
+  const hubOrganizationId = identityResult.rows?.[0]?.hub_organization_id || null;
   const event = {
     id: row.id,
     type: row.event_type,
     version: 1,
     occurredAt: new Date(row.occurred_at).toISOString(),
-    organizationRef: String(row.user_id),
+    organizationRef: String(hubOrganizationId || row.user_id),
     subjectId: String(row.user_id),
     payload,
   };

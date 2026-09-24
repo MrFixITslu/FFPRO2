@@ -1,7 +1,6 @@
 import { EmailVerificationNotice } from './EmailVerification';
 import React, { useState, useEffect } from 'react';
 import { Users, AlertCircle, Loader2 } from 'lucide-react';
-import Login from './Login';
 import { invitesService, InvitePreview } from '../services/projectsService';
 import { AuthUser } from '../services/authService';
 
@@ -66,27 +65,29 @@ const InviteAcceptScreen: React.FC<Props> = ({ token, currentUser, onAuthenticat
 
   const emailMismatch = !!currentUser && preview && currentUser.email.toLowerCase() !== preview.email.toLowerCase();
 
-  if (!currentUser || emailMismatch) {
+  if (!currentUser) {
+    sessionStorage.setItem('ffpro_pending_invite', token);
+    window.location.replace('/api/platform/start');
     return (
-      <>
-        <div className="fixed inset-0 z-[199] bg-stone-900 flex items-start justify-center pt-10 px-6 pointer-events-none">
-          <div className="max-w-sm w-full bg-indigo-600/10 border border-indigo-500/20 rounded-lg p-4 text-center pointer-events-auto">
-            <Users className="w-5 h-5 text-indigo-300 mx-auto mb-2" />
-            <p className="text-white text-sm font-semibold">
-              You've been invited to "{preview?.projectName}"
-            </p>
-            <p className="text-stone-400 text-[11px] mt-1">
-              {emailMismatch
-                ? <>You're logged in with a different account. Log in as <strong className="text-stone-300">{preview?.email}</strong> to accept, or <button onClick={onSwitchAccount} className="underline text-indigo-300">switch accounts</button>.</>
-                : <>Sign in or create an account with <strong className="text-stone-300">{preview?.email}</strong> to join as a{preview?.role === 'editor' ? 'n' : ''} {preview?.role}.</>
-              }
-            </p>
-          </div>
+      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto w-6 h-6 text-indigo-300 animate-spin" />
+          <p className="mt-3 text-sm text-stone-300">Sign in through V79 Hub to continue this invite.</p>
         </div>
-        {!emailMismatch && (
-          <Login onAuthenticated={onAuthenticated} initialEmail={preview?.email} initialMode="register" />
-        )}
-      </>
+      </div>
+    );
+  }
+
+  if (emailMismatch) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-stone-900 flex items-center justify-center p-6">
+        <div className="max-w-sm w-full bg-white/5 border border-white/10 rounded-lg p-6 text-center">
+          <Users className="w-7 h-7 text-indigo-300 mx-auto mb-3" />
+          <p className="text-white text-sm font-semibold">This invite is for {preview?.email}</p>
+          <p className="mt-2 text-stone-400 text-xs">Your current V79 finance account uses {currentUser.email}. Use the matching Hub account or ask the project owner to send a new invite.</p>
+          <button onClick={onSwitchAccount} className="mt-5 w-full py-2.5 bg-indigo-600 text-white font-bold rounded text-[10px] uppercase tracking-wider">Return to V79 Hub</button>
+        </div>
+      </div>
     );
   }
 
