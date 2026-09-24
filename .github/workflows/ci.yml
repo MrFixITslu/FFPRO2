@@ -8,6 +8,10 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      # Compatibility tests still exercise legacy registration/login.
+      # Production remains Hub-only because this defaults to 0.
+      V79_ALLOW_LEGACY_AUTH: "1"
     timeout-minutes: 15
     services:
       postgres:
