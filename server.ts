@@ -13,6 +13,7 @@ import { canonicalOrigin, production } from './server/config.js';
 import { databaseReady, realPool, hasPostgres } from './server/db.js';
 import { initSecuritySchema } from './server/securityStore.js';
 import { sameOriginOnly, csrfProtection } from './server/middleware/sameOriginOnly.js';
+import { allowedHost } from './server/middleware/allowedHost.js';
 import { realtimeHub } from './server/realtime.js';
 import { startFundingResearchScheduler } from './server/jobs/fundingScheduler.js';
 import authRoutes from './server/routes/auth.js';
@@ -54,7 +55,7 @@ async function bootstrap() {
   morgan.token('safe-path', req => (req.url || '/').split('?')[0]);
   app.use(morgan(':method :safe-path :status :response-time ms'));
   app.use((req, res, next) => {
-    if (production && req.get('host') !== new URL(canonicalOrigin()).host && !['/api/live', '/api/health'].includes(req.path)) {
+    if (production && !allowedHost(req.get('host'), req.path, new URL(canonicalOrigin()).host, process.env.FFPRO_INTERNAL_HOST) && !['/api/live', '/api/health'].includes(req.path)) {
       return res.status(400).json({ error: 'Invalid host.' });
     }
     let requestedPath;
