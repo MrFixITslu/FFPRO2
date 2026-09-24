@@ -54,7 +54,7 @@ async function deliver(row) {
     type: row.event_type,
     version: 1,
     occurredAt: new Date(row.occurred_at).toISOString(),
-    organizationRef: String(row.user_id),
+    organizationRef: String(row.hub_organization_id || row.user_id),
     subjectId: String(row.user_id),
     payload,
   };
@@ -86,8 +86,9 @@ export async function flushPlatformEvents() {
   try {
     const now = new Date().toISOString();
     const { rows } = await pool.query(
-      `SELECT id,user_id,event_type,occurred_at,payload_json,attempts
-       FROM platform_event_outbox
+      `SELECT o.id,o.user_id,o.event_type,o.occurred_at,o.payload_json,o.attempts,u.hub_organization_id
+       FROM platform_event_outbox o
+       LEFT JOIN users u ON u.id=o.user_id
        WHERE status='pending' AND (next_attempt_at IS NULL OR next_attempt_at <= $1)
        ORDER BY created_at ASC LIMIT 25`,
       [now]
