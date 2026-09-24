@@ -53,6 +53,11 @@ services:
       - V79_PLATFORM_SHARED_SECRET=${V79_PLATFORM_SHARED_SECRET:-}
       - V79_HUB_EVENT_URL=${V79_HUB_EVENT_URL:-http://v79-hub:3040/api/platform/events}
       - V79_HUB_EVENT_SECRET=${V79_HUB_EVENT_SECRET:-}
+      - V79_HUB_PUBLIC_URL=${V79_HUB_PUBLIC_URL:-https://hub.v79sl.com}
+      - V79_HUB_INTERNAL_URL=${V79_HUB_INTERNAL_URL:-http://v79-hub:3040}
+      - V79_FFPRO_LAUNCH_SECRET=${V79_FFPRO_LAUNCH_SECRET:-}
+      - V79_ALLOW_LEGACY_AUTH=${V79_ALLOW_LEGACY_AUTH:-0}
+      - V79_ALLOW_EMAIL_ACCOUNT_LINK=${V79_ALLOW_EMAIL_ACCOUNT_LINK:-0}
 
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
       # Host is the Docker service name "postgres", resolved over database_internal.
