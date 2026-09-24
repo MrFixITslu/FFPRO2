@@ -1,3 +1,4 @@
+import { calculateDebtServiceCoverage } from './debtServiceCoverage';
 import { calculateGoodsPricing } from './goodsPricingService';
 import {
   StartupPlanDetails,
@@ -875,16 +876,21 @@ export function calculateLoanAmortizationSchedule(
   // A full-payment deferral capitalizes accrued interest into the balance.
   // Compute the post-grace balance first so the regular payment fully amortizes the debt
   // rather than creating an unintended balloon in the final period.
-  const repaymentOpeningBalance =
-    gracePeriodType === 'full_defer' && gracePeriods > 0 && periodInterestRate > 0
-      ? roundCurrency(effectiveLoanAmount * Math.pow(1 + periodInterestRate, gracePeriods))
-      : effectiveLoanAmount;
+  let repaymentOpeningBalance = effectiveLoanAmount;
+  if (gracePeriodType === 'full_defer') {
+    for (let period = 0; period < gracePeriods; period++) {
+      repaymentOpeningBalance = roundCurrency(
+        repaymentOpeningBalance + roundCurrency(repaymentOpeningBalance * periodInterestRate)
+      );
+    }
+  }
 
   let periodicPayment = 0;
   if (periodInterestRate > 0) {
-    const factor = Math.pow(1 + periodInterestRate, activeRepaymentPeriods);
+    // Stable even when a small positive rate would make (1 + rate) round to 1.
+    const repaymentFactor = -Math.expm1(-activeRepaymentPeriods * Math.log1p(periodInterestRate));
     periodicPayment = roundCurrency(
-      repaymentOpeningBalance * (periodInterestRate * factor) / (factor - 1)
+      repaymentOpeningBalance * periodInterestRate / repaymentFactor
     );
   } else {
     periodicPayment = roundCurrency(repaymentOpeningBalance / activeRepaymentPeriods);
@@ -991,12 +997,6 @@ export function calculateLoanAmortizationSchedule(
   const annualDebtService = roundCurrency(year1Rows.reduce((sum, row) => sum + row.paymentAmount, 0));
   const monthlyDebtService = roundCurrency(annualDebtService / 12);
 
-  const dscrYear1 = annualDebtService > 0 ? roundCurrency(year1Ebitda / annualDebtService) : 99;
-  let dscrStatus: 'strong' | 'adequate' | 'tight' | 'insufficient' = 'strong';
-  if (dscrYear1 < 1.0) dscrStatus = 'insufficient';
-  else if (dscrYear1 < 1.25) dscrStatus = 'tight';
-  else if (dscrYear1 < 1.5) dscrStatus = 'adequate';
-
   return {
     loanAmount,
     totalFees,
@@ -1007,10 +1007,7 @@ export function calculateLoanAmortizationSchedule(
     totalInterestPaid,
     monthlyDebtService,
     annualDebtService,
-    dscrYear1,
-    dscrStatus,
-    dscrNumerator: year1Ebitda,
-    dscrDenominator: annualDebtService,
+    ...calculateDebtServiceCoverage(year1Ebitda, annualDebtService),
     dscrBasis: 'EBITDA',
     schedule
   };
@@ -1371,14 +1368,8 @@ export function generateStartupFinancialForecast(
 
   // Recalculate DSCR with Year 1 Net Operating Income (EBITDA = Gross Profit - OpEx)
   const year1Ebitda = roundCurrency(totalGrossY1 - totalOpExY1);
-  if (loanSummary && totalDebtServiceY1 > 0) {
-    loanSummary.dscrNumerator = year1Ebitda;
-    loanSummary.dscrDenominator = totalDebtServiceY1;
-    loanSummary.dscrYear1 = roundCurrency(year1Ebitda / totalDebtServiceY1);
-    if (loanSummary.dscrYear1 < 1.0) loanSummary.dscrStatus = 'insufficient';
-    else if (loanSummary.dscrYear1 < 1.25) loanSummary.dscrStatus = 'tight';
-    else if (loanSummary.dscrYear1 < 1.5) loanSummary.dscrStatus = 'adequate';
-    else loanSummary.dscrStatus = 'strong';
+  if (loanSummary) {
+    Object.assign(loanSummary, calculateDebtServiceCoverage(year1Ebitda, totalDebtServiceY1));
   }
 
   // 6. Years 2-5 Projections

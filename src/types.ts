@@ -700,8 +700,8 @@ export interface LoanAmortizationSummary {
   totalInterestPaid: number;
   monthlyDebtService: number;
   annualDebtService: number;
-  dscrYear1: number;
-  dscrStatus: 'strong' | 'adequate' | 'tight' | 'insufficient';
+  dscrYear1: number | null;
+  dscrStatus: 'strong' | 'adequate' | 'tight' | 'insufficient' | 'not_applicable';
   dscrNumerator?: number;
   dscrDenominator?: number;
   dscrBasis?: string; // e.g. 'EBITDA'

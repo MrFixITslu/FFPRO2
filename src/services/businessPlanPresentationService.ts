@@ -182,7 +182,7 @@ export interface BusinessPlanPresentationModel {
     monthlyDebtServiceFormatted: string;
     annualDebtService: number;
     annualDebtServiceFormatted: string;
-    dscrYear1: number;
+    dscrYear1: number | null;
     dscrStatus: string;
     dscrBasis: string;
   };

@@ -1,3 +1,4 @@
+import { formatDebtServiceCoverage } from '../../services/debtServiceCoverage';
 import React, { useState, useMemo } from 'react';
 import {
   Building2,
@@ -124,20 +125,20 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
   return (
     <div id="loan-amortization-section" className="bg-white rounded-2xl border border-stone-200/90 shadow-sm overflow-hidden transition-all">
       {/* Header Banner */}
-      <div className="p-5 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+      <div className="p-5 flex-wrap gap-4 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
         <div className="flex items-center gap-3.5">
           <div className="p-2.5 bg-indigo-500/20 backdrop-blur-md rounded-xl border border-indigo-400/30 text-indigo-200">
             <Building2 className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white tracking-tight">Bank Debt Financing & Loan Amortization Schedule</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-bold text-white tracking-tight">Loan & Repayment Schedule</h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
-                Bank & Underwriter Mode
+                Planning estimate
               </span>
             </div>
             <p className="text-xs text-indigo-200/80 mt-0.5">
-              Calculate commercial bank repayments, debt service coverage ratio (DSCR), and bank interest income.
+              Estimate loan repayments, interest expense and debt service coverage.
             </p>
           </div>
         </div>
@@ -159,6 +160,8 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
+            aria-label={isExpanded ? "Collapse loan details" : "Expand loan details"}
+            aria-expanded={isExpanded}
             className="p-1.5 hover:bg-white/10 rounded-lg text-indigo-200 transition"
           >
             {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -240,7 +243,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                     />
                     <span className="absolute right-3 top-2.5 text-xs font-bold text-stone-400">%</span>
                   </div>
-                  <p className="text-[10px] text-stone-500 mt-1">Standard commercial rates range from 6.0% to 9.5%</p>
+                  <p className="text-[10px] text-stone-500 mt-1">Use the annual nominal rate from your lender’s offer.</p>
                 </div>
 
                 <div>
@@ -258,7 +261,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                       </option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-stone-500 mt-1">Typical business development loans: 3–7 years</p>
+                  <p className="text-[10px] text-stone-500 mt-1">Use the repayment term agreed with your lender.</p>
                 </div>
 
                 <div>
@@ -300,7 +303,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                       {formatCurrencyAmount(loanSummary.periodicPayment, currency)}
                     </div>
                     <div className="text-[11px] font-semibold text-amber-700 mt-1">
-                      {formatCurrencyAmount(loanSummary.monthlyDebtService, currency)} / month equivalent
+                      {formatCurrencyAmount(loanSummary.monthlyDebtService, currency)} / month average in Year 1
                     </div>
                   </div>
 
@@ -332,7 +335,9 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
 
                   {/* DSCR (Debt Service Coverage Ratio) */}
                   <div className={`p-4 rounded-xl border shadow-xs transition ${
-                    loanSummary.dscrStatus === 'strong'
+                    loanSummary.dscrStatus === 'not_applicable'
+                      ? 'bg-slate-50 border-slate-200 text-slate-900'
+                      : loanSummary.dscrStatus === 'strong'
                       ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
                       : loanSummary.dscrStatus === 'adequate'
                       ? 'bg-blue-50/80 border-blue-200 text-blue-950'
@@ -341,17 +346,18 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                       : 'bg-rose-50/80 border-rose-200 text-rose-950'
                   }`}>
                     <div className="text-[11px] font-bold uppercase tracking-wider flex items-center justify-between">
-                      <span>Debt Service Ratio (DSCR)</span>
+                      <span>Debt Service Coverage (DSCR)</span>
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     </div>
                     <div className="text-xl font-extrabold mt-1">
-                      {loanSummary.dscrYear1 > 50 ? 'N/A' : `${loanSummary.dscrYear1.toFixed(2)}x`}
+                      {formatDebtServiceCoverage(loanSummary.dscrYear1)}
                     </div>
                     <div className="text-[11px] font-semibold mt-1">
-                      {loanSummary.dscrStatus === 'strong' && '🟢 Strong (EBITDA covers debt > 1.5x)'}
+                      {loanSummary.dscrStatus === 'not_applicable' && 'Coverage cannot be assessed without debt payments'}
+                      {loanSummary.dscrStatus === 'strong' && '🟢 Strong (EBITDA covers debt ≥ 1.5x)'}
                       {loanSummary.dscrStatus === 'adequate' && '🔵 Adequate (Covers debt 1.25x - 1.5x)'}
                       {loanSummary.dscrStatus === 'tight' && '🟡 Tight (Covers debt 1.0x - 1.25x)'}
-                      {loanSummary.dscrStatus === 'insufficient' && '🔴 Insufficient Operating Cashflow'}
+                      {loanSummary.dscrStatus === 'insufficient' && '🔴 EBITDA below scheduled debt payments'}
                     </div>
                   </div>
                 </div>
@@ -454,21 +460,22 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
               {/* Amortization Schedule Table */}
               {loanSummary && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-2">
                         <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                        Complete Loan Repayment Ledger ({loanSummary.schedule.length} Periods)
+                        Repayment Schedule ({loanSummary.schedule.length} Periods)
                       </h4>
                       <p className="text-[11px] text-stone-500">
                         Detailed breakdown of interest accrued, cash interest paid, capitalized interest, principal repayment, and ending balance.
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <input
                         type="text"
                         placeholder="Search period or date..."
+                        aria-label="Search loan repayment schedule"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="px-2.5 py-1 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none w-44"
@@ -477,7 +484,7 @@ export const LoanAmortizationPanel: React.FC<LoanAmortizationPanelProps> = ({
                       <button
                         type="button"
                         onClick={exportToCSV}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                        className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
                       >
                         <Download className="w-3.5 h-3.5" />
                         Export CSV

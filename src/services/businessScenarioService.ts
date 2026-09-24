@@ -39,11 +39,12 @@ function percentDelta(before: number, after: number): number | undefined {
 function metric(
   key: string,
   label: string,
-  before: number | undefined,
-  after: number | undefined,
+  before: number | null | undefined,
+  after: number | null | undefined,
   format: BusinessScenarioMetric['format'],
   suffix?: string
 ): BusinessScenarioMetric | null {
+  if (before == null || after == null) return null;
   if (!Number.isFinite(Number(before)) || !Number.isFinite(Number(after))) return null;
   const beforeNumber = roundCurrency(Number(before));
   const afterNumber = roundCurrency(Number(after));
@@ -218,8 +219,8 @@ export function runBusinessScenario(
     metric('year1.revenue', 'Year 1 Revenue', beforeYear1?.revenue, afterYear1?.revenue, 'currency'),
     metric('year1.grossProfit', 'Year 1 Gross Profit', beforeYear1?.grossProfit, afterYear1?.grossProfit, 'currency'),
     metric('year1.grossMarginPercent', 'Gross Margin', beforeYear1?.grossMarginPercent, afterYear1?.grossMarginPercent, 'percent'),
-    metric('year1.netProfit', 'Year 1 Net Profit', beforeYear1?.netProfit, afterYear1?.netProfit, 'currency'),
-    metric('year1.netMarginPercent', 'Net Margin', beforeYear1?.netMarginPercent, afterYear1?.netMarginPercent, 'percent'),
+    metric('year1.netProfit', 'Year 1 Profit Before Tax', beforeYear1?.netProfit, afterYear1?.netProfit, 'currency'),
+    metric('year1.netMarginPercent', 'Pre-Tax Margin', beforeYear1?.netMarginPercent, afterYear1?.netMarginPercent, 'percent'),
     metric('year1.endingCashBalance', 'Year 1 Ending Cash', beforeYear1?.endingCashBalance, afterYear1?.endingCashBalance, 'currency'),
     metric(
       'breakEven.breakEvenRevenueMonthly',

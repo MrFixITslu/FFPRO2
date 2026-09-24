@@ -589,3 +589,15 @@ test('deterministic copilot fallback uses forecast and validation facts only', (
   assert.match(response.message, /Pricing mismatch/);
   assert.equal(response.observations[0].severity, 'error');
 });
+
+test('scenarios omit undefined DSCR comparisons instead of treating no payments as zero coverage', () => {
+  const plan = {
+    businessModelType: 'services', displayCurrency: 'USD',
+    loanParameters: { enabled: true, loanAmount: 12000, annualInterestRate: 7, termYears: 3, paymentFrequency: 'monthly', gracePeriodMonths: 12, gracePeriodType: 'full_defer' }
+  } as StartupPlanDetails;
+  const result = runBusinessScenario(plan, {
+    changes: [{ target: 'loan', field: 'loanAmount', value: 10000 }],
+    title: 'Reduce borrowing'
+  });
+  assert.ok(!result.metrics.some(metric => metric.key === 'loan.dscrYear1'));
+});
