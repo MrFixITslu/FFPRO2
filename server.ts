@@ -30,6 +30,7 @@ import filesRoutes from './server/routes/files.js';
 import aiNewsRoutes from './server/routes/aiNews.js';
 import platformRoutes from './server/routes/platform.js';
 import { startPlatformEventPump } from './server/platformEvents.js';
+import { consumeHubLaunchTicket, hubPublicUrl, provisionHubFinanceOwner } from './server/hubAccess.js';
 
 async function bootstrap() {
   await databaseReady;
@@ -81,6 +82,17 @@ async function bootstrap() {
   }) as any);
   app.use(passport.initialize() as any);
   app.use(passport.session() as any);
+
+  // Hub-created FFPRO sessions are intentionally short-lived so a cancelled
+  // subscription or changed entitlement cannot leave a week-long finance session.
+  app.use((req:any, _res, next) => {
+    const current=req.session as any;
+    if (!current?.hubManaged || !current?.hubAccessExpiresAt || Number(current.hubAccessExpiresAt) > Date.now()) return next();
+    req.logout(() => {
+      req.session.destroy(() => next());
+    });
+  });
+
   app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.get('/api/auth/csrf', (req, res) => {
     const current = req.session as any;
@@ -89,6 +101,56 @@ async function bootstrap() {
   });
   const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
   app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
+  const legacyAuthEnabled = process.env.V79_ALLOW_LEGACY_AUTH === '1';
+
+  app.get('/api/platform/start', (_req, res) => {
+    const target=new URL(hubPublicUrl());
+    target.searchParams.set('return','ffpro');
+    res.redirect(302,target.toString());
+  });
+
+  app.get('/api/platform/launch', async (req:any, res:any) => {
+    const ticket=String(req.query?.ticket || '').trim();
+    if(!/^[A-Za-z0-9_-]{32,180}$/.test(ticket)) return res.status(400).send('Invalid V79 Hub launch ticket.');
+    try {
+      const hubSession=await consumeHubLaunchTicket(ticket);
+      const user=await provisionHubFinanceOwner(hubSession);
+
+      await new Promise<void>((resolve,reject)=>{
+        req.session.regenerate((err:any)=>err?reject(err):resolve());
+      });
+      await new Promise<void>((resolve,reject)=>{
+        req.login(user,(err:any)=>err?reject(err):resolve());
+      });
+      const current=req.session as any;
+      current.hubManaged=true;
+      current.hubOrganizationId=hubSession.organization.id;
+      current.hubUserId=hubSession.user.id;
+      current.hubAccessExpiresAt=Date.now()+30*60*1000;
+      current.csrfToken=crypto.randomBytes(32).toString('hex');
+      current.cookie.maxAge=30*60*1000;
+
+      await new Promise<void>((resolve,reject)=>req.session.save((err:any)=>err?reject(err):resolve()));
+      return res.redirect(302,'/');
+    } catch(error:any) {
+      console.warn('[V79 Hub] FFPRO launch denied:', error?.message || error);
+      const target=new URL(hubPublicUrl());
+      target.searchParams.set('return','ffpro');
+      target.searchParams.set('error','launch_denied');
+      return res.redirect(302,target.toString());
+    }
+  });
+
+  if(!legacyAuthEnabled) {
+    app.use(['/api/auth/login','/api/auth/register','/api/auth/google','/api/auth/facebook','/api/auth/apple','/api/auth/google-token-login'], (_req,res) => {
+      return res.status(410).json({
+        error:'FFPRO access is managed through V79 Hub.',
+        code:'HUB_AUTH_REQUIRED',
+        hubUrl:hubPublicUrl(),
+      });
+    });
+  }
+
   // Apple form_post is not enabled until it can use an isolated SameSite=None state cookie.
   app.use('/api/platform', platformRoutes);
   app.use('/api', sameOriginOnly, csrfProtection);
