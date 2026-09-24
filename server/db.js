@@ -66,6 +66,17 @@ if (hasPostgres) {
     );
   `).then(() => {
     return realPool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS hub_user_id TEXT,
+        ADD COLUMN IF NOT EXISTS hub_organization_id TEXT,
+        ADD COLUMN IF NOT EXISTS hub_finance_owner BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_user
+        ON users(hub_user_id) WHERE hub_user_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_finance_owner
+        ON users(hub_organization_id) WHERE hub_organization_id IS NOT NULL AND hub_finance_owner=TRUE;
+    `);
+  }).then(() => {
+    return realPool.query(`
       CREATE TABLE IF NOT EXISTS oauth_accounts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
