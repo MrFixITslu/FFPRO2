@@ -1357,7 +1357,7 @@ const App: React.FC = () => {
                       onClick={() => navigateToTab('dashboard')} 
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                         activeTab === 'dashboard' 
-                          ? 'bg-stone-900 text-white shadow-xs' 
+                          ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
                       title="Dashboard (⌘1)"
@@ -1370,7 +1370,7 @@ const App: React.FC = () => {
                     onClick={() => navigateToTab('calendar')} 
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                       activeTab === 'calendar' 
-                        ? 'bg-stone-900 text-white shadow-xs' 
+                        ? 'bg-teal-700 text-white shadow-xs' 
                         : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                     }`}
                     title="Calendar (⌘2)"
@@ -1382,7 +1382,7 @@ const App: React.FC = () => {
                     onClick={() => navigateToTab('events')} 
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                       activeTab === 'events' 
-                        ? 'bg-stone-900 text-white shadow-xs' 
+                        ? 'bg-teal-700 text-white shadow-xs' 
                         : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                     }`}
                     title="Planner (⌘3)"
@@ -1395,7 +1395,7 @@ const App: React.FC = () => {
                       onClick={() => navigateToTab('projections')} 
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                         activeTab === 'projections' 
-                          ? 'bg-stone-900 text-white shadow-xs' 
+                          ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
                       title="Forecast (⌘4)"
@@ -1409,7 +1409,7 @@ const App: React.FC = () => {
                       onClick={() => navigateToTab('funding')} 
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
                         activeTab === 'funding' 
-                          ? 'bg-stone-900 text-white shadow-xs' 
+                          ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
                       title="Funding (⌘5)"
@@ -1715,7 +1715,7 @@ const App: React.FC = () => {
                 }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                  activeTab === 'dashboard' ? 'bg-teal-700 text-white shadow-xs' : 'text-stone-500'
                 }`}>
                   <LayoutDashboard size={16} />
                 </div>
@@ -1733,7 +1733,7 @@ const App: React.FC = () => {
               }`}
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                activeTab === 'calendar' ? 'bg-teal-700 text-white shadow-xs' : 'text-stone-500'
               }`}>
                 <CalendarIcon size={16} />
               </div>
@@ -1747,7 +1747,7 @@ const App: React.FC = () => {
               className="flex flex-col items-center justify-center -mt-5 py-0 px-2 group"
               title="Quick Commands & Actions"
             >
-              <div className="w-12 h-12 rounded-full bg-stone-900 text-white flex items-center justify-center shadow-lg border-[3px] border-white group-hover:scale-105 group-active:scale-95 transition-transform">
+              <div className="w-12 h-12 rounded-full bg-teal-700 text-white flex items-center justify-center shadow-lg border-[3px] border-white group-hover:scale-105 group-active:scale-95 transition-transform">
                 <Plus size={22} className="text-white" />
               </div>
               <span className="text-[9px] font-bold text-stone-600 mt-0.5 tracking-tight">Actions</span>
@@ -1763,7 +1763,7 @@ const App: React.FC = () => {
               }`}
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                activeTab === 'events' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                activeTab === 'events' ? 'bg-teal-700 text-white shadow-xs' : 'text-stone-500'
               }`}>
                 <Zap size={16} />
               </div>
@@ -1781,7 +1781,7 @@ const App: React.FC = () => {
                 }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  activeTab === 'projections' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-500'
+                  activeTab === 'projections' ? 'bg-teal-700 text-white shadow-xs' : 'text-stone-500'
                 }`}>
                   <TrendingUp size={16} />
                 </div>
@@ -1864,7 +1864,7 @@ const App: React.FC = () => {
                         type="button"
                         onClick={() => { navigateToTab('dashboard'); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                          activeTab === 'dashboard' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                          activeTab === 'dashboard' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -1882,7 +1882,7 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => { navigateToTab('calendar'); setMobileMenuOpen(false); }}
                       className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                        activeTab === 'calendar' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                        activeTab === 'calendar' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -1899,7 +1899,7 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => { navigateToTab('events'); setMobileMenuOpen(false); }}
                       className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                        activeTab === 'events' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                        activeTab === 'events' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -1917,7 +1917,7 @@ const App: React.FC = () => {
                         type="button"
                         onClick={() => { navigateToTab('projections'); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                          activeTab === 'projections' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                          activeTab === 'projections' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -1936,7 +1936,7 @@ const App: React.FC = () => {
                         type="button"
                         onClick={() => { navigateToTab('funding'); setMobileMenuOpen(false); }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                          activeTab === 'funding' ? 'bg-stone-900 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
+                          activeTab === 'funding' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
                         }`}
                       >
                         <div className="flex items-center gap-3">
