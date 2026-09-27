@@ -83,9 +83,10 @@ export async function provisionHubFinanceOwner(hubSession) {
           [email]
         )).rows[0] || null;
         if (byEmail) {
-          if (process.env.V79_ALLOW_EMAIL_ACCOUNT_LINK !== "1") {
-            throw new Error("An existing FFPRO account uses this email. Explicit account-link migration is required before Hub access.");
-          }
+          // A signed Hub owner launch is authoritative for the configured Hub owner
+          // email. Automatically migrate the one matching unlinked legacy account,
+          // while assertFinanceAccountAvailable still blocks cross-identity or
+          // cross-organisation claims.
           assertFinanceAccountAvailable(byEmail, hubUserId, hubOrganizationId);
           user = (await client.query(
             `UPDATE users
@@ -133,9 +134,9 @@ export async function provisionHubFinanceOwner(hubSession) {
   if (!user) {
     const byEmail = db.users.find(item => String(item.email || "").toLowerCase() === email);
     if (byEmail) {
-      if (process.env.V79_ALLOW_EMAIL_ACCOUNT_LINK !== "1") {
-        throw new Error("An existing FFPRO account uses this email. Explicit account-link migration is required before Hub access.");
-      }
+      // Mirror the PostgreSQL path: a valid signed Hub owner launch may migrate
+      // the matching unlinked legacy account, but never an account owned by a
+      // different Hub identity or organisation.
       assertFinanceAccountAvailable(byEmail, hubUserId, hubOrganizationId);
       user = byEmail;
     }
