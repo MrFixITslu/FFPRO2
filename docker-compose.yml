@@ -12,7 +12,7 @@ services:
       # from every other app's data on this server.
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
-      - database_internal
+      - proxy_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
       interval: 5s
@@ -29,11 +29,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:${APP_PORT:-3010}:3010"
+    expose:
+      - "3010"
     networks:
       - proxy_network
-      - database_internal
 
     environment:
       - NODE_ENV=production
@@ -60,7 +59,7 @@ services:
       - V79_ALLOW_EMAIL_ACCOUNT_LINK=${V79_ALLOW_EMAIL_ACCOUNT_LINK:-0}
 
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
-      # Host is the Docker service name "postgres", resolved over database_internal.
+      # Host is the Docker service name "postgres", resolved over proxy_network.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to the existing database password}@postgres:5432/${POSTGRES_DB:-fire_finance}
 
       # Gemini AI Integration
@@ -106,9 +105,6 @@ networks:
   proxy_network:
     name: proxy_network
     external: true
-  database_internal:
-    internal: true
-
 volumes:
   ffpro2_pgdata:
     name: ffpro2_pgdata
