@@ -61,6 +61,7 @@ services:
       # Database Connection — dedicated FFPRO2 Postgres container defined above.
       # Host is the unique FFPRO database service name "ffpro-db", resolved over proxy_network.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ffpro2_user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to the existing database password}@ffpro-db:5432/${POSTGRES_DB:-fire_finance}
+      - DATABASE_SSL=false
 
       # Gemini AI Integration
       - GEMINI_API_KEY=${GEMINI_API_KEY}
