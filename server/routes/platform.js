@@ -62,11 +62,12 @@ router.get("/summary/:userId", async (req, res) => {
   }
 
   try {
-    const isUuid = /^[0-9a-fA-F-]{36}$/.test(subject);
     const userResult = await pool.query(
-      isUuid
-        ? "SELECT id, email, username, display_name, avatar_url, hub_organization_id FROM users WHERE id = $1"
-        : "SELECT id, email, username, display_name, avatar_url, hub_organization_id FROM users WHERE hub_organization_id = $1 AND hub_finance_owner=TRUE LIMIT 1",
+      "SELECT id, email, username, display_name, avatar_url, hub_organization_id " +
+      "FROM users " +
+      "WHERE (hub_organization_id = $1 AND hub_finance_owner = TRUE) OR id::text = $1 " +
+      "ORDER BY CASE WHEN hub_organization_id = $1 AND hub_finance_owner = TRUE THEN 0 ELSE 1 END " +
+      "LIMIT 1",
       [subject]
     );
     const user = userResult.rows[0];
