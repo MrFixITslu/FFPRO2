@@ -1522,6 +1522,14 @@ const App: React.FC = () => {
                   <Keyboard size={15} />
                 </button>
 
+                <a
+                  href="/api/platform/start"
+                  className="hidden sm:flex items-center justify-center h-8 sm:h-9 px-3 rounded-lg bg-stone-900 text-white hover:bg-stone-800 transition-all border border-stone-900 text-[10px] font-bold uppercase tracking-wider"
+                  title="Return to V79 Hub"
+                >
+                  V79 Hub
+                </a>
+
                 {/* Settings Button */}
                 <button 
                   onClick={() => setShowSettings(true)} 
@@ -2085,6 +2093,13 @@ const App: React.FC = () => {
 
                   {/* Drawer Footer */}
                   <div className="p-4 border-t border-stone-100 bg-stone-50/50 flex flex-col gap-2">
+                    <a
+                      href="/api/platform/start"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-indigo-700 hover:bg-indigo-50 border border-indigo-200/70 transition-all"
+                    >
+                      V79 Hub
+                    </a>
                     <button
                       type="button"
                       onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
