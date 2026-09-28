@@ -481,6 +481,47 @@ export const pool = {
       }] : [] };
     }
 
+    // Privacy-safe FFPRO platform-admin aggregate/account queries.
+    if (cleanSql === "SELECT COUNT(*)::int AS count FROM users") {
+      return { rows: [{ count: db.users.length }] };
+    }
+    if (cleanSql === "SELECT COUNT(*)::int AS count FROM users WHERE hub_organization_id IS NOT NULL") {
+      return { rows: [{ count: db.users.filter(u => u.hub_organization_id).length }] };
+    }
+    if (cleanSql === "SELECT COUNT(DISTINCT hub_organization_id)::int AS count FROM users WHERE hub_organization_id IS NOT NULL") {
+      return { rows: [{ count: new Set(db.users.map(u => u.hub_organization_id).filter(Boolean)).size }] };
+    }
+    if (cleanSql === "SELECT COUNT(*)::int AS count FROM user_data") {
+      return { rows: [{ count: (db.user_data || []).length }] };
+    }
+    if (cleanSql.includes("SELECT COUNT(*)::int AS count FROM users WHERE last_login_at >=")) {
+      const cutoff = Date.now() - 30 * 86400000;
+      return { rows: [{ count: db.users.filter(u => Date.parse(u.last_login_at || 0) >= cutoff).length }] };
+    }
+    if (
+      cleanSql.includes("FROM users u LEFT JOIN user_data d ON d.user_id = u.id") &&
+      cleanSql.includes("ORDER BY u.created_at DESC")
+    ) {
+      const rows = [...db.users]
+        .sort((a, b) => Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0))
+        .map(user => {
+          const data = (db.user_data || []).find(row => row.user_id === user.id);
+          return {
+            id: user.id,
+            email: user.email,
+            username: user.username || null,
+            display_name: user.display_name || null,
+            created_at: user.created_at || null,
+            last_login_at: user.last_login_at || null,
+            hub_organization_id: user.hub_organization_id || null,
+            hub_finance_owner: Boolean(user.hub_finance_owner),
+            data_version: data?.version ?? null,
+            data_updated_at: data?.updated_at ?? null,
+          };
+        });
+      return { rows };
+    }
+
     // 1. SELECT id, email, username, display_name, avatar_url FROM users WHERE id = $1
     if (cleanSql.includes('SELECT id, email, username, display_name, avatar_url FROM users WHERE id =')) {
       const id = params[0];

@@ -133,4 +133,56 @@ router.get("/summary/:userId", async (req, res) => {
   }
 });
 
+
+router.get("/admin/stats", async (_req, res) => {
+  try {
+    const [total, hubManaged, hubOrganizations, savedData, active30d] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int AS count FROM users"),
+      pool.query("SELECT COUNT(*)::int AS count FROM users WHERE hub_organization_id IS NOT NULL"),
+      pool.query("SELECT COUNT(DISTINCT hub_organization_id)::int AS count FROM users WHERE hub_organization_id IS NOT NULL"),
+      pool.query("SELECT COUNT(*)::int AS count FROM user_data"),
+      pool.query("SELECT COUNT(*)::int AS count FROM users WHERE last_login_at >= NOW() - INTERVAL '30 days'"),
+    ]);
+
+    res.json({
+      totalAccounts: Number(total.rows[0]?.count || 0),
+      hubManagedAccounts: Number(hubManaged.rows[0]?.count || 0),
+      hubOrganizations: Number(hubOrganizations.rows[0]?.count || 0),
+      accountsWithSavedData: Number(savedData.rows[0]?.count || 0),
+      activeAccounts30d: Number(active30d.rows[0]?.count || 0),
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[platform-admin] FFPRO stats failed:", error?.message || error);
+    res.status(500).json({ error: "Unable to build FFPRO platform statistics." });
+  }
+});
+
+router.get("/admin/accounts", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT u.id, u.email, u.username, u.display_name, u.created_at, u.last_login_at, " +
+      "u.hub_organization_id, u.hub_finance_owner, d.version AS data_version, d.updated_at AS data_updated_at " +
+      "FROM users u LEFT JOIN user_data d ON d.user_id = u.id ORDER BY u.created_at DESC"
+    );
+
+    res.json(result.rows.map(user => ({
+      id: user.id,
+      email: user.email,
+      displayName: user.display_name || user.username || user.email,
+      createdAt: user.created_at || null,
+      lastLoginAt: user.last_login_at || null,
+      hubOrganizationId: user.hub_organization_id || null,
+      hubManaged: Boolean(user.hub_organization_id),
+      hubFinanceOwner: Boolean(user.hub_finance_owner),
+      hasSavedData: user.data_version !== null && user.data_version !== undefined,
+      dataVersion: user.data_version === null || user.data_version === undefined ? null : Number(user.data_version),
+      dataUpdatedAt: user.data_updated_at || null,
+    })));
+  } catch (error) {
+    console.error("[platform-admin] FFPRO accounts failed:", error?.message || error);
+    res.status(500).json({ error: "Unable to list FFPRO platform accounts." });
+  }
+});
+
 export default router;

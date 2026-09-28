@@ -2,5 +2,13 @@
 // public host check for every other request, including browser and login routes.
 export function allowedHost(host, pathname, publicHost, internalHost = '') {
   if (host === publicHost) return true;
-  return Boolean(internalHost && host === internalHost && /^\/api\/platform\/summary\/[^/]+$/.test(pathname));
+  return Boolean(
+    internalHost &&
+    host === internalHost &&
+    (
+      /^\/api\/platform\/summary\/[^/]+$/.test(pathname) ||
+      pathname === "/api/platform/admin/stats" ||
+      pathname === "/api/platform/admin/accounts"
+    )
+  );
 }
