@@ -93,10 +93,10 @@ jobs:
           set -euo pipefail
           test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          python3 .github/scripts/write-deploy-key.py "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
-          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null || { echo "DEPLOY_SSH_KEY is not a usable OpenSSH private key" >&2; exit 1; }
       - name: Transfer and deploy release
         shell: bash
         env:
