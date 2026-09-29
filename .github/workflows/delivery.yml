@@ -88,14 +88,22 @@ jobs:
         shell: bash
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_HOST"
           install -d -m 700 "$HOME/.ssh"
           python3 .github/scripts/write-deploy-key.py "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          # Public host key verified through an existing strict SSH connection to production.
+          host_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILct6nfEHcK9bJRthFDt7863FEa2YvtNn+PQBaxKUfXE'
+          port="${DEPLOY_SSH_PORT:-22}"
+          [[ "$port" =~ ^[0-9]+$ ]] || { echo "Invalid SSH port" >&2; exit 1; }
+          known_host="$DEPLOY_HOST"
+          if [ "$port" != 22 ]; then known_host="[$DEPLOY_HOST]:$port"; fi
+          printf '%s %s\n' "$known_host" "$host_key" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          test "$(ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256 | awk '{print $2}')" = 'SHA256:aZbfFVQ2DRx3JZofPkgF5JyMhKtnyCVKeHNCtpYLS5E'
           ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null || { echo "DEPLOY_SSH_KEY is not a usable OpenSSH private key" >&2; exit 1; }
       - name: Transfer and deploy release
         shell: bash
