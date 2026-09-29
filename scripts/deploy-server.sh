@@ -40,10 +40,11 @@ rsync -a --exclude='/.env' --exclude='/.env.*' --exclude='/data/' \
   --exclude='/uploads/' --exclude='/backups/' --exclude='/.git/' "$stage/" "$root/"
 cd "$root"
 docker compose --project-name "$project" config --services | grep -Fx "$service" >/dev/null
-docker compose --project-name "$project" up -d --build --wait --wait-timeout 180 "$service"
+# Build and start must succeed. Readiness is checked below because a short
+# PostgreSQL connection timeout can briefly mark a recovering app unhealthy.
+docker compose --project-name "$project" up -d --build "$service"
 
-# Compose-only status is insufficient for services without a container HEALTHCHECK.
-for attempt in {1..12}; do
+for attempt in {1..36}; do
   if docker compose --project-name "$project" exec -T -e "HEALTH_URL=http://127.0.0.1:${port}${endpoint}" "$service" \
       node -e 'fetch(process.env.HEALTH_URL,{signal:AbortSignal.timeout(4000)}).then(r=>{if(!r.ok) process.exitCode=1}).catch(()=>{process.exitCode=1})' ; then
     printf '%s\n' "$sha" > .deployed_sha
