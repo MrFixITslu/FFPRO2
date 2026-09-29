@@ -106,6 +106,7 @@ export async function provisionHubFinanceOwner(hubSession) {
           [email,displayName,hubUserId,hubOrganizationId]
         )).rows[0];
       } else if (user.hub_user_id === hubUserId) {
+        assertFinanceAccountAvailable(user, hubUserId, hubOrganizationId);
         user = (await client.query(
           `UPDATE users
            SET email=LOWER($1),display_name=COALESCE(NULLIF($2,''),display_name),
