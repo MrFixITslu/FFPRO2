@@ -8,11 +8,16 @@ service="${4:?Missing Compose service name}"
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid commit SHA' >&2; exit 1; }
 [[ "$root" = /* && "$root" != / && "$root" != *'..'* ]] || { echo 'DEPLOY_ROOT must be a safe absolute app directory' >&2; exit 1; }
 [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ && "$service" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid Compose project or service' >&2; exit 1; }
-for executable in docker rsync tar; do command -v "$executable" >/dev/null || { echo "Missing $executable" >&2; exit 1; }; done
+for executable in docker rsync tar flock; do command -v "$executable" >/dev/null || { echo "Missing $executable" >&2; exit 1; }; done
 
 archive="$HOME/v79-release-${sha}.tar.gz"
 test -f "$archive" || { echo 'Release bundle missing' >&2; exit 1; }
 test -d "$root" && test -f "$root/.env" || { echo "Existing app directory and .env required: $root" >&2; exit 1; }
+
+# All V79 deploy scripts use the same host lock so Docker builds run one at a time.
+umask 077
+exec 9>"$HOME/.v79-deploy.lock"
+flock -w 3600 9 || { echo 'Timed out waiting for another V79 deployment' >&2; exit 1; }
 case "$service" in
   v79-marketing) port=3070; endpoint=/api/health ;;
   fire-finance) port=3010; endpoint=/api/health; test -d "$root/data" ;;
