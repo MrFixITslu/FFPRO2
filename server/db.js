@@ -70,8 +70,15 @@ if (hasPostgres) {
         ADD COLUMN IF NOT EXISTS hub_user_id TEXT,
         ADD COLUMN IF NOT EXISTS hub_organization_id TEXT,
         ADD COLUMN IF NOT EXISTS hub_finance_owner BOOLEAN NOT NULL DEFAULT FALSE;
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_user
-        ON users(hub_user_id) WHERE hub_user_id IS NOT NULL;
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+      DROP INDEX IF EXISTS idx_users_hub_user;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_legacy_email
+        ON users(email) WHERE hub_organization_id IS NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_org_email
+        ON users(hub_organization_id, email) WHERE hub_organization_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_org_user
+        ON users(hub_organization_id, hub_user_id)
+        WHERE hub_organization_id IS NOT NULL AND hub_user_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_finance_owner
         ON users(hub_organization_id) WHERE hub_organization_id IS NOT NULL AND hub_finance_owner=TRUE;
     `);

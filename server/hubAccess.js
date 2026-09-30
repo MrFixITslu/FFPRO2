@@ -62,8 +62,8 @@ export async function provisionHubFinanceOwner(hubSession) {
     try {
       await client.query("BEGIN");
       let user = (await client.query(
-        "SELECT * FROM users WHERE hub_user_id=$1 LIMIT 1",
-        [hubUserId]
+        "SELECT * FROM users WHERE hub_user_id=$1 AND hub_organization_id=$2 LIMIT 1",
+        [hubUserId, hubOrganizationId]
       )).rows[0] || null;
 
       if (!user) {
@@ -79,7 +79,7 @@ export async function provisionHubFinanceOwner(hubSession) {
 
       if (!user) {
         const byEmail = (await client.query(
-          "SELECT * FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1",
+          "SELECT * FROM users WHERE LOWER(email)=LOWER($1) AND hub_organization_id IS NULL LIMIT 1",
           [email]
         )).rows[0] || null;
         if (byEmail) {
@@ -105,7 +105,7 @@ export async function provisionHubFinanceOwner(hubSession) {
            RETURNING *`,
           [email,displayName,hubUserId,hubOrganizationId]
         )).rows[0];
-      } else if (user.hub_user_id === hubUserId) {
+      } else if (user.hub_user_id === hubUserId && user.hub_organization_id === hubOrganizationId) {
         assertFinanceAccountAvailable(user, hubUserId, hubOrganizationId);
         user = (await client.query(
           `UPDATE users
@@ -128,12 +128,12 @@ export async function provisionHubFinanceOwner(hubSession) {
 
   const db = readDB();
   db.users ||= [];
-  let user = db.users.find(item => item.hub_user_id === hubUserId)
+  let user = db.users.find(item => item.hub_user_id === hubUserId && item.hub_organization_id === hubOrganizationId)
     || db.users.find(item => item.hub_organization_id === hubOrganizationId && item.hub_finance_owner === true)
     || null;
 
   if (!user) {
-    const byEmail = db.users.find(item => String(item.email || "").toLowerCase() === email);
+    const byEmail = db.users.find(item => String(item.email || "").toLowerCase() === email && !item.hub_organization_id);
     if (byEmail) {
       // Mirror the PostgreSQL path: a valid signed Hub owner launch may migrate
       // the matching unlinked legacy account, but never an account owned by a
