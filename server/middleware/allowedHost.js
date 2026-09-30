@@ -7,6 +7,7 @@ export function allowedHost(host, pathname, publicHost, internalHost = '') {
     host === internalHost &&
     (
       /^\/api\/platform\/summary\/[^/]+$/.test(pathname) ||
+      pathname === "/api/platform/provision" ||
       pathname === "/api/platform/admin/stats" ||
       pathname === "/api/platform/admin/accounts"
     )
