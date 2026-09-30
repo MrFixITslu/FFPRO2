@@ -6,6 +6,7 @@ test('public origin and only the private signed summary path accept their expect
   const publicHost='ffpro.v79sl.com', internalHost='fire-finance-app:3010';
   assert.equal(allowedHost(publicHost, '/', publicHost, internalHost), true);
   assert.equal(allowedHost(internalHost, '/api/platform/summary/org_123', publicHost, internalHost), true);
+  assert.equal(allowedHost(internalHost, '/api/platform/provision', publicHost, internalHost), true);
   assert.equal(allowedHost(internalHost, '/api/platform/admin/stats', publicHost, internalHost), true);
   assert.equal(allowedHost(internalHost, '/api/platform/admin/accounts', publicHost, internalHost), true);
   assert.equal(allowedHost(internalHost, '/api/platform/launch', publicHost, internalHost), false);
