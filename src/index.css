@@ -282,3 +282,106 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px; }
 }
+
+
+/* ==========================================================================
+   V79 Digital / FFPRO premium finance theme
+   ========================================================================== */
+.v79-ffpro-app {
+  --v79-bg: #07111f;
+  --v79-panel: #091728;
+  --v79-panel-2: #0b1a2c;
+  --v79-border-dark: #1a3854;
+  --v79-blue: #0a86ff;
+  --v79-green: #10b981;
+  background: var(--v79-bg);
+  color: #e8eef7;
+  color-scheme: dark;
+}
+.v79-ffpro-app .executive-card {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(16,185,129,.11), transparent 42%),
+    #0a1727;
+  border: 1px solid var(--v79-border-dark);
+  border-radius: 1rem;
+  box-shadow: 0 18px 48px rgba(0,0,0,.16);
+}
+.v79-ffpro-app .executive-card-interactive:hover {
+  border-color: rgba(16,185,129,.45);
+  box-shadow: 0 20px 52px rgba(0,0,0,.22), 0 0 28px rgba(16,185,129,.05);
+  transform: translateY(-2px);
+}
+.v79-ffpro-app .bg-white { background-color: var(--v79-panel) !important; }
+.v79-ffpro-app .bg-white\/95 { background-color: rgba(7,17,31,.95) !important; }
+.v79-ffpro-app .bg-stone-50,
+.v79-ffpro-app .bg-stone-50\/70,
+.v79-ffpro-app .bg-stone-50\/50,
+.v79-ffpro-app .bg-stone-100,
+.v79-ffpro-app .bg-stone-100\/60,
+.v79-ffpro-app .bg-stone-100\/80,
+.v79-ffpro-app .bg-stone-100\/90 { background-color: var(--v79-panel-2) !important; }
+.v79-ffpro-app .border-stone-100,
+.v79-ffpro-app .border-stone-200,
+.v79-ffpro-app .border-stone-200\/60,
+.v79-ffpro-app .border-stone-200\/80,
+.v79-ffpro-app .border-stone-200\/85,
+.v79-ffpro-app .border-stone-200\/90 { border-color: var(--v79-border-dark) !important; }
+.v79-ffpro-app .text-stone-950,
+.v79-ffpro-app .text-stone-900,
+.v79-ffpro-app .text-stone-800 { color: #f8fafc !important; }
+.v79-ffpro-app .text-stone-700 { color: #d5deea !important; }
+.v79-ffpro-app .text-stone-600 { color: #a4b0c0 !important; }
+.v79-ffpro-app .text-stone-500 { color: #718096 !important; }
+.v79-ffpro-app .text-stone-400 { color: #64748b !important; }
+.v79-ffpro-app .text-stone-300 { color: #526276 !important; }
+.v79-ffpro-app .text-teal-700,
+.v79-ffpro-app .text-teal-600 { color: #55d9ad !important; }
+.v79-ffpro-app .bg-teal-700,
+.v79-ffpro-app .bg-teal-600 { background-color: #10b981 !important; }
+.v79-ffpro-app .text-indigo-700,
+.v79-ffpro-app .text-indigo-600 { color: #78cfff !important; }
+.v79-ffpro-app .bg-indigo-50 { background-color: rgba(10,134,255,.10) !important; }
+.v79-ffpro-app .border-indigo-100,
+.v79-ffpro-app .border-indigo-200 { border-color: rgba(10,134,255,.25) !important; }
+.v79-ffpro-app .bg-emerald-50 { background-color: rgba(16,185,129,.10) !important; }
+.v79-ffpro-app .border-emerald-100,
+.v79-ffpro-app .border-emerald-200 { border-color: rgba(16,185,129,.25) !important; }
+.v79-ffpro-app .bg-amber-50 { background-color: rgba(245,158,11,.10) !important; }
+.v79-ffpro-app .border-amber-100,
+.v79-ffpro-app .border-amber-200 { border-color: rgba(245,158,11,.25) !important; }
+.v79-ffpro-app .bg-rose-50 { background-color: rgba(244,63,94,.10) !important; }
+.v79-ffpro-app .border-rose-100,
+.v79-ffpro-app .border-rose-200 { border-color: rgba(244,63,94,.25) !important; }
+.v79-ffpro-app input,
+.v79-ffpro-app select,
+.v79-ffpro-app textarea {
+  background-color: #07121f !important;
+  border-color: #244560 !important;
+  color: #e8eef7 !important;
+}
+.v79-ffpro-app input::placeholder,
+.v79-ffpro-app textarea::placeholder { color: #526276 !important; }
+.v79-ffpro-app input:focus,
+.v79-ffpro-app select:focus,
+.v79-ffpro-app textarea:focus {
+  border-color: rgba(16,185,129,.62) !important;
+  box-shadow: 0 0 0 3px rgba(16,185,129,.11) !important;
+}
+.v79-ffpro-app table { border-color: var(--v79-border-dark); }
+.v79-ffpro-app tr { border-color: #18324b !important; }
+.v79-ffpro-app .custom-scrollbar::-webkit-scrollbar-thumb { background: #1d3d59; }
+.v79-ffpro-app .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #2c5677; }
+.v79-ffpro-app .office-preview-content {
+  color-scheme: light;
+  color: #334155 !important;
+  background: #fff !important;
+}
+.v79-ffpro-app .office-preview-content .bg-white { background: #fff !important; }
+.v79-ffpro-app .office-preview-content .text-stone-900,
+.v79-ffpro-app .office-preview-content .text-slate-900 { color: #0f172a !important; }
+.v79-ffpro-app :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline-color: #10b981;
+}
+@media print {
+  .v79-ffpro-app { color-scheme: light; background: #fff !important; color: #111 !important; }
+}
