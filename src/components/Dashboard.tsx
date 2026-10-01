@@ -513,18 +513,18 @@ const Dashboard: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-24 print:p-0">
+    <div className="ffpro-dashboard space-y-4 animate-in fade-in duration-500 pb-24 print:p-0">
       <div className="hidden print:block border-b-2 border-stone-900 pb-6 mb-8">
         <h1 className="text-2xl font-light text-stone-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
       {/* Executive vs Detailed View Mode Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-stone-200/85 shadow-xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-[#091728] p-4 rounded-2xl border border-[#1a3854]">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
             viewMode === 'executive' 
-              ? 'bg-stone-900 text-white border-stone-800' 
-              : 'bg-stone-100 text-stone-700 border-stone-200'
+              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' 
+              : 'bg-[#07121f] text-slate-400 border-[#1a3854]'
           }`}>
             {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
           </div>
@@ -549,14 +549,14 @@ const Dashboard: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200 self-stretch sm:self-auto shrink-0">
+        <div className="flex items-center gap-1 bg-[#07121f] p-1 rounded-xl border border-[#1a3854] self-stretch sm:self-auto shrink-0">
           <button
             type="button"
             onClick={() => handleSetViewMode('executive')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               viewMode === 'executive' 
-                ? 'bg-white text-stone-900 shadow-xs' 
-                : 'text-stone-600 hover:text-stone-900'
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' 
+                : 'text-slate-500 hover:text-white'
             }`}
           >
             <Layers size={14} />
@@ -567,8 +567,8 @@ const Dashboard: React.FC<Props> = ({
             onClick={() => handleSetViewMode('detailed')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
               viewMode === 'detailed' 
-                ? 'bg-white text-stone-900 shadow-xs' 
-                : 'text-stone-600 hover:text-stone-900'
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' 
+                : 'text-slate-500 hover:text-white'
             }`}
           >
             <BarChart3 size={14} />
@@ -581,9 +581,9 @@ const Dashboard: React.FC<Props> = ({
         /* Executive High-Level Summary View */
         <div className="space-y-6 animate-in fade-in duration-300">
           {/* Executive Hero KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             {/* Card 1: Total Net Worth */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-stone-400 mb-2.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Total Net Worth</span>
@@ -600,7 +600,7 @@ const Dashboard: React.FC<Props> = ({
             </div>
 
             {/* Card 2: Cashflow Balance */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-stone-400 mb-2.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Monthly Margin</span>
@@ -620,7 +620,7 @@ const Dashboard: React.FC<Props> = ({
             </div>
 
             {/* Card 3: Projects & Workspaces */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-stone-400 mb-2.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Project Suites</span>
@@ -639,7 +639,7 @@ const Dashboard: React.FC<Props> = ({
             </div>
 
             {/* Card 4: Upcoming Schedule & Commitments */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
+            <div className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-stone-400 mb-2.5">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Commitments</span>
@@ -661,7 +661,7 @@ const Dashboard: React.FC<Props> = ({
 
             {/* Card 5: Unread Emails */}
             <div 
-              className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between cursor-pointer group"
+              className="executive-card executive-card-interactive p-5 rounded-2xl flex flex-col justify-between cursor-pointer group"
               onClick={() => {
                 if (activeUnreadEmails.length > 0) {
                   setSelectedEmailModal(activeUnreadEmails[0]);
@@ -693,10 +693,10 @@ const Dashboard: React.FC<Props> = ({
           </div>
 
           {/* 2-Column High-Level Overview Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Module 1: Projects & Planner High-Level Overview */}
-            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+            <section className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
                   <div className="flex items-center gap-2.5">
@@ -779,7 +779,7 @@ const Dashboard: React.FC<Props> = ({
             </section>
 
             {/* Module 2: Calendar & Upcoming Commitments Summary */}
-            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+            <section className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
                   <div className="flex items-center gap-2.5">
@@ -861,7 +861,7 @@ const Dashboard: React.FC<Props> = ({
             </section>
 
             {/* Module 3: Financial Objectives & Targets Summary */}
-            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs">
+            <section className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs">
               <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
@@ -898,7 +898,7 @@ const Dashboard: React.FC<Props> = ({
             </section>
 
             {/* Module 4: High Level Quick Actions & Status */}
-            <section className="bg-white p-6 rounded-xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+            <section className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
                   <div className="flex items-center gap-2.5">
@@ -976,7 +976,7 @@ const Dashboard: React.FC<Props> = ({
             </section>
 
             {/* Module 5: Unread Inbox & Emails Briefing */}
-            <section className="executive-card p-6 rounded-xl flex flex-col justify-between lg:col-span-2">
+            <section className="executive-card p-5 rounded-2xl flex flex-col justify-between lg:col-span-2">
               <div>
                 <div className="flex items-center justify-between mb-5 pb-3 border-b border-stone-100">
                   <div className="flex items-center gap-2.5">
@@ -998,718 +998,3 @@ const Dashboard: React.FC<Props> = ({
                         disabled={gmailLoading}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-xl border border-stone-200/80 transition"
                         title="Sync Inbox with Gmail"
-                      >
-                        <RefreshCw size={13} className={gmailLoading ? 'animate-spin text-stone-900' : ''} />
-                        <span className="hidden sm:inline">{gmailLoading ? 'Syncing...' : 'Sync Briefing'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowDisconnectConfirm(true)}
-                        disabled={gmailLoading}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-stone-200/70 transition"
-                        title="Disconnect Gmail & revoke access"
-                      >
-                        <LogOut size={13} />
-                        <span className="hidden md:inline">Disconnect</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowGmailConsentModal(true)}
-                      disabled={gmailLoading}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-stone-900 text-white rounded-xl shadow-xs hover:bg-stone-800 transition"
-                    >
-                      <LogIn size={13} />
-                      <span>Connect Gmail</span>
-                    </button>
-                  )}
-                </div>
-
-                {activeUnreadEmails.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {activeUnreadEmails.map((g) => {
-                      const monogram = getSenderMonogram(g.from);
-                      const senderClean = getSenderCleanName(g.from);
-                      const category = getEmailCategoryBadge(g.subject || '', g.snippet || '');
-
-                      return (
-                        <div
-                          key={g.id}
-                          onClick={() => setSelectedEmailModal(g)}
-                          className="p-4 bg-stone-50/70 hover:bg-white rounded-xl border border-stone-200/85 hover:border-stone-300 shadow-2xs hover:shadow-sm transition cursor-pointer group flex items-start justify-between gap-3"
-                        >
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className="w-9 h-9 rounded-xl bg-stone-800 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 tracking-wider shadow-2xs group-hover:bg-stone-950 transition">
-                              {monogram}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${category.color}`}>
-                                  {category.label}
-                                </span>
-                                <span className="text-[10px] font-medium text-stone-400 shrink-0">
-                                  {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                              <div className="text-xs font-bold text-stone-900 truncate mb-0.5">
-                                {senderClean}
-                              </div>
-                              <h4 className="text-xs font-semibold text-stone-800 group-hover:text-stone-950 transition truncate">
-                                {decodeHtmlEntities(g.subject) || '(No Subject)'}
-                              </h4>
-                              {g.snippet && (
-                                <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5 leading-relaxed">
-                                  {decodeHtmlEntities(g.snippet)}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDismissEmail(g.id);
-                              }}
-                              className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                              title="Permanently delete from dashboard across all devices"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                            <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-900 group-hover:transtone-x-0.5 transition" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-12 px-4 text-center rounded-xl bg-stone-50/50 border border-dashed border-stone-200 flex flex-col items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center mb-3">
-                      <Mail size={18} />
-                    </div>
-                    <p className="text-xs font-bold text-stone-800">
-                      {gmailConnected ? 'Executive Briefing Clear' : 'Connect Your Account'}
-                    </p>
-                    <p className="text-[11px] text-stone-500 font-medium max-w-sm mt-1">
-                      {gmailConnected
-                        ? 'Zero unread items requiring your immediate attention. Your dashboard inbox is completely caught up.'
-                        : 'Link your Google account to stream priority emails, milestone notices, and bills directly into your briefing.'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-semibold text-stone-500">
-                <span>Unread Briefing Items: {unreadCount}</span>
-                <span>Account Status: {gmailConnected ? 'Connected & Synced' : 'Offline'}</span>
-              </div>
-            </section>
-
-            {/* Module 6: AI Industry Intelligence Briefing */}
-            <AiNewsBriefing />
-
-          </div>
-        </div>
-      ) : (
-        /* Detailed Financial Analytics View */
-        <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
-           <h3 className="text-xs font-bold text-stone-600 text-center font-tabular privacy-sensitive">${cycleRollover.toLocaleString()}</h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Inflow</p>
-           <h3 className="text-xs font-bold text-emerald-600 text-center font-tabular privacy-sensitive">+${totalActualIncome.toLocaleString()}</h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Outflow</p>
-           <h3 className="text-xs font-bold text-rose-600 text-center font-tabular privacy-sensitive">-${totalActualExpenses.toLocaleString()}</h3>
-        </div>
-        <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-center ${netMargin >= 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'}`}>
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Net Margin</p>
-           <h3 className={`text-xs font-bold text-center font-tabular privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-             {netMargin >= 0 ? '+' : ''}${netMargin.toLocaleString()}
-           </h3>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Cash On Hand</p>
-           <h3 className="text-xs font-bold text-indigo-600 text-center font-tabular privacy-sensitive">${liquidFunds.toLocaleString()}</h3>
-        </div>
-        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
-           <p className="text-emerald-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Safe Spend</p>
-           <h3 className="text-sm font-bold text-emerald-700 font-tabular privacy-sensitive">${dailySafeSpend.toFixed(0)}<span className="text-[8px] text-emerald-600/60 uppercase">/Day</span></h3>
-        </div>
-        <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
-           <p className="text-indigo-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Days left</p>
-           <h3 className="text-sm font-bold text-indigo-700">{daysUntilNextCycle} <span className="text-[8px] text-indigo-600/60 uppercase">Days</span></h3>
-        </div>
-        <div className="bg-stone-900 p-4 rounded-xl border border-stone-800 shadow-sm text-white flex flex-col justify-center text-center">
-           <p className="text-white/50 text-[8px] font-bold uppercase tracking-wider mb-1">Net Worth</p>
-           <h3 className="text-xs font-semibold text-white font-tabular privacy-sensitive">${netWorth.toLocaleString()}</h3>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Traditional Bank</p>
-           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${bankTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
-             <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (bankTotal / netWorth) * 100 : 0}%` }}></div>
-           </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Credit Union</p>
-           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${cuTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
-             <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cuTotal / netWorth) * 100 : 0}%` }}></div>
-           </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Crypto (Digital)</p>
-           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${cryptoTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
-             <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cryptoTotal / netWorth) * 100 : 0}%` }}></div>
-           </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Other Investments</p>
-           <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">${vanguardTotal.toLocaleString()}</h3>
-           <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
-             <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (vanguardTotal / netWorth) * 100 : 0}%` }}></div>
-           </div>
-        </div>
-      </div>
-
-      {/* Unified Spending, Cashflow & Financial Insights Section */}
-      <SpendingCashflowIntelligence
-        transactions={transactions}
-        recurringExpenses={recurringExpenses}
-        recurringIncomes={recurringIncomes}
-        categoryBudgets={categoryBudgets}
-        onUpdateCategoryBudget={onUpdateCategoryBudget}
-        onEditTransaction={onEdit}
-        onDeleteTransaction={onDelete}
-        onOpenTransactionForm={onOpenTransactionForm}
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <section className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm overflow-hidden flex flex-col">
-          <h3 className="font-bold text-stone-800 uppercase text-xs tracking-wider mb-6">Financial Objectives</h3>
-          <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {savingGoals.length > 0 || investmentGoals.length > 0 ? (
-              <>
-                {savingGoals.map(goal => (
-                  <div key={goal.id} className="space-y-2">
-                    <div className="flex justify-between items-end px-1">
-                      <div>
-                        <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
-                        <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-wider">{goal.institution}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">${goal.currentAmount.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
-                        <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Savings Target</p>
-                      </div>
-                    </div>
-                    <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-indigo-600 transition-all duration-1000" 
-                        style={{ width: `${Math.min(100, (goal.currentAmount / goal.targetAmount) * 100)}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-                {investmentGoals.map(goal => {
-                  const currentVal = institutionalBalances[goal.provider]?.balance || 0;
-                  const progress = (currentVal / goal.targetAmount) * 100;
-                  return (
-                    <div key={goal.id} className="space-y-2">
-                      <div className="flex justify-between items-end px-1">
-                        <div>
-                          <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
-                          <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">{goal.provider} Portfolio</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">${currentVal.toLocaleString()} / ${goal.targetAmount.toLocaleString()}</p>
-                          <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Asset Target</p>
-                        </div>
-                      </div>
-                      <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-indigo-600 transition-all duration-1000" 
-                          style={{ width: `${Math.min(100, progress)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
-              <p className="py-10 text-center text-stone-300 font-bold uppercase text-[9px] tracking-wider">No Active Objectives</p>
-            )}
-          </div>
-        </section>
-
-        <section className="bg-stone-900 p-6 rounded-xl text-white shadow-sm overflow-hidden flex flex-col">
-          <h3 className="font-bold uppercase text-xs tracking-wider text-indigo-400 mb-6">Market Pulse</h3>
-          <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
-            {marketPrices.slice(0, 4).map(p => (
-              <div key={p.symbol} className="p-3.5 bg-white/5 border border-white/10 rounded-lg flex flex-col justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{p.symbol}</span>
-                <h4 className="text-sm font-semibold mt-1.5 font-tabular privacy-sensitive">${p.price.toLocaleString()}</h4>
-                <div className={`text-[9px] font-bold mt-1 font-tabular privacy-sensitive ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {p.change24h > 0 ? '+' : ''}{p.change24h.toFixed(1)}%
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Financial Transaction Activity Log & Audit Trail Section */}
-      <section className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div 
-          onClick={() => setIsLogsSectionOpen(prev => !prev)}
-          className="p-6 sm:p-6 border-b border-stone-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 cursor-pointer hover:bg-stone-50/70 transition-colors select-none"
-        >
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <Activity size={16} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-bold text-stone-900 text-sm tracking-tight">Financial Transaction Activity Log</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
-                    {financialLogs.length} {financialLogs.length === 1 ? 'record' : 'records'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-stone-100 text-stone-600 border border-stone-200">
-                    {isLogsSectionOpen ? 'Expanded' : 'Collapsed'}
-                  </span>
-                </div>
-                <p className="text-[10px] text-stone-400 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-end lg:self-center" onClick={(e) => e.stopPropagation()}>
-            {isLogsSectionOpen && (
-              <>
-                {/* Search Input */}
-                <div className="relative min-w-[180px] sm:min-w-[200px]">
-                  <Search size={13} className="absolute left-3 top-1/2 -transtone-y-1/2 text-stone-400" />
-                  <input
-                    type="text"
-                    placeholder="Search logs..."
-                    value={logSearch}
-                    onChange={(e) => setLogSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-medium placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-                  />
-                  {logSearch && (
-                    <button 
-                      onClick={() => setLogSearch('')}
-                      className="absolute right-2.5 top-1/2 -transtone-y-1/2 text-stone-400 hover:text-stone-600"
-                    >
-                      <i className="fas fa-times text-[10px]"></i>
-                    </button>
-                  )}
-                </div>
-
-                {/* Quick Add Transaction */}
-                {onOpenTransactionForm && (
-                  <button
-                    type="button"
-                    onClick={onOpenTransactionForm}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap"
-                  >
-                    <Plus size={13} />
-                    <span className="hidden sm:inline">Add Record</span>
-                  </button>
-                )}
-
-                {/* Export CSV */}
-                <button
-                  type="button"
-                  onClick={handleExportLogsCSV}
-                  disabled={filteredFinancialLogs.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold transition disabled:opacity-40 whitespace-nowrap"
-                  title="Download CSV report"
-                >
-                  <Download size={13} />
-                  <span className="hidden sm:inline">Export</span>
-                </button>
-
-                {/* Copy Log Trail */}
-                <button
-                  type="button"
-                  onClick={handleCopyLogsTrail}
-                  disabled={filteredFinancialLogs.length === 0}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${copiedLogs ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'} disabled:opacity-40 whitespace-nowrap`}
-                  title="Copy to clipboard"
-                >
-                  {copiedLogs ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                  <span className="hidden sm:inline">{copiedLogs ? 'Copied' : 'Copy'}</span>
-                </button>
-
-                {/* Full Audit in Planner Logs */}
-                {onNavigateToPlannerLogs && (
-                  <button
-                    type="button"
-                    onClick={onNavigateToPlannerLogs}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap"
-                    title="Open in comprehensive Project Logs Manager"
-                  >
-                    <ExternalLink size={13} />
-                    <span className="hidden md:inline">Planner Audit</span>
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* Expand / Collapse Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setIsLogsSectionOpen(prev => !prev)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-bold transition"
-              title={isLogsSectionOpen ? 'Collapse log section' : 'Expand log section'}
-            >
-              <span>{isLogsSectionOpen ? 'Hide Logs' : 'View Logs'}</span>
-              {isLogsSectionOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Collapsible Content */}
-        {isLogsSectionOpen && (
-          <div>
-            {/* Filter Tabs */}
-            <div className="px-6 py-2.5 bg-stone-50/70 border-b border-stone-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mr-1 flex items-center gap-1">
-                  <Filter size={11} /> Filter:
-                </span>
-                {[
-                  { id: 'all', label: 'All Transactions' },
-                  { id: 'expense', label: 'Expenses & Outflows' },
-                  { id: 'income', label: 'Inflows & Deposits' },
-                  { id: 'recurring', label: 'Recurring Commitments' },
-                  { id: 'budget', label: 'Budget Allocations' }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setLogFilter(tab.id as any)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-stone-200' : 'text-stone-500 hover:text-stone-800'}`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              <span className="text-[10px] text-stone-400 font-semibold whitespace-nowrap">
-                Showing {filteredFinancialLogs.length} of {financialLogs.length}
-              </span>
-            </div>
-
-        {/* Logs Table / List */}
-        <div className="overflow-x-auto">
-          {filteredFinancialLogs.length > 0 ? (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-stone-100 bg-stone-50/50 text-[9px] font-bold text-stone-400 uppercase tracking-wider">
-                  <th className="py-3 px-4 w-12 text-center">Type</th>
-                  <th className="py-3 px-4 min-w-[220px]">Transaction & Action</th>
-                  <th className="py-3 px-4 min-w-[180px]">Context & Details</th>
-                  <th className="py-3 px-4 w-28">Author</th>
-                  <th className="py-3 px-4 w-36">Timestamp</th>
-                  <th className="py-3 px-4 w-16 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100 text-xs">
-                {filteredFinancialLogs.map((log) => {
-                  const badge = getLogBadge(log.action, log.details);
-                  const isExpanded = expandedLogId === log.id;
-                  const logDate = new Date(log.timestamp);
-                  const formattedDate = !isNaN(logDate.getTime())
-                    ? logDate.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' })
-                    : log.timestamp;
-                  const formattedTime = !isNaN(logDate.getTime())
-                    ? logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : '';
-
-                  return (
-                    <React.Fragment key={log.id}>
-                      <tr 
-                        className={`hover:bg-stone-50 transition-colors group cursor-pointer border-l-4 ${badge.rowAccent} ${isExpanded ? 'bg-indigo-50/30' : ''}`}
-                        onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                      >
-                        <td className="py-3.5 px-4 text-center">
-                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg shadow-2xs ${badge.iconBg}`} title={badge.label}>
-                            {badge.icon}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-stone-900 leading-snug font-tabular privacy-sensitive">{log.action}</span>
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider inline-flex items-center gap-1 ${badge.badgeClass}`}>
-                              <span className={`w-1 h-1 rounded-full ${badge.dotColor}`}></span>
-                              {badge.label}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <p className="text-stone-500 text-[11px] truncate max-w-xs font-medium font-tabular privacy-sensitive">
-                            {log.details || '—'}
-                          </p>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 font-bold text-[9px] flex items-center justify-center uppercase">
-                              {(log.username || 'S').charAt(0)}
-                            </div>
-                            <span className="text-[11px] font-semibold text-stone-700">{log.username || 'System'}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="text-[11px] font-semibold text-stone-700">{formattedDate}</div>
-                          {formattedTime && (
-                            <div className="text-[9px] text-stone-400 font-medium">{formattedTime}</div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                              className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition"
-                              title="Toggle details"
-                            >
-                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </button>
-                            {onDeleteFinancialLog && (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteFinancialLog(log.id)}
-                                className="p-1 rounded text-stone-300 hover:text-rose-600 hover:bg-rose-50 transition opacity-0 group-hover:opacity-100"
-                                title="Delete log entry"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="bg-stone-50/90 border-b border-indigo-100">
-                          <td colSpan={6} className="p-4 px-6">
-                            <div className="bg-white p-3.5 rounded-lg border border-stone-200 space-y-2 text-xs shadow-inner">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
-                                <span className="font-bold text-stone-800">Log ID: <span className="font-mono text-stone-500 text-[10px]">{log.id}</span></span>
-                                <span className="text-[10px] text-stone-400">Timestamp: {new Date(log.timestamp).toISOString()}</span>
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Action Statement</p>
-                                <p className="text-stone-800 font-medium mt-0.5 font-tabular privacy-sensitive">{log.action}</p>
-                              </div>
-                              {log.details && (
-                                <div>
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Extended Ledger Details</p>
-                                  <p className="text-stone-700 font-mono text-[11px] mt-0.5 bg-stone-50 p-2 rounded border border-stone-150 whitespace-pre-wrap font-tabular privacy-sensitive">{log.details}</p>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <div className="py-12 px-6 text-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
-                <Activity size={18} />
-              </div>
-              <p className="text-sm font-semibold text-stone-700">No Transaction Activity Logs Found</p>
-              <p className="text-xs text-stone-400 max-w-sm mx-auto">
-                {logSearch || logFilter !== 'all' 
-                  ? 'No activity records match your current filter criteria. Try clearing search or selecting All.' 
-                  : 'Financial actions performed on the dashboard (adding transactions, clearing bills, recording income, updating budget limits) will automatically generate an immutable audit log here.'}
-              </p>
-              {onOpenTransactionForm && (
-                <button
-                  type="button"
-                  onClick={onOpenTransactionForm}
-                  className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm inline-flex items-center gap-1.5"
-                >
-                  <Plus size={13} />
-                  <span>Log First Transaction</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        </div>
-        )}
-      </section>
-
-          {/* Active Notifications & Planning Intelligence (Moved to bottom of Detail View) */}
-          <UnifiedNotificationHub
-            userEmail={userEmail}
-            events={events}
-            calendarItems={calendarItems}
-            unpaidBills={unpaidBills}
-            unconfirmedIncomes={unconfirmedIncomes}
-            categoryBudgets={categoryBudgets}
-            transactions={transactions}
-            bankConnections={bankConnections}
-            onNavigateToTask={onNavigateToTask}
-            onNavigateToPlanner={onNavigateToPlanner}
-            onNavigateToCalendar={onNavigateToCalendar}
-            onPayRecurring={onPayRecurring}
-            onReceiveRecurringIncome={onReceiveRecurringIncome}
-            onOpenTransactionForm={onOpenTransactionForm}
-            onSelectEmailModal={(email) => setSelectedEmailModal(email)}
-            onDismissEmail={onDismissEmail || handleDismissEmail}
-            externalDismissedIds={dismissedEmailIds}
-            gmailNotifications={activeUnreadEmails}
-            gmailConnected={gmailConnected}
-            gmailLoading={gmailLoading}
-            gmailError={gmailError}
-            onFetchGmail={fetchGmail}
-            onConnectGmail={handleConnectGmail}
-            onDisconnectGmail={handleDisconnectGmail}
-          />
-        </div>
-      )}
-
-      {/* Email Detail Modal Popup */}
-      <EmailDetailModal
-        email={selectedEmailModal}
-        onClose={() => setSelectedEmailModal(null)}
-        onDeleteFromDashboard={handleDismissEmail}
-      />
-
-      {/* Google Gmail Incremental Authorization Prominent Disclosure Modal */}
-      {showGmailConsentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 relative">
-            <button
-              onClick={() => setShowGmailConsentModal(false)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition"
-              aria-label="Close modal"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                <ShieldCheck size={20} />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-stone-900">Connect Google Gmail</h3>
-                <p className="text-xs text-stone-500">Executive Inbox &amp; Planning Synchronization</p>
-              </div>
-            </div>
-
-            <div className="space-y-3.5 text-xs text-stone-600 leading-relaxed">
-              <p>
-                To surface relevant project planning updates, vendor notices, and invoices directly in your
-                <strong> Executive Inbox Briefing</strong>, Fire Finance Pro requests permission to access your Gmail messages.
-              </p>
-
-              <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80 space-y-2">
-                <div className="font-semibold text-stone-800 flex items-center gap-1.5">
-                  <Info size={14} className="text-indigo-600" />
-                  <span>How Fire Finance Pro uses your Gmail data:</span>
-                </div>
-                <ul className="list-disc pl-5 space-y-1 text-stone-600">
-                  <li>Scans unread message headers, subject lines, senders, and short snippets.</li>
-                  <li>Matches incoming emails to existing budget events, projects, and checklist tasks.</li>
-                  <li>Allows you to review or dismiss items directly from your dashboard.</li>
-                </ul>
-              </div>
-
-              <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-100/80 space-y-1.5 text-indigo-950">
-                <div className="font-semibold text-xs flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-indigo-600" />
-                  <span>Security &amp; Privacy Protections</span>
-                </div>
-                <p className="text-[11px] text-stone-600 leading-normal">
-                  Your email data is never used for advertising, never sold, never used to train AI models, and tokens are encrypted at rest with AES-256-GCM. You can disconnect at any time.
-                </p>
-              </div>
-
-              <p className="text-[11px] text-stone-400">
-                Adheres strictly to the{' '}
-                <a
-                  href="/privacy#google-api"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-indigo-600 hover:underline font-medium"
-                >
-                  Google API Services User Data Policy
-                </a>.
-              </p>
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-2.5 pt-3 border-t border-stone-100">
-              <button
-                type="button"
-                onClick={() => setShowGmailConsentModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGmailConsentModal(false);
-                  handleConnectGmail();
-                }}
-                className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition flex items-center gap-1.5"
-              >
-                <span>Authorize &amp; Continue with Google</span>
-                <ArrowRight size={13} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Disconnect Gmail Confirmation Modal */}
-      {showDisconnectConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl border border-stone-200">
-            <h3 className="text-sm font-bold text-stone-900 mb-2">Disconnect Gmail Integration?</h3>
-            <p className="text-xs text-stone-600 leading-relaxed mb-4">
-              This will immediately revoke Fire Finance Pro's access token with Google and delete encrypted credentials from your account. You can reconnect whenever you like.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDisconnectConfirm(false)}
-                className="px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setShowDisconnectConfirm(false);
-                  await handleDisconnectGmail();
-                }}
-                className="px-3.5 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-xs"
-              >
-                Confirm Disconnect
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default Dashboard;
