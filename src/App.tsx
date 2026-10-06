@@ -1439,10 +1439,12 @@ const App: React.FC = () => {
         </main>
       ) : (
         <>
-          <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
+          <div className="hidden 2xl:block" aria-label="Secondary market quotes">
+            <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
+          </div>
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
-            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-7xl mx-auto justify-between">
+          <header className="fixed top-0 2xl:top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-[1760px] xl:w-[94%] 2xl:w-[90%] mx-auto justify-between">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 {/* Logo & Brand */}
                 <div 
@@ -1454,12 +1456,12 @@ const App: React.FC = () => {
                     src={APP_LOGO}
                     alt="Fire Finance Pro Logo"
                     referrerPolicy="no-referrer"
-                    className="h-8 sm:h-9 w-auto max-w-[180px] sm:max-w-[220px] object-contain shrink-0 group-hover:scale-102 transition-transform"
+                    className="h-8 sm:h-9 w-auto max-w-[140px] 2xl:max-w-[220px] object-contain shrink-0 group-hover:scale-102 transition-transform"
                   />
                 </div>
 
                 {/* Main workspace navigation */}
-                <nav className="hidden md:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60" aria-label="FFPRO workspace">
+                <nav className="hidden xl:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60" aria-label="FFPRO workspace">
                   {isAdmin && (
                     <button 
                       onClick={() => navigateToTab('dashboard')} 
@@ -1536,7 +1538,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCommandPalette(true)}
-                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
+                  className="hidden 2xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
                   title="Quick Command & Search (⌘K)"
                 >
                   <Search size={14} className="text-stone-400 group-hover:text-stone-700" />
@@ -1624,7 +1626,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowShortcutsModal(true)}
-                  className="hidden md:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
+                  className="hidden 2xl:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
                   title="Keyboard Shortcuts (?)"
                   aria-label="Keyboard Shortcuts"
                 >
@@ -1660,7 +1662,7 @@ const App: React.FC = () => {
                 {/* Mobile Hamburger Drawer Toggle */}
                 <button
                   onClick={() => setMobileMenuOpen(prev => !prev)}
-                  className="flex md:hidden w-8 h-8 items-center justify-center rounded-lg bg-stone-100 text-stone-700 hover:text-stone-900 hover:bg-stone-200 transition border border-stone-200/80 active:scale-95"
+                  className="flex xl:hidden w-8 h-8 items-center justify-center rounded-lg bg-stone-100 text-stone-700 hover:text-stone-900 hover:bg-stone-200 transition border border-stone-200/80 active:scale-95"
                   title="Toggle Navigation Menu"
                   aria-label="Toggle Navigation Menu"
                 >
@@ -1670,31 +1672,39 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full pt-28 sm:pt-32 px-3 sm:px-6 pb-24 md:pb-12">
+          <main className="flex-1 mx-auto w-full max-w-[1760px] lg:w-[90%] pt-20 2xl:pt-32 px-4 sm:px-6 lg:px-5 pb-24 md:pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
-                <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                    <div>
                      <h1 className="text-3xl font-display text-stone-900 tracking-tight">Money Overview</h1>
-                     <p className="text-[11px] text-stone-500 font-semibold uppercase tracking-widest mt-2">Cash flow, commitments, goals and financial intelligence</p>
+                     <p className="text-sm text-stone-600 font-medium mt-2">Cash flow, commitments, goals and financial intelligence</p>
                    </div>
-                   <div className="w-full md:w-auto">
+                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
                       <button
                         type="button"
-                        onClick={() => setShowForm(true)}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-stone-900 text-white rounded-full text-xs font-bold hover:bg-stone-800 transition shadow-sm w-full md:w-auto"
+                        onClick={() => { setEditingTransaction(null); setShowForm(true); }}
+                        className="flex items-center justify-center gap-2 px-5 py-3 bg-teal-700 text-white rounded-xl text-sm font-bold hover:bg-teal-800 transition shadow-sm w-full md:w-auto"
                       >
-                        <Plus size={14} />
+                        <Plus size={18} />
                         Add Transaction
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('ffpro-capture')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-white text-stone-800 border border-stone-300 rounded-xl text-sm font-semibold hover:bg-stone-50 transition w-full md:w-auto"
+                      >
+                        <Download size={17} />
+                        Import Statement
                       </button>
                    </div>
                 </header>
 
-                <section className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
+                <section id="ffpro-capture" className="scroll-mt-24 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h2 className="text-xs font-black uppercase tracking-wider text-stone-800">Review-first capture</h2>
-                      <p className="text-[10px] text-stone-500 mt-1">Type a transaction or upload receipts and PDF/CSV statements. Imports stay out of your ledger until you approve them.</p>
+                      <p className="text-sm text-stone-600 mt-1">Type a transaction or upload receipts and PDF/CSV statements. Imports stay out of your ledger until you approve them.</p>
                     </div>
                     {importLoading && <span className="text-[10px] font-bold text-indigo-600 animate-pulse">Processing…</span>}
                   </div>
