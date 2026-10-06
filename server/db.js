@@ -120,6 +120,21 @@ if (hasPostgres) {
     `);
   }).then(() => {
     return realPool.query(`
+      CREATE TABLE IF NOT EXISTS external_finance_events (
+        event_id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        external_reference TEXT,
+        amount NUMERIC NOT NULL,
+        currency TEXT NOT NULL,
+        occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_external_finance_events_user
+        ON external_finance_events(user_id, occurred_at DESC);
+    `);
+  }).then(() => {
+    return realPool.query(`
       CREATE TABLE IF NOT EXISTS platform_event_outbox (
         id TEXT PRIMARY KEY,
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
