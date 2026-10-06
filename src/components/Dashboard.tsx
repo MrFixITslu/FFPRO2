@@ -586,7 +586,7 @@ const Dashboard: React.FC<Props> = ({
         <div className="space-y-6 animate-in fade-in duration-300">
           {/* Four primary financial signals; planning and inbox sit below as secondary metrics. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="executive-card executive-card-interactive p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <span className="text-sm font-semibold text-stone-500">Net Worth</span>
                 <Wallet size={19} className="text-teal-600" aria-hidden="true" />
@@ -594,7 +594,7 @@ const Dashboard: React.FC<Props> = ({
               <p className="text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words">{money(netWorth)}</p>
               <p className="text-xs text-stone-500 mt-3">Total account and investment value</p>
             </div>
-            <div className="executive-card executive-card-interactive p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <span className="text-sm font-semibold text-stone-500">Cash Available</span>
                 <Wallet size={19} className="text-indigo-600" aria-hidden="true" />
@@ -602,7 +602,7 @@ const Dashboard: React.FC<Props> = ({
               <p className="text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words">{money(liquidFunds)}</p>
               <p className="text-xs text-stone-500 mt-3">Bank and cash balances</p>
             </div>
-            <div className="executive-card executive-card-interactive p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <span className="text-sm font-semibold text-stone-500">Monthly Cashflow</span>
                 {netMargin >= 0 ? <TrendingUp size={19} className="text-emerald-700" aria-hidden="true" /> : <TrendingDown size={19} className="text-rose-700" aria-hidden="true" />}
@@ -612,7 +612,7 @@ const Dashboard: React.FC<Props> = ({
               </p>
               <p className="text-xs text-stone-500 mt-3">Income {money(totalActualIncome)} · Outgoings {money(totalActualExpenses)}</p>
             </div>
-            <div className="executive-card executive-card-interactive p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <span className="text-sm font-semibold text-stone-500">Safe Spend</span>
                 <ShieldCheck size={19} className="text-emerald-700" aria-hidden="true" />
