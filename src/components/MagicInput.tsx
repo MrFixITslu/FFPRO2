@@ -2,7 +2,6 @@
 import React, { useState, useRef } from 'react';
 import { parseInputToTransaction, parseStatementToTransactions } from '../services/geminiService';
 import { AIAnalysisResult } from '../types';
-import { uploadFileToSystemDatabase } from '../services/fileStorageService';
 
 interface Props {
   onSuccess: (data: AIAnalysisResult) => void;
@@ -15,6 +14,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
   const [input, setInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'info' | 'warning' | 'error'; text: string } | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -35,58 +35,72 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    onLoading(true);
-    // Explicitly cast to File[] to ensure 'file' is not 'unknown' in the map callback
     const fileList = Array.from(files) as File[];
-    
-    // Turbo Mode: Batch Processing
-    const processingPromises = fileList.map(async (file: File) => {
-      // Persist in system database
-      try {
-        await uploadFileToSystemDatabase(file);
-      } catch (sysErr) {
-        console.warn('System database save for magic input file non-fatal fallback:', sysErr);
-      }
-
-      return new Promise<AIAnalysisResult | AIAnalysisResult[] | null>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const resultRaw = reader.result;
-          if (typeof resultRaw !== 'string') {
-            resolve(null);
-            return;
-          }
-          const base64 = resultRaw.split(',')[1];
-          const fileData = { data: base64, mimeType: file.type };
-
-          // Use 'file' properties correctly now that it's typed as File
-          if (file.type === 'application/pdf' || file.name.endsWith('.csv')) {
-            const results = await parseStatementToTransactions(fileData);
-            resolve(results);
-          } else {
-            const result = await parseInputToTransaction(fileData, true);
-            resolve(result);
-          }
-        };
-        // Fix line 56: explicitly typed 'file' is now a valid Blob/File
-        reader.readAsDataURL(file);
-      });
-    });
-
-    const results = await Promise.all(processingPromises);
-    const flattenedResults: AIAnalysisResult[] = [];
-    
-    results.forEach(res => {
-      if (Array.isArray(res)) flattenedResults.push(...res);
-      else if (res) flattenedResults.push(res);
-    });
-
-    if (flattenedResults.length > 0) {
-      onBulkSuccess(flattenedResults);
+    if (fileList.length > 10) {
+      setNotice({ type: 'error', text: 'Import up to 10 files at a time.' });
+      e.target.value = '';
+      return;
     }
 
-    onLoading(false);
-    e.target.value = ''; // Reset input
+    setNotice(null);
+    onLoading(true);
+    try {
+      const flattenedResults: AIAnalysisResult[] = [];
+      const warnings: string[] = [];
+
+      for (const file of fileList) {
+        if (file.size > 10 * 1024 * 1024) {
+          warnings.push(`${file.name}: skipped because it is larger than 10 MiB.`);
+          continue;
+        }
+
+        const lowerName = file.name.toLowerCase();
+        if (file.type === 'application/pdf' || lowerName.endsWith('.pdf') || lowerName.endsWith('.csv')) {
+          try {
+            const statement = await parseStatementToTransactions(file);
+            flattenedResults.push(...statement.items);
+            warnings.push(...statement.warnings.map(warning => `${file.name}: ${warning}`));
+          } catch (error: any) {
+            warnings.push(`${file.name}: ${error?.message || 'statement parsing failed'}`);
+            if (Array.isArray(error?.warnings)) warnings.push(...error.warnings.map((warning: string) => `${file.name}: ${warning}`));
+          }
+          continue;
+        }
+
+        if (!file.type.startsWith('image/')) {
+          warnings.push(`${file.name}: unsupported import type.`);
+          continue;
+        }
+
+        const resultRaw = await new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        });
+        if (!resultRaw) {
+          warnings.push(`${file.name}: could not be read.`);
+          continue;
+        }
+        const base64 = resultRaw.split(',')[1];
+        const result = await parseInputToTransaction({ data: base64, mimeType: file.type }, true);
+        if (result) flattenedResults.push(result);
+        else warnings.push(`${file.name}: no reliable transaction could be extracted.`);
+      }
+
+      if (flattenedResults.length > 0) onBulkSuccess(flattenedResults);
+      if (warnings.length > 0) {
+        setNotice({
+          type: flattenedResults.length > 0 ? 'warning' : 'error',
+          text: warnings.slice(0, 4).join(' ')
+        });
+      } else if (flattenedResults.length > 0) {
+        setNotice({ type: 'info', text: `${flattenedResults.length} item(s) added to the review queue. Nothing has been posted yet.` });
+      }
+    } finally {
+      onLoading(false);
+      e.target.value = '';
+    }
   };
 
   const startRecording = async () => {
@@ -135,7 +149,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="w-full bg-transparent px-3 py-2 text-stone-800 outline-none placeholder:text-stone-400 font-medium"
-            placeholder="Log coffee, or upload receipts batch..."
+            placeholder="Describe a transaction, or upload a receipt / PDF / CSV statement…"
           />
         </div>
         
@@ -164,7 +178,7 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-stone-100 text-stone-500 transition"
-            title="Upload Multi-Receipt (Turbo Mode)"
+            title="Upload receipts or PDF/CSV statements for review"
           >
             <i className="fas fa-images"></i>
           </button>
@@ -189,9 +203,21 @@ const MagicInput: React.FC<Props> = ({ onSuccess, onBulkSuccess, onLoading, onMa
       />
 
       <div className="absolute -bottom-6 left-3 text-[10px] text-stone-400 flex gap-4 uppercase font-black tracking-wider">
-        <span>Turbo Batch Engine Active</span>
-        <i className="fas fa-bolt text-amber-400"></i>
+        <span>Review-first import</span>
+        <i className="fas fa-shield-check text-emerald-500"></i>
       </div>
+
+      {notice && (
+        <div className={`mt-8 rounded-xl border px-3 py-2 text-[11px] font-semibold ${
+          notice.type === 'error'
+            ? 'border-rose-200 bg-rose-50 text-rose-700'
+            : notice.type === 'warning'
+              ? 'border-amber-200 bg-amber-50 text-amber-800'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        }`}>
+          {notice.text}
+        </div>
+      )}
     </div>
   );
 };
