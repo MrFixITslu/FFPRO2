@@ -24,6 +24,8 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
   const [destinationInstitution, setDestinationInstitution] = useState(initialData?.destinationInstitution || '1st National Bank St. Lucia');
   const [lineItems, setLineItems] = useState<LineItem[]>(initialData?.lineItems || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showImport, setShowImport] = useState(false);
+  const currencyLabel = displayCurrency === 'XCD' ? 'EC$ · XCD' : 'US$ · USD';
 
   useEffect(() => {
     if (initialData) {
@@ -111,6 +113,31 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-6 bg-white rounded-[2rem] shadow-sm border border-stone-100 animate-in fade-in duration-300">
+      {!initialData && onImport && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 px-4 py-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Faster entry</div>
+            <div className="text-xs font-bold text-stone-700 mt-0.5">Import a receipt or bank statement and review it before posting.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowImport(value => !value)}
+            className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white hover:bg-indigo-700"
+          >
+            {showImport ? 'Manual entry' : 'Import'}
+          </button>
+        </div>
+      )}
+
+      {showImport && !initialData && onImport ? (
+        <TransactionImportPanel
+          existingTransactions={existingTransactions}
+          displayCurrency={displayCurrency}
+          onImport={onImport}
+          onClose={() => setShowImport(false)}
+        />
+      ) : (
+        <>
       <div className="flex gap-2 mb-2">
         <button
           type="button"
@@ -277,6 +304,8 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
           {isEditing ? 'Save Changes' : 'Confirm Entry'}
         </button>
       </div>
+        </>
+      )}
     </form>
   );
 };
