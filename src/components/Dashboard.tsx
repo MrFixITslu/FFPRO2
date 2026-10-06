@@ -1145,6 +1145,7 @@ const Dashboard: React.FC<Props> = ({
 
       {/* Unified Spending, Cashflow & Financial Insights Section */}
       <SpendingCashflowIntelligence
+        displayCurrency={displayCurrency}
         transactions={transactions}
         recurringExpenses={recurringExpenses}
         recurringIncomes={recurringIncomes}
