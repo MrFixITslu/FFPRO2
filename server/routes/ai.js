@@ -647,70 +647,8 @@ router.post('/business-copilot', async (req, res) => {
   }
 });
 
-// 3. AI Chat Endpoint
-router.post('/chat', async (req, res) => {
-  const { message, context } = req.body || {};
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required.' });
-  }
-
-  const systemPrompt = `You are an elite, professional personal finance advisor called 'SmartBudget Pro Advisor'. 
-You help the user optimize their financial decisions, track spending, manage portfolios, and calculate budgets.
-Here is the user's current financial context:
-- Liquid Funds available: $${context?.availableFunds || 0}
-- Total Portfolio Investments: $${context?.totalInvestments || 0}
-- Portfolios active: ${context?.providers?.join(', ') || 'None'}
-- Holding symbols: ${context?.holdings?.join(', ') || 'None'}
-- Current Market Feed: ${JSON.stringify(context?.marketPrices || [])}
-- Recent activities: ${JSON.stringify(context?.recentTransactions || [])}
-
-Be professional, practical, encouraging, and provide clear, bulleted recommendations.`;
-
-  // 1. Attempt Ollama first
-  try {
-    const ollamaRes = await generateOllama({
-      prompt: message,
-      system: systemPrompt,
-      temperature: 0.3,
-      timeoutMs: 12000
-    });
-    if (ollamaRes.text) {
-      return res.json({
-        message: ollamaRes.text,
-        provider: 'ollama',
-        model: ollamaRes.model
-      });
-    }
-  } catch (ollamaErr) {
-    // Continue to Gemini fallback
-  }
-
-  // 2. Gemini fallback
-  const geminiKey = getValidGeminiKey();
-  if (geminiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: message,
-        config: {
-          systemInstruction: systemPrompt
-        }
-      });
-      return res.json({
-        message: response.text || "I processed your request, let me know how else I can help.",
-        provider: 'gemini'
-      });
-    } catch (geminiErr) {
-      // Continue to fallback
-    }
-  }
-
-  res.json({
-    message: "Portfolio and financial tracking active. For AI advisory responses, ensure Ollama is running locally (e.g. `ollama run llama3.2`) or configure Gemini API credentials.",
-    provider: 'standby'
-  });
-});
+// Legacy free-form finance chat was removed. Financial/business AI assistance now uses
+// the bounded Business Copilot and purpose-specific insight endpoints below.
 
 // 4. AI Insights Generation (Powered by Ollama)
 router.post('/insights', async (req, res) => {
