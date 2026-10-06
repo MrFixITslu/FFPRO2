@@ -1,15 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
-import { CATEGORIES, Transaction, TransactionType, LineItem, BankConnection } from '../types';
+import { CATEGORIES, Transaction, TransactionType, LineItem, BankConnection, CurrencyCode } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 
 interface Props {
   onAdd: (t: Omit<Transaction, 'id'>) => void;
   initialData?: Partial<Transaction>;
   onCancel?: () => void;
   bankConnections?: BankConnection[];
+  displayCurrency: CurrencyCode;
 }
 
-const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankConnections = [] }) => {
+const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankConnections = [], displayCurrency }) => {
+  const currencyLabel = displayCurrency === 'XCD' ? 'EC$ · XCD' : 'US$ · USD';
   const [amount, setAmount] = useState(initialData?.amount?.toString() || '');
   const [category, setCategory] = useState(initialData?.category || CATEGORIES[0]);
   const [desc, setDesc] = useState(initialData?.description || '');
@@ -134,7 +137,7 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Amount ($)</label>
+          <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Amount ({currencyLabel})</label>
           <input
             type="number"
             step="0.01"
@@ -250,7 +253,7 @@ const TransactionForm: React.FC<Props> = ({ onAdd, initialData, onCancel, bankCo
                   </span>
                   <span className="font-bold text-stone-700">{item.name}</span>
                 </div>
-                <span className="font-black text-stone-900">${item.price.toFixed(2)}</span>
+                <span className="font-black text-stone-900">{formatCurrencyAmount(item.price, displayCurrency, { decimals: 2 })}</span>
               </div>
             ))}
           </div>
