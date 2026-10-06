@@ -3,6 +3,8 @@ import { AccessibleDialog } from './components/AccessibleDialog';
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy } from 'react';
 import Login from './components/Login';
 import TransactionForm from './components/TransactionForm';
+import MagicInput from './components/MagicInput';
+import VerificationQueue from './components/VerificationQueue';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const FundingFinder = lazy(() => import('./components/FundingFinder').then(module => ({ default: module.FundingFinder })));
 const Settings = lazy(() => import('./components/Settings'));
@@ -38,6 +40,7 @@ import {
   ForecastSettings,
   EventLog,
   CurrencyCode,
+  AIAnalysisResult,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
@@ -541,6 +544,9 @@ const App: React.FC = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [pendingImportItems, setPendingImportItems] = useState<AIAnalysisResult[]>([]);
+  const [pendingImportEdit, setPendingImportEdit] = useState<{ index: number; transaction: AIAnalysisResult['transaction'] } | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'recurring' | 'goals' | 'api' | 'security' | 'intelligence'>('general');
 
@@ -1162,6 +1168,95 @@ const App: React.FC = () => {
     setShowForm(false);
   };
 
+  const transactionImportKey = useCallback((transaction: Partial<Transaction>) => {
+    const date = transaction.date || new Date().toISOString().split('T')[0];
+    const amount = Number(transaction.amount || 0).toFixed(2);
+    const description = String(transaction.description || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return [date, transaction.type || 'expense', amount, description].join('|');
+  }, []);
+
+  const enqueueImportItems = useCallback((items: AIAnalysisResult[]) => {
+    let skipped = 0;
+    setPendingImportItems(previous => {
+      const seen = new Set<string>([
+        ...transactions.map(transactionImportKey),
+        ...previous.filter(item => item.transaction).map(item => transactionImportKey(item.transaction || {})),
+      ]);
+      const next = [...previous];
+      for (const item of items) {
+        if (item.updateType === 'transaction' && item.transaction) {
+          const key = transactionImportKey(item.transaction);
+          if (seen.has(key)) {
+            skipped++;
+            continue;
+          }
+          seen.add(key);
+        }
+        next.push(item);
+      }
+      return next;
+    });
+    if (skipped > 0) {
+      showToast({
+        type: 'info',
+        title: 'Duplicate import rows skipped',
+        message: `${skipped} item(s) matched transactions already saved or already waiting for review.`,
+      });
+    }
+  }, [transactions, transactionImportKey, showToast]);
+
+  const approveImportItem = useCallback((index: number) => {
+    const item = pendingImportItems[index];
+    if (!item) return;
+    if (item.updateType === 'transaction' && item.transaction) {
+      onSaveTransaction({
+        amount: item.transaction.amount,
+        category: item.transaction.category || (item.transaction.type === 'income' ? 'Income' : 'Other'),
+        description: item.transaction.description || 'Imported transaction',
+        type: item.transaction.type,
+        date: item.transaction.date || new Date().toISOString().split('T')[0],
+        notes: item.transaction.notes,
+        vendor: item.transaction.vendor,
+        lineItems: item.transaction.lineItems,
+        institution: 'Cash in Hand',
+      });
+    } else if (item.updateType === 'portfolio' && item.portfolio) {
+      const portfolio = item.portfolio;
+      setInvestments(previous => {
+        const accountIndex = previous.findIndex(account => account.provider === portfolio.provider);
+        const livePrice = marketPrices.find(price => price.symbol === portfolio.symbol)?.price || 0;
+        if (accountIndex < 0) {
+          return [...previous, {
+            id: generateId(),
+            provider: portfolio.provider,
+            name: portfolio.provider,
+            holdings: [{ symbol: portfolio.symbol, quantity: portfolio.quantity, purchasePrice: livePrice }],
+          }];
+        }
+        return previous.map((account, index) => {
+          if (index !== accountIndex) return account;
+          const existing = account.holdings.find(holding => holding.symbol === portfolio.symbol);
+          return {
+            ...account,
+            holdings: existing
+              ? account.holdings.map(holding => holding.symbol === portfolio.symbol ? { ...holding, quantity: portfolio.quantity } : holding)
+              : [...account.holdings, { symbol: portfolio.symbol, quantity: portfolio.quantity, purchasePrice: livePrice }],
+          };
+        });
+      });
+    }
+    setPendingImportItems(previous => previous.filter((_, itemIndex) => itemIndex !== index));
+    showToast({ type: 'success', title: 'Import approved', message: 'The reviewed item was added to FFPRO.' });
+  }, [pendingImportItems, marketPrices, onSaveTransaction, showToast]);
+
+  const updatePendingImport = useCallback((transaction: Omit<Transaction, 'id'>) => {
+    if (!pendingImportEdit) return;
+    setPendingImportItems(previous => previous.map((item, index) =>
+      index === pendingImportEdit.index ? { ...item, updateType: 'transaction', transaction } : item
+    ));
+    setPendingImportEdit(null);
+  }, [pendingImportEdit]);
+
   const onDeleteTransaction = (id: string) => {
     const target = transactions.find(t => t.id === id);
     setTransactions(prev => prev.filter(t => t.id !== id));
@@ -1593,6 +1688,34 @@ const App: React.FC = () => {
                       </button>
                    </div>
                 </header>
+
+                <section className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h2 className="text-xs font-black uppercase tracking-wider text-stone-800">Review-first capture</h2>
+                      <p className="text-[10px] text-stone-500 mt-1">Type a transaction or upload receipts and PDF/CSV statements. Imports stay out of your ledger until you approve them.</p>
+                    </div>
+                    {importLoading && <span className="text-[10px] font-bold text-indigo-600 animate-pulse">Processing…</span>}
+                  </div>
+                  <MagicInput
+                    onSuccess={(item) => enqueueImportItems([item])}
+                    onBulkSuccess={enqueueImportItems}
+                    onLoading={setImportLoading}
+                    onManualEntry={() => { setEditingTransaction(null); setShowForm(true); }}
+                  />
+                </section>
+
+                <VerificationQueue
+                  pendingItems={pendingImportItems}
+                  displayCurrency={displayCurrency}
+                  onApprove={approveImportItem}
+                  onDiscard={(index) => setPendingImportItems(previous => previous.filter((_, itemIndex) => itemIndex !== index))}
+                  onEdit={(index) => {
+                    const transaction = pendingImportItems[index]?.transaction;
+                    if (transaction) setPendingImportEdit({ index, transaction });
+                  }}
+                  onDiscardAll={() => setPendingImportItems([])}
+                />
 
                 <Dashboard 
                   transactions={transactions}
@@ -2142,7 +2265,22 @@ const App: React.FC = () => {
                     setShowForm(false);
                     setEditingTransaction(null);
                   }} 
-                  bankConnections={bankConnections} 
+                  bankConnections={bankConnections}
+                  displayCurrency={displayCurrency}
+                />
+              </div>
+            </AccessibleDialog>
+          )}
+
+          {pendingImportEdit?.transaction && (
+            <AccessibleDialog label="Review imported transaction" onClose={() => setPendingImportEdit(null)}>
+              <div className="w-full max-w-xl">
+                <TransactionForm
+                  initialData={pendingImportEdit.transaction}
+                  onAdd={updatePendingImport}
+                  onCancel={() => setPendingImportEdit(null)}
+                  bankConnections={bankConnections}
+                  displayCurrency={displayCurrency}
                 />
               </div>
             </AccessibleDialog>
