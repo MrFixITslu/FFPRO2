@@ -1458,8 +1458,8 @@ const App: React.FC = () => {
                   />
                 </div>
 
-                {/* Main Menu Tabs (Desktop / Tablet) */}
-                <nav className="hidden md:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60">
+                {/* Main workspace navigation */}
+                <nav className="hidden md:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60" aria-label="FFPRO workspace">
                   {isAdmin && (
                     <button 
                       onClick={() => navigateToTab('dashboard')} 
@@ -1468,12 +1468,24 @@ const App: React.FC = () => {
                           ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
-                      title="Dashboard (⌘1)"
+                      title="Money Overview (⌘1)"
                     >
                       <LayoutDashboard size={13} />
-                      <span>Dashboard</span>
+                      <span>Money</span>
                     </button>
                   )}
+                  <button 
+                    onClick={() => navigateToTab('events')} 
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                      activeTab === 'events' 
+                        ? 'bg-teal-700 text-white shadow-xs' 
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                    }`}
+                    title="Projects (⌘3)"
+                  >
+                    <Zap size={13} />
+                    <span>Projects</span>
+                  </button>
                   <button 
                     onClick={() => navigateToTab('calendar')} 
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
@@ -1486,18 +1498,7 @@ const App: React.FC = () => {
                     <CalendarIcon size={13} />
                     <span>Calendar</span>
                   </button>
-                  <button 
-                    onClick={() => navigateToTab('events')} 
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                      activeTab === 'events' 
-                        ? 'bg-teal-700 text-white shadow-xs' 
-                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                    }`}
-                    title="Planner (⌘3)"
-                  >
-                    <Zap size={13} />
-                    <span>Planner</span>
-                  </button>
+                  {isAdmin && <span className="mx-0.5 h-5 w-px bg-stone-300" aria-hidden="true" />}
                   {isAdmin && (
                     <button 
                       onClick={() => navigateToTab('projections')} 
@@ -1506,7 +1507,7 @@ const App: React.FC = () => {
                           ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
-                      title="Forecast (⌘4)"
+                      title="Forecast & Intelligence (⌘4)"
                     >
                       <TrendingUp size={13} />
                       <span>Forecast</span>
@@ -1520,7 +1521,7 @@ const App: React.FC = () => {
                           ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
-                      title="Funding (⌘5)"
+                      title="Business Funding (⌘5)"
                     >
                       <Landmark size={13} />
                       <span>Funding</span>
@@ -1674,8 +1675,8 @@ const App: React.FC = () => {
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                    <div>
-                     <h1 className="text-3xl font-display text-stone-900 tracking-tight">Command Center</h1>
-                     <p className="text-[11px] text-stone-500 font-semibold uppercase tracking-widest mt-2">Strategic Intelligence Hub</p>
+                     <h1 className="text-3xl font-display text-stone-900 tracking-tight">Money Overview</h1>
+                     <p className="text-[11px] text-stone-500 font-semibold uppercase tracking-widest mt-2">Cash flow, commitments, goals and financial intelligence</p>
                    </div>
                    <div className="w-full md:w-auto">
                       <button
@@ -1865,7 +1866,7 @@ const App: React.FC = () => {
                 }`}>
                   <LayoutDashboard size={16} />
                 </div>
-                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Dashboard</span>
+                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Money</span>
               </button>
             )}
 
@@ -1913,7 +1914,7 @@ const App: React.FC = () => {
               }`}>
                 <Zap size={16} />
               </div>
-              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Planner</span>
+              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Projects</span>
             </button>
 
             {isAdmin && (
@@ -2016,8 +2017,8 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <LayoutDashboard size={18} className={activeTab === 'dashboard' ? 'text-indigo-400' : 'text-stone-500'} />
                           <div>
-                            <div className="text-xs font-bold">Command Center</div>
-                            <div className={`text-[10px] ${activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-400'}`}>Strategic Intelligence Hub</div>
+                            <div className="text-xs font-bold">Money Overview</div>
+                            <div className={`text-[10px] ${activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-400'}`}>Cash flow, goals & financial position</div>
                           </div>
                         </div>
                         <ChevronRight size={16} className={activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-300'} />
@@ -2034,13 +2035,14 @@ const App: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <CalendarIcon size={18} className={activeTab === 'calendar' ? 'text-indigo-400' : 'text-stone-500'} />
                         <div>
-                          <div className="text-xs font-bold">Financial Calendar</div>
-                          <div className={`text-[10px] ${activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-400'}`}>Dates, Commitments & Schedules</div>
+                          <div className="text-xs font-bold">Calendar</div>
+                          <div className={`text-[10px] ${activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-400'}`}>Bills, paydays, meetings & commitments</div>
                         </div>
                       </div>
                       <ChevronRight size={16} className={activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-300'} />
                     </button>
 
+                    <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Projects</div>
                     <button
                       type="button"
                       onClick={() => { navigateToTab('events'); setMobileMenuOpen(false); }}
@@ -2051,13 +2053,14 @@ const App: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <Zap size={18} className={activeTab === 'events' ? 'text-indigo-400' : 'text-stone-500'} />
                         <div>
-                          <div className="text-xs font-bold">Event & Project Planner</div>
-                          <div className={`text-[10px] ${activeTab === 'events' ? 'text-stone-400' : 'text-stone-400'}`}>Projects, Tasks, IOUs & Budgets</div>
+                          <div className="text-xs font-bold">Projects & Planner</div>
+                          <div className={`text-[10px] ${activeTab === 'events' ? 'text-stone-400' : 'text-stone-400'}`}>Projects, tasks, shared work & budgets</div>
                         </div>
                       </div>
                       <ChevronRight size={16} className={activeTab === 'events' ? 'text-stone-400' : 'text-stone-300'} />
                     </button>
 
+                    {isAdmin && <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Planning & Intelligence</div>}
                     {isAdmin && (
                       <button
                         type="button"
@@ -2069,8 +2072,8 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <TrendingUp size={18} className={activeTab === 'projections' ? 'text-indigo-400' : 'text-stone-500'} />
                           <div>
-                            <div className="text-xs font-bold">Wealth Forecast</div>
-                            <div className={`text-[10px] ${activeTab === 'projections' ? 'text-stone-400' : 'text-stone-400'}`}>Projections & Strategic AI Advisory</div>
+                            <div className="text-xs font-bold">Forecast & Scenarios</div>
+                            <div className={`text-[10px] ${activeTab === 'projections' ? 'text-stone-400' : 'text-stone-400'}`}>Cash-flow projections and what-if planning</div>
                           </div>
                         </div>
                         <ChevronRight size={16} className={activeTab === 'projections' ? 'text-stone-400' : 'text-stone-300'} />
@@ -2088,8 +2091,8 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <Landmark size={18} className={activeTab === 'funding' ? 'text-indigo-400' : 'text-stone-500'} />
                           <div>
-                            <div className="text-xs font-bold">Funding & Grants Finder</div>
-                            <div className={`text-[10px] ${activeTab === 'funding' ? 'text-stone-400' : 'text-stone-400'}`}>Automated Discovery & Ollama Triage</div>
+                            <div className="text-xs font-bold">Business Funding</div>
+                            <div className={`text-[10px] ${activeTab === 'funding' ? 'text-stone-400' : 'text-stone-400'}`}>Funding and grant opportunities</div>
                           </div>
                         </div>
                         <ChevronRight size={16} className={activeTab === 'funding' ? 'text-stone-400' : 'text-stone-300'} />
