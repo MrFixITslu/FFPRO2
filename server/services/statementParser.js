@@ -95,7 +95,8 @@ function classifyType({amount,debit,credit,typeText}) {
   if (debit != null && Math.abs(debit) > 0) return 'expense';
   if (credit != null && Math.abs(credit) > 0) return 'income';
   if (amount != null && amount < 0) return 'expense';
-  if (amount != null && amount > 0) return 'income';
+  // A positive amount without an explicit credit/debit marker is ambiguous
+  // across bank exports, so fail closed instead of guessing income/outflow.
   return null;
 }
 
