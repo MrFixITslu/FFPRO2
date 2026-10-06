@@ -188,10 +188,10 @@ const Projections: React.FC<Props> = ({
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h3 className="font-bold text-stone-800 uppercase text-xs tracking-wider">Wealth Projection Matrix</h3>
-                <p className="text-[9px] text-stone-400 font-bold uppercase mt-1.5 tracking-wider">Future Net Worth Simulation</p>
+                <p className="text-[13px] text-stone-500 font-bold uppercase mt-1.5 tracking-wider">Future Net Worth Simulation</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Target End Value</p>
+                <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider mb-1">Target End Value</p>
                 <h4 className="text-2xl font-bold text-indigo-600 tracking-tight">{money(finalValue)}</h4>
               </div>
             </div>
@@ -232,7 +232,7 @@ const Projections: React.FC<Props> = ({
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Time Horizon</label>
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-stone-500">Time Horizon</label>
                   <span className="text-xs font-bold text-indigo-400">{yearsToProject} Years</span>
                 </div>
                 <input 
@@ -245,7 +245,7 @@ const Projections: React.FC<Props> = ({
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Monthly Contribution</label>
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-stone-500">Monthly Contribution</label>
                   <span className="text-xs font-bold text-emerald-400">{money(monthlyContribution)}</span>
                 </div>
                 <input 
@@ -254,12 +254,12 @@ const Projections: React.FC<Props> = ({
                   onChange={(e) => handleContributionChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-emerald-500" 
                 />
-                <p className="text-[8px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: {money(netMonthlyCashflow)}</p>
+                <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: {money(netMonthlyCashflow)}</p>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Expected ROI (Annual)</label>
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-stone-500">Expected ROI (Annual)</label>
                   <span className="text-xs font-bold text-amber-400">{expectedReturn}%</span>
                 </div>
                 <input 
@@ -276,22 +276,22 @@ const Projections: React.FC<Props> = ({
              <div className="flex items-center justify-between gap-2 mb-4">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded flex items-center justify-center shadow-sm">
-                    <i className="fas fa-brain text-[10px]"></i>
+                    <i className="fas fa-brain text-xs"></i>
                   </div>
                   <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-stone-500">AI Strategic Feedback</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">AI Strategic Feedback</h4>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
                   {aiProvider === 'ollama' && (
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[13px] font-bold uppercase tracking-wider flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                       Ollama {aiModel ? `(${aiModel.split(':')[0]})` : ''}
                     </span>
                   )}
                   {aiProvider === 'gemini' && (
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[8px] font-bold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[13px] font-bold uppercase tracking-wider">
                       Gemini AI
                     </span>
                   )}
@@ -299,7 +299,7 @@ const Projections: React.FC<Props> = ({
                     onClick={runAI}
                     disabled={isAnalyzing}
                     title="Regenerate strategic feedback"
-                    className="w-6 h-6 rounded bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center text-[10px] transition-all disabled:opacity-50"
+                    className="w-6 h-6 rounded bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center text-xs transition-all disabled:opacity-50"
                   >
                     <i className={`fas fa-rotate-right ${isAnalyzing ? 'fa-spin text-indigo-600' : ''}`}></i>
                   </button>
@@ -325,10 +325,10 @@ const Projections: React.FC<Props> = ({
             const progress = Math.min(100, (finalValue / m.target) * 100);
             return (
               <div key={idx} className={`p-4 rounded-lg border transition-all ${isReached ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' : 'bg-stone-50/50 border-stone-200 opacity-75'}`}>
-                <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 border ${isReached ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' : 'bg-stone-100 border-stone-200 text-stone-400'}`}>
+                <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 border ${isReached ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' : 'bg-stone-100 border-stone-200 text-stone-500'}`}>
                   <i className={`fas ${isReached ? 'fa-check-circle' : 'fa-lock'} text-xs`}></i>
                 </div>
-                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">{m.label}</p>
+                <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider mb-1">{m.label}</p>
                 <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-stone-800'}`}>{currencySymbol}{(m.target/1000)}k</p>
                 
                 <div className="mt-3 h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
