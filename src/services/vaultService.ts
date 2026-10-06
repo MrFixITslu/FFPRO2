@@ -1,6 +1,6 @@
 
 import { getStoredVaultHandle, storeMirrorHandle, clearVaultHandle } from './fileStorageService';
-import { ForecastSettings } from '../types';
+import { CurrencyCode, ForecastSettings } from '../types';
 
 export interface AppState {
   transactions: any[];
@@ -18,6 +18,7 @@ export interface AppState {
   forecastSettings?: ForecastSettings;
   financialLogs?: any[];
   cashOpeningBalance: number;
+  displayCurrency?: CurrencyCode;
   lastUpdated: string;
 }
 
