@@ -56,6 +56,7 @@ test('security and persistence integration',async t=>{
       assert.equal((await owner.request('/api/data',{method:'PUT',data:{data:{transactions:[],events:[]},expectedVersion:0},headers:{Origin:'https://attacker.example'}})).status,403);
       assert.equal((await owner.request('/api/ai/ollama/config',{method:'POST',data:{baseUrl:'http://127.0.0.1'}})).status,403);
       assert.equal((await owner.request('/api/ai/bank-sync',{method:'POST',data:{}})).status,501);
+      assert.equal((await owner.request('/api/ai/chat',{method:'POST',data:{message:'test',context:{}}})).status,404);
     });
     await t.test('concurrent first saves conflict and reset retains monotonically increasing versions',async()=>{
       const payload={transactions:[],events:[{id:'personal-plan'}],bankConnections:[{institution:'Manual',openingBalance:0}],cashOpeningBalance:0};
