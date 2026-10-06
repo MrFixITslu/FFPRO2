@@ -522,178 +522,36 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-stone-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-      {/* Executive vs Detailed View Mode Selector */}
+      {/* Overview vs Analysis mode selector */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-stone-200/85 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
-            viewMode === 'executive' 
-              ? 'bg-stone-900 text-white border-stone-800' 
-              : 'bg-stone-100 text-stone-700 border-stone-200'
-          }`}>
-            {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
-          </div>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${viewMode === 'executive' ? 'bg-stone-900 text-white border-stone-800' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>{viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}</div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-stone-900 tracking-tight">
-                {viewMode === 'executive' ? 'Executive Briefing' : 'Detailed Financial Analysis'}
-              </h2>
-              <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full border ${
-                viewMode === 'executive' 
-                  ? 'bg-stone-100 text-stone-800 border-stone-200' 
-                  : 'bg-indigo-50 text-indigo-700 border-indigo-200'
-              }`}>
-                {viewMode === 'executive' ? 'High-Level Overview' : 'Granular Ledger & Analytics'}
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-500 font-medium mt-0.5">
-              {viewMode === 'executive' 
-                ? 'Strategic snapshot across Net Worth, Cash Margin, Active Suites, Commitments & Inbox.' 
-                : 'Full breakdown of institutional accounts, cashflow intelligence, objectives & immutable audit logs.'}
-            </p>
+            <h2 className="text-base font-bold text-stone-900 tracking-tight">{viewMode === 'executive' ? 'Financial Overview' : 'Financial Analysis'}</h2>
+            <p className="text-xs text-stone-500 font-medium mt-0.5">{viewMode === 'executive' ? 'Your financial position, cashflow, safe-spend level and next commitments at a glance.' : 'Account detail, cashflow analysis, goals, transaction drill-down and audit history.'}</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200 self-stretch sm:self-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => handleSetViewMode('executive')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              viewMode === 'executive' 
-                ? 'bg-white text-stone-900 shadow-xs' 
-                : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <Layers size={14} />
-            <span>Executive Briefing</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSetViewMode('detailed')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              viewMode === 'detailed' 
-                ? 'bg-white text-stone-900 shadow-xs' 
-                : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <BarChart3 size={14} />
-            <span>Detailed View</span>
-          </button>
+        <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200 self-stretch sm:self-auto shrink-0" aria-label="Dashboard detail level">
+          <button type="button" onClick={() => handleSetViewMode('executive')} className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'executive' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'}`}><Layers size={15} /><span>Overview</span></button>
+          <button type="button" onClick={() => handleSetViewMode('detailed')} className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'detailed' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'}`}><BarChart3 size={15} /><span>Analysis</span></button>
         </div>
       </div>
 
       {viewMode === 'executive' ? (
         /* Executive High-Level Summary View */
         <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Executive Hero KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Card 1: Total Net Worth */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-stone-400 mb-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Total Net Worth</span>
-                  <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200">
-                    <Wallet size={15} />
-                  </div>
-                </div>
-                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight privacy-sensitive">{money(netWorth)}</h3>
-              </div>
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                <span className="text-stone-500 font-medium">Liquid Cash:</span>
-                <span className="font-tabular font-semibold text-stone-900 bg-stone-100 px-2 py-0.5 rounded-md privacy-sensitive">{money(liquidFunds)}</span>
-              </div>
-            </div>
-
-            {/* Card 2: Cashflow Balance */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-stone-400 mb-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Monthly Margin</span>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' : 'bg-rose-50 text-rose-700 border-rose-200/80'}`}>
-                    {netMargin >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
-                  </div>
-                </div>
-                <h3 className={`font-tabular text-2xl font-bold tracking-tight privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {netMargin >= 0 ? '+' : ''}{money(netMargin)}
-                </h3>
-              </div>
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-tabular">
-                <span className="text-emerald-700 font-semibold privacy-sensitive">+{money(totalActualIncome)}</span>
-                <span className="text-stone-300">/</span>
-                <span className="text-rose-700 font-semibold privacy-sensitive">-{money(totalActualExpenses)}</span>
-              </div>
-            </div>
-
-            {/* Card 3: Projects & Workspaces */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-stone-400 mb-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Project Suites</span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200/80">
-                    <Zap size={15} />
-                  </div>
-                </div>
-                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">
-                  {totalProjects} <span className="text-xs font-medium text-stone-400">Active</span>
-                </h3>
-              </div>
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                <span className="text-stone-500 font-medium">{completedTasksCount}/{allTasks.length} Tasks</span>
-                <span className="font-tabular font-bold text-amber-700">{overallTaskProgress}%</span>
-              </div>
-            </div>
-
-            {/* Card 4: Upcoming Schedule & Commitments */}
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between text-stone-400 mb-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Commitments</span>
-                  <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-200/80">
-                    <Calendar size={15} />
-                  </div>
-                </div>
-                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">
-                  {upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-medium text-stone-400">Due</span>
-                </h3>
-              </div>
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                <span className="text-stone-500 font-medium">Next:</span>
-                <span className="font-semibold text-cyan-700 truncate max-w-[120px]">
-                  {upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All Clear'}
-                </span>
-              </div>
-            </div>
-
-            {/* Card 5: Unread Emails */}
-            <div 
-              className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between cursor-pointer group"
-              onClick={() => {
-                if (activeUnreadEmails.length > 0) {
-                  setSelectedEmailModal(activeUnreadEmails[0]);
-                } else if (!gmailConnected) {
-                  handleConnectGmail();
-                }
-              }}
-            >
-              <div>
-                <div className="flex items-center justify-between text-stone-400 mb-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Unread Inbox</span>
-                  <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200 group-hover:bg-stone-900 group-hover:text-white transition">
-                    <Mail size={15} />
-                  </div>
-                </div>
-                <h3 className="font-tabular text-2xl font-bold text-stone-900 tracking-tight">
-                  {unreadCount} <span className="text-xs font-medium text-stone-400">Briefing</span>
-                </h3>
-              </div>
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                <span className="text-stone-500 font-medium">Status:</span>
-                <span className={`font-semibold px-2 py-0.5 rounded-md ${
-                  gmailConnected ? 'text-stone-800 bg-stone-100' : 'text-amber-800 bg-amber-50'
-                }`}>
-                  {gmailConnected ? (unreadCount > 0 ? `${unreadCount} New` : 'All Clear') : 'Connect'}
-                </span>
-              </div>
-            </div>
+          {/* Four primary financial KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Net Worth</span><div className="w-9 h-9 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200"><Wallet size={16} /></div></div><h3 className="font-tabular text-3xl font-bold text-stone-900 tracking-tight privacy-sensitive">{money(netWorth)}</h3></div><p className="mt-4 pt-3 border-t border-stone-100 text-xs text-stone-500 font-medium">Total across cash, bank, credit union and investment balances</p></div>
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Cash Available</span><div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-200/80"><DollarSign size={16} /></div></div><h3 className="font-tabular text-3xl font-bold text-stone-900 tracking-tight privacy-sensitive">{money(liquidFunds)}</h3></div><div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs"><span className="text-stone-500 font-medium">Until next cycle</span><span className="font-semibold text-cyan-700">{daysUntilNextCycle} days</span></div></div>
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Monthly Cashflow</span><div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' : 'bg-rose-50 text-rose-700 border-rose-200/80'}`}>{netMargin >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}</div></div><h3 className={`font-tabular text-3xl font-bold tracking-tight privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{netMargin > 0 ? '+' : ''}{money(netMargin)}</h3></div><div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-tabular"><span className="text-emerald-700 font-semibold privacy-sensitive">+{money(totalActualIncome)}</span><span className="text-stone-400">in / out</span><span className="text-rose-700 font-semibold privacy-sensitive">-{money(totalActualExpenses)}</span></div></div>
+            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Safe Spend</span><div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200/80"><ShieldCheck size={16} /></div></div><h3 className="font-tabular text-3xl font-bold text-emerald-700 tracking-tight privacy-sensitive">{money(dailySafeSpend)}<span className="ml-1 text-sm font-semibold text-stone-500">/day</span></h3></div><p className="mt-4 pt-3 border-t border-stone-100 text-xs text-stone-500 font-medium">Based on available cash spread across the next {daysUntilNextCycle} days</p></div>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <button type="button" onClick={onNavigateToPlanner} className="bg-white rounded-xl border border-stone-200/80 px-4 py-3 text-left hover:border-amber-300 transition"><p className="text-xs font-semibold text-stone-500">Projects</p><p className="mt-1 text-xl font-bold text-stone-900">{totalProjects} <span className="text-xs font-medium text-stone-500">active</span></p></button>
+            <button type="button" onClick={onNavigateToCalendar} className="bg-white rounded-xl border border-stone-200/80 px-4 py-3 text-left hover:border-cyan-300 transition"><p className="text-xs font-semibold text-stone-500">Commitments</p><p className="mt-1 text-xl font-bold text-stone-900">{upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-medium text-stone-500">due</span></p></button>
+            <div className="bg-white rounded-xl border border-stone-200/80 px-4 py-3"><p className="text-xs font-semibold text-stone-500">Savings Goals</p><p className="mt-1 text-xl font-bold text-stone-900">{savingsProgressPct}% <span className="text-xs font-medium text-stone-500">funded</span></p></div>
+            <button type="button" onClick={() => { if (activeUnreadEmails.length > 0) setSelectedEmailModal(activeUnreadEmails[0]); else if (!gmailConnected) handleConnectGmail(); }} className="bg-white rounded-xl border border-stone-200/80 px-4 py-3 text-left hover:border-indigo-300 transition"><p className="text-xs font-semibold text-stone-500">Inbox</p><p className="mt-1 text-xl font-bold text-stone-900">{unreadCount} <span className="text-xs font-medium text-stone-500">{gmailConnected ? 'unread' : 'connect'}</span></p></button>
           </div>
 
           {/* 2-Column High-Level Overview Grid */}
@@ -1193,6 +1051,7 @@ const Dashboard: React.FC<Props> = ({
         recurringExpenses={recurringExpenses}
         recurringIncomes={recurringIncomes}
         categoryBudgets={categoryBudgets}
+        displayCurrency={displayCurrency}
         onUpdateCategoryBudget={onUpdateCategoryBudget}
         onEditTransaction={onEdit}
         onDeleteTransaction={onDelete}
