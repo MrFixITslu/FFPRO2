@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import { Transaction, BudgetEvent } from '../types';
+import { CurrencyCode, Transaction, BudgetEvent } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 
 interface Props {
   isOpen: boolean;
@@ -38,6 +39,7 @@ interface Props {
   events: BudgetEvent[];
   onSelectTransaction?: (transaction: Transaction) => void;
   onSelectEvent?: (eventId: string) => void;
+  displayCurrency: CurrencyCode;
 }
 
 interface CommandItem {
@@ -65,7 +67,8 @@ export const CommandPalette: React.FC<Props> = ({
   transactions,
   events,
   onSelectTransaction,
-  onSelectEvent
+  onSelectEvent,
+  displayCurrency
 }) => {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -92,8 +95,8 @@ export const CommandPalette: React.FC<Props> = ({
       {
         id: 'nav-dashboard',
         category: 'Navigation',
-        title: 'Go to Command Center (Dashboard)',
-        subtitle: 'Executive metrics, cashflow intelligence and audit statement',
+        title: 'Go to Money Overview',
+        subtitle: 'Cash flow, financial position, goals and review-first transaction capture',
         icon: <LayoutDashboard size={16} className="text-stone-700" />,
         shortcut: ['⌘', '1'],
         action: () => {
@@ -104,7 +107,7 @@ export const CommandPalette: React.FC<Props> = ({
       {
         id: 'nav-calendar',
         category: 'Navigation',
-        title: 'Go to Strategic Calendar',
+        title: 'Go to Calendar',
         subtitle: 'Cashflow timeline, paydays, recurring bills and scheduled commitments',
         icon: <CalendarIcon size={16} className="text-stone-700" />,
         shortcut: ['⌘', '2'],
@@ -116,8 +119,8 @@ export const CommandPalette: React.FC<Props> = ({
       {
         id: 'nav-planner',
         category: 'Navigation',
-        title: 'Go to Project & Event Planner',
-        subtitle: 'Suites, Kanban tasks, collaborative workspaces and budgets',
+        title: 'Go to Projects & Planner',
+        subtitle: 'Projects, tasks, shared workspaces and budgets',
         icon: <Zap size={16} className="text-stone-700" />,
         shortcut: ['⌘', '3'],
         action: () => {
@@ -128,8 +131,8 @@ export const CommandPalette: React.FC<Props> = ({
       {
         id: 'nav-projections',
         category: 'Navigation',
-        title: 'Go to Wealth Forecast & Projections',
-        subtitle: 'Monte Carlo models, investment growth scenarios and retirement horizon',
+        title: 'Go to Forecast & Scenarios',
+        subtitle: 'Cash-flow projections, investment growth and what-if scenarios',
         icon: <TrendingUp size={16} className="text-stone-700" />,
         shortcut: ['⌘', '4'],
         action: () => {
@@ -140,8 +143,8 @@ export const CommandPalette: React.FC<Props> = ({
       {
         id: 'nav-funding',
         category: 'Navigation',
-        title: 'Go to Funding Finder',
-        subtitle: 'Institutional grants, venture financing and capital search',
+        title: 'Go to Business Funding',
+        subtitle: 'Funding opportunities, grants and capital search',
         icon: <Landmark size={16} className="text-stone-700" />,
         shortcut: ['⌘', '5'],
         action: () => {
@@ -255,7 +258,7 @@ export const CommandPalette: React.FC<Props> = ({
           id: `tx-${t.id}`,
           category: 'Transactions',
           title: t.description || 'Transaction',
-          subtitle: `${t.type === 'expense' ? '-' : '+'}${privacyMode ? '••••••' : '$' + t.amount.toLocaleString()} • ${t.category} • ${t.date || 'No date'}`,
+          subtitle: `${t.type === 'expense' ? '-' : '+'}${privacyMode ? '••••••' : formatCurrencyAmount(t.amount, displayCurrency, { decimals: 2 })} • ${t.category} • ${t.date || 'No date'}`,
           icon: <Receipt size={16} className={t.type === 'expense' ? 'text-rose-500' : 'text-emerald-500'} />,
           action: () => {
             onClose();
@@ -311,6 +314,7 @@ export const CommandPalette: React.FC<Props> = ({
     onTogglePrivacyMode,
     onSelectTransaction,
     onSelectEvent,
+    displayCurrency,
     onClose
   ]);
 
@@ -482,7 +486,7 @@ export const CommandPalette: React.FC<Props> = ({
               </span>
             </div>
             <span className="text-[10px] font-semibold text-stone-400">
-              Fire Finance Pro Command Engine
+              FFPRO Quick Actions
             </span>
           </div>
         </motion.div>
