@@ -150,7 +150,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
                 <div key={idx} className="flex items-center gap-3">
                    <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] font-black text-white">{symbolText.substring(0, 1)}</div>
                    <span className="font-black text-[9px] text-stone-400 tracking-[0.2em] uppercase">{symbolText}</span>
-                   <span className="font-black text-[10px] text-white tracking-tight font-tabular privacy-sensitive">${priceVal.toLocaleString()}</span>
+                   <span className="font-black text-[10px] text-white tracking-tight font-tabular privacy-sensitive">{formatCurrencyAmount(priceVal, 'USD', { decimals: 2 })}</span>
                    <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded font-tabular privacy-sensitive ${changeVal >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                      <i className={`fas fa-caret-${changeVal >= 0 ? 'up' : 'down'}`}></i>
                      {Math.abs(changeVal).toFixed(2)}%
