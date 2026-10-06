@@ -23,6 +23,11 @@ test('manual bank accounts and zero balances validate; duplicate IDs and invalid
   assert.ok(validateAppState(state({events:[{id:'a'},{id:'a'}]})));
   assert.ok(validateAppState(state({transactions:[{id:'a',amount:Infinity,type:'expense',date:'2026-01-01'}]})));
 });
+test('core display currency accepts only XCD or USD',()=>{
+  assert.equal(validateAppState(state({displayCurrency:'XCD'})),null);
+  assert.equal(validateAppState(state({displayCurrency:'USD'})),null);
+  assert.match(String(validateAppState(state({displayCurrency:'GBP'}))),/display currency/i);
+});
 test('quote costs include fractional quantities, line freight and overall discounts without losing cents',()=>{
   const quote={items:[{quantity:1.5,unitCost:10,discount:2,shippingCost:1,lineTotal:14},{quantity:1,unitCost:3.33,lineTotal:3.33}],subtotal:17.33,shippingCosts:2,discounts:1,total:18.33};
   assert.deepEqual(quoteTotals(quote).issues,[]);

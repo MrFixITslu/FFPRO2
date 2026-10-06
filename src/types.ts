@@ -852,6 +852,7 @@ export const STORAGE_KEYS = {
   IDEAS: 'ff_ideas',
   FORECAST_SETTINGS: 'ff_forecast_settings',
   FINANCIAL_LOGS: 'ff_financial_logs',
+  DISPLAY_CURRENCY: 'ff_display_currency',
   BRIEFING_TOPIC: 'ff_briefing_topic_config'
 };
 

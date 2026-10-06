@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Transaction, RecurringIncome, RecurringExpense, InvestmentAccount, MarketPrice, ForecastSettings } from '../types';
+import { Transaction, RecurringIncome, RecurringExpense, InvestmentAccount, MarketPrice, ForecastSettings, CurrencyCode } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 
 interface Props {
   transactions: Transaction[];
@@ -12,6 +13,7 @@ interface Props {
   currentNetWorth: number;
   forecastSettings?: ForecastSettings;
   onUpdateForecastSettings?: (settings: ForecastSettings) => void;
+  displayCurrency: CurrencyCode;
 }
 
 const Projections: React.FC<Props> = ({ 
@@ -22,8 +24,11 @@ const Projections: React.FC<Props> = ({
   categoryBudgets, 
   currentNetWorth,
   forecastSettings,
-  onUpdateForecastSettings
+  onUpdateForecastSettings,
+  displayCurrency
 }) => {
+  const money = (value: number, decimals = 0) => formatCurrencyAmount(value, displayCurrency, { decimals });
+  const currencySymbol = displayCurrency === 'XCD' ? 'EC$' : 'US$';
   // Sync sliders with database state and local fallback
   const [yearsToProject, setYearsToProject] = useState(forecastSettings?.yearsToProject || 5);
   const [monthlyContribution, setMonthlyContribution] = useState(forecastSettings?.monthlyContribution || 500);
@@ -129,11 +134,11 @@ const Projections: React.FC<Props> = ({
 
   const finalValue = projectionData[projectionData.length - 1].total;
   const milestones = [
-    { target: 10000, label: '$10k Entry' },
-    { target: 50000, label: '$50k Milestone' },
-    { target: 100000, label: '$100k Club' },
-    { target: 250000, label: '$250k Quarter' },
-    { target: 500000, label: '$500k Half-Mil' },
+    { target: 10000, label: `${currencySymbol}10k Entry` },
+    { target: 50000, label: `${currencySymbol}50k Milestone` },
+    { target: 100000, label: `${currencySymbol}100k Club` },
+    { target: 250000, label: `${currencySymbol}250k Quarter` },
+    { target: 500000, label: `${currencySymbol}500k Half-Mil` },
     { target: 1000000, label: 'Millionaire' }
   ];
 
@@ -187,7 +192,7 @@ const Projections: React.FC<Props> = ({
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Target End Value</p>
-                <h4 className="text-2xl font-bold text-indigo-600 tracking-tight">${finalValue.toLocaleString()}</h4>
+                <h4 className="text-2xl font-bold text-indigo-600 tracking-tight">{money(finalValue)}</h4>
               </div>
             </div>
 
@@ -209,7 +214,7 @@ const Projections: React.FC<Props> = ({
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.05)', fontSize: '11px', fontWeight: 'bold' }} 
-                    formatter={(value: any) => [`$${value.toLocaleString()}`, 'Value']}
+                    formatter={(value: any) => [money(Number(value)), 'Value']}
                   />
                   <Area type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" name="Total Net Worth" />
                   <Area type="monotone" dataKey="invested" stroke="#10b981" strokeWidth={1.5} fillOpacity={0.1} fill="url(#colorInvested)" name="Invested Asset Growth" strokeDasharray="5 5" />
@@ -241,7 +246,7 @@ const Projections: React.FC<Props> = ({
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Monthly Contribution</label>
-                  <span className="text-xs font-bold text-emerald-400">${monthlyContribution}</span>
+                  <span className="text-xs font-bold text-emerald-400">{money(monthlyContribution)}</span>
                 </div>
                 <input 
                   type="range" min="0" max={Math.max(5000, monthlyIncome)} step="50"
@@ -249,7 +254,7 @@ const Projections: React.FC<Props> = ({
                   onChange={(e) => handleContributionChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-emerald-500" 
                 />
-                <p className="text-[8px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: ${netMonthlyCashflow.toFixed(0)}</p>
+                <p className="text-[8px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: {money(netMonthlyCashflow)}</p>
               </div>
 
               <div>
@@ -324,7 +329,7 @@ const Projections: React.FC<Props> = ({
                   <i className={`fas ${isReached ? 'fa-check-circle' : 'fa-lock'} text-xs`}></i>
                 </div>
                 <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">{m.label}</p>
-                <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-stone-800'}`}>${(m.target/1000)}k</p>
+                <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-stone-800'}`}>{currencySymbol}{(m.target/1000)}k</p>
                 
                 <div className="mt-3 h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
                   <div className={`h-full ${isReached ? 'bg-emerald-500' : 'bg-indigo-600'} transition-all duration-1000`} style={{ width: `${progress}%` }}></div>

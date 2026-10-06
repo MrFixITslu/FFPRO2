@@ -37,9 +37,11 @@ import {
   Idea,
   ForecastSettings,
   EventLog,
+  CurrencyCode,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
+import { formatCurrencyAmount } from './services/currencyService';
 import { authService, AuthUser } from './services/authService';
 import { checkpointService } from './services/checkpointService';
 import { mergeStates, sameState } from './utils/stateMerge';
@@ -505,6 +507,15 @@ const App: React.FC = () => {
     monthlyContribution: 500,
     expectedReturn: 8
   }));
+  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DISPLAY_CURRENCY);
+    return saved === 'USD' ? 'USD' : 'XCD';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.DISPLAY_CURRENCY, displayCurrency);
+  }, [displayCurrency]);
+
   const [financialLogs, setFinancialLogs] = useState<EventLog[]>(() => {
     const saved = safeParse(STORAGE_KEYS.FINANCIAL_LOGS, null);
     if (saved && Array.isArray(saved) && saved.length > 0) return saved;
@@ -512,7 +523,7 @@ const App: React.FC = () => {
     if (Array.isArray(initialTx) && initialTx.length > 0) {
       return initialTx.map((t: Transaction) => ({
         id: generateId(),
-        action: `Logged ${t.type.toUpperCase()}: "${t.description}" (${t.type === 'expense' ? '-' : '+'}$${t.amount.toLocaleString()})`,
+        action: `Logged ${t.type.toUpperCase()}: "${t.description}" (${t.type === 'expense' ? '-' : '+'}${formatCurrencyAmount(t.amount, displayCurrency, { decimals: 0 })})`,
         timestamp: t.date ? new Date(t.date + 'T12:00:00').toISOString() : new Date().toISOString(),
         username: 'nsv',
         type: 'transaction' as const,
@@ -698,8 +709,9 @@ const App: React.FC = () => {
     forecastSettings,
     financialLogs,
     cashOpeningBalance,
+    displayCurrency,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, displayCurrency]);
 
   latestStateRef.current = getFullState();
   accountRef.current = authUser?.id || null;
@@ -725,6 +737,7 @@ const App: React.FC = () => {
       setForecastSettings(state.forecastSettings);
     }
     setCashOpeningBalance(state.cashOpeningBalance || 0);
+    setDisplayCurrency(state.displayCurrency === 'USD' ? 'USD' : 'XCD');
   }, []);
 
   // Real-time Event Stream connection & live broadcast listener
@@ -1131,7 +1144,7 @@ const App: React.FC = () => {
     if (editingTransaction) {
       setTransactions(prev => prev.map(item => item.id === editingTransaction.id ? { ...t, id: editingTransaction.id } : item));
       logFinancialActivity(
-        `Updated ${t.type.toUpperCase()}: "${t.description}" ($${t.amount.toLocaleString()})`,
+        `Updated ${t.type.toUpperCase()}: "${t.description}" (${formatCurrencyAmount(t.amount, displayCurrency, { decimals: 0 })})`,
         `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}`
       );
       setEditingTransaction(null);
@@ -1142,7 +1155,7 @@ const App: React.FC = () => {
 
       const sign = t.type === 'expense' ? '-' : '+';
       logFinancialActivity(
-        `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}$${t.amount.toLocaleString()})`,
+        `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}${formatCurrencyAmount(t.amount, displayCurrency, { decimals: 0 })})`,
         `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}${t.notes ? ' | Notes: ' + t.notes : ''}`
       );
     }
@@ -1155,7 +1168,7 @@ const App: React.FC = () => {
     if (target) {
       const sign = target.type === 'expense' ? '-' : '+';
       logFinancialActivity(
-        `Removed Transaction: "${target.description}" (${sign}$${target.amount.toLocaleString()})`,
+        `Removed Transaction: "${target.description}" (${sign}${formatCurrencyAmount(target.amount, displayCurrency, { decimals: 0 })})`,
         `Category: ${target.category} | Method: ${target.institution || 'Cash in Hand'}`
       );
     }
@@ -1165,8 +1178,8 @@ const App: React.FC = () => {
     const oldBudget = categoryBudgets[cat] || 0;
     setCategoryBudgets(prev => ({ ...prev, [cat]: amt }));
     logFinancialActivity(
-      `Adjusted Budget Limit: "${cat}" set to $${amt.toLocaleString()}`,
-      `Previous allocation was $${oldBudget.toLocaleString()}`
+      `Adjusted Budget Limit: "${cat}" set to ${formatCurrencyAmount(amt, displayCurrency, { decimals: 0 })}`,
+      `Previous allocation was ${formatCurrencyAmount(oldBudget, displayCurrency, { decimals: 0 })}`
     );
   };
 
@@ -1187,7 +1200,7 @@ const App: React.FC = () => {
     const newRec = { ...item, id: generateId(), accumulatedOverdue: 0 };
     setRecurringExpenses(prev => [...prev, newRec]);
     logFinancialActivity(
-      `Added Recurring Bill Commitment: "${item.description}" ($${item.amount.toLocaleString()}/mo)`,
+      `Added Recurring Bill Commitment: "${item.description}" (${formatCurrencyAmount(item.amount, displayCurrency, { decimals: 0 })}/mo)`,
       `Category: ${item.category} | Due Day: ${item.dayOfMonth} | Next Due: ${item.nextDueDate}`
     );
   };
@@ -1214,7 +1227,7 @@ const App: React.FC = () => {
     });
 
     logFinancialActivity(
-      `Cleared Commitment / Paid Bill: "${bill.description}" (-$${amount.toLocaleString()})`,
+      `Cleared Commitment / Paid Bill: "${bill.description}" (-${formatCurrencyAmount(amount, displayCurrency, { decimals: 0 })})`,
       `Category: ${bill.category} | Method: Cash in Hand | Next Cycle Due: ${nextDue.toISOString().split('T')[0]}`
     );
   };
@@ -1241,7 +1254,7 @@ const App: React.FC = () => {
     } : i));
 
     logFinancialActivity(
-      `Recorded Inflow / Received Income: "${inc.description}" (+$${amount.toLocaleString()})`,
+      `Recorded Inflow / Received Income: "${inc.description}" (+${formatCurrencyAmount(amount, displayCurrency, { decimals: 0 })})`,
       `Category: ${inc.category} | Destination: ${destination} | Next Expected: ${nextConf.toISOString().split('T')[0]}`
     );
   };
@@ -1593,6 +1606,7 @@ const App: React.FC = () => {
                   targetMargin={0} 
                   cashOpeningBalance={cashOpeningBalance}
                   categoryBudgets={categoryBudgets}
+                  displayCurrency={displayCurrency}
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'User'}
                   userEmail={authUser?.email}
@@ -1701,6 +1715,7 @@ const App: React.FC = () => {
                 categoryBudgets={categoryBudgets}
                 forecastSettings={forecastSettings}
                 onUpdateForecastSettings={setForecastSettings}
+                displayCurrency={displayCurrency}
                 currentNetWorth={liquidFunds + investments.reduce((acc, inv) => acc + inv.holdings.reduce((hAcc, h) => hAcc + (h.quantity * (marketPrices.find(m => m.symbol === h.symbol)?.price || 0)), 0), 0)}
               />
             )}
@@ -2136,6 +2151,8 @@ const App: React.FC = () => {
           {showSettings && (
             <Settings 
               currentState={getFullState()}
+              displayCurrency={displayCurrency}
+              onUpdateDisplayCurrency={setDisplayCurrency}
               onRestoreState={async data => {
                 if(!authUser || !cloudLoaded || conflictRef.current || syncTaskRef.current) throw new Error("Finish saving or resolve the sync error before restoring.");
                 const restored={...data,lastUpdated:new Date().toISOString()};
