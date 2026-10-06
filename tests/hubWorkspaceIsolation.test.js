@@ -29,7 +29,7 @@ test('same Hub owner can have isolated FFPRO accounts in two organizations', asy
     await rm(dir, { recursive: true, force: true });
   });
 
-  const { provisionHubFinanceOwner } = await import('../server/hubAccess.js?workspace-isolation-test');
+  const { provisionHubFinanceOwner, provisionHubFinanceUser } = await import('../server/hubAccess.js?workspace-isolation-test');
 
   const session = organizationId => ({
     user: { id: 'hub-user-123', email: 'owner@example.test', name: 'Shared Owner' },
@@ -39,6 +39,11 @@ test('same Hub owner can have isolated FFPRO accounts in two organizations', asy
   const firstA = await provisionHubFinanceOwner(session('org-a-1234'));
   const ownerB = await provisionHubFinanceOwner(session('org-b-1234'));
   const secondA = await provisionHubFinanceOwner(session('org-a-1234'));
+  const teamA = await provisionHubFinanceUser({
+    user: { id: 'hub-team-567', email: 'team@example.test', name: 'Finance Collaborator' },
+    organization: { id: 'org-a-1234' },
+    role: 'staff'
+  });
 
   assert.equal(firstA.id, secondA.id);
   assert.notEqual(firstA.id, ownerB.id);
@@ -46,6 +51,11 @@ test('same Hub owner can have isolated FFPRO accounts in two organizations', asy
   assert.equal(ownerB.hub_user_id, 'hub-user-123');
   assert.equal(firstA.hub_organization_id, 'org-a-1234');
   assert.equal(ownerB.hub_organization_id, 'org-b-1234');
+  assert.equal(teamA.hub_organization_id, 'org-a-1234');
+  assert.equal(teamA.hub_user_id, 'hub-team-567');
+  assert.equal(teamA.hub_finance_owner, false);
+  assert.equal(teamA.hub_role, 'staff');
+  assert.notEqual(teamA.id, firstA.id);
 
   const db = JSON.parse(await readFile(databaseFile, 'utf8'));
   const linked = db.users.filter(user => user.hub_user_id === 'hub-user-123');

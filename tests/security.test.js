@@ -45,9 +45,10 @@ async function insertReset(userId,token){const row={id:crypto.randomUUID(),user_
 test('security and persistence integration',async t=>{
   try{
     await waitReady();
-    const owner=new Client(),other=new Client(),anonymous=new Client();
+    const owner=new Client(),other=new Client(),editorClient=new Client(),anonymous=new Client();
     const suffix=crypto.randomBytes(5).toString('hex');
     const user=await owner.register(`owner-${suffix}@example.test`), stranger=await other.register(`other-${suffix}@example.test`);
+    const editorUser=await editorClient.register(`editor-${suffix}@example.test`);
     await t.test('cookie-only authentication and CSRF protect writes',async()=>{
       assert.match(owner.cookie,/ffpro.sid/);
       assert.equal((await anonymous.request('/api/files/not-a-file')).status,401);
@@ -79,14 +80,31 @@ test('security and persistence integration',async t=>{
       assert.equal(await security.consumeVerification(token),true);assert.equal(await security.consumeVerification(token),false);
       await assert.rejects(findOrCreateOAuthUser({provider:'google',providerId:'fake-'+suffix,email:user.email,emailVerified:true}),/existing password/);
     });
-    await t.test('invite preview works, verification is required and consumption is atomic',async()=>{
+    await t.test('project access administration stays owner-only and invitation secrets are hashed',async()=>{
       const {projectsDb,acceptInvitation}=await import('../server/projectsDb.js');
       const project=await projectsDb.createProject({ownerId:user.id,name:'Test',projectType:'event',data:{}});
+      await projectsDb.addMember(project.id,editorUser.id,'editor');
+      assert.equal((await editorClient.request(`/api/projects/${project.id}/invites`,{
+        method:'POST',
+        data:{email:`blocked-${suffix}@example.test`,role:'viewer'}
+      })).status,403);
+
       const invite=await projectsDb.createInvite({projectId:project.id,email:stranger.email,role:'viewer',invitedBy:user.id});
-      const preview=await anonymous.request(`/api/invites/${invite.token}`);assert.equal(preview.status,200,await preview.clone().text());
-      assert.equal((await other.request(`/api/invites/${invite.token}/accept`,{method:'POST'})).status,403);
+      assert.equal(invite.token,undefined);
+      assert.ok(invite.rawToken);
+      const expectedHash=crypto.createHash('sha256').update(invite.rawToken).digest('hex');
+      if(db.realPool){
+        const stored=(await db.realPool.query('SELECT token,token_hash FROM project_invites WHERE id=$1',[invite.id])).rows[0];
+        assert.equal(stored.token,expectedHash);assert.equal(stored.token_hash,expectedHash);
+      }else{
+        const stored=db.readDB().project_invites.find(row=>row.id===invite.id);
+        assert.equal(stored.token,expectedHash);assert.equal(stored.token_hash,expectedHash);
+      }
+
+      const preview=await anonymous.request(`/api/invites/${invite.rawToken}`);assert.equal(preview.status,200,await preview.clone().text());
+      assert.equal((await other.request(`/api/invites/${invite.rawToken}/accept`,{method:'POST'})).status,403);
       await security.verifyUser(stranger.id);const verified=await security.getUser(stranger.id);
-      const accepted=await Promise.all([acceptInvitation(invite.token,verified),acceptInvitation(invite.token,verified)]);
+      const accepted=await Promise.all([acceptInvitation(invite.rawToken,verified),acceptInvitation(invite.rawToken,verified)]);
       assert.equal(accepted.filter(Boolean).length,1);assert.equal((await projectsDb.getMembership(project.id,stranger.id)).role,'viewer');
     });
     await t.test('password reset revokes existing sessions and token cannot be replayed',async()=>{
