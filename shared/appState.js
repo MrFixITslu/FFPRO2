@@ -62,6 +62,7 @@ export function validateAppState(data) {
     if(typeof item.date!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(item.date) || !Number.isFinite(Date.parse(item.date))) return 'Invalid transaction date.';
   }
   if(data.cashOpeningBalance!==undefined && (typeof data.cashOpeningBalance!=='number' || !Number.isFinite(data.cashOpeningBalance))) return 'Invalid opening balance.';
+  if(data.displayCurrency!==undefined && !['USD','XCD'].includes(data.displayCurrency)) return 'Invalid display currency.';
   return null;
 }
 
