@@ -30,6 +30,7 @@ import notificationsRoutes from './server/routes/notifications.js';
 import filesRoutes from './server/routes/files.js';
 import aiNewsRoutes from './server/routes/aiNews.js';
 import platformRoutes from './server/routes/platform.js';
+import tiquetGatewayRoutes from './server/routes/tiquetGateway.js';
 import { startPlatformEventPump } from './server/platformEvents.js';
 import { consumeHubLaunchTicket, hubPublicUrl, provisionHubFinanceUser } from './server/hubAccess.js';
 
@@ -155,6 +156,9 @@ async function bootstrap() {
 
   // Apple form_post is not enabled until it can use an isolated SameSite=None state cookie.
   app.use('/api/platform', platformRoutes);
+  // Server-to-server Tiquet payment events authenticate with a dedicated
+  // shared secret and therefore must be mounted before browser CSRF checks.
+  app.use('/api/gateway/webhooks', tiquetGatewayRoutes);
   app.use('/api', sameOriginOnly, csrfProtection);
   app.use('/api/auth', authRoutes);
   app.use('/api/data', dataRoutes);
