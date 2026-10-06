@@ -5,7 +5,8 @@ import type { AppState } from '../services/vaultService';
 import { validateAppState } from '../../shared/appState.js';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS, DEFAULT_BRIEFING_TOPICS } from '../types';
+import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS, DEFAULT_BRIEFING_TOPICS, CurrencyCode } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 import { triggerSecureDownload } from '../services/fileStorageService';
 import { APP_LOGO } from '../assets/logo';
 import { 
@@ -41,6 +42,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   currentState: AppState;
+  displayCurrency: CurrencyCode;
+  onUpdateDisplayCurrency: (currency: CurrencyCode) => void;
   onRestoreState: (data: AppState) => Promise<void>;
   salary: number;
   onUpdateSalary: (val: number) => void;
@@ -107,9 +110,10 @@ const Settings: React.FC<Props> = ({
   cloudLastSyncTime = null,
   cloudVersion = 1,
   realtimeStatus = 'connected',
-  onForceSync, currentState, onRestoreState,
+  onForceSync, currentState, displayCurrency, onUpdateDisplayCurrency, onRestoreState,
   initialTab = 'general'
 }) => {
+  const money = (value: number, decimals = 0) => formatCurrencyAmount(value, displayCurrency, { decimals });
   const dialog=useAccessibleDialog(onClose);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [isChangingPass, setIsChangingPass] = useState(false);
@@ -422,11 +426,1684 @@ const Settings: React.FC<Props> = ({
           {activeTab === 'general' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
                 <PushSettings />
+              <section className="p-4 rounded-xl border border-stone-200 bg-stone-50/70">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-800 flex items-center gap-2"><Globe size={15} className="text-indigo-600" /> Core Finance Currency</h3>
+                    <p className="text-[11px] text-stone-500 mt-1">Controls ledger, dashboard and forecast labels. Existing values are not converted when you switch display currency.</p>
+                  </div>
+                  <div className="flex p-1 rounded-xl border border-stone-200 bg-white">
+                    {(['XCD','USD'] as CurrencyCode[]).map(currency => (
+                      <button
+                        key={currency}
+                        type="button"
+                        onClick={() => onUpdateDisplayCurrency(currency)}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
+                          displayCurrency === currency
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-stone-600 hover:bg-stone-100'
+                        }`}
+                      >
+                        {currency === 'XCD' ? 'EC$ · XCD' : 'US$ · USD'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
               <section>
                 <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-coins text-indigo-600 text-xs"></i> Financial Baseline</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-5 bg-stone-50 rounded-lg border border-stone-200">
-                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Opening Cash Ledger</label>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Opening Cash Ledger · {displayCurrency === 'XCD' ? 'EC
+                    <input 
+                      type="number" 
+                      value={cashOpeningBalance} 
+                      onChange={(e) => onUpdateCashOpeningBalance(parseFloat(e.target.value) || 0)} 
+                      className="w-full bg-white border border-stone-250 rounded px-3 py-2 text-base font-semibold outline-none focus:ring-1 focus:ring-indigo-500" 
+                    />
+                  </div>
+                  <div className="p-5 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col justify-between">
+                    <div>
+                      <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Monthly Surplus Target</label>
+                      <p className={`text-xl font-bold ${monthlyCashflowSurplus >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        {money(monthlyCashflowSurplus)}
+                      </p>
+                      <p className="text-[8px] font-bold text-stone-400 mt-1 uppercase">Monthly Flow: Income - Commitments</p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-indigo-100">
+                      <label className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-1 block opacity-80">Liquid Asset Buffer</label>
+                      <p className={`text-xs font-bold ${liquidAssetBuffer >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        {money(liquidAssetBuffer)}
+                      </p>
+                      <p className="text-[8px] font-bold text-stone-400 mt-1 uppercase">Vault Safety: (Banks + Cash) - Total Commitments</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-layer-group text-indigo-600 text-xs"></i> Spending Thresholds</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {CATEGORIES.filter(c => !['Income', 'Savings', 'Investments', 'Other', 'Transfer'].includes(c)).map(cat => (
+                    <div key={cat} className="p-3 bg-white border border-stone-200 rounded-lg shadow-sm">
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">{cat}</p>
+                      <input 
+                        type="number" 
+                        value={categoryBudgets[cat] || ''} 
+                        onChange={(e) => handleBudgetChange(cat, e.target.value)} 
+                        className="w-full bg-stone-50 border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" 
+                        placeholder="0"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'intelligence' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-1.5">
+                  <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Newspaper className="text-indigo-600" size={18} />
+                    Briefing & Intelligence Topics
+                  </h3>
+                  <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-200/80 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Live Feed Filter
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 leading-relaxed max-w-2xl">
+                  Choose the primary subject matter scanned by your real-time executive synthesizer and wire dispatches. Stories and reading states are kept isolated per topic so you never lose your curated reports.
+                </p>
+              </div>
+
+              {topicSaveFeedback && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2.5 text-xs text-emerald-800 font-semibold animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{topicSaveFeedback}</span>
+                </div>
+              )}
+
+              {/* Curated Presets Grid */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">
+                  Curated Domain Feeds
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {DEFAULT_BRIEFING_TOPICS.map((topic) => {
+                    const isSelected = selectedTopicId === topic.id;
+                    return (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() => handleSaveTopic(topic.id)}
+                        className={`text-left p-3.5 rounded-xl border transition-all relative flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50/70 border-indigo-400 shadow-xs ring-1 ring-indigo-300'
+                            : 'bg-white hover:bg-stone-50/80 border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                              isSelected ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              <i className={`fas ${topic.icon}`}></i>
+                            </div>
+                            <h4 className="text-xs font-bold text-stone-900 leading-tight">
+                              {topic.name}
+                            </h4>
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-white/90 border border-indigo-200 px-2 py-0.5 rounded-md shadow-2xs">
+                              <Check size={11} className="text-indigo-600" /> Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-stone-600 leading-normal pl-9">
+                          {topic.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Topic Keywords Section */}
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Search size={15} className="text-stone-500" />
+                    <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                      Custom Topic or Search Query
+                    </h4>
+                  </div>
+                  {selectedTopicId === 'custom' && (
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded border border-indigo-200">
+                      Active Custom Query
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-stone-500 leading-relaxed">
+                  Enter any specific subject (e.g. <span className="font-semibold text-stone-700">ICT, Cybersecurity, Weather, Premier League, Robotics, Local Economy</span>). The system will aggregate live wire reports and synthesize an executive briefing tailored to your keywords.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={customTopicQuery}
+                    onChange={(e) => setCustomTopicQuery(e.target.value)}
+                    placeholder="e.g. ICT Telecom, Caribbean Weather, Formula 1, Electric Vehicles..."
+                    className="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-2 text-xs font-medium text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customTopicQuery.trim()) {
+                        handleSaveTopic('custom', customTopicQuery);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customTopicQuery.trim()) {
+                        handleSaveTopic('custom', customTopicQuery);
+                      }
+                    }}
+                    disabled={!customTopicQuery.trim()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+                  >
+                    <Sparkles size={13} />
+                    Apply Custom Topic
+                  </button>
+                </div>
+              </div>
+
+              {/* Data Isolation & Workflow Note */}
+              <div className="p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-xl flex items-start gap-3">
+                <Info size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-stone-600 leading-relaxed">
+                  <span className="font-bold text-stone-800">State Persistence & Isolation: </span>
+                  Your <span className="font-semibold text-stone-700">Kept Stories</span>, <span className="font-semibold text-stone-700">Read Status</span>, and <span className="font-semibold text-stone-700">Trash</span> are maintained separately per topic. You can toggle between topics anytime without losing saved stories or mixing reading histories.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'recurring' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              <section>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-stone-800">Recurring Commitments</h3>
+                  <span className="text-xs font-bold bg-indigo-50 border border-indigo-100 text-indigo-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Fixed Expenses</span>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 mb-4">
+                  {recurringExpenses.map(exp => (
+                    <div key={exp.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex flex-col gap-3 group">
+                      {editingRecId === exp.id ? (
+                        <div className="space-y-3 animate-in fade-in">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="text" value={editRecData?.description} onChange={e => setEditRecData(prev => prev ? {...prev, description: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Description" />
+                            <input type="number" value={editRecData?.amount} onChange={e => setEditRecData(prev => prev ? {...prev, amount: parseFloat(e.target.value) || 0} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Amount" />
+                            <select value={editRecData?.category} onChange={e => setEditRecData(prev => prev ? {...prev, category: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold">
+                              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <input type="date" value={editRecData?.nextDueDate} onChange={e => setEditRecData(prev => prev ? {...prev, nextDueDate: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" />
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={saveEditRec} className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider">Save Changes</button>
+                            <button onClick={() => { setEditingRecId(null); setEditRecData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-rose-500 shadow-sm"><i className="fas fa-calendar-minus text-xs"></i></div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-800">{exp.description}</p>
+                              <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">${exp.amount} • {exp.category} • Next: {new Date(exp.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditRec(exp)} title="Edit Commitment" className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-indigo-600 transition-colors"><i className="fas fa-pencil-alt text-xs"></i></button>
+                            <button onClick={() => onDeleteRecurring(exp.id)} title="Remove Commitment" className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-rose-500 transition-colors"><i className="fas fa-trash-alt text-xs"></i></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-5 bg-stone-900 rounded-lg border border-stone-800 text-white shadow-sm">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-3">Register New Recurring Bill</h4>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <input type="text" placeholder="Description" value={newRec.description} onChange={e => setNewRec({...newRec, description: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
+                    <input type="number" placeholder="Amount" value={newRec.amount} onChange={e => setNewRec({...newRec, amount: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
+                    <select value={newRec.category} onChange={e => setNewRec({...newRec, category: e.target.value})} className="bg-stone-850 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-stone-300">
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div>
+                      <input type="date" value={newRec.nextDate} onChange={e => setNewRec({...newRec, nextDate: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-stone-300" />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (!newRec.description || !newRec.amount) return;
+                      const nextD = new Date(newRec.nextDate);
+                      onAddRecurring({ 
+                        description: newRec.description, 
+                        amount: parseFloat(newRec.amount), 
+                        category: newRec.category, 
+                        dayOfMonth: nextD.getDate(), 
+                        nextDueDate: nextD.toISOString().split('T')[0] 
+                      });
+                      setNewRec({ description: '', amount: '', category: CATEGORIES[0], nextDate: new Date().toISOString().split('T')[0] });
+                    }} 
+                    className="w-full py-2 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 transition shadow-sm"
+                  >Authorize Commitment</button>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-stone-800">Recurring Inflows</h3>
+                  <span className="text-xs font-bold bg-emerald-50 border border-emerald-100 text-emerald-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Income Sources</span>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 mb-4">
+                  {recurringIncomes.map(inc => (
+                    <div key={inc.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex flex-col gap-3">
+                      {editingIncId === inc.id ? (
+                        <div className="space-y-3 animate-in fade-in">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="text" value={editIncData?.description} onChange={e => setEditIncData(prev => prev ? {...prev, description: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Description" />
+                            <input type="number" value={editIncData?.amount} onChange={e => setEditIncData(prev => prev ? {...prev, amount: parseFloat(e.target.value) || 0} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Amount" />
+                            <div className="col-span-2">
+                              <label className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Next Income Date</label>
+                              <input type="date" value={editIncData?.nextConfirmationDate} onChange={e => setEditIncData(prev => prev ? {...prev, nextConfirmationDate: e.target.value} : null)} className="w-full bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={saveEditInc} className="flex-1 py-1.5 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider">Save Changes</button>
+                            <button onClick={() => { setEditingIncId(null); setEditIncData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-emerald-500 shadow-sm"><i className="fas fa-calendar-plus text-xs"></i></div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-800">{inc.description}</p>
+                              <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">${inc.amount} • {inc.category} • Next: {new Date(inc.nextConfirmationDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditInc(inc)} className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-indigo-600 transition-colors"><i className="fas fa-pencil-alt text-xs"></i></button>
+                            <button onClick={() => onDeleteRecurringIncome(inc.id)} className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-rose-500 transition-colors"><i className="fas fa-trash-alt text-xs"></i></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-5 bg-stone-900 rounded-lg border border-stone-800 text-white shadow-sm">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3">Register Recurring Income</h4>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <input type="text" placeholder="Source (e.g. Salary, Rent)" value={newInc.description} onChange={e => setNewInc({...newInc, description: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500" />
+                    <input type="number" placeholder="Amount" value={newInc.amount} onChange={e => setNewInc({...newInc, amount: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500" />
+                    <div className="col-span-2">
+                      <label className="text-[8px] font-bold uppercase tracking-wider text-stone-500 ml-1 block mb-1">Expected Next Receipt Date</label>
+                      <input type="date" value={newInc.nextDate} onChange={e => setNewInc({...newInc, nextDate: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500 text-stone-300" />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (!newInc.description || !newInc.amount) return;
+                      const nextD = new Date(newInc.nextDate);
+                      onAddRecurringIncome({ 
+                        description: newInc.description, 
+                        amount: parseFloat(newInc.amount), 
+                        category: 'Income', 
+                        dayOfMonth: nextD.getDate(), 
+                        nextConfirmationDate: nextD.toISOString().split('T')[0] 
+                      });
+                      setNewInc({ description: '', amount: '', nextDate: new Date().toISOString().split('T')[0] });
+                    }} 
+                    className="w-full py-2 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-emerald-500 transition shadow-sm"
+                  >Register Inflow</button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'goals' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              <section>
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-mountain-sun text-indigo-600 text-xs"></i> Active Saving Goals</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  {savingGoals.map(goal => (
+                    <div key={goal.id} className="p-5 bg-stone-50 border border-stone-200 rounded-lg relative group">
+                      <div className="flex justify-between items-start mb-3">
+                        <p className="font-bold text-stone-800 text-xs">{goal.name}</p>
+                        <button onClick={() => onDeleteSavingGoal(goal.id)} className="text-stone-300 hover:text-rose-500"><i className="fas fa-times text-xs"></i></button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-stone-400">
+                          <span>Progress</span>
+                          <span className="text-indigo-600 font-semibold">${goal.currentAmount} / ${goal.targetAmount}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${(goal.currentAmount/goal.targetAmount)*100}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-6 border border-dashed border-stone-300 rounded-lg text-center bg-stone-50/50">
+                  <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-4">Initialize New Objective</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto">
+                    <input type="text" placeholder="Goal Name (e.g. New Car)" value={newGoal.name} onChange={e => setNewGoal({...newGoal, name: e.target.value})} className="px-3 py-1.5 bg-white border border-stone-200 rounded outline-none font-semibold text-xs" />
+                    <input type="number" placeholder="Target Amount" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} className="px-3 py-1.5 bg-white border border-stone-200 rounded outline-none font-semibold text-xs" />
+                    <button 
+                      onClick={() => {
+                        if (!newGoal.name || !newGoal.target) return;
+                        onAddSavingGoal({ name: newGoal.name, targetAmount: parseFloat(newGoal.target), institution: 'Savings Account', institutionType: 'bank', openingBalance: 0, category: 'Savings' });
+                        setNewGoal({ name: '', target: '', category: CATEGORIES[0] });
+                      }}
+                      className="md:col-span-2 py-2 bg-stone-900 text-white font-bold rounded text-xs uppercase tracking-wider hover:bg-indigo-600 transition shadow-sm"
+                    >Activate Goal Matrix</button>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-rocket text-indigo-600 text-xs"></i> Investment Targets</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {investmentGoals.map(goal => (
+                    <div key={goal.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
+                        <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Target: ${goal.targetAmount} • Provider: {goal.provider}</p>
+                      </div>
+                      <button onClick={() => onDeleteInvestmentGoal(goal.id)} className="text-stone-300 hover:text-rose-500"><i className="fas fa-trash-alt text-xs"></i></button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'api' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              {/* Ollama Local AI Engine Integration */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-stone-800 shadow-sm font-bold text-sm">
+                      🦙
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-stone-800">Ollama Local AI Engine</h3>
+                        {ollamaStatus?.online ? (
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Online {ollamaStatus.version ? `v${ollamaStatus.version}` : ''}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">
+                            Offline / Standby
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">
+                        Private on-premise LLM for Strategic Feedback & Insights
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => fetchOllamaStatus()}
+                    disabled={isCheckingOllama}
+                    title="Test Ollama connection"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={isCheckingOllama ? 'animate-spin text-indigo-600' : ''} />
+                    <span>{isCheckingOllama ? 'Testing…' : 'Test Gateway'}</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveOllama} className="p-4 bg-white rounded-lg border border-stone-200 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Ollama Base URL / Host
+                      </label>
+                      <input
+                        type="text"
+                        value={ollamaBaseURL}
+                        onChange={(e) => setOllamaBaseURL(e.target.value)}
+                        placeholder="http://localhost:11434"
+                        className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-xs text-stone-400 mt-1">Docker default: <code className="text-stone-600">http://host.docker.internal:11434</code> or <code className="text-stone-600">http://localhost:11434</code></p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Active Model Name
+                      </label>
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={ollamaModel}
+                          onChange={(e) => setOllamaModel(e.target.value)}
+                          placeholder="llama3.2, mistral, deepseek-r1:8b"
+                          className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        {ollamaStatus?.models && ollamaStatus.models.length > 0 && (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            <span className="text-[8px] font-bold text-stone-400 uppercase">Available:</span>
+                            {ollamaStatus.models.slice(0, 4).map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setOllamaModel(m)}
+                                className={`px-1.5 py-0.5 rounded text-xs font-mono border transition-all ${
+                                  ollamaModel === m
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
+                                    : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {ollamaFeedback && (
+                    <div className={`p-2.5 rounded text-xs flex items-center gap-2 ${
+                      ollamaFeedback.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {ollamaFeedback.type === 'success' ? (
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <Info size={14} className="text-amber-600 shrink-0" />
+                      )}
+                      <span>{ollamaFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-stone-100">
+                    <p className="text-xs text-stone-500">
+                      When active, AI Strategic Feedback & insights are processed locally via Ollama with automatic fallback to cloud.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={isSavingOllama}
+                      className="px-4 py-2 bg-stone-900 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-stone-800 shadow transition-all disabled:opacity-50"
+                    >
+                      {isSavingOllama ? 'Saving…' : 'Save AI Configuration'}
+                    </button>
+                  </div>
+                </form>
+              </section>
+
+              {/* Google Workspace Integration: Calendar & Gmail */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-indigo-600 shadow-sm">
+                      <i className="fab fa-google text-red-500"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-800">Google Workspace Gateways</h3>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Google Calendar & Gmail Read-Only Sync</p>
+                    </div>
+                  </div>
+                  <a
+                    href="/api/auth/google"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <i className="fab fa-google text-red-500 text-xs"></i>
+                    <span>Connect / Refresh</span>
+                  </a>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-stone-200 text-xs text-stone-600 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-stone-800 flex items-center gap-1.5">
+                      <i className="fas fa-calendar-check text-blue-500"></i> Google Calendar (One-Way Sync)
+                    </span>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs font-bold uppercase">
+                      Read-Only (Google → App)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    Incoming Google Calendar directives and events are merged into your operational schedule. App data is never pushed or modified in your external Google Calendar.
+                  </p>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-800">Managed API Connections</h3>
+                    <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Banks & Investment Portals</p>
+                  </div>
+                  <button 
+                    onClick={onOpenBankSync}
+                    className="px-4 py-2 bg-stone-900 text-white rounded text-xs font-bold uppercase tracking-wider shadow hover:bg-stone-800 transition-all flex items-center gap-2"
+                  >
+                    <i className="fas fa-plus text-xs"></i> Link New
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  {bankConnections.map(conn => (
+                    <div key={conn.institution} className="p-3.5 bg-stone-50 border border-stone-200 rounded-lg flex items-center justify-between group">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-indigo-600 shadow-sm">
+                          <i className={`fas ${conn.institutionType === 'investment' ? 'fa-chart-line' : 'fa-landmark'} text-xs`}></i>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-stone-800">{conn.institution}</p>
+                          <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">
+                            {conn.institutionType} • {conn.accountLastFour}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right hidden sm:block">
+                          <p className={`text-xs font-bold uppercase tracking-wider ${conn.status === 'syncing' ? 'text-indigo-500' : 'text-emerald-600'}`}>
+                            Status: {conn.status === 'syncing' ? 'Syncing…' : 'Linked'}
+                          </p>
+                          <p className="text-[8px] text-stone-400 font-bold">Synced: {conn.lastSynced ? new Date(conn.lastSynced).toLocaleTimeString() : 'Never'}</p>
+                        </div>
+                        <button
+                          onClick={() => onSyncBank?.(conn.institution)}
+                          disabled={conn.status === 'syncing'}
+                          aria-label={`Sync ${conn.institution} now`}
+                          title="Pull latest transactions"
+                          className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <i className={`fas fa-rotate text-xs ${conn.status === 'syncing' ? 'animate-spin' : ''}`}></i>
+                        </button>
+                        <button onClick={() => onUnlinkBank?.(conn.institution)} aria-label={`Unlink ${conn.institution}`} title="Unlink" className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-rose-500 transition-colors">
+                          <i className="fas fa-unlink text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'security' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              {/* Cloud Database & Real-Time Sync */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+                      <Database size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-800">Cloud Database & Live Sync</h3>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Persistent Storage & Event Stream</p>
+                    </div>
+                  </div>
+
+                  {onForceSync && (
+                    <button
+                      onClick={onForceSync}
+                      disabled={cloudSyncing}
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw size={12} className={cloudSyncing ? 'animate-spin' : ''} />
+                      <span>{cloudSyncing ? 'Syncing…' : 'Manual account'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <div className="p-3 bg-white rounded-lg border border-stone-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Real-Time Channel</p>
+                      <p className="text-xs font-bold text-stone-800 mt-0.5 capitalize flex items-center gap-1.5">
+                        {realtimeStatus === 'connected' ? (
+                          <>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-emerald-700">Live Connected</span>
+                          </>
+                        ) : realtimeStatus === 'connecting' ? (
+                          <>
+                            <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                            <span className="text-amber-700">Connecting…</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="h-2 w-2 rounded-full bg-stone-300"></span>
+                            <span className="text-stone-500">Disconnected</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Radio size={16} className={realtimeStatus === 'connected' ? 'text-emerald-500' : 'text-stone-300'} />
+                  </div>
+
+                  <div className="p-3 bg-white rounded-lg border border-stone-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Database Version & State</p>
+                      <p className="text-xs font-bold text-stone-800 mt-0.5">
+                        {cloudError ? (
+                          <span className="text-rose-600 font-semibold">{cloudError}</span>
+                        ) : (
+                          <span className="text-indigo-600">v{cloudVersion} • Active</span>
+                        )}
+                      </p>
+                    </div>
+                    <Shield size={16} className="text-indigo-600" />
+                  </div>
+                </div>
+
+                <div className="text-xs text-stone-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-stone-200/80">
+                  <span>
+                    <strong className="text-stone-700 font-medium">Last Cloud Backup:</strong>{' '}
+                    {cloudLastSyncTime ? new Date(cloudLastSyncTime).toLocaleString() : 'Just now'}
+                  </span>
+                  <span className="text-xs text-stone-400 uppercase tracking-wider font-semibold">
+                    Encrypted Background Sync
+                  </span>
+                </div>
+              </section>
+
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200">
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2.5"><i className="fas fa-shield-virus text-indigo-600 text-xs"></i> Authentication Logic</h3>
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <button onClick={() => setIsChangingPass(true)} className="flex-1 py-2 bg-white border border-stone-200 rounded text-xs font-bold uppercase tracking-wider text-stone-600 hover:bg-stone-100 transition shadow-sm">Change password</button>
+                    <button onClick={onResetData} className="flex-1 py-2 bg-white border border-stone-200 rounded text-xs font-bold uppercase tracking-wider text-rose-600 hover:bg-rose-50 transition shadow-sm">Reset personal ledger</button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-white p-5 rounded-lg border border-stone-200">
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2.5">
+                  <Download className="text-indigo-600 text-xs" size={16} /> Backup & Restore
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button 
+                    onClick={handleExportBackup}
+                    className="py-2.5 bg-indigo-600 text-white font-bold rounded shadow-sm uppercase tracking-wider text-xs hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                  >
+                    <Download size={14} /> Manual Export
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="py-2.5 bg-stone-100 text-stone-600 font-bold rounded shadow-sm uppercase tracking-wider text-xs hover:bg-stone-200 transition flex items-center justify-center gap-2 border border-stone-200"
+                  >
+                    <Upload size={14} /> Import Backup
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept=".json"
+                    onChange={handleImportRestore} 
+                  />
+                </div>
+              </section>
+
+              <button onClick={onLogout} className="w-full py-3 bg-stone-900 text-white font-bold rounded text-xs uppercase tracking-wider hover:bg-rose-600 transition-all shadow flex items-center justify-center gap-2">
+                <Lock size={14} /> Close Vault & Logout
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isChangingPass && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-xl p-6 border border-stone-200 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-stone-800">Security & Credentials</h3>
+                <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Update Account Password</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsChangingPass(false); setPassError(null); setPassSuccess(null); }}
+                className="text-stone-400 hover:text-stone-600 p-1 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {passSuccess ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm font-medium mb-4">
+                ✓ {passSuccess}
+              </div>
+            ) : (
+              <form onSubmit={handleDirectPasswordChange} className="space-y-4">
+                {passError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold">
+                    {passError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passForm.current}
+                    onChange={e => setPassForm(prev => ({ ...prev, current: e.target.value }))}
+                    placeholder="Enter current password (if set)"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={passForm.new}
+                    onChange={e => setPassForm(prev => ({ ...prev, new: e.target.value }))}
+                    placeholder="Minimum 8 characters with numbers & symbols"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={passForm.confirm}
+                    onChange={e => setPassForm(prev => ({ ...prev, confirm: e.target.value }))}
+                    placeholder="Repeat new password"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={passLoading}
+                    className="flex-1 py-2.5 bg-stone-900 text-white font-bold rounded-lg text-sm hover:bg-stone-800 disabled:opacity-50 transition"
+                  >
+                    {passLoading ? 'Updating...' : 'Update Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsChangingPass(false); setPassError(null); setPassSuccess(null); }}
+                    className="px-4 py-2.5 bg-stone-100 text-stone-600 font-bold rounded-lg text-sm hover:bg-stone-200 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="pt-3 border-t border-stone-100 text-center">
+                  <button
+                    type="button"
+                    onClick={handlePasswordSubmit}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    Forgot current password? Send reset link to email
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Settings;
+ : 'US
+                    <input 
+                      type="number" 
+                      value={cashOpeningBalance} 
+                      onChange={(e) => onUpdateCashOpeningBalance(parseFloat(e.target.value) || 0)} 
+                      className="w-full bg-white border border-stone-250 rounded px-3 py-2 text-base font-semibold outline-none focus:ring-1 focus:ring-indigo-500" 
+                    />
+                  </div>
+                  <div className="p-5 bg-indigo-50/50 rounded-lg border border-indigo-100 flex flex-col justify-between">
+                    <div>
+                      <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Monthly Surplus Target</label>
+                      <p className={`text-xl font-bold ${monthlyCashflowSurplus >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        ${monthlyCashflowSurplus.toLocaleString()}
+                      </p>
+                      <p className="text-[8px] font-bold text-stone-400 mt-1 uppercase">Monthly Flow: Income - Commitments</p>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-indigo-100">
+                      <label className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-1 block opacity-80">Liquid Asset Buffer</label>
+                      <p className={`text-xs font-bold ${liquidAssetBuffer >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        ${liquidAssetBuffer.toLocaleString()}
+                      </p>
+                      <p className="text-[8px] font-bold text-stone-400 mt-1 uppercase">Vault Safety: (Banks + Cash) - Total Commitments</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-layer-group text-indigo-600 text-xs"></i> Spending Thresholds</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {CATEGORIES.filter(c => !['Income', 'Savings', 'Investments', 'Other', 'Transfer'].includes(c)).map(cat => (
+                    <div key={cat} className="p-3 bg-white border border-stone-200 rounded-lg shadow-sm">
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">{cat}</p>
+                      <input 
+                        type="number" 
+                        value={categoryBudgets[cat] || ''} 
+                        onChange={(e) => handleBudgetChange(cat, e.target.value)} 
+                        className="w-full bg-stone-50 border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" 
+                        placeholder="0"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'intelligence' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-1.5">
+                  <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Newspaper className="text-indigo-600" size={18} />
+                    Briefing & Intelligence Topics
+                  </h3>
+                  <span className="text-[10px] font-bold bg-indigo-50 border border-indigo-200/80 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Live Feed Filter
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 leading-relaxed max-w-2xl">
+                  Choose the primary subject matter scanned by your real-time executive synthesizer and wire dispatches. Stories and reading states are kept isolated per topic so you never lose your curated reports.
+                </p>
+              </div>
+
+              {topicSaveFeedback && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2.5 text-xs text-emerald-800 font-semibold animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{topicSaveFeedback}</span>
+                </div>
+              )}
+
+              {/* Curated Presets Grid */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">
+                  Curated Domain Feeds
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {DEFAULT_BRIEFING_TOPICS.map((topic) => {
+                    const isSelected = selectedTopicId === topic.id;
+                    return (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() => handleSaveTopic(topic.id)}
+                        className={`text-left p-3.5 rounded-xl border transition-all relative flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50/70 border-indigo-400 shadow-xs ring-1 ring-indigo-300'
+                            : 'bg-white hover:bg-stone-50/80 border-stone-200 hover:border-stone-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
+                              isSelected ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-stone-100 text-stone-600'
+                            }`}>
+                              <i className={`fas ${topic.icon}`}></i>
+                            </div>
+                            <h4 className="text-xs font-bold text-stone-900 leading-tight">
+                              {topic.name}
+                            </h4>
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-white/90 border border-indigo-200 px-2 py-0.5 rounded-md shadow-2xs">
+                              <Check size={11} className="text-indigo-600" /> Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-stone-600 leading-normal pl-9">
+                          {topic.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Topic Keywords Section */}
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Search size={15} className="text-stone-500" />
+                    <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                      Custom Topic or Search Query
+                    </h4>
+                  </div>
+                  {selectedTopicId === 'custom' && (
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded border border-indigo-200">
+                      Active Custom Query
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-stone-500 leading-relaxed">
+                  Enter any specific subject (e.g. <span className="font-semibold text-stone-700">ICT, Cybersecurity, Weather, Premier League, Robotics, Local Economy</span>). The system will aggregate live wire reports and synthesize an executive briefing tailored to your keywords.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={customTopicQuery}
+                    onChange={(e) => setCustomTopicQuery(e.target.value)}
+                    placeholder="e.g. ICT Telecom, Caribbean Weather, Formula 1, Electric Vehicles..."
+                    className="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-2 text-xs font-medium text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customTopicQuery.trim()) {
+                        handleSaveTopic('custom', customTopicQuery);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customTopicQuery.trim()) {
+                        handleSaveTopic('custom', customTopicQuery);
+                      }
+                    }}
+                    disabled={!customTopicQuery.trim()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+                  >
+                    <Sparkles size={13} />
+                    Apply Custom Topic
+                  </button>
+                </div>
+              </div>
+
+              {/* Data Isolation & Workflow Note */}
+              <div className="p-3.5 bg-indigo-50/40 border border-indigo-100 rounded-xl flex items-start gap-3">
+                <Info size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-stone-600 leading-relaxed">
+                  <span className="font-bold text-stone-800">State Persistence & Isolation: </span>
+                  Your <span className="font-semibold text-stone-700">Kept Stories</span>, <span className="font-semibold text-stone-700">Read Status</span>, and <span className="font-semibold text-stone-700">Trash</span> are maintained separately per topic. You can toggle between topics anytime without losing saved stories or mixing reading histories.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'recurring' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              <section>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-stone-800">Recurring Commitments</h3>
+                  <span className="text-xs font-bold bg-indigo-50 border border-indigo-100 text-indigo-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Fixed Expenses</span>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 mb-4">
+                  {recurringExpenses.map(exp => (
+                    <div key={exp.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex flex-col gap-3 group">
+                      {editingRecId === exp.id ? (
+                        <div className="space-y-3 animate-in fade-in">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="text" value={editRecData?.description} onChange={e => setEditRecData(prev => prev ? {...prev, description: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Description" />
+                            <input type="number" value={editRecData?.amount} onChange={e => setEditRecData(prev => prev ? {...prev, amount: parseFloat(e.target.value) || 0} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Amount" />
+                            <select value={editRecData?.category} onChange={e => setEditRecData(prev => prev ? {...prev, category: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold">
+                              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <input type="date" value={editRecData?.nextDueDate} onChange={e => setEditRecData(prev => prev ? {...prev, nextDueDate: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" />
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={saveEditRec} className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider">Save Changes</button>
+                            <button onClick={() => { setEditingRecId(null); setEditRecData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-rose-500 shadow-sm"><i className="fas fa-calendar-minus text-xs"></i></div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-800">{exp.description}</p>
+                              <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">${exp.amount} • {exp.category} • Next: {new Date(exp.nextDueDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditRec(exp)} title="Edit Commitment" className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-indigo-600 transition-colors"><i className="fas fa-pencil-alt text-xs"></i></button>
+                            <button onClick={() => onDeleteRecurring(exp.id)} title="Remove Commitment" className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-rose-500 transition-colors"><i className="fas fa-trash-alt text-xs"></i></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-5 bg-stone-900 rounded-lg border border-stone-800 text-white shadow-sm">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-3">Register New Recurring Bill</h4>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <input type="text" placeholder="Description" value={newRec.description} onChange={e => setNewRec({...newRec, description: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
+                    <input type="number" placeholder="Amount" value={newRec.amount} onChange={e => setNewRec({...newRec, amount: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500" />
+                    <select value={newRec.category} onChange={e => setNewRec({...newRec, category: e.target.value})} className="bg-stone-850 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-stone-300">
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div>
+                      <input type="date" value={newRec.nextDate} onChange={e => setNewRec({...newRec, nextDate: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500 text-stone-300" />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (!newRec.description || !newRec.amount) return;
+                      const nextD = new Date(newRec.nextDate);
+                      onAddRecurring({ 
+                        description: newRec.description, 
+                        amount: parseFloat(newRec.amount), 
+                        category: newRec.category, 
+                        dayOfMonth: nextD.getDate(), 
+                        nextDueDate: nextD.toISOString().split('T')[0] 
+                      });
+                      setNewRec({ description: '', amount: '', category: CATEGORIES[0], nextDate: new Date().toISOString().split('T')[0] });
+                    }} 
+                    className="w-full py-2 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 transition shadow-sm"
+                  >Authorize Commitment</button>
+                </div>
+              </section>
+
+              <section>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-bold text-stone-800">Recurring Inflows</h3>
+                  <span className="text-xs font-bold bg-emerald-50 border border-emerald-100 text-emerald-600 px-2.5 py-0.5 rounded uppercase tracking-wider">Income Sources</span>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 mb-4">
+                  {recurringIncomes.map(inc => (
+                    <div key={inc.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex flex-col gap-3">
+                      {editingIncId === inc.id ? (
+                        <div className="space-y-3 animate-in fade-in">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="text" value={editIncData?.description} onChange={e => setEditIncData(prev => prev ? {...prev, description: e.target.value} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Description" />
+                            <input type="number" value={editIncData?.amount} onChange={e => setEditIncData(prev => prev ? {...prev, amount: parseFloat(e.target.value) || 0} : null)} className="bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" placeholder="Amount" />
+                            <div className="col-span-2">
+                              <label className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-1 block">Next Income Date</label>
+                              <input type="date" value={editIncData?.nextConfirmationDate} onChange={e => setEditIncData(prev => prev ? {...prev, nextConfirmationDate: e.target.value} : null)} className="w-full bg-white border border-stone-200 rounded px-2.5 py-1 text-xs font-semibold" />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={saveEditInc} className="flex-1 py-1.5 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider">Save Changes</button>
+                            <button onClick={() => { setEditingIncId(null); setEditIncData(null); }} className="flex-1 py-1.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-emerald-500 shadow-sm"><i className="fas fa-calendar-plus text-xs"></i></div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-800">{inc.description}</p>
+                              <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">${inc.amount} • {inc.category} • Next: {new Date(inc.nextConfirmationDate).toLocaleDateString('default', { day: 'numeric', month: 'short' })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => startEditInc(inc)} className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-indigo-600 transition-colors"><i className="fas fa-pencil-alt text-xs"></i></button>
+                            <button onClick={() => onDeleteRecurringIncome(inc.id)} className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-rose-500 transition-colors"><i className="fas fa-trash-alt text-xs"></i></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-5 bg-stone-900 rounded-lg border border-stone-800 text-white shadow-sm">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3">Register Recurring Income</h4>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <input type="text" placeholder="Source (e.g. Salary, Rent)" value={newInc.description} onChange={e => setNewInc({...newInc, description: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500" />
+                    <input type="number" placeholder="Amount" value={newInc.amount} onChange={e => setNewInc({...newInc, amount: e.target.value})} className="bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500" />
+                    <div className="col-span-2">
+                      <label className="text-[8px] font-bold uppercase tracking-wider text-stone-500 ml-1 block mb-1">Expected Next Receipt Date</label>
+                      <input type="date" value={newInc.nextDate} onChange={e => setNewInc({...newInc, nextDate: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-emerald-500 text-stone-300" />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (!newInc.description || !newInc.amount) return;
+                      const nextD = new Date(newInc.nextDate);
+                      onAddRecurringIncome({ 
+                        description: newInc.description, 
+                        amount: parseFloat(newInc.amount), 
+                        category: 'Income', 
+                        dayOfMonth: nextD.getDate(), 
+                        nextConfirmationDate: nextD.toISOString().split('T')[0] 
+                      });
+                      setNewInc({ description: '', amount: '', nextDate: new Date().toISOString().split('T')[0] });
+                    }} 
+                    className="w-full py-2 bg-emerald-600 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-emerald-500 transition shadow-sm"
+                  >Register Inflow</button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'goals' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              <section>
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-mountain-sun text-indigo-600 text-xs"></i> Active Saving Goals</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  {savingGoals.map(goal => (
+                    <div key={goal.id} className="p-5 bg-stone-50 border border-stone-200 rounded-lg relative group">
+                      <div className="flex justify-between items-start mb-3">
+                        <p className="font-bold text-stone-800 text-xs">{goal.name}</p>
+                        <button onClick={() => onDeleteSavingGoal(goal.id)} className="text-stone-300 hover:text-rose-500"><i className="fas fa-times text-xs"></i></button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-stone-400">
+                          <span>Progress</span>
+                          <span className="text-indigo-600 font-semibold">${goal.currentAmount} / ${goal.targetAmount}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${(goal.currentAmount/goal.targetAmount)*100}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-6 border border-dashed border-stone-300 rounded-lg text-center bg-stone-50/50">
+                  <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-4">Initialize New Objective</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto">
+                    <input type="text" placeholder="Goal Name (e.g. New Car)" value={newGoal.name} onChange={e => setNewGoal({...newGoal, name: e.target.value})} className="px-3 py-1.5 bg-white border border-stone-200 rounded outline-none font-semibold text-xs" />
+                    <input type="number" placeholder="Target Amount" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} className="px-3 py-1.5 bg-white border border-stone-200 rounded outline-none font-semibold text-xs" />
+                    <button 
+                      onClick={() => {
+                        if (!newGoal.name || !newGoal.target) return;
+                        onAddSavingGoal({ name: newGoal.name, targetAmount: parseFloat(newGoal.target), institution: 'Savings Account', institutionType: 'bank', openingBalance: 0, category: 'Savings' });
+                        setNewGoal({ name: '', target: '', category: CATEGORIES[0] });
+                      }}
+                      className="md:col-span-2 py-2 bg-stone-900 text-white font-bold rounded text-xs uppercase tracking-wider hover:bg-indigo-600 transition shadow-sm"
+                    >Activate Goal Matrix</button>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-rocket text-indigo-600 text-xs"></i> Investment Targets</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {investmentGoals.map(goal => (
+                    <div key={goal.id} className="p-4 bg-stone-50 border border-stone-200 rounded-lg flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
+                        <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Target: ${goal.targetAmount} • Provider: {goal.provider}</p>
+                      </div>
+                      <button onClick={() => onDeleteInvestmentGoal(goal.id)} className="text-stone-300 hover:text-rose-500"><i className="fas fa-trash-alt text-xs"></i></button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'api' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+              {/* Ollama Local AI Engine Integration */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-stone-800 shadow-sm font-bold text-sm">
+                      🦙
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-stone-800">Ollama Local AI Engine</h3>
+                        {ollamaStatus?.online ? (
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Online {ollamaStatus.version ? `v${ollamaStatus.version}` : ''}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider">
+                            Offline / Standby
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">
+                        Private on-premise LLM for Strategic Feedback & Insights
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => fetchOllamaStatus()}
+                    disabled={isCheckingOllama}
+                    title="Test Ollama connection"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={isCheckingOllama ? 'animate-spin text-indigo-600' : ''} />
+                    <span>{isCheckingOllama ? 'Testing…' : 'Test Gateway'}</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveOllama} className="p-4 bg-white rounded-lg border border-stone-200 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Ollama Base URL / Host
+                      </label>
+                      <input
+                        type="text"
+                        value={ollamaBaseURL}
+                        onChange={(e) => setOllamaBaseURL(e.target.value)}
+                        placeholder="http://localhost:11434"
+                        className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-xs text-stone-400 mt-1">Docker default: <code className="text-stone-600">http://host.docker.internal:11434</code> or <code className="text-stone-600">http://localhost:11434</code></p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Active Model Name
+                      </label>
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={ollamaModel}
+                          onChange={(e) => setOllamaModel(e.target.value)}
+                          placeholder="llama3.2, mistral, deepseek-r1:8b"
+                          className="w-full px-3 py-2 text-xs border border-stone-200 rounded font-mono bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        {ollamaStatus?.models && ollamaStatus.models.length > 0 && (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            <span className="text-[8px] font-bold text-stone-400 uppercase">Available:</span>
+                            {ollamaStatus.models.slice(0, 4).map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setOllamaModel(m)}
+                                className={`px-1.5 py-0.5 rounded text-xs font-mono border transition-all ${
+                                  ollamaModel === m
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'
+                                    : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {ollamaFeedback && (
+                    <div className={`p-2.5 rounded text-xs flex items-center gap-2 ${
+                      ollamaFeedback.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {ollamaFeedback.type === 'success' ? (
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <Info size={14} className="text-amber-600 shrink-0" />
+                      )}
+                      <span>{ollamaFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-stone-100">
+                    <p className="text-xs text-stone-500">
+                      When active, AI Strategic Feedback & insights are processed locally via Ollama with automatic fallback to cloud.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={isSavingOllama}
+                      className="px-4 py-2 bg-stone-900 text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-stone-800 shadow transition-all disabled:opacity-50"
+                    >
+                      {isSavingOllama ? 'Saving…' : 'Save AI Configuration'}
+                    </button>
+                  </div>
+                </form>
+              </section>
+
+              {/* Google Workspace Integration: Calendar & Gmail */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white border border-stone-200 rounded-lg flex items-center justify-center text-indigo-600 shadow-sm">
+                      <i className="fab fa-google text-red-500"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-800">Google Workspace Gateways</h3>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Google Calendar & Gmail Read-Only Sync</p>
+                    </div>
+                  </div>
+                  <a
+                    href="/api/auth/google"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-700 hover:text-indigo-600 hover:border-indigo-300 rounded text-xs font-bold uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <i className="fab fa-google text-red-500 text-xs"></i>
+                    <span>Connect / Refresh</span>
+                  </a>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border border-stone-200 text-xs text-stone-600 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-stone-800 flex items-center gap-1.5">
+                      <i className="fas fa-calendar-check text-blue-500"></i> Google Calendar (One-Way Sync)
+                    </span>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs font-bold uppercase">
+                      Read-Only (Google → App)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    Incoming Google Calendar directives and events are merged into your operational schedule. App data is never pushed or modified in your external Google Calendar.
+                  </p>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-800">Managed API Connections</h3>
+                    <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Banks & Investment Portals</p>
+                  </div>
+                  <button 
+                    onClick={onOpenBankSync}
+                    className="px-4 py-2 bg-stone-900 text-white rounded text-xs font-bold uppercase tracking-wider shadow hover:bg-stone-800 transition-all flex items-center gap-2"
+                  >
+                    <i className="fas fa-plus text-xs"></i> Link New
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  {bankConnections.map(conn => (
+                    <div key={conn.institution} className="p-3.5 bg-stone-50 border border-stone-200 rounded-lg flex items-center justify-between group">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white border border-stone-200 rounded flex items-center justify-center text-indigo-600 shadow-sm">
+                          <i className={`fas ${conn.institutionType === 'investment' ? 'fa-chart-line' : 'fa-landmark'} text-xs`}></i>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-stone-800">{conn.institution}</p>
+                          <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">
+                            {conn.institutionType} • {conn.accountLastFour}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right hidden sm:block">
+                          <p className={`text-xs font-bold uppercase tracking-wider ${conn.status === 'syncing' ? 'text-indigo-500' : 'text-emerald-600'}`}>
+                            Status: {conn.status === 'syncing' ? 'Syncing…' : 'Linked'}
+                          </p>
+                          <p className="text-[8px] text-stone-400 font-bold">Synced: {conn.lastSynced ? new Date(conn.lastSynced).toLocaleTimeString() : 'Never'}</p>
+                        </div>
+                        <button
+                          onClick={() => onSyncBank?.(conn.institution)}
+                          disabled={conn.status === 'syncing'}
+                          aria-label={`Sync ${conn.institution} now`}
+                          title="Pull latest transactions"
+                          className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <i className={`fas fa-rotate text-xs ${conn.status === 'syncing' ? 'animate-spin' : ''}`}></i>
+                        </button>
+                        <button onClick={() => onUnlinkBank?.(conn.institution)} aria-label={`Unlink ${conn.institution}`} title="Unlink" className="w-8 h-8 flex items-center justify-center text-stone-300 hover:text-rose-500 transition-colors">
+                          <i className="fas fa-unlink text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'security' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+              {/* Cloud Database & Real-Time Sync */}
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+                      <Database size={16} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-800">Cloud Database & Live Sync</h3>
+                      <p className="text-xs text-stone-400 font-bold uppercase tracking-wider mt-0.5">Persistent Storage & Event Stream</p>
+                    </div>
+                  </div>
+
+                  {onForceSync && (
+                    <button
+                      onClick={onForceSync}
+                      disabled={cloudSyncing}
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold uppercase tracking-wider shadow-sm hover:bg-indigo-700 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <RefreshCw size={12} className={cloudSyncing ? 'animate-spin' : ''} />
+                      <span>{cloudSyncing ? 'Syncing…' : 'Manual account'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  <div className="p-3 bg-white rounded-lg border border-stone-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Real-Time Channel</p>
+                      <p className="text-xs font-bold text-stone-800 mt-0.5 capitalize flex items-center gap-1.5">
+                        {realtimeStatus === 'connected' ? (
+                          <>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-emerald-700">Live Connected</span>
+                          </>
+                        ) : realtimeStatus === 'connecting' ? (
+                          <>
+                            <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                            <span className="text-amber-700">Connecting…</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="h-2 w-2 rounded-full bg-stone-300"></span>
+                            <span className="text-stone-500">Disconnected</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Radio size={16} className={realtimeStatus === 'connected' ? 'text-emerald-500' : 'text-stone-300'} />
+                  </div>
+
+                  <div className="p-3 bg-white rounded-lg border border-stone-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Database Version & State</p>
+                      <p className="text-xs font-bold text-stone-800 mt-0.5">
+                        {cloudError ? (
+                          <span className="text-rose-600 font-semibold">{cloudError}</span>
+                        ) : (
+                          <span className="text-indigo-600">v{cloudVersion} • Active</span>
+                        )}
+                      </p>
+                    </div>
+                    <Shield size={16} className="text-indigo-600" />
+                  </div>
+                </div>
+
+                <div className="text-xs text-stone-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-stone-200/80">
+                  <span>
+                    <strong className="text-stone-700 font-medium">Last Cloud Backup:</strong>{' '}
+                    {cloudLastSyncTime ? new Date(cloudLastSyncTime).toLocaleString() : 'Just now'}
+                  </span>
+                  <span className="text-xs text-stone-400 uppercase tracking-wider font-semibold">
+                    Encrypted Background Sync
+                  </span>
+                </div>
+              </section>
+
+              <section className="bg-stone-50 p-5 rounded-lg border border-stone-200">
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2.5"><i className="fas fa-shield-virus text-indigo-600 text-xs"></i> Authentication Logic</h3>
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <button onClick={() => setIsChangingPass(true)} className="flex-1 py-2 bg-white border border-stone-200 rounded text-xs font-bold uppercase tracking-wider text-stone-600 hover:bg-stone-100 transition shadow-sm">Change password</button>
+                    <button onClick={onResetData} className="flex-1 py-2 bg-white border border-stone-200 rounded text-xs font-bold uppercase tracking-wider text-rose-600 hover:bg-rose-50 transition shadow-sm">Reset personal ledger</button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-white p-5 rounded-lg border border-stone-200">
+                <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2.5">
+                  <Download className="text-indigo-600 text-xs" size={16} /> Backup & Restore
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button 
+                    onClick={handleExportBackup}
+                    className="py-2.5 bg-indigo-600 text-white font-bold rounded shadow-sm uppercase tracking-wider text-xs hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                  >
+                    <Download size={14} /> Manual Export
+                  </button>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="py-2.5 bg-stone-100 text-stone-600 font-bold rounded shadow-sm uppercase tracking-wider text-xs hover:bg-stone-200 transition flex items-center justify-center gap-2 border border-stone-200"
+                  >
+                    <Upload size={14} /> Import Backup
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept=".json"
+                    onChange={handleImportRestore} 
+                  />
+                </div>
+              </section>
+
+              <button onClick={onLogout} className="w-full py-3 bg-stone-900 text-white font-bold rounded text-xs uppercase tracking-wider hover:bg-rose-600 transition-all shadow flex items-center justify-center gap-2">
+                <Lock size={14} /> Close Vault & Logout
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isChangingPass && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-xl p-6 border border-stone-200 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-stone-800">Security & Credentials</h3>
+                <p className="text-xs text-stone-400 font-bold uppercase tracking-wider">Update Account Password</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsChangingPass(false); setPassError(null); setPassSuccess(null); }}
+                className="text-stone-400 hover:text-stone-600 p-1 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {passSuccess ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm font-medium mb-4">
+                ✓ {passSuccess}
+              </div>
+            ) : (
+              <form onSubmit={handleDirectPasswordChange} className="space-y-4">
+                {passError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold">
+                    {passError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={passForm.current}
+                    onChange={e => setPassForm(prev => ({ ...prev, current: e.target.value }))}
+                    placeholder="Enter current password (if set)"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={passForm.new}
+                    onChange={e => setPassForm(prev => ({ ...prev, new: e.target.value }))}
+                    placeholder="Minimum 8 characters with numbers & symbols"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={passForm.confirm}
+                    onChange={e => setPassForm(prev => ({ ...prev, confirm: e.target.value }))}
+                    placeholder="Repeat new password"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={passLoading}
+                    className="flex-1 py-2.5 bg-stone-900 text-white font-bold rounded-lg text-sm hover:bg-stone-800 disabled:opacity-50 transition"
+                  >
+                    {passLoading ? 'Updating...' : 'Update Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsChangingPass(false); setPassError(null); setPassSuccess(null); }}
+                    className="px-4 py-2.5 bg-stone-100 text-stone-600 font-bold rounded-lg text-sm hover:bg-stone-200 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="pt-3 border-t border-stone-100 text-center">
+                  <button
+                    type="button"
+                    onClick={handlePasswordSubmit}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    Forgot current password? Send reset link to email
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Settings;
+}</label>
                     <input 
                       type="number" 
                       value={cashOpeningBalance} 
