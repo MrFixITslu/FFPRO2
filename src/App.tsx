@@ -150,7 +150,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
                 <div key={idx} className="flex items-center gap-3">
                    <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] font-black text-white">{symbolText.substring(0, 1)}</div>
                    <span className="font-black text-[9px] text-stone-400 tracking-[0.2em] uppercase">{symbolText}</span>
-                   <span className="font-black text-[10px] text-white tracking-tight font-tabular privacy-sensitive">${priceVal.toLocaleString()}</span>
+                   <span className="font-black text-[10px] text-white tracking-tight font-tabular privacy-sensitive">US$ {priceVal.toLocaleString()}</span>
                    <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded font-tabular privacy-sensitive ${changeVal >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                      <i className={`fas fa-caret-${changeVal >= 0 ? 'up' : 'down'}`}></i>
                      {Math.abs(changeVal).toFixed(2)}%
@@ -1442,7 +1442,7 @@ const App: React.FC = () => {
           <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
           
           <header className="fixed top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
-            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-7xl mx-auto justify-between">
+            <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-[90vw] max-w-none mx-auto justify-between">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 {/* Logo & Brand */}
                 <div 
@@ -1532,36 +1532,9 @@ const App: React.FC = () => {
 
               {/* Right Side Header Controls */}
               <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                {/* Desktop Quick Command Palette Bar Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setShowCommandPalette(true)}
-                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
-                  title="Quick Command & Search (⌘K)"
-                >
-                  <Search size={14} className="text-stone-400 group-hover:text-stone-700" />
-                  <span className="text-stone-600 group-hover:text-stone-900 font-medium">Quick Find...</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold text-stone-500 bg-white border border-stone-200 rounded shadow-2xs font-mono">⌘K</kbd>
-                </button>
-
-                {/* Cloud Sync Status Pill */}
-                <button
-                  type="button"
-                  onClick={handleManualSync}
-                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    cloudSyncing
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : cloudError
-                      ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                      : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                  title={cloudSyncing ? 'Syncing with cloud...' : 'Cloud Synced • Click to sync immediately (S)'}
-                >
-                  <RefreshCw size={12} className={cloudSyncing ? 'animate-spin text-indigo-600' : 'text-stone-400'} />
-                  <span className="text-[10px] uppercase tracking-wider font-bold">
-                    {cloudSyncing ? 'Syncing' : cloudError ? 'Save failed' : hasUnsavedChanges ? 'Unsaved' : 'Synced'}
-                  </span>
-                </button>
+                {isAdmin && (<button type="button" onClick={() => { setEditingTransaction(null); setShowForm(true); }} className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-sm transition" title="Add Transaction (N)"><Plus size={15} /><span>Add Transaction</span></button>)}
+                <button type="button" onClick={() => setShowCommandPalette(true)} className="hidden lg:flex w-9 h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200 transition" title="Quick Find (⌘K)" aria-label="Quick Find"><Search size={15} /></button>
+                <button type="button" onClick={handleManualSync} className={`hidden xl:flex w-9 h-9 items-center justify-center rounded-lg border transition-all ${cloudSyncing ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : cloudError ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'}`} title={cloudSyncing ? 'Syncing with cloud…' : cloudError ? 'Cloud save failed — click to retry' : hasUnsavedChanges ? 'Unsaved changes — click to sync' : 'Cloud synced — click to sync now'} aria-label="Cloud sync"><RefreshCw size={14} className={cloudSyncing ? 'animate-spin' : ''} /></button>
 
                 {/* Privacy Mode Toggle */}
                 <button
@@ -1597,7 +1570,7 @@ const App: React.FC = () => {
                 {deferredPrompt && (
                   <button 
                     onClick={handleInstall}
-                    className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
+                    className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
                   >
                     <Download size={12} />
                     <span>Install</span>
@@ -1624,7 +1597,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowShortcutsModal(true)}
-                  className="hidden md:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
+                  className="hidden 2xl:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
                   title="Keyboard Shortcuts (?)"
                   aria-label="Keyboard Shortcuts"
                 >
@@ -1633,7 +1606,7 @@ const App: React.FC = () => {
 
                 <a
                   href="/api/platform/start"
-                  className="hidden sm:flex items-center justify-center h-8 sm:h-9 px-3 rounded-lg bg-stone-900 text-white hover:bg-stone-800 transition-all border border-stone-900 text-[10px] font-bold uppercase tracking-wider"
+                  className="hidden xl:flex items-center justify-center h-8 sm:h-9 px-3 rounded-lg bg-stone-900 text-white hover:bg-stone-800 transition-all border border-stone-900 text-[10px] font-bold uppercase tracking-wider"
                   title="Return to V79 Hub"
                 >
                   V79 Hub
@@ -1670,7 +1643,7 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full pt-28 sm:pt-32 px-3 sm:px-6 pb-24 md:pb-12">
+          <main className="flex-1 w-full lg:w-[90vw] max-w-none mx-auto pt-28 sm:pt-32 px-3 sm:px-6 pb-24 md:pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -1678,19 +1651,13 @@ const App: React.FC = () => {
                      <h1 className="text-3xl font-display text-stone-900 tracking-tight">Money Overview</h1>
                      <p className="text-[11px] text-stone-500 font-semibold uppercase tracking-widest mt-2">Cash flow, commitments, goals and financial intelligence</p>
                    </div>
-                   <div className="w-full md:w-auto">
-                      <button
-                        type="button"
-                        onClick={() => setShowForm(true)}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-stone-900 text-white rounded-full text-xs font-bold hover:bg-stone-800 transition shadow-sm w-full md:w-auto"
-                      >
-                        <Plus size={14} />
-                        Add Transaction
-                      </button>
+                   <div className="w-full md:w-auto flex flex-col sm:flex-row gap-2">
+                      <button type="button" onClick={() => document.getElementById('review-first-capture')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="flex items-center justify-center gap-2 px-4 py-2.5 bg-stone-100 text-stone-800 border border-stone-200 rounded-xl text-sm font-bold hover:bg-stone-200 transition w-full sm:w-auto"><Upload size={15} /> Import Statement</button>
+                      <button type="button" onClick={() => { setEditingTransaction(null); setShowForm(true); }} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-bold hover:bg-teal-500 transition shadow-sm w-full sm:w-auto"><Plus size={15} /> Add Transaction</button>
                    </div>
                 </header>
 
-                <section className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
+                <section id="review-first-capture" className="scroll-mt-32 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h2 className="text-xs font-black uppercase tracking-wider text-stone-800">Review-first capture</h2>
