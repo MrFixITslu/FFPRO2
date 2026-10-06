@@ -22,8 +22,8 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const canManage = currentUserRole === 'owner' || currentUserRole === 'editor';
   const isOwner = currentUserRole === 'owner';
+  const canManage = isOwner;
 
   const load = useCallback(async () => {
     try {
@@ -102,7 +102,9 @@ const ShareProjectModal: React.FC<Props> = ({ projectId, projectName, currentUse
         <div className="flex items-center justify-between p-5 border-b border-stone-100 shrink-0">
           <div className="min-w-0">
             <h3 className="text-lg font-bold text-stone-950 tracking-tight truncate">Share "{projectName}"</h3>
-            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">Collaborate with others</p>
+            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">
+              {isOwner ? 'Manage project access' : 'Project collaborators'}
+            </p>
           </div>
           <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-all shrink-0">
             <X className="w-5 h-5" />
