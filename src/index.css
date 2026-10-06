@@ -331,9 +331,9 @@ h1, h2, h3, h4, h5, h6 {
 .v79-ffpro-app .text-stone-800 { color: #f8fafc !important; }
 .v79-ffpro-app .text-stone-700 { color: #d5deea !important; }
 .v79-ffpro-app .text-stone-600 { color: #a4b0c0 !important; }
-.v79-ffpro-app .text-stone-500 { color: #718096 !important; }
-.v79-ffpro-app .text-stone-400 { color: #64748b !important; }
-.v79-ffpro-app .text-stone-300 { color: #526276 !important; }
+.v79-ffpro-app .text-stone-500 { color: #94a3b8 !important; }
+.v79-ffpro-app .text-stone-400 { color: #8494a8 !important; }
+.v79-ffpro-app .text-stone-300 { color: #718096 !important; }
 .v79-ffpro-app .text-teal-700,
 .v79-ffpro-app .text-teal-600 { color: #55d9ad !important; }
 .v79-ffpro-app .bg-teal-700,
@@ -381,6 +381,14 @@ h1, h2, h3, h4, h5, h6 {
 .v79-ffpro-app .office-preview-content .text-slate-900 { color: #0f172a !important; }
 .v79-ffpro-app :where(button, a, input, select, textarea, [tabindex]):focus-visible {
   outline-color: #10b981;
+}
+
+/* Desktop readability pass: keep microcopy compact without forcing 8–10px text. */
+@media (min-width: 1024px) {
+  .v79-ffpro-app .text-\[8px\] { font-size: 0.625rem !important; }
+  .v79-ffpro-app .text-\[9px\] { font-size: 0.6875rem !important; }
+  .v79-ffpro-app .text-\[10px\] { font-size: 0.75rem !important; }
+  .v79-ffpro-app .text-\[11px\] { font-size: 0.8125rem !important; }
 }
 @media print {
   .v79-ffpro-app { color-scheme: light; background: #fff !important; color: #111 !important; }
