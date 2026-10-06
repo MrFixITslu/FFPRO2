@@ -815,7 +815,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(val: any) => [money(Number(val)), 'Spent']
+                        formatter={(val: any) => [money(Number(val)), 'Spent']}
                         contentStyle={{ borderRadius: '10px', fontSize: '11px', fontWeight: 'bold' }}
                       />
                     </PieChart>
