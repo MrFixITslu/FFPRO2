@@ -82,20 +82,22 @@ export function formatCurrencyAmount(
     compact?: boolean;
   }
 ): string {
-  const val = amount ?? 0;
-  const decimals = options?.decimals !== undefined ? options?.decimals : 2;
+  const rawValue = Number(amount ?? 0);
+  const val = Number.isFinite(rawValue) ? rawValue : 0;
+  const decimals = options?.decimals !== undefined ? options.decimals : 2;
   const symbol = getCurrencySymbol(currency);
+  const sign = val < 0 ? '-' : '';
 
   const formattedNum = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
-  }).format(val);
+  }).format(Math.abs(val));
 
   if (options?.showCode) {
-    return `${symbol} ${formattedNum} ${currency}`;
+    return `${sign}${symbol} ${formattedNum} ${currency}`;
   }
 
-  return `${symbol} ${formattedNum}`;
+  return `${sign}${symbol} ${formattedNum}`;
 }
 
 /**
