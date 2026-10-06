@@ -2416,6 +2416,7 @@ const App: React.FC = () => {
             onClose={() => setShowCommandPalette(false)}
             activeTab={activeTab}
             onSelectTab={(tab) => navigateToTab(tab as AppTab)}
+            displayCurrency={displayCurrency}
             onOpenNewTransaction={() => {
               setEditingTransaction(null);
               setShowForm(true);
