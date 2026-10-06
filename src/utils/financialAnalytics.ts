@@ -1,4 +1,16 @@
-import { Transaction, CATEGORIES } from '../types';
+import { Transaction, CATEGORIES, CurrencyCode } from '../types';
+
+function formatMoney(value: number, currency: CurrencyCode = 'USD', decimals = 0): string {
+  const raw = Number(value);
+  const safe = Number.isFinite(raw) ? raw : 0;
+  const sign = safe < 0 ? '-' : '';
+  const symbol = currency === 'XCD' ? 'EC$' : 'US$';
+  const number = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(Math.abs(safe));
+  return `${sign}${symbol} ${number}`;
+}
 
 export type TimePeriodType = 'week' | 'month' | 'year' | 'custom';
 export type ComparisonType = 'previous_period' | 'previous_year' | 'none';
@@ -260,7 +272,8 @@ export function calculateFinancialIntelligence(
   transactions: Transaction[],
   categoryBudgets: Record<string, number>,
   periodComparison: PeriodComparison,
-  trajectoryGranularity?: Granularity
+  trajectoryGranularity?: Granularity,
+  currency: CurrencyCode = 'USD'
 ) {
   const { currentStart, currentEnd, previousStart, previousEnd } = periodComparison;
   const currentStartTime = currentStart.getTime();
@@ -438,11 +451,11 @@ export function calculateFinancialIntelligence(
   if (netCashflow > 50) {
     healthStatus = 'positive';
     healthHeadline = 'Positive Cashflow Trajectory';
-    healthDesc = `Inflow ($${totalIncome.toLocaleString()}) exceeds Outflow ($${totalSpending.toLocaleString()}) by $${netCashflow.toLocaleString()} (${cashflowRatio.toFixed(1)}% retained margin).`;
+    healthDesc = `Inflow (${formatMoney(totalIncome, currency)}) exceeds Outflow (${formatMoney(totalSpending, currency)}) by ${formatMoney(netCashflow, currency)} (${cashflowRatio.toFixed(1)}% retained margin).`;
   } else if (netCashflow < -50) {
     healthStatus = 'negative';
     healthHeadline = 'Negative Cashflow (Deficit)';
-    healthDesc = `Spending ($${totalSpending.toLocaleString()}) outpaced Inflow ($${totalIncome.toLocaleString()}) by $${Math.abs(netCashflow).toLocaleString()}. Funds were drawn from reserves.`;
+    healthDesc = `Spending (${formatMoney(totalSpending, currency)}) outpaced Inflow (${formatMoney(totalIncome, currency)}) by ${formatMoney(Math.abs(netCashflow), currency)}. Funds were drawn from reserves.`;
   }
 
   const summaryMetrics: FinancialSummaryMetrics = {
@@ -491,10 +504,11 @@ export function calculateFinancialIntelligence(
     categoryMatrix,
     currentTxs,
     previousTxs,
-    periodComparison
+    periodComparison,
+    currency
   );
 
-  const anomalies: AnomalyItem[] = detectSpendingAnomalies(currentTxs, previousTxs, categoryMatrix);
+  const anomalies: AnomalyItem[] = detectSpendingAnomalies(currentTxs, previousTxs, categoryMatrix, currency);
 
   // --- Run-Rate Forecasting ---
   const forecast: ForecastMetrics = computeRunRateForecast(summaryMetrics, categoryMatrix, totalDaysInPeriod, daysElapsed);
@@ -504,7 +518,8 @@ export function calculateFinancialIntelligence(
     summaryMetrics,
     categoryMatrix,
     currentTxs,
-    periodComparison
+    periodComparison,
+    currency
   );
 
   return {
@@ -710,7 +725,8 @@ function generateFinancialInsights(
   categories: CategoryMetric[],
   currentTxs: Transaction[],
   previousTxs: Transaction[],
-  periodComp: PeriodComparison
+  periodComp: PeriodComparison,
+  currency: CurrencyCode
 ): FinancialInsightItem[] {
   const insights: FinancialInsightItem[] = [];
 
@@ -720,9 +736,9 @@ function generateFinancialInsights(
       insights.push({
         id: 'spend_decrease',
         title: 'Spending is Down vs Prior Period',
-        description: `Total outlays are $${Math.abs(metrics.spendingDollarChange).toLocaleString()} (${Math.abs(metrics.spendingPercentChange).toFixed(1)}%) lower than ${periodComp.comparisonLabel}.`,
+        description: `Total outlays are ${formatMoney(Math.abs(metrics.spendingDollarChange), currency)} (${Math.abs(metrics.spendingPercentChange).toFixed(1)}%) lower than ${periodComp.comparisonLabel}.`,
         type: 'positive',
-        metricValue: `-$${Math.abs(metrics.spendingDollarChange).toLocaleString()}`,
+        metricValue: formatMoney(-Math.abs(metrics.spendingDollarChange), currency),
         delta: `-${Math.abs(metrics.spendingPercentChange).toFixed(1)}%`,
         actionLabel: 'View Current Outflows',
         transactionIds: currentTxs.filter(t => t.type === 'expense').map(t => t.id),
@@ -731,9 +747,9 @@ function generateFinancialInsights(
       insights.push({
         id: 'spend_increase',
         title: 'Spending Increased vs Prior Period',
-        description: `Total spending increased by $${metrics.spendingDollarChange.toLocaleString()} (+${metrics.spendingPercentChange.toFixed(1)}%) compared to ${periodComp.comparisonLabel}.`,
+        description: `Total spending increased by ${formatMoney(metrics.spendingDollarChange, currency)} (+${metrics.spendingPercentChange.toFixed(1)}%) compared to ${periodComp.comparisonLabel}.`,
         type: 'warning',
-        metricValue: `+$${metrics.spendingDollarChange.toLocaleString()}`,
+        metricValue: `+${formatMoney(metrics.spendingDollarChange, currency)}`,
         delta: `+${metrics.spendingPercentChange.toFixed(1)}%`,
         actionLabel: 'Inspect Outflows',
         transactionIds: currentTxs.filter(t => t.type === 'expense').map(t => t.id),
@@ -746,18 +762,18 @@ function generateFinancialInsights(
     insights.push({
       id: 'cashflow_positive',
       title: 'Healthy Positive Operating Margin',
-      description: `Inflows outpace expenditures with a retained cashflow of +$${metrics.netCashflow.toLocaleString()}.`,
+      description: `Inflows outpace expenditures with a retained cashflow of +${formatMoney(metrics.netCashflow, currency)}.`,
       type: 'positive',
-      metricValue: `+$${metrics.netCashflow.toLocaleString()}`,
+      metricValue: `+${formatMoney(metrics.netCashflow, currency)}`,
       actionLabel: 'View Cashflow',
     });
   } else {
     insights.push({
       id: 'cashflow_negative',
       title: 'Operating Deficit in Current Window',
-      description: `Current spending exceeds income by $${Math.abs(metrics.netCashflow).toLocaleString()}. Review high-spending categories to reduce burn rate.`,
+      description: `Current spending exceeds income by ${formatMoney(Math.abs(metrics.netCashflow), currency)}. Review high-spending categories to reduce burn rate.`,
       type: 'warning',
-      metricValue: `-$${Math.abs(metrics.netCashflow).toLocaleString()}`,
+      metricValue: formatMoney(-Math.abs(metrics.netCashflow), currency),
       actionLabel: 'View Deficit Drivers',
       transactionIds: currentTxs.filter(t => t.type === 'expense').map(t => t.id),
     });
@@ -774,11 +790,11 @@ function generateFinancialInsights(
     insights.push({
       id: `driver_${top.name}`,
       title: `${top.name} Spending Surged +${top.percentChange.toFixed(0)}%`,
-      description: `${top.name} expanded by $${top.dollarChange.toLocaleString()} and represents ${top.percentOfTotalSpending.toFixed(1)}% of total outlays this period.`,
+      description: `${top.name} expanded by ${formatMoney(top.dollarChange, currency)} and represents ${top.percentOfTotalSpending.toFixed(1)}% of total outlays this period.`,
       category: top.name,
       type: 'trend',
-      metricValue: `$${top.amount.toLocaleString()}`,
-      delta: `+$${top.dollarChange.toLocaleString()}`,
+      metricValue: formatMoney(top.amount, currency),
+      delta: `+${formatMoney(top.dollarChange, currency)}`,
       actionLabel: `View ${top.name} (${catTxs.length})`,
       transactionIds: catTxs.map(t => t.id),
     });
@@ -793,9 +809,9 @@ function generateFinancialInsights(
     insights.push({
       id: 'budget_overage',
       title: `${overBudgetCats.length} ${overBudgetCats.length === 1 ? 'Category Over Limit' : 'Categories Over Limit'}`,
-      description: `Budget limits exceeded in ${names} by a combined $${totalOverage.toLocaleString()}.`,
+      description: `Budget limits exceeded in ${names} by a combined ${formatMoney(totalOverage, currency)}.`,
       type: 'alert',
-      metricValue: `$${totalOverage.toLocaleString()} over`,
+      metricValue: `${formatMoney(totalOverage, currency)} over`,
       actionLabel: 'Inspect Overages',
       transactionIds: overTxs.map(t => t.id),
     });
@@ -819,9 +835,9 @@ function generateFinancialInsights(
     insights.push({
       id: 'ticket_size',
       title: `Average Transaction Size ${isHigher ? 'Increased' : 'Decreased'}`,
-      description: `Average purchase amount moved from $${metrics.previousAverageTransactionValue.toFixed(2)} to $${metrics.averageTransactionValue.toFixed(2)} (${isHigher ? '+' : ''}${((metrics.averageTransactionValueChange / metrics.previousAverageTransactionValue) * 100).toFixed(1)}%).`,
+      description: `Average purchase amount moved from ${formatMoney(metrics.previousAverageTransactionValue, currency, 2)} to ${formatMoney(metrics.averageTransactionValue, currency, 2)} (${isHigher ? '+' : ''}${((metrics.averageTransactionValueChange / metrics.previousAverageTransactionValue) * 100).toFixed(1)}%).`,
       type: 'neutral',
-      metricValue: `$${metrics.averageTransactionValue.toFixed(2)}/tx`,
+      metricValue: `${formatMoney(metrics.averageTransactionValue, currency, 2)}/tx`,
     });
   }
 
@@ -849,7 +865,8 @@ function generateFinancialInsights(
 function detectSpendingAnomalies(
   currentTxs: Transaction[],
   previousTxs: Transaction[],
-  categories: CategoryMetric[]
+  categories: CategoryMetric[],
+  currency: CurrencyCode
 ): AnomalyItem[] {
   const anomalies: AnomalyItem[] = [];
   const expenses = currentTxs.filter(t => t.type === 'expense');
@@ -859,7 +876,7 @@ function detectSpendingAnomalies(
   const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
   const avgAmount = totalExpense / expenses.length;
 
-  // 1. Unusually large transactions (> 3x average and > $100)
+  // 1. Unusually large transactions (> 3x average and > 100 monetary units)
   const largeThreshold = Math.max(100, avgAmount * 2.8);
   const largeTxs = expenses.filter(t => t.amount >= largeThreshold);
   largeTxs.forEach(t => {
@@ -867,8 +884,8 @@ function detectSpendingAnomalies(
       id: `anomaly_large_${t.id}`,
       type: 'large_transaction',
       severity: t.amount > avgAmount * 4 ? 'high' : 'medium',
-      title: `Large Outlay: $${t.amount.toLocaleString()} in ${t.category}`,
-      detail: `"${t.description}" is ${ (t.amount / Math.max(1, avgAmount)).toFixed(1) }x higher than your average purchase size ($${avgAmount.toFixed(0)}).`,
+      title: `Large Outlay: ${formatMoney(t.amount, currency)} in ${t.category}`,
+      detail: `"${t.description}" is ${ (t.amount / Math.max(1, avgAmount)).toFixed(1) }x higher than your average purchase size (${formatMoney(avgAmount, currency)}).`,
       amount: t.amount,
       date: t.date,
       category: t.category,
@@ -894,8 +911,8 @@ function detectSpendingAnomalies(
           id: `anomaly_day_${dateStr}`,
           type: 'high_spend_day',
           severity: 'medium',
-          title: `High Spending Day: $${dayData.total.toLocaleString()} on ${dateStr}`,
-          detail: `${dayData.count} transactions totaling $${dayData.total.toLocaleString()} (${(dayData.total / avgDaily).toFixed(1)}x daily average).`,
+          title: `High Spending Day: ${formatMoney(dayData.total, currency)} on ${dateStr}`,
+          detail: `${dayData.count} transactions totaling ${formatMoney(dayData.total, currency)} (${(dayData.total / avgDaily).toFixed(1)}x daily average).`,
           amount: dayData.total,
           date: dateStr,
           transactionIds: dayData.txs.map(t => t.id),
@@ -926,8 +943,8 @@ function detectSpendingAnomalies(
           id: `anomaly_dup_${t1.id}_${t2.id}`,
           type: 'possible_duplicate',
           severity: 'low',
-          title: `Potential Duplicate: $${t1.amount.toLocaleString()} in ${t1.category}`,
-          detail: `Two matching charges of $${t1.amount.toLocaleString()} detected for "${t1.description}" and "${t2.description}" within ${diffDays === 0 ? 'the same day' : `${diffDays.toFixed(0)} days`}.`,
+          title: `Potential Duplicate: ${formatMoney(t1.amount, currency)} in ${t1.category}`,
+          detail: `Two matching charges of ${formatMoney(t1.amount, currency)} detected for "${t1.description}" and "${t2.description}" within ${diffDays === 0 ? 'the same day' : `${diffDays.toFixed(0)} days`}.`,
           amount: t1.amount,
           date: t1.date,
           category: t1.category,
@@ -994,7 +1011,8 @@ function computePeriodIntelligence(
   metrics: FinancialSummaryMetrics,
   categories: CategoryMetric[],
   currentTxs: Transaction[],
-  periodComp: PeriodComparison
+  periodComp: PeriodComparison,
+  currency: CurrencyCode
 ): PeriodOverPeriodIntelligence {
   const isIncrease = metrics.spendingDollarChange > 0;
   const diff = Math.abs(metrics.spendingDollarChange);
@@ -1017,23 +1035,23 @@ function computePeriodIntelligence(
   let summary = '';
 
   if (metrics.previousSpending === 0) {
-    headline = `Total Outflows: $${metrics.totalSpending.toLocaleString()}`;
+    headline = `Total Outflows: ${formatMoney(metrics.totalSpending, currency)}`;
     summary = `Recorded ${metrics.transactionCount} transactions in this period. No prior comparison baseline available.`;
   } else if (isIncrease) {
-    headline = `You spent $${diff.toLocaleString()} more (+${pct.toFixed(1)}%) than ${periodComp.comparisonLabel}.`;
+    headline = `You spent ${formatMoney(diff, currency)} more (+${pct.toFixed(1)}%) than ${periodComp.comparisonLabel}.`;
     if (topDrivers.length > 0) {
       const driverDesc = topDrivers
-        .map(d => `${d.category} (+${d.dollarDiff > 0 ? '$' + d.dollarDiff.toLocaleString() : '-$' + Math.abs(d.dollarDiff).toLocaleString()})`)
+        .map(d => `${d.category} (${d.dollarDiff > 0 ? '+' + formatMoney(d.dollarDiff, currency) : formatMoney(d.dollarDiff, currency)})`)
         .join(', ');
       summary = `Primary drivers: ${driverDesc}.`;
     } else {
       summary = `Outflows scaled upward across active budgetary categories.`;
     }
   } else {
-    headline = `You spent $${diff.toLocaleString()} less (-${pct.toFixed(1)}%) than ${periodComp.comparisonLabel}.`;
+    headline = `You spent ${formatMoney(diff, currency)} less (-${pct.toFixed(1)}%) than ${periodComp.comparisonLabel}.`;
     if (topDrivers.length > 0) {
       const driverDesc = topDrivers
-        .map(d => `${d.category} (-$${Math.abs(d.dollarDiff).toLocaleString()})`)
+        .map(d => `${d.category} (${formatMoney(-Math.abs(d.dollarDiff), currency)})`)
         .join(', ');
       summary = `Primary reductions: ${driverDesc}.`;
     } else {
