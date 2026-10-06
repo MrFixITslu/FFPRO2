@@ -18,8 +18,10 @@ import {
   Transaction, 
   RecurringExpense, 
   RecurringIncome, 
-  CATEGORIES 
+  CATEGORIES,
+  CurrencyCode
 } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 import {
   TrendingUp,
   TrendingDown,
@@ -74,6 +76,7 @@ interface Props {
   recurringExpenses?: RecurringExpense[];
   recurringIncomes?: RecurringIncome[];
   categoryBudgets: Record<string, number>;
+  displayCurrency: CurrencyCode;
   onUpdateCategoryBudget?: (category: string, amount: number) => void;
   onEditTransaction?: (t: Transaction) => void;
   onDeleteTransaction?: (id: string) => void;
@@ -105,11 +108,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
   recurringExpenses = [],
   recurringIncomes = [],
   categoryBudgets,
+  displayCurrency,
   onUpdateCategoryBudget,
   onEditTransaction,
   onDeleteTransaction,
   onOpenTransactionForm
 }) => {
+  const money = (value: number, decimals = 0) => formatCurrencyAmount(value, displayCurrency, { decimals });
+
   // --- Time Controls State ---
   const [periodType, setPeriodType] = useState<TimePeriodType>('month');
   const [comparisonType, setComparisonType] = useState<ComparisonType>('previous_period');
@@ -157,8 +163,8 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
   // Compute Full Financial Intelligence Engine
   const analytics = useMemo(() => {
-    return calculateFinancialIntelligence(transactions, categoryBudgets, periodComparison);
-  }, [transactions, categoryBudgets, periodComparison]);
+    return calculateFinancialIntelligence(transactions, categoryBudgets, periodComparison, undefined, displayCurrency);
+  }, [transactions, categoryBudgets, periodComparison, displayCurrency]);
 
   const {
     summaryMetrics,
@@ -313,9 +319,6 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   <h2 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
                     Spending, Cashflow & Insights
                   </h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
-                    Unified Intel
-                  </span>
                 </div>
                 <p className="text-xs text-stone-500 font-medium mt-0.5">
                   Real-time cashflow trajectory, category spend matrices, behavioural anomalies, and forward projections
@@ -415,12 +418,10 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           {/* Perspective Navigation Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
             {[
-              { id: 'all', label: 'All-in-One' },
-              { id: 'spending', label: 'Spending Breakdown' },
-              { id: 'cashflow', label: 'Cashflow Trajectory' },
-              { id: 'matrix', label: 'Category Matrix' },
-              { id: 'insights', label: `Insights (${insights.length + anomalies.length})` },
-              { id: 'forecast', label: 'Forecast' }
+              { id: 'all', label: 'Overview' },
+              { id: 'cashflow', label: 'Cashflow' },
+              { id: 'matrix', label: 'Categories' },
+              { id: 'insights', label: `Insights (${insights.length + anomalies.length})` }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -453,19 +454,19 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               </div>
             </div>
             <h3 className="text-lg font-black text-stone-900 font-tabular privacy-sensitive">
-              ${summaryMetrics.totalSpending.toLocaleString()}
+              {money(summaryMetrics.totalSpending)}
             </h3>
             {comparisonType !== 'none' && (
               <div className="mt-2 flex items-center gap-1 text-[10px] font-bold">
                 {summaryMetrics.spendingDollarChange <= 0 ? (
                   <span className="text-emerald-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowDownRight size={13} className="mr-0.5" />
-                    -${Math.abs(summaryMetrics.spendingDollarChange).toLocaleString()} ({Math.abs(summaryMetrics.spendingPercentChange).toFixed(1)}%)
+                    -{money(Math.abs(summaryMetrics.spendingDollarChange))} ({Math.abs(summaryMetrics.spendingPercentChange).toFixed(1)}%)
                   </span>
                 ) : (
                   <span className="text-rose-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowUpRight size={13} className="mr-0.5" />
-                    +${summaryMetrics.spendingDollarChange.toLocaleString()} (+{summaryMetrics.spendingPercentChange.toFixed(1)}%)
+                    +{money(summaryMetrics.spendingDollarChange)} (+{summaryMetrics.spendingPercentChange.toFixed(1)}%)
                   </span>
                 )}
                 <span className="text-stone-600 font-normal">vs prior</span>
@@ -485,19 +486,19 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               </div>
             </div>
             <h3 className="text-lg font-black text-stone-900 font-tabular privacy-sensitive">
-              ${summaryMetrics.totalIncome.toLocaleString()}
+              {money(summaryMetrics.totalIncome)}
             </h3>
             {comparisonType !== 'none' && (
               <div className="mt-2 flex items-center gap-1 text-[10px] font-bold">
                 {summaryMetrics.incomeDollarChange >= 0 ? (
                   <span className="text-emerald-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowUpRight size={13} className="mr-0.5" />
-                    +${summaryMetrics.incomeDollarChange.toLocaleString()} (+{summaryMetrics.incomePercentChange.toFixed(1)}%)
+                    +{money(summaryMetrics.incomeDollarChange)} (+{summaryMetrics.incomePercentChange.toFixed(1)}%)
                   </span>
                 ) : (
                   <span className="text-rose-600 flex items-center font-tabular privacy-sensitive">
                     <ArrowDownRight size={13} className="mr-0.5" />
-                    -${Math.abs(summaryMetrics.incomeDollarChange).toLocaleString()} (-{Math.abs(summaryMetrics.incomePercentChange).toFixed(1)}%)
+                    -{money(Math.abs(summaryMetrics.incomeDollarChange))} (-{Math.abs(summaryMetrics.incomePercentChange).toFixed(1)}%)
                   </span>
                 )}
                 <span className="text-stone-600 font-normal">vs prior</span>
@@ -519,7 +520,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               </span>
             </div>
             <h3 className={`text-lg font-black font-tabular privacy-sensitive ${summaryMetrics.netCashflow >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {summaryMetrics.netCashflow >= 0 ? '+' : ''}${summaryMetrics.netCashflow.toLocaleString()}
+              {summaryMetrics.netCashflow > 0 ? '+' : ''}{money(summaryMetrics.netCashflow)}
             </h3>
             <p className="mt-2 text-[10px] text-stone-600 font-medium truncate">
               {summaryMetrics.cashflowHealth.ratioPercent.toFixed(1)}% margin of inflow
@@ -538,7 +539,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
               </div>
             </div>
             <h3 className="text-lg font-black text-stone-900 font-tabular privacy-sensitive">
-              ${summaryMetrics.averageDailySpending.toFixed(2)}
+              {money(summaryMetrics.averageDailySpending, 2)}
               <span className="text-xs font-normal text-stone-600">/day</span>
             </h3>
             <p className="mt-2 text-[10px] text-stone-600 font-medium">
@@ -653,7 +654,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }}
-                  tickFormatter={(v) => `$${v}`}
+                  tickFormatter={(v) => money(Number(v))}
                 />
                 <Tooltip 
                   content={({ active, payload, label }) => {
@@ -664,16 +665,16 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                           <p className="font-bold text-indigo-300 uppercase tracking-wider text-[10px]">{data.label}</p>
                           <div className="flex justify-between items-center text-emerald-400 font-bold">
                             <span>Inflow:</span>
-                            <span className="font-tabular privacy-sensitive">+${data.inflow.toLocaleString()}</span>
+                            <span className="font-tabular privacy-sensitive">+{money(data.inflow)}</span>
                           </div>
                           <div className="flex justify-between items-center text-rose-400 font-bold">
                             <span>Outflow:</span>
-                            <span className="font-tabular privacy-sensitive">-${data.outflow.toLocaleString()}</span>
+                            <span className="font-tabular privacy-sensitive">-{money(data.outflow)}</span>
                           </div>
                           <div className="flex justify-between items-center pt-1 border-t border-stone-800 font-black">
                             <span>Net Cashflow:</span>
                             <span className={`font-tabular privacy-sensitive ${data.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {data.net >= 0 ? '+' : ''}${data.net.toLocaleString()}
+                              {data.net > 0 ? '+' : ''}{money(data.net)}
                             </span>
                           </div>
                           {data.transactionIds.length > 0 && (
@@ -755,7 +756,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         <span className="font-bold text-stone-800">{d.category}</span>
                       </div>
                       <span className={`font-black font-tabular privacy-sensitive ${d.dollarDiff > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {d.dollarDiff > 0 ? '+' : ''}${d.dollarDiff.toLocaleString()} ({d.percentDiff > 0 ? '+' : ''}{d.percentDiff.toFixed(0)}%)
+                        {d.dollarDiff > 0 ? '+' : ''}{money(d.dollarDiff)} ({d.percentDiff > 0 ? '+' : ''}{d.percentDiff.toFixed(0)}%)
                       </span>
                     </div>
                   ))}
@@ -784,7 +785,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                 </p>
               </div>
               <span className="text-xs font-black text-stone-900 font-tabular privacy-sensitive">
-                ${summaryMetrics.totalSpending.toLocaleString()} Total
+                {money(summaryMetrics.totalSpending)} Total
               </span>
             </div>
 
@@ -814,7 +815,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(val: any) => [`$${Number(val).toLocaleString()}`, 'Spent']}
+                        formatter={(val: any) => [money(Number(val)), 'Spent']
                         contentStyle={{ borderRadius: '10px', fontSize: '11px', fontWeight: 'bold' }}
                       />
                     </PieChart>
@@ -841,7 +842,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         <span className="text-[10px] text-stone-600 font-medium">({cat.transactionCount} txs)</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-black text-stone-900 font-tabular privacy-sensitive">${cat.amount.toLocaleString()}</span>
+                        <span className="font-black text-stone-900 font-tabular privacy-sensitive">{money(cat.amount)}</span>
                         <span className="text-[10px] font-bold text-stone-600 ml-1.5 font-tabular privacy-sensitive">
                           ({cat.percentOfTotalSpending.toFixed(1)}%)
                         </span>
@@ -942,19 +943,19 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
                       {/* Current Spend */}
                       <td className="py-3 px-4 text-right font-black text-stone-900 font-tabular privacy-sensitive">
-                        ${cat.amount.toLocaleString()}
+                        {money(cat.amount)}
                       </td>
 
                       {/* Prior Spend */}
                       <td className="py-3 px-4 text-right font-semibold text-stone-500 font-tabular privacy-sensitive">
-                        ${cat.previousAmount.toLocaleString()}
+                        {money(cat.previousAmount)}
                       </td>
 
                       {/* Variance */}
                       <td className="py-3 px-4 text-right font-bold">
                         {cat.previousAmount > 0 ? (
                           <span className={`font-tabular privacy-sensitive ${cat.dollarChange > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                            {cat.dollarChange > 0 ? '+' : ''}${cat.dollarChange.toLocaleString()}
+                            {cat.dollarChange > 0 ? '+' : ''}{money(cat.dollarChange)}
                             <span className="text-[10px] ml-1">
                               ({cat.percentChange > 0 ? '+' : ''}{cat.percentChange.toFixed(0)}%)
                             </span>
@@ -995,7 +996,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                             ) : (
                               <div className="flex items-center gap-1.5">
                                 <span className="font-bold text-stone-700 font-tabular privacy-sensitive">
-                                  {cat.budget > 0 ? `$${cat.budget.toLocaleString()}` : 'Uncapped'}
+                                  {cat.budget > 0 ? money(cat.budget) : 'Uncapped'}
                                 </span>
                                 {onUpdateCategoryBudget && (
                                   <button
@@ -1034,7 +1035,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
                       {/* Daily Avg */}
                       <td className="py-3 px-4 text-right font-semibold text-stone-700">
-                        ${cat.dailyAverage.toFixed(2)}
+                        {money(cat.dailyAverage, 2)}
                       </td>
 
                       {/* % of Total */}
@@ -1049,7 +1050,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
 
                       {/* Average Amount per Tx */}
                       <td className="py-3 px-4 text-right font-semibold text-stone-600">
-                        ${cat.averageTransactionAmount.toFixed(2)}
+                        {money(cat.averageTransactionAmount, 2)}
                       </td>
 
                       {/* Action Drilldown */}
@@ -1232,7 +1233,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
             <div className="text-right">
               <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Projected Net Cashflow</span>
               <h4 className={`text-base font-black font-tabular privacy-sensitive ${forecast.projectedPeriodNet >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {forecast.projectedPeriodNet >= 0 ? '+' : ''}${forecast.projectedPeriodNet.toLocaleString()}
+                {forecast.projectedPeriodNet > 0 ? '+' : ''}{money(forecast.projectedPeriodNet)}
               </h4>
             </div>
           </div>
@@ -1240,14 +1241,14 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-1">
               <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Projected Total Outflow</span>
-              <h4 className="text-base font-black text-white font-tabular privacy-sensitive">${forecast.projectedPeriodSpending.toLocaleString()}</h4>
-              <p className="text-[10px] text-stone-400">Current: <span className="font-tabular privacy-sensitive">${summaryMetrics.totalSpending.toLocaleString()}</span> + <span className="font-tabular privacy-sensitive">${(forecast.spendingRunRateDaily * forecast.daysRemaining).toLocaleString()}</span> est.</p>
+              <h4 className="text-base font-black text-white font-tabular privacy-sensitive">{money(forecast.projectedPeriodSpending)}</h4>
+              <p className="text-[10px] text-stone-400">Current: <span className="font-tabular privacy-sensitive">{money(summaryMetrics.totalSpending)}</span> + <span className="font-tabular privacy-sensitive">{money(forecast.spendingRunRateDaily * forecast.daysRemaining)}</span> est.</p>
             </div>
 
             <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-1">
               <span className="text-[9px] font-bold uppercase text-stone-400 tracking-wider">Projected Total Inflow</span>
-              <h4 className="text-base font-black text-emerald-400 font-tabular privacy-sensitive">${forecast.projectedPeriodIncome.toLocaleString()}</h4>
-              <p className="text-[10px] text-stone-400">Based on active inflow rate of <span className="font-tabular privacy-sensitive">${forecast.incomeRunRateDaily.toFixed(0)}</span>/day</p>
+              <h4 className="text-base font-black text-emerald-400 font-tabular privacy-sensitive">{money(forecast.projectedPeriodIncome)}</h4>
+              <p className="text-[10px] text-stone-400">Based on active inflow rate of <span className="font-tabular privacy-sensitive">{money(forecast.incomeRunRateDaily)}</span>/day</p>
             </div>
 
             <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-1">
@@ -1283,7 +1284,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-stone-600 mt-0.5">
-                  Total Value: <strong className="text-stone-900 font-tabular privacy-sensitive">${drilldownTransactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}</strong>
+                  Total Value: <strong className="text-stone-900 font-tabular privacy-sensitive">{money(drilldownTransactions.reduce((sum, t) => sum + t.amount, 0))}</strong>
                 </p>
               </div>
 
@@ -1376,7 +1377,7 @@ export const SpendingCashflowIntelligence: React.FC<Props> = ({
                         <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap font-tabular privacy-sensitive ${
                           t.type === 'income' ? 'text-emerald-600' : 'text-stone-900'
                         }`}>
-                          {t.type === 'income' ? '+' : ''}${t.amount.toLocaleString()}
+                          {t.type === 'income' ? '+' : ''}{money(t.amount)}
                         </td>
                         {(onEditTransaction || onDeleteTransaction) && (
                           <td className="py-2.5 px-4 text-right whitespace-nowrap">
