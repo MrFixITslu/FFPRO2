@@ -160,7 +160,7 @@ router.delete('/:id', loadMembership, requireRole('owner'), async (req, res) => 
 router.get('/:id/members', loadMembership, async (req, res) => {
   try {
     const members = await projectsDb.listMembers(req.params.id);
-    const invites = ['owner', 'editor'].includes(req.projectRole)
+    const invites = req.projectRole === 'owner'
       ? await projectsDb.listPendingInvitesForProject(req.params.id)
       : [];
     res.json({ members, invites });
@@ -210,7 +210,7 @@ router.patch('/:id/members/:userId', loadMembership, requireRole('owner'), async
 
 // --- Invites --------------------------------------------------------------
 
-router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner', 'editor'), async (req, res) => {
+router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner'), async (req, res) => {
   const { email, role } = req.body || {};
   if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'A valid email address is required.' });
@@ -229,7 +229,7 @@ router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner', 
       role,
       invitedBy: req.user.id,
     });
-    const inviteLink = `${frontendBase(req)}/invite/${invite.token}`;
+    const inviteLink = `${frontendBase(req)}/invite/${invite.rawToken}`;
     const { sent } = await sendProjectInviteEmail({
       toEmail: email,
       projectName: project.name,
@@ -238,14 +238,15 @@ router.post('/:id/invites', inviteLimiter, loadMembership, requireRole('owner', 
       inviteLink,
     });
 
-    res.status(201).json({ ok: true, invite, inviteLink, emailSent: sent });
+    const { rawToken: _secret, ...safeInvite } = invite;
+    res.status(201).json({ ok: true, invite: safeInvite, inviteLink, emailSent: sent });
   } catch (err) {
     console.error('POST /api/projects/:id/invites error:', err);
     res.status(500).json({ error: 'Failed to send invite.' });
   }
 });
 
-router.delete('/:id/invites/:inviteId', loadMembership, requireRole('owner', 'editor'), async (req, res) => {
+router.delete('/:id/invites/:inviteId', loadMembership, requireRole('owner'), async (req, res) => {
   try {
     // Verify the invite actually belongs to THIS project before revoking —
     // otherwise any editor on any project could revoke an invite ID
