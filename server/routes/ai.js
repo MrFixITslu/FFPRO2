@@ -16,12 +16,18 @@ import {
 import { parseQuoteTextDeterministic } from '../services/quoteParser.js';
 import { generateProjectCardImage } from '../services/cardImageGenerator.js';
 import { generateBusinessCopilotResponse } from '../services/businessCopilotService.js';
+import { parseCsvStatement, parseStatementText, normalizeAiStatementRows } from '../services/statementParser.js';
 
 const router = Router();
 
 const quoteUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 3, fieldSize: 1024, parts: 4 }
+});
+
+const statementUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 1, fieldSize: 512, parts: 2 }
 });
 
 // Rate limiting for public market data feed to prevent ticker flooding
@@ -90,6 +96,27 @@ const SCHEMA = {
 };
 
 const CATEGORIES = ['Food', 'Transport', 'Housing', 'Entertainment', 'Utilities', 'Health', 'Shopping', 'Education', 'Personal', 'Income', 'Savings', 'Other', 'Investments', 'Transfer'];
+
+const STATEMENT_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    transactions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          date: { type: Type.STRING, description: 'Transaction date exactly as supported by the statement text.' },
+          description: { type: Type.STRING, description: 'Payee, merchant, memo, or transaction description from the statement.' },
+          amount: { type: Type.NUMBER, description: 'Positive transaction magnitude, never a signed balance.' },
+          type: { type: Type.STRING, enum: ['expense','income'], description: 'expense for debit/outflow; income for credit/inflow.' },
+          vendor: { type: Type.STRING, description: 'Merchant/payee when explicit in the source text.' }
+        },
+        required: ['date','description','amount','type']
+      }
+    }
+  },
+  required: ['transactions']
+};
 
 function validateMimeType(mimeType) {
   const allowedTypes = [
@@ -235,6 +262,89 @@ router.get('/ollama/status', async (req, res) => {
 });
 
 router.post('/ollama/config', (_req, res) => res.status(403).json({ error: 'Ollama connection settings are managed by the server administrator.' }));
+
+router.post('/parse-statement', uploadGate, statementUpload.single('statement'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Choose one PDF or CSV statement.' });
+    const sourceName = String(req.file.originalname || 'Statement').replace(/[\x00-\x1f\x7f/\\]/g,'_').slice(0,200);
+    const lowerName = sourceName.toLowerCase();
+    const isCsv = req.file.mimetype === 'text/csv' || lowerName.endsWith('.csv');
+    const isPdf = req.file.mimetype === 'application/pdf' || lowerName.endsWith('.pdf');
+    if (!isCsv && !isPdf) return res.status(415).json({ error: 'Statement import supports PDF and CSV files only.' });
+
+    if (isCsv) {
+      const parsed = parseCsvStatement(req.file.buffer.toString('utf8'), { sourceName });
+      return res.json({ ok: true, items: parsed.transactions, warnings: parsed.warnings, sourceName, parser: 'deterministic-csv' });
+    }
+
+    let statementText = '';
+    try {
+      const { PDFParse } = await import('pdf-parse');
+      const parser = new PDFParse({ data: req.file.buffer });
+      try {
+        const parsed = await parser.getText();
+        statementText = String(parsed?.text || '');
+      } finally {
+        await parser.destroy();
+      }
+    } catch (error) {
+      console.warn('Statement PDF text extraction failed:', error?.message || error);
+      return res.status(422).json({ error: 'This PDF could not be read as text. Export a text-based statement or use CSV.' });
+    }
+
+    if (!statementText.trim()) {
+      return res.status(422).json({ error: 'No readable statement text was found in this PDF.' });
+    }
+
+    const deterministic = parseStatementText(statementText, { sourceName });
+    if (deterministic.transactions.length > 0) {
+      return res.json({
+        ok: true,
+        items: deterministic.transactions,
+        warnings: deterministic.warnings,
+        sourceName,
+        parser: 'deterministic-pdf'
+      });
+    }
+
+    const geminiKey = getValidGeminiKey();
+    if (!geminiKey) {
+      return res.status(422).json({
+        error: 'No transaction rows could be parsed safely from this PDF. Use CSV or a clearer text-based PDF.',
+        warnings: deterministic.warnings
+      });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const boundedText = statementText.slice(0, 60000);
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [{ text: `Extract transaction rows from the following bank/financial statement text. Do not infer missing rows, dates, amounts, or debit/credit direction. Ignore running balances.\n\n${boundedText}` }]
+      },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: STATEMENT_SCHEMA,
+        systemInstruction: 'You extract statement rows for human review. Never fabricate transactions. Return only rows explicitly present in the supplied text. Amount must be a positive transaction magnitude; type must reflect explicit debit/outflow versus credit/inflow evidence.'
+      }
+    });
+    const raw = response.text ? JSON.parse(response.text) : { transactions: [] };
+    const normalized = normalizeAiStatementRows(raw.transactions, { sourceName });
+    if (!normalized.transactions.length) {
+      return res.status(422).json({ error: 'No transaction rows could be validated from this PDF.', warnings: [...deterministic.warnings, ...normalized.warnings] });
+    }
+    return res.json({
+      ok: true,
+      items: normalized.transactions,
+      warnings: [...deterministic.warnings, 'AI-assisted PDF extraction was used. Verify every row before approval.', ...normalized.warnings],
+      sourceName,
+      parser: 'ai-assisted-pdf'
+    });
+  } catch (error) {
+    console.error('Statement import error:', error?.message || error);
+    return res.status(error?.status || 500).json({ error: error?.message || 'Statement import failed.' });
+  }
+});
 
 /**
  * Extract supplier quote data using local Ollama.
@@ -490,11 +600,11 @@ router.post('/parse', async (req, res) => {
       config: {
         responseMimeType: "application/json",
         responseSchema: SCHEMA,
-        systemInstruction: `You are an elite Receipt & Financial Parsing Engine. 
-        Your goal is 100% accuracy in merchant detection and line-item extraction. 
-        Categories available: ${CATEGORIES.join(", ")}. 
-        Always return structured JSON. 
-        For receipts, always populate the 'vendor' and 'lineItems' fields with high detail.`
+        systemInstruction: `You are a receipt and financial-intent extraction engine for a human-reviewed finance workflow.
+        Extract only information supported by the supplied text/image; never invent amounts, dates, merchants, or line items.
+        Categories available: ${CATEGORIES.join(", ")}.
+        Always return structured JSON.
+        For receipts, populate vendor and lineItems only when visible in the source. The user will review the result before posting.`
       }
     });
 
