@@ -3,6 +3,7 @@ import { hasPostgres, realPool, readDB, writeDB } from './db.js';
 
 const nowISO = () => new Date().toISOString();
 const uuid = () => crypto.randomUUID();
+const inviteHash = token => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 
 function sanitizeMemberRow(row) {
   if (!row) return null;
@@ -24,7 +25,6 @@ function sanitizeInviteRow(row) {
     email: row.email,
     role: row.role,
     status: row.status,
-    token: row.token,
     createdAt: row.created_at,
     acceptedAt: row.accepted_at || null,
   };
@@ -165,16 +165,22 @@ const pg = {
   },
 
   async createInvite({ projectId, email, role, invitedBy }) {
-    const token = crypto.randomBytes(24).toString('hex');
+    const rawToken = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = inviteHash(rawToken);
     const { rows } = await realPool.query(
-      `INSERT INTO project_invites (project_id, email, role, invited_by, token) VALUES ($1, LOWER($2), $3, $4, $5) RETURNING *`,
-      [projectId, email, role, invitedBy, token]
+      `INSERT INTO project_invites (project_id, email, role, invited_by, token, token_hash)
+       VALUES ($1, LOWER($2), $3, $4, $5, $5) RETURNING *`,
+      [projectId, email, role, invitedBy, tokenHash]
     );
-    return sanitizeInviteRow(rows[0]);
+    return { ...sanitizeInviteRow(rows[0]), rawToken };
   },
 
   async getInviteByToken(token) {
-    const { rows } = await realPool.query('SELECT * FROM project_invites WHERE token = $1', [token]);
+    const tokenHash = inviteHash(token);
+    const { rows } = await realPool.query(
+      'SELECT * FROM project_invites WHERE token_hash = $1 OR (token_hash IS NULL AND token = $2) LIMIT 1',
+      [tokenHash, token]
+    );
     return sanitizeInviteRow(rows[0]);
   },
 
@@ -351,25 +357,29 @@ const file = {
 
   async createInvite({ projectId, email, role, invitedBy }) {
     const db = readDB();
+    const rawToken = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = inviteHash(rawToken);
     const invite = {
       id: uuid(),
       project_id: projectId,
       email: String(email).toLowerCase(),
       role,
       invited_by: invitedBy,
-      token: crypto.randomBytes(24).toString('hex'),
+      token: tokenHash,
+      token_hash: tokenHash,
       status: 'pending',
       created_at: nowISO(),
       accepted_at: null,
     };
     db.project_invites.push(invite);
     writeDB(db);
-    return sanitizeInviteRow(invite);
+    return { ...sanitizeInviteRow(invite), rawToken };
   },
 
   async getInviteByToken(token) {
     const db = readDB();
-    const invite = db.project_invites.find(i => i.token === token);
+    const tokenHash = inviteHash(token);
+    const invite = db.project_invites.find(i => i.token_hash === tokenHash || (!i.token_hash && i.token === token));
     return invite ? sanitizeInviteRow(invite) : null;
   },
 
@@ -458,16 +468,20 @@ export const projectsDb = {
 // Consume the invitation and grant membership in one transaction.
 export async function acceptInvitation(token, user) {
   const valid = invite => invite && invite.status==='pending' && Date.now()-new Date(invite.created_at).getTime()<7*86400000 && invite.email.toLowerCase()===user.email.toLowerCase() && user.email_verified_at;
+  const tokenHash=inviteHash(token);
   if(!realPool) {
-    const db=readDB(),invite=db.project_invites.find(i=>i.token===token);
+    const db=readDB(),invite=db.project_invites.find(i=>i.token_hash===tokenHash || (!i.token_hash && i.token===token));
     if(!valid(invite)) return null;
-    if(!db.project_members.some(m=>m.project_id===invite.project_id && m.user_id===user.id)) db.project_members.push({id:uuid(),project_id:invite.project_id,user_id:user.id,role:invite.role,joined_at:nowISO()});
+    if(!db.project_members.some(m=>m.project_id===invite.project_id && m.user_id===user.id)) db.project_members.push({project_id:invite.project_id,user_id:user.id,role:invite.role,added_at:nowISO()});
     invite.status='accepted';invite.accepted_at=nowISO();writeDB(db);return sanitizeInviteRow(invite);
   }
   const client=await realPool.connect();
   try {
     await client.query('BEGIN');
-    const invite=(await client.query('SELECT * FROM project_invites WHERE token=$1 FOR UPDATE',[token])).rows[0];
+    const invite=(await client.query(
+      'SELECT * FROM project_invites WHERE token_hash=$1 OR (token_hash IS NULL AND token=$2) FOR UPDATE',
+      [tokenHash,token]
+    )).rows[0];
     if(!valid(invite)){await client.query('ROLLBACK');return null;}
     await client.query('INSERT INTO project_members(project_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(project_id,user_id) DO NOTHING',[invite.project_id,user.id,invite.role]);
     await client.query("UPDATE project_invites SET status='accepted',accepted_at=now() WHERE id=$1",[invite.id]);
