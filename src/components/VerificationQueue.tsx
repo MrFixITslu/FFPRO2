@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { AIAnalysisResult, Transaction, PortfolioUpdate } from '../types';
+import { AIAnalysisResult, CurrencyCode } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 
 interface Props {
   pendingItems: AIAnalysisResult[];
@@ -8,9 +9,10 @@ interface Props {
   onDiscard: (index: number) => void;
   onEdit: (index: number) => void;
   onDiscardAll: () => void;
+  displayCurrency: CurrencyCode;
 }
 
-const VerificationQueue: React.FC<Props> = ({ pendingItems, onApprove, onDiscard, onEdit, onDiscardAll }) => {
+const VerificationQueue: React.FC<Props> = ({ pendingItems, onApprove, onDiscard, onEdit, onDiscardAll, displayCurrency }) => {
   if (pendingItems.length === 0) return null;
 
   return (
@@ -45,7 +47,7 @@ const VerificationQueue: React.FC<Props> = ({ pendingItems, onApprove, onDiscard
                   </p>
                 </div>
               </div>
-              <p className="font-black text-stone-900">{item.updateType === 'portfolio' ? `${item.portfolio?.quantity || 0}` : `$${(item.transaction?.amount || 0).toFixed(2)}`}</p>
+              <p className="font-black text-stone-900">{item.updateType === 'portfolio' ? `${item.portfolio?.quantity || 0}` : formatCurrencyAmount(item.transaction?.amount || 0, displayCurrency, { decimals: 2 })}</p>
             </div>
 
             {/* Itemized Preview */}
@@ -56,7 +58,7 @@ const VerificationQueue: React.FC<Props> = ({ pendingItems, onApprove, onDiscard
                   {item.transaction.lineItems.slice(0, 3).map((li, lIdx) => (
                     <div key={lIdx} className="flex justify-between text-[9px] font-bold text-stone-600">
                       <span>{li.quantity}x {li.name}</span>
-                      <span>${li.price?.toFixed(2)}</span>
+                      <span>{formatCurrencyAmount(li.price || 0, displayCurrency, { decimals: 2 })}</span>
                     </div>
                   ))}
                   {item.transaction.lineItems.length > 3 && (
