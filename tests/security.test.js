@@ -75,6 +75,24 @@ test('security and persistence integration',async t=>{
       assert.throws(()=>safeFileType('attack.html',Buffer.from('<script>alert(1)</script>')));
       assert.throws(()=>safeFileType('attack.png',Buffer.from('<svg onload=alert(1)>')));
     });
+    await t.test('statement imports are review-only and do not persist source files',async()=>{
+      const {filesDb}=await import('../server/filesDb.js');
+      const before=(await filesDb.listFilesByUser(user.id)).length;
+      const form=new FormData();
+      form.append('statement',new Blob([
+        'Date,Description,Debit,Credit\n2026-10-01,Coffee,12.50,\n2026-10-02,Salary,,1000.00'
+      ],{type:'text/csv'}),'statement.csv');
+      const parsed=await owner.request('/api/ai/parse-statement',{method:'POST',body:form});
+      assert.equal(parsed.status,200,await parsed.clone().text());
+      const body=await parsed.json();
+      assert.equal(body.parser,'deterministic-csv');
+      assert.equal(body.items.length,2);
+      assert.equal(body.items[0].transaction.type,'expense');
+      assert.equal(body.items[1].transaction.type,'income');
+      const after=(await filesDb.listFilesByUser(user.id)).length;
+      assert.equal(after,before,'statement processing must not persist the source document');
+    });
+
     await t.test('email verification is one-time and does not auto-link existing OAuth accounts',async()=>{
       const token=await security.createVerification(user.id);
       assert.equal(await security.consumeVerification(token),true);assert.equal(await security.consumeVerification(token),false);
