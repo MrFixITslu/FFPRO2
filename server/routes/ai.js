@@ -16,6 +16,7 @@ import {
 import { parseQuoteTextDeterministic } from '../services/quoteParser.js';
 import { generateProjectCardImage } from '../services/cardImageGenerator.js';
 import { generateBusinessCopilotResponse } from '../services/businessCopilotService.js';
+import { dedupeImportedTransactions, normalizeImportedTransaction, parseCsvTransactions, parseStatementTextDeterministic } from '../services/transactionImportParser.js';
 import { parseCsvStatement, parseStatementText, normalizeAiStatementRows } from '../services/statementParser.js';
 
 const router = Router();
@@ -93,6 +94,30 @@ const SCHEMA = {
     }
   },
   required: ["updateType"]
+};
+
+const IMPORT_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    transactions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          date: { type: Type.STRING, description: "Transaction date in YYYY-MM-DD format." },
+          amount: { type: Type.NUMBER, description: "Absolute positive transaction amount." },
+          description: { type: Type.STRING },
+          vendor: { type: Type.STRING },
+          category: { type: Type.STRING },
+          type: { type: Type.STRING, enum: ['expense','income','transfer','savings','withdrawal'] },
+          notes: { type: Type.STRING },
+          confidence: { type: Type.NUMBER, description: "Extraction confidence between 0 and 1." }
+        },
+        required: ['date','amount','description','type']
+      }
+    }
+  },
+  required: ['transactions']
 };
 
 const CATEGORIES = ['Food', 'Transport', 'Housing', 'Entertainment', 'Utilities', 'Health', 'Shopping', 'Education', 'Personal', 'Income', 'Savings', 'Other', 'Investments', 'Transfer'];
@@ -553,6 +578,123 @@ router.post('/generate-card-image', aiGenerationLimiter, async (req, res) => {
 
 router.use(requireAuth);
 router.use(aiGenerationLimiter);
+
+// Import receipts and statements without persisting the source file.
+router.post('/import-transactions', uploadGate, quoteUpload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Choose a CSV, PDF, or receipt image to import.' });
+
+  const fileName = String(req.file.originalname || 'financial-import').slice(0, 200);
+  const mimeType = String(req.file.mimetype || '').toLowerCase();
+  const lowerName = fileName.toLowerCase();
+  const isCsv = mimeType === 'text/csv' || lowerName.endsWith('.csv');
+  const isPdf = mimeType === 'application/pdf' || lowerName.endsWith('.pdf');
+  const isImage = validateMimeType(mimeType);
+
+  if (!isCsv && !isPdf && !isImage) {
+    return res.status(415).json({ error: 'Supported imports: CSV, text-based PDF, JPEG, PNG, WebP, GIF, HEIC and HEIF.' });
+  }
+
+  try {
+    let transactions = [];
+    let warnings = [];
+    let method = 'deterministic';
+
+    if (isCsv) {
+      const parsed = parseCsvTransactions(req.file.buffer.toString('utf8'));
+      transactions = parsed.transactions;
+      warnings = parsed.warnings;
+    } else if (isPdf) {
+      let statementText = '';
+      try {
+        const { PDFParse } = await import('pdf-parse');
+        const parser = new PDFParse({ data: req.file.buffer });
+        try {
+          const parsed = await parser.getText();
+          statementText = parsed?.text || '';
+        } finally {
+          await parser.destroy();
+        }
+      } catch (error) {
+        console.warn('[transaction-import] PDF extraction failed:', error?.message || error);
+      }
+
+      if (!statementText.trim()) {
+        return res.status(422).json({
+          error: 'This PDF does not contain readable text. Export the bank statement as CSV or upload a digital text-based PDF.'
+        });
+      }
+
+      const deterministic = parseStatementTextDeterministic(statementText);
+      transactions = deterministic.transactions;
+      warnings = deterministic.warnings;
+
+      if (transactions.length === 0) {
+        const geminiKey = getValidGeminiKey();
+        if (!geminiKey) {
+          return res.status(422).json({
+            error: 'No standard transaction rows were detected and AI extraction is not configured. Export the statement as CSV for the safest import.'
+          });
+        }
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: statementText.slice(0, 50000),
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: IMPORT_SCHEMA,
+            systemInstruction: `Extract only financial transaction rows from this statement. Do not invent transactions. Amounts must be positive absolute values and type must indicate direction. Dates must be YYYY-MM-DD. Categories should use: ${CATEGORIES.join(', ')}. Return confidence below 0.8 whenever the row is ambiguous.`
+          }
+        });
+        const parsed = JSON.parse(response.text || '{"transactions":[]}');
+        transactions = Array.isArray(parsed.transactions)
+          ? parsed.transactions.map(normalizeImportedTransaction).filter(Boolean)
+          : [];
+        method = 'ai-assisted';
+        warnings = transactions.length ? ['AI assisted extraction was used because the PDF layout was not standard. Review every row before posting.'] : deterministic.warnings;
+      }
+    } else {
+      const geminiKey = getValidGeminiKey();
+      if (!geminiKey) return res.status(503).json({ error: 'Receipt image extraction requires the configured AI service.' });
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+          parts: [
+            { inlineData: { data: req.file.buffer.toString('base64'), mimeType } },
+            { text: 'Extract the receipt as one financial transaction. Do not invent missing values.' }
+          ]
+        },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: IMPORT_SCHEMA,
+          systemInstruction: `You extract receipt data for human review. Never claim perfect accuracy. Return exactly the transactions visible in the source. Amounts must be positive absolute values, dates YYYY-MM-DD, and confidence below 0.8 if date, merchant, or total is uncertain. Categories should use: ${CATEGORIES.join(', ')}.`
+        }
+      });
+      const parsed = JSON.parse(response.text || '{"transactions":[]}');
+      transactions = Array.isArray(parsed.transactions)
+        ? parsed.transactions.map(normalizeImportedTransaction).filter(Boolean)
+        : [];
+      method = 'ai-assisted';
+      warnings = ['Receipt extraction is AI-assisted. Verify the amount, date and merchant before posting.'];
+    }
+
+    transactions = dedupeImportedTransactions(transactions).slice(0, 5000);
+    if (transactions.length === 0) {
+      return res.status(422).json({ error: warnings[0] || 'No importable transactions were found.' });
+    }
+
+    res.json({
+      ok: true,
+      source: { fileName, mimeType, retained: false },
+      method,
+      warnings,
+      transactions,
+    });
+  } catch (error) {
+    console.error('[transaction-import]', error?.message || error);
+    res.status(500).json({ error: 'The financial document could not be processed safely.' });
+  }
+});
 
 // 1. Parse receipt or financial text input
 router.post('/parse', async (req, res) => {
