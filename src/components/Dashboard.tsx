@@ -522,36 +522,134 @@ const Dashboard: React.FC<Props> = ({
         <h1 className="text-2xl font-light text-stone-900 uppercase tracking-wider">Financial Audit Statement</h1>
       </div>
 
-      {/* Overview vs Analysis mode selector */}
+      {/* Executive vs Detailed View Mode Selector */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-stone-200/85 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${viewMode === 'executive' ? 'bg-stone-900 text-white border-stone-800' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>{viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}</div>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
+            viewMode === 'executive' 
+              ? 'bg-stone-900 text-white border-stone-800' 
+              : 'bg-stone-100 text-stone-700 border-stone-200'
+          }`}>
+            {viewMode === 'executive' ? <Layers size={18} /> : <BarChart3 size={18} />}
+          </div>
           <div>
-            <h2 className="text-base font-bold text-stone-900 tracking-tight">{viewMode === 'executive' ? 'Financial Overview' : 'Financial Analysis'}</h2>
-            <p className="text-xs text-stone-500 font-medium mt-0.5">{viewMode === 'executive' ? 'Your financial position, cashflow, safe-spend level and next commitments at a glance.' : 'Account detail, cashflow analysis, goals, transaction drill-down and audit history.'}</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-stone-900 tracking-tight">
+                {viewMode === 'executive' ? 'Overview' : 'Analysis'}
+              </h2>
+              <span className={`px-2 py-0.5 text-[13px] font-bold uppercase rounded-full border ${
+                viewMode === 'executive' 
+                  ? 'bg-stone-100 text-stone-800 border-stone-200' 
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+              }`}>
+                {viewMode === 'executive' ? 'At a glance' : 'Detailed records'}
+              </span>
+            </div>
+            <p className="text-[13px] text-stone-500 font-medium mt-0.5">
+              {viewMode === 'executive' 
+                ? 'Your money, cash position, monthly cashflow and daily spending guide.' 
+                : 'Explore accounts, spending trends, budgets and activity records.'}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200 self-stretch sm:self-auto shrink-0" aria-label="Dashboard detail level">
-          <button type="button" onClick={() => handleSetViewMode('executive')} className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'executive' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'}`}><Layers size={15} /><span>Overview</span></button>
-          <button type="button" onClick={() => handleSetViewMode('detailed')} className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'detailed' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'}`}><BarChart3 size={15} /><span>Analysis</span></button>
+
+        <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200 self-stretch sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('executive')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'executive' 
+                ? 'bg-white text-stone-900 shadow-xs' 
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Layers size={14} />
+            <span>Overview</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('detailed')}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              viewMode === 'detailed' 
+                ? 'bg-white text-stone-900 shadow-xs' 
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <BarChart3 size={14} />
+            <span>Analysis</span>
+          </button>
         </div>
       </div>
 
       {viewMode === 'executive' ? (
         /* Executive High-Level Summary View */
         <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Four primary financial KPIs */}
+          {/* Four primary financial signals; planning and inbox sit below as secondary metrics. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Net Worth</span><div className="w-9 h-9 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200"><Wallet size={16} /></div></div><h3 className="font-tabular text-3xl font-bold text-stone-900 tracking-tight privacy-sensitive">{money(netWorth)}</h3></div><p className="mt-4 pt-3 border-t border-stone-100 text-xs text-stone-500 font-medium">Total across cash, bank, credit union and investment balances</p></div>
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Cash Available</span><div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-200/80"><DollarSign size={16} /></div></div><h3 className="font-tabular text-3xl font-bold text-stone-900 tracking-tight privacy-sensitive">{money(liquidFunds)}</h3></div><div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs"><span className="text-stone-500 font-medium">Until next cycle</span><span className="font-semibold text-cyan-700">{daysUntilNextCycle} days</span></div></div>
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Monthly Cashflow</span><div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${netMargin >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' : 'bg-rose-50 text-rose-700 border-rose-200/80'}`}>{netMargin >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}</div></div><h3 className={`font-tabular text-3xl font-bold tracking-tight privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{netMargin > 0 ? '+' : ''}{money(netMargin)}</h3></div><div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-tabular"><span className="text-emerald-700 font-semibold privacy-sensitive">+{money(totalActualIncome)}</span><span className="text-stone-400">in / out</span><span className="text-rose-700 font-semibold privacy-sensitive">-{money(totalActualExpenses)}</span></div></div>
-            <div className="executive-card executive-card-interactive p-6 rounded-xl flex flex-col justify-between"><div><div className="flex items-center justify-between mb-2.5"><span className="text-xs font-semibold uppercase tracking-wider text-stone-500">Safe Spend</span><div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200/80"><ShieldCheck size={16} /></div></div><h3 className="font-tabular text-3xl font-bold text-emerald-700 tracking-tight privacy-sensitive">{money(dailySafeSpend)}<span className="ml-1 text-sm font-semibold text-stone-500">/day</span></h3></div><p className="mt-4 pt-3 border-t border-stone-100 text-xs text-stone-500 font-medium">Based on available cash spread across the next {daysUntilNextCycle} days</p></div>
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <span className="text-sm font-semibold text-stone-500">Net Worth</span>
+                <Wallet size={19} className="text-teal-600" aria-hidden="true" />
+              </div>
+              <p className="text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words">{money(netWorth)}</p>
+              <p className="text-xs text-stone-500 mt-3">Total account and investment value</p>
+            </div>
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <span className="text-sm font-semibold text-stone-500">Cash Available</span>
+                <Wallet size={19} className="text-indigo-600" aria-hidden="true" />
+              </div>
+              <p className="text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words">{money(liquidFunds)}</p>
+              <p className="text-xs text-stone-500 mt-3">Bank and cash balances</p>
+            </div>
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <span className="text-sm font-semibold text-stone-500">Monthly Cashflow</span>
+                {netMargin >= 0 ? <TrendingUp size={19} className="text-emerald-700" aria-hidden="true" /> : <TrendingDown size={19} className="text-rose-700" aria-hidden="true" />}
+              </div>
+              <p className={`text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {netMargin > 0 ? '+' : ''}{money(netMargin)}
+              </p>
+              <p className="text-xs text-stone-500 mt-3">Income {money(totalActualIncome)} · Outgoings {money(totalActualExpenses)}</p>
+            </div>
+            <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <span className="text-sm font-semibold text-stone-500">Safe Spend</span>
+                <ShieldCheck size={19} className="text-emerald-700" aria-hidden="true" />
+              </div>
+              <p className="text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words">
+                {money(dailySafeSpend)}<span className="text-base text-stone-500 font-medium ml-1">/day</span>
+              </p>
+              <p className="text-xs text-stone-500 mt-3">{daysUntilNextCycle} days until next cycle</p>
+            </div>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <button type="button" onClick={onNavigateToPlanner} className="bg-white rounded-xl border border-stone-200/80 px-4 py-3 text-left hover:border-amber-300 transition"><p className="text-xs font-semibold text-stone-500">Projects</p><p className="mt-1 text-xl font-bold text-stone-900">{totalProjects} <span className="text-xs font-medium text-stone-500">active</span></p></button>
-            <button type="button" onClick={onNavigateToCalendar} className="bg-white rounded-xl border border-stone-200/80 px-4 py-3 text-left hover:border-cyan-300 transition"><p className="text-xs font-semibold text-stone-500">Commitments</p><p className="mt-1 text-xl font-bold text-stone-900">{upcomingCalendarItems.length + upcomingFinancialCommitments.length} <span className="text-xs font-medium text-stone-500">due</span></p></button>
-            <div className="bg-white rounded-xl border border-stone-200/80 px-4 py-3"><p className="text-xs font-semibold text-stone-500">Savings Goals</p><p className="mt-1 text-xl font-bold text-stone-900">{savingsProgressPct}% <span className="text-xs font-medium text-stone-500">funded</span></p></div>
-            <button type="button" onClick={() => { if (activeUnreadEmails.length > 0) setSelectedEmailModal(activeUnreadEmails[0]); else if (!gmailConnected) handleConnectGmail(); }} className="bg-white rounded-xl border border-stone-200/80 px-4 py-3 text-left hover:border-indigo-300 transition"><p className="text-xs font-semibold text-stone-500">Inbox</p><p className="mt-1 text-xl font-bold text-stone-900">{unreadCount} <span className="text-xs font-medium text-stone-500">{gmailConnected ? 'unread' : 'connect'}</span></p></button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-stone-200 bg-white px-5 py-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-stone-500 font-semibold">Active Projects</p>
+                <p className="text-xl font-bold text-stone-900">{totalProjects}</p>
+              </div>
+              <span className="text-xs text-stone-500">{completedTasksCount}/{allTasks.length} tasks done</span>
+            </div>
+            <div className="rounded-xl border border-stone-200 bg-white px-5 py-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-stone-500 font-semibold">Upcoming Commitments</p>
+                <p className="text-xl font-bold text-stone-900">{upcomingCalendarItems.length + upcomingFinancialCommitments.length}</p>
+              </div>
+              <span className="text-xs text-stone-500 truncate max-w-[50%]">{upcomingFinancialCommitments[0]?.title || upcomingCalendarItems[0]?.title || 'All clear'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => { if (activeUnreadEmails.length > 0) setSelectedEmailModal(activeUnreadEmails[0]); else if (!gmailConnected) handleConnectGmail(); }}
+              className="rounded-xl border border-stone-200 bg-white px-5 py-4 flex items-center justify-between gap-3 text-left hover:border-indigo-300 transition"
+              aria-label={gmailConnected ? 'Review unread inbox briefing' : 'Connect Gmail to review inbox briefing'}
+            >
+              <div>
+                <p className="text-xs text-stone-500 font-semibold">Unread Inbox</p>
+                <p className="text-xl font-bold text-stone-900">{unreadCount}</p>
+              </div>
+              <span className="text-xs text-stone-500">{gmailConnected ? 'View briefing' : 'Connect'}</span>
+            </button>
           </div>
 
           {/* 2-Column High-Level Overview Grid */}
@@ -567,7 +665,7 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-stone-900">Projects & Planner Summary</h3>
-                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Milestone Progress & Checklists</p>
+                      <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Milestone Progress & Checklists</p>
                     </div>
                   </div>
                   {onNavigateToPlanner && (
@@ -600,7 +698,7 @@ const Dashboard: React.FC<Props> = ({
                         >
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                              <span className={`px-2 py-0.5 text-[13px] font-extrabold uppercase rounded border ${
                                 ev.eventType === 'trip' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
                                 ev.eventType === 'startup' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                 'bg-indigo-50 text-indigo-700 border-indigo-200'
@@ -609,7 +707,7 @@ const Dashboard: React.FC<Props> = ({
                               </span>
                               <h4 className="text-xs font-bold text-stone-800 group-hover:text-amber-700 transition">{projectName}</h4>
                             </div>
-                            <span className="text-[10px] font-extrabold text-stone-600">{pct}% Done</span>
+                            <span className="text-xs font-extrabold text-stone-600">{pct}% Done</span>
                           </div>
 
                           <div className="w-full bg-stone-200 h-1.5 rounded-full overflow-hidden mb-2">
@@ -619,7 +717,7 @@ const Dashboard: React.FC<Props> = ({
                             />
                           </div>
 
-                          <div className="flex items-center justify-between text-[10px] font-semibold text-stone-500">
+                          <div className="flex items-center justify-between text-xs font-semibold text-stone-500">
                             <span>{done}/{tasks.length} Tasks Completed</span>
                             <span>Spent: <span className="font-tabular privacy-sensitive">{money(totalSpent)}</span> / Target: <span className="font-tabular privacy-sensitive">{money(targetBudget)}</span></span>
                           </div>
@@ -628,7 +726,7 @@ const Dashboard: React.FC<Props> = ({
                     })}
                   </div>
                 ) : (
-                  <div className="py-8 text-center text-stone-400 text-xs font-medium">
+                  <div className="py-8 text-center text-stone-500 text-xs font-medium">
                     No active project suites found.
                   </div>
                 )}
@@ -650,7 +748,7 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-stone-900">Schedule & Calendar Highlights</h3>
-                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Upcoming Meetings & Due Dates</p>
+                      <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Upcoming Meetings & Due Dates</p>
                     </div>
                   </div>
                   {onNavigateToCalendar && (
@@ -673,14 +771,14 @@ const Dashboard: React.FC<Props> = ({
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 font-bold text-xs flex flex-col items-center justify-center shrink-0">
                               <span>{new Date(ci.date + 'T00:00:00').getDate()}</span>
-                              <span className="text-[8px] uppercase">{new Date(ci.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                              <span className="text-[13px] uppercase">{new Date(ci.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
                             </div>
                             <div>
                               <p className="text-xs font-bold text-stone-800">{ci.title}</p>
-                              <p className="text-[10px] text-stone-400 font-medium">{ci.category || 'Event'} • {ci.time || 'All Day'}</p>
+                              <p className="text-xs text-stone-500 font-medium">{ci.category || 'Event'} • {ci.time || 'All Day'}</p>
                             </div>
                           </div>
-                          <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-[9px] font-extrabold uppercase rounded border border-cyan-200">
+                          <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-[13px] font-extrabold uppercase rounded border border-cyan-200">
                             Calendar
                           </span>
                         </div>
@@ -693,14 +791,14 @@ const Dashboard: React.FC<Props> = ({
                               fc.isIncome ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                             }`}>
                               <span>{new Date(fc.date + 'T00:00:00').getDate()}</span>
-                              <span className="text-[8px] uppercase">{new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
+                              <span className="text-[13px] uppercase">{new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short' })}</span>
                             </div>
                             <div>
                               <p className="text-xs font-bold text-stone-800">{fc.title}</p>
-                              <p className="text-[10px] text-stone-400 font-medium">{fc.category} • Due {new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short', day: 'numeric' })}</p>
+                              <p className="text-xs text-stone-500 font-medium">{fc.category} • Due {new Date(fc.date + 'T00:00:00').toLocaleDateString('default', { month: 'short', day: 'numeric' })}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border font-tabular privacy-sensitive ${
+                          <span className={`px-2 py-0.5 text-[13px] font-extrabold uppercase rounded border font-tabular privacy-sensitive ${
                             fc.isIncome ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}>
                             {fc.isIncome ? `+${money(fc.amount, 2)}` : `-${money(fc.amount, 2)}`}
@@ -709,7 +807,7 @@ const Dashboard: React.FC<Props> = ({
                       ))}
                     </>
                   ) : (
-                    <div className="py-8 text-center text-stone-400 text-xs font-medium">
+                    <div className="py-8 text-center text-stone-500 text-xs font-medium">
                       No upcoming meetings or financial commitments scheduled.
                     </div>
                   )}
@@ -731,7 +829,7 @@ const Dashboard: React.FC<Props> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-stone-900">Financial Objectives Progress</h3>
-                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Savings & Investment Goals</p>
+                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">Savings & Investment Goals</p>
                   </div>
                 </div>
               </div>
@@ -769,7 +867,7 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-stone-900">Command Quick Actions</h3>
-                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">High-Level Operations</p>
+                      <p className="text-xs text-stone-500 font-bold uppercase tracking-wider">High-Level Operations</p>
                     </div>
                   </div>
                 </div>
@@ -784,7 +882,7 @@ const Dashboard: React.FC<Props> = ({
                       <Plus size={16} className="text-indigo-600 mb-2" />
                       <div>
                         <p className="text-xs font-bold">New Entry</p>
-                        <p className="text-[10px] text-indigo-500 font-medium">Record Transaction</p>
+                        <p className="text-xs text-indigo-500 font-medium">Record Transaction</p>
                       </div>
                     </button>
                   )}
@@ -798,7 +896,7 @@ const Dashboard: React.FC<Props> = ({
                       <Zap size={16} className="text-amber-600 mb-2" />
                       <div>
                         <p className="text-xs font-bold">Project Suite</p>
-                        <p className="text-[10px] text-amber-600 font-medium">Planner Checklists</p>
+                        <p className="text-xs text-amber-600 font-medium">Planner Checklists</p>
                       </div>
                     </button>
                   )}
@@ -812,7 +910,7 @@ const Dashboard: React.FC<Props> = ({
                       <Calendar size={16} className="text-cyan-600 mb-2" />
                       <div>
                         <p className="text-xs font-bold">Schedule Event</p>
-                        <p className="text-[10px] text-cyan-600 font-medium">Calendar & Meetings</p>
+                        <p className="text-xs text-cyan-600 font-medium">Calendar & Meetings</p>
                       </div>
                     </button>
                   )}
@@ -825,7 +923,7 @@ const Dashboard: React.FC<Props> = ({
                     <BarChart3 size={16} className="text-stone-600 mb-2" />
                     <div>
                       <p className="text-xs font-bold">Deep Analytics</p>
-                      <p className="text-[10px] text-stone-500 font-medium">Full Ledger & Audit</p>
+                      <p className="text-xs text-stone-500 font-medium">Full Ledger & Audit</p>
                     </div>
                   </button>
                 </div>
@@ -847,7 +945,7 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-stone-900 tracking-tight">Executive Inbox Briefing</h3>
-                      <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider">
+                      <p className="text-xs text-stone-500 font-semibold uppercase tracking-wider">
                         {gmailConnected ? `${unreadCount} Unread Messages Pending Review` : 'Gmail Integration Offline'}
                       </p>
                     </div>
@@ -868,7 +966,7 @@ const Dashboard: React.FC<Props> = ({
                         type="button"
                         onClick={() => setShowDisconnectConfirm(true)}
                         disabled={gmailLoading}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-stone-200/70 transition"
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-stone-200/70 transition"
                         title="Disconnect Gmail & revoke access"
                       >
                         <LogOut size={13} />
@@ -907,10 +1005,10 @@ const Dashboard: React.FC<Props> = ({
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md border ${category.color}`}>
+                                <span className={`px-2 py-0.5 text-[13px] font-bold uppercase rounded-md border ${category.color}`}>
                                   {category.label}
                                 </span>
-                                <span className="text-[10px] font-medium text-stone-400 shrink-0">
+                                <span className="text-xs font-medium text-stone-500 shrink-0">
                                   {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
@@ -921,7 +1019,7 @@ const Dashboard: React.FC<Props> = ({
                                 {decodeHtmlEntities(g.subject) || '(No Subject)'}
                               </h4>
                               {g.snippet && (
-                                <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5 leading-relaxed">
+                                <p className="text-[13px] text-stone-500 line-clamp-1 mt-0.5 leading-relaxed">
                                   {decodeHtmlEntities(g.snippet)}
                                 </p>
                               )}
@@ -935,7 +1033,7 @@ const Dashboard: React.FC<Props> = ({
                                 e.stopPropagation();
                                 handleDismissEmail(g.id);
                               }}
-                              className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                               title="Permanently delete from dashboard across all devices"
                             >
                               <Trash2 size={14} />
@@ -954,7 +1052,7 @@ const Dashboard: React.FC<Props> = ({
                     <p className="text-xs font-bold text-stone-800">
                       {gmailConnected ? 'Executive Briefing Clear' : 'Connect Your Account'}
                     </p>
-                    <p className="text-[11px] text-stone-500 font-medium max-w-sm mt-1">
+                    <p className="text-[13px] text-stone-500 font-medium max-w-sm mt-1">
                       {gmailConnected
                         ? 'Zero unread items requiring your immediate attention. Your dashboard inbox is completely caught up.'
                         : 'Link your Google account to stream priority emails, milestone notices, and bills directly into your briefing.'}
@@ -977,67 +1075,67 @@ const Dashboard: React.FC<Props> = ({
       ) : (
         /* Detailed Financial Analytics View */
         <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1 text-center">Rollover</p>
            <h3 className="text-xs font-bold text-stone-600 text-center font-tabular privacy-sensitive">{money(cycleRollover)}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Inflow</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1 text-center">Inflow</p>
            <h3 className="text-xs font-bold text-emerald-600 text-center font-tabular privacy-sensitive">+{money(totalActualIncome)}</h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Outflow</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1 text-center">Outflow</p>
            <h3 className="text-xs font-bold text-rose-600 text-center font-tabular privacy-sensitive">-{money(totalActualExpenses)}</h3>
         </div>
         <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-center ${netMargin >= 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'}`}>
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Net Margin</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1 text-center">Net Margin</p>
            <h3 className={`text-xs font-bold text-center font-tabular privacy-sensitive ${netMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
              {netMargin >= 0 ? '+' : ''}{money(netMargin)}
            </h3>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-center">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1 text-center">Cash On Hand</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1 text-center">Cash On Hand</p>
            <h3 className="text-xs font-bold text-indigo-600 text-center font-tabular privacy-sensitive">{money(liquidFunds)}</h3>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
-           <p className="text-emerald-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Safe Spend</p>
-           <h3 className="text-sm font-bold text-emerald-700 font-tabular privacy-sensitive">{money(dailySafeSpend)}<span className="text-[8px] text-emerald-600/60 uppercase">/Day</span></h3>
+           <p className="text-emerald-600/80 text-[13px] font-bold uppercase tracking-wider mb-1">Safe Spend</p>
+           <h3 className="text-sm font-bold text-emerald-700 font-tabular privacy-sensitive">{money(dailySafeSpend)}<span className="text-[13px] text-emerald-600/60 uppercase">/Day</span></h3>
         </div>
         <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl shadow-sm flex flex-col justify-center text-center">
-           <p className="text-indigo-600/80 text-[8px] font-bold uppercase tracking-wider mb-1">Days left</p>
-           <h3 className="text-sm font-bold text-indigo-700">{daysUntilNextCycle} <span className="text-[8px] text-indigo-600/60 uppercase">Days</span></h3>
+           <p className="text-indigo-600/80 text-[13px] font-bold uppercase tracking-wider mb-1">Days left</p>
+           <h3 className="text-sm font-bold text-indigo-700">{daysUntilNextCycle} <span className="text-[13px] text-indigo-600/60 uppercase">Days</span></h3>
         </div>
         <div className="bg-stone-900 p-4 rounded-xl border border-stone-800 shadow-sm text-white flex flex-col justify-center text-center">
-           <p className="text-white/50 text-[8px] font-bold uppercase tracking-wider mb-1">Net Worth</p>
+           <p className="text-white/80 text-[13px] font-bold uppercase tracking-wider mb-1">Net Worth</p>
            <h3 className="text-xs font-semibold text-white font-tabular privacy-sensitive">{money(netWorth)}</h3>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Traditional Bank</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1">Traditional Bank</p>
            <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">{money(bankTotal)}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (bankTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Credit Union</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1">Credit Union</p>
            <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">{money(cuTotal)}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cuTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Crypto (Digital)</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1">Crypto (Digital)</p>
            <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">{money(cryptoTotal)}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (cryptoTotal / netWorth) * 100 : 0}%` }}></div>
            </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm">
-           <p className="text-stone-400 text-[8px] font-bold uppercase tracking-wider mb-1">Other Investments</p>
+           <p className="text-stone-500 text-[13px] font-bold uppercase tracking-wider mb-1">Other Investments</p>
            <h3 className="text-sm font-semibold text-stone-800 font-tabular privacy-sensitive">{money(vanguardTotal)}</h3>
            <div className="mt-2 h-1 w-full bg-stone-100 rounded-full overflow-hidden">
              <div className="h-full bg-indigo-600" style={{ width: `${netWorth > 0 ? (vanguardTotal / netWorth) * 100 : 0}%` }}></div>
@@ -1047,11 +1145,11 @@ const Dashboard: React.FC<Props> = ({
 
       {/* Unified Spending, Cashflow & Financial Insights Section */}
       <SpendingCashflowIntelligence
+        displayCurrency={displayCurrency}
         transactions={transactions}
         recurringExpenses={recurringExpenses}
         recurringIncomes={recurringIncomes}
         categoryBudgets={categoryBudgets}
-        displayCurrency={displayCurrency}
         onUpdateCategoryBudget={onUpdateCategoryBudget}
         onEditTransaction={onEdit}
         onDeleteTransaction={onDelete}
@@ -1069,11 +1167,11 @@ const Dashboard: React.FC<Props> = ({
                     <div className="flex justify-between items-end px-1">
                       <div>
                         <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
-                        <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-wider">{goal.institution}</p>
+                        <p className="text-[13px] font-bold text-indigo-500 uppercase tracking-wider">{goal.institution}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">{money(goal.currentAmount)} / {money(goal.targetAmount)}</p>
-                        <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Savings Target</p>
+                        <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider">Savings Target</p>
                       </div>
                     </div>
                     <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
@@ -1092,11 +1190,11 @@ const Dashboard: React.FC<Props> = ({
                       <div className="flex justify-between items-end px-1">
                         <div>
                           <p className="text-xs font-semibold text-stone-800">{goal.name}</p>
-                          <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">{goal.provider} Portfolio</p>
+                          <p className="text-[13px] font-bold text-emerald-500 uppercase tracking-wider">{goal.provider} Portfolio</p>
                         </div>
                         <div className="text-right">
                           <p className="text-xs font-bold text-stone-900 font-tabular privacy-sensitive">{money(currentVal)} / {money(goal.targetAmount)}</p>
-                          <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider">Asset Target</p>
+                          <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider">Asset Target</p>
                         </div>
                       </div>
                       <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
@@ -1110,7 +1208,7 @@ const Dashboard: React.FC<Props> = ({
                 })}
               </>
             ) : (
-              <p className="py-10 text-center text-stone-300 font-bold uppercase text-[9px] tracking-wider">No Active Objectives</p>
+              <p className="py-10 text-center text-stone-300 font-bold uppercase text-[13px] tracking-wider">No Active Objectives</p>
             )}
           </div>
         </section>
@@ -1120,9 +1218,9 @@ const Dashboard: React.FC<Props> = ({
           <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {marketPrices.slice(0, 4).map(p => (
               <div key={p.symbol} className="p-3.5 bg-white/5 border border-white/10 rounded-lg flex flex-col justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{p.symbol}</span>
+                <span className="text-[13px] font-bold uppercase tracking-wider text-stone-500">{p.symbol}</span>
                 <h4 className="text-sm font-semibold mt-1.5 font-tabular privacy-sensitive">{marketMoney(p.price)}</h4>
-                <div className={`text-[9px] font-bold mt-1 font-tabular privacy-sensitive ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <div className={`text-[13px] font-bold mt-1 font-tabular privacy-sensitive ${p.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {p.change24h > 0 ? '+' : ''}{p.change24h.toFixed(1)}%
                 </div>
               </div>
@@ -1145,14 +1243,14 @@ const Dashboard: React.FC<Props> = ({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-stone-900 text-sm tracking-tight">Financial Transaction Activity Log</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
                     {financialLogs.length} {financialLogs.length === 1 ? 'record' : 'records'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-stone-100 text-stone-600 border border-stone-200">
+                  <span className="px-2 py-0.5 rounded-md text-[13px] font-bold uppercase tracking-wider bg-stone-100 text-stone-600 border border-stone-200">
                     {isLogsSectionOpen ? 'Expanded' : 'Collapsed'}
                   </span>
                 </div>
-                <p className="text-[10px] text-stone-400 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
+                <p className="text-xs text-stone-500 font-medium mt-0.5">Real-time immutable audit trail of payments, inflow records, and ledger adjustments</p>
               </div>
             </div>
           </div>
@@ -1162,20 +1260,20 @@ const Dashboard: React.FC<Props> = ({
               <>
                 {/* Search Input */}
                 <div className="relative min-w-[180px] sm:min-w-[200px]">
-                  <Search size={13} className="absolute left-3 top-1/2 -transtone-y-1/2 text-stone-400" />
+                  <Search size={13} className="absolute left-3 top-1/2 -transtone-y-1/2 text-stone-500" />
                   <input
                     type="text"
                     placeholder="Search logs..."
                     value={logSearch}
                     onChange={(e) => setLogSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-medium placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                    className="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-medium placeholder:text-stone-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
                   />
                   {logSearch && (
                     <button 
                       onClick={() => setLogSearch('')}
-                      className="absolute right-2.5 top-1/2 -transtone-y-1/2 text-stone-400 hover:text-stone-600"
+                      className="absolute right-2.5 top-1/2 -transtone-y-1/2 text-stone-500 hover:text-stone-600"
                     >
-                      <i className="fas fa-times text-[10px]"></i>
+                      <i className="fas fa-times text-xs"></i>
                     </button>
                   )}
                 </div>
@@ -1250,7 +1348,7 @@ const Dashboard: React.FC<Props> = ({
             {/* Filter Tabs */}
             <div className="px-6 py-2.5 bg-stone-50/70 border-b border-stone-100 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 mr-1 flex items-center gap-1">
+                <span className="text-[13px] font-bold uppercase tracking-wider text-stone-500 mr-1 flex items-center gap-1">
                   <Filter size={11} /> Filter:
                 </span>
                 {[
@@ -1263,13 +1361,13 @@ const Dashboard: React.FC<Props> = ({
                   <button
                     key={tab.id}
                     onClick={() => setLogFilter(tab.id as any)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-stone-200' : 'text-stone-500 hover:text-stone-800'}`}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${logFilter === tab.id ? 'bg-white text-indigo-700 shadow-sm border border-stone-200' : 'text-stone-500 hover:text-stone-800'}`}
                   >
                     {tab.label}
                   </button>
                 ))}
               </div>
-              <span className="text-[10px] text-stone-400 font-semibold whitespace-nowrap">
+              <span className="text-xs text-stone-500 font-semibold whitespace-nowrap">
                 Showing {filteredFinancialLogs.length} of {financialLogs.length}
               </span>
             </div>
@@ -1279,7 +1377,7 @@ const Dashboard: React.FC<Props> = ({
           {filteredFinancialLogs.length > 0 ? (
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-stone-100 bg-stone-50/50 text-[9px] font-bold text-stone-400 uppercase tracking-wider">
+                <tr className="border-b border-stone-100 bg-stone-50/50 text-[13px] font-bold text-stone-500 uppercase tracking-wider">
                   <th className="py-3 px-4 w-12 text-center">Type</th>
                   <th className="py-3 px-4 min-w-[220px]">Transaction & Action</th>
                   <th className="py-3 px-4 min-w-[180px]">Context & Details</th>
@@ -1314,29 +1412,29 @@ const Dashboard: React.FC<Props> = ({
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-stone-900 leading-snug font-tabular privacy-sensitive">{log.action}</span>
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider inline-flex items-center gap-1 ${badge.badgeClass}`}>
+                            <span className={`text-[13px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider inline-flex items-center gap-1 ${badge.badgeClass}`}>
                               <span className={`w-1 h-1 rounded-full ${badge.dotColor}`}></span>
                               {badge.label}
                             </span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <p className="text-stone-500 text-[11px] truncate max-w-xs font-medium font-tabular privacy-sensitive">
+                          <p className="text-stone-500 text-[13px] truncate max-w-xs font-medium font-tabular privacy-sensitive">
                             {log.details || '—'}
                           </p>
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 font-bold text-[9px] flex items-center justify-center uppercase">
+                            <div className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 font-bold text-[13px] flex items-center justify-center uppercase">
                               {(log.username || 'S').charAt(0)}
                             </div>
-                            <span className="text-[11px] font-semibold text-stone-700">{log.username || 'System'}</span>
+                            <span className="text-[13px] font-semibold text-stone-700">{log.username || 'System'}</span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="text-[11px] font-semibold text-stone-700">{formattedDate}</div>
+                          <div className="text-[13px] font-semibold text-stone-700">{formattedDate}</div>
                           {formattedTime && (
-                            <div className="text-[9px] text-stone-400 font-medium">{formattedTime}</div>
+                            <div className="text-[13px] text-stone-500 font-medium">{formattedTime}</div>
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
@@ -1344,7 +1442,7 @@ const Dashboard: React.FC<Props> = ({
                             <button
                               type="button"
                               onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                              className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition"
+                              className="p-1 rounded text-stone-500 hover:text-stone-600 hover:bg-stone-100 transition"
                               title="Toggle details"
                             >
                               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -1367,17 +1465,17 @@ const Dashboard: React.FC<Props> = ({
                           <td colSpan={6} className="p-4 px-6">
                             <div className="bg-white p-3.5 rounded-lg border border-stone-200 space-y-2 text-xs shadow-inner">
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
-                                <span className="font-bold text-stone-800">Log ID: <span className="font-mono text-stone-500 text-[10px]">{log.id}</span></span>
-                                <span className="text-[10px] text-stone-400">Timestamp: {new Date(log.timestamp).toISOString()}</span>
+                                <span className="font-bold text-stone-800">Log ID: <span className="font-mono text-stone-500 text-xs">{log.id}</span></span>
+                                <span className="text-xs text-stone-500">Timestamp: {new Date(log.timestamp).toISOString()}</span>
                               </div>
                               <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Action Statement</p>
+                                <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Action Statement</p>
                                 <p className="text-stone-800 font-medium mt-0.5 font-tabular privacy-sensitive">{log.action}</p>
                               </div>
                               {log.details && (
                                 <div>
-                                  <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Extended Ledger Details</p>
-                                  <p className="text-stone-700 font-mono text-[11px] mt-0.5 bg-stone-50 p-2 rounded border border-stone-150 whitespace-pre-wrap font-tabular privacy-sensitive">{log.details}</p>
+                                  <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Extended Ledger Details</p>
+                                  <p className="text-stone-700 font-mono text-[13px] mt-0.5 bg-stone-50 p-2 rounded border border-stone-150 whitespace-pre-wrap font-tabular privacy-sensitive">{log.details}</p>
                                 </div>
                               )}
                             </div>
@@ -1391,11 +1489,11 @@ const Dashboard: React.FC<Props> = ({
             </table>
           ) : (
             <div className="py-12 px-6 text-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-500 flex items-center justify-center mx-auto">
                 <Activity size={18} />
               </div>
               <p className="text-sm font-semibold text-stone-700">No Transaction Activity Logs Found</p>
-              <p className="text-xs text-stone-400 max-w-sm mx-auto">
+              <p className="text-xs text-stone-500 max-w-sm mx-auto">
                 {logSearch || logFilter !== 'all' 
                   ? 'No activity records match your current filter criteria. Try clearing search or selecting All.' 
                   : 'Financial actions performed on the dashboard (adding transactions, clearing bills, recording income, updating budget limits) will automatically generate an immutable audit log here.'}
@@ -1460,7 +1558,7 @@ const Dashboard: React.FC<Props> = ({
           <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 relative">
             <button
               onClick={() => setShowGmailConsentModal(false)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition"
+              className="absolute top-4 right-4 text-stone-500 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition"
               aria-label="Close modal"
             >
               <X size={18} />
@@ -1499,12 +1597,12 @@ const Dashboard: React.FC<Props> = ({
                   <ShieldCheck size={14} className="text-indigo-600" />
                   <span>Security &amp; Privacy Protections</span>
                 </div>
-                <p className="text-[11px] text-stone-600 leading-normal">
+                <p className="text-[13px] text-stone-600 leading-normal">
                   Your email data is never used for advertising, never sold, never used to train AI models, and tokens are encrypted at rest with AES-256-GCM. You can disconnect at any time.
                 </p>
               </div>
 
-              <p className="text-[11px] text-stone-400">
+              <p className="text-[13px] text-stone-500">
                 Adheres strictly to the{' '}
                 <a
                   href="/privacy#google-api"
