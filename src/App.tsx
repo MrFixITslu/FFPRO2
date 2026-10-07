@@ -1672,7 +1672,7 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="flex-1 mx-auto w-full max-w-[1760px] lg:w-[90%] pt-20 2xl:pt-32 px-4 sm:px-6 lg:px-5 pb-24 md:pb-12">
+          <main className="flex-1 mx-auto w-full max-w-[1760px] lg:w-[90%] pt-20 2xl:pt-32 px-4 sm:px-6 lg:px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -1860,7 +1860,7 @@ const App: React.FC = () => {
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
-          <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-stone-200 z-[100] md:hidden shadow-lg flex items-center justify-around px-1 pb-safe print:hidden">
+          <nav aria-label="Mobile finance navigation" className="fixed bottom-0 left-0 right-0 min-h-16 bg-white/95 backdrop-blur-md border-t border-stone-200 z-[100] md:hidden shadow-lg flex items-center justify-around px-1 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] print:hidden">
             {isAdmin && (
               <button
                 type="button"
@@ -1876,7 +1876,7 @@ const App: React.FC = () => {
                 }`}>
                   <LayoutDashboard size={16} />
                 </div>
-                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Money</span>
+                <span className="text-[11px] mt-0.5 tracking-tight leading-none">Money</span>
               </button>
             )}
 
@@ -1894,7 +1894,7 @@ const App: React.FC = () => {
               }`}>
                 <CalendarIcon size={16} />
               </div>
-              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Calendar</span>
+              <span className="text-[11px] mt-0.5 tracking-tight leading-none">Calendar</span>
             </button>
 
             {/* Mobile Center Quick-Action Button */}
@@ -1907,7 +1907,7 @@ const App: React.FC = () => {
               <div className="w-12 h-12 rounded-full bg-teal-700 text-white flex items-center justify-center shadow-lg border-[3px] border-white group-hover:scale-105 group-active:scale-95 transition-transform">
                 <Plus size={22} className="text-white" />
               </div>
-              <span className="text-[9px] font-bold text-stone-600 mt-0.5 tracking-tight">Actions</span>
+              <span className="text-[11px] font-bold text-stone-600 mt-0.5 tracking-tight">Actions</span>
             </button>
 
             <button
@@ -1924,7 +1924,7 @@ const App: React.FC = () => {
               }`}>
                 <Zap size={16} />
               </div>
-              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Projects</span>
+              <span className="text-[11px] mt-0.5 tracking-tight leading-none">Projects</span>
             </button>
 
             {isAdmin && (
@@ -1942,7 +1942,7 @@ const App: React.FC = () => {
                 }`}>
                   <TrendingUp size={16} />
                 </div>
-                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Forecast</span>
+                <span className="text-[11px] mt-0.5 tracking-tight leading-none">Forecast</span>
               </button>
             )}
           </nav>
