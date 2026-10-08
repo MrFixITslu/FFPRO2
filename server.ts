@@ -1,3 +1,5 @@
+import { createHubEntitlementChecker } from "./server/hubEntitlementRevalidation.js";
+import { createHubSessionEnforcement } from "./server/hubSessionEnforcement.js";
 import './server/config.js';
 import { initPush, startPushScheduler } from './server/push.js';
 import express from 'express';
@@ -85,15 +87,16 @@ async function bootstrap() {
   app.use(passport.initialize() as any);
   app.use(passport.session() as any);
 
+  const checkHubSubscription = process.env.V79_ENTITLEMENT_RECHECK_ENABLED === "1"
+    ? createHubEntitlementChecker({
+        product: "ffpro",
+        hubUrl: process.env.V79_HUB_INTERNAL_URL,
+        secret: process.env.V79_FFPRO_LAUNCH_SECRET,
+      }) : null;
+
   // Hub-created FFPRO sessions are intentionally short-lived so a cancelled
   // subscription or changed entitlement cannot leave a week-long finance session.
-  app.use((req:any, _res, next) => {
-    const current=req.session as any;
-    if (!current?.hubManaged || !current?.hubAccessExpiresAt || Number(current.hubAccessExpiresAt) > Date.now()) return next();
-    req.logout(() => {
-      req.session.destroy(() => next());
-    });
-  });
+  app.use(createHubSessionEnforcement({ checkHubSubscription }));
 
   app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.get('/api/auth/csrf', (req, res) => {
