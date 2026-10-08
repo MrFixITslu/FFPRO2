@@ -46,6 +46,7 @@ test("Hub-managed FFPRO session enforces signed live subscription on actual Expr
       destroy: cb=>{loggedOut=true;cb();},
     };
     req.logout=cb=>{loggedOut=true;cb();};
+    req.isAuthenticated=()=>true;
     next();
   });
   app.use(createHubSessionEnforcement({checkHubSubscription:check}));
@@ -58,6 +59,11 @@ test("Hub-managed FFPRO session enforces signed live subscription on actual Expr
   async function get(path="/api/private") {return fetch(url+path);}
   assert.equal((await get()).status,200,"existing authenticated session permits valid access");
   assert.equal(count,1);
+  session.hubManaged=false;
+  // The request is still authenticated by Passport, but no Hub entitlement exists.
+  // The test injects req.isAuthenticated in its synthetic session middleware.
+  assert.equal((await get()).status,403,"authenticated legacy local cookie cannot bypass Hub enforcement");
+  session.hubManaged=true;
   session.hubUserId="other-tenant-user";
   assert.equal((await get()).status,403,"cross-tenant scoped identity fails");
   session.hubUserId="test-scoped-user";

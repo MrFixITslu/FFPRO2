@@ -6,7 +6,20 @@ export function createHubSessionEnforcement({ checkHubSubscription = null }) {
     // a browser carries an expired Hub session cookie.
     if (["/api/health", "/api/live", "/api/auth/logout"].includes(req.path)) return next();
     const current = req.session;
-    if (!current?.hubManaged) return next();
+    if (!current?.hubManaged) {
+      // Once release enforcement is enabled, no already-issued local Passport
+      // session may bypass Hub billing by avoiding the Hub-managed cookie.
+      const securedApi = req.path.startsWith("/api/") &&
+        !req.path.startsWith("/api/platform/") &&
+        !["/api/auth/csrf"].includes(req.path);
+      if (checkHubSubscription && securedApi && req.isAuthenticated?.()) {
+        return res.status(403).json({
+          error: "Sign in through V79 Hub to continue using FFPRO.",
+          code: "HUB_IDENTITY_REQUIRED",
+        });
+      }
+      return next();
+    }
     if (hubManagedSessionExpired(current)) {
       // Deny protected API access in the same request; logging out alone is
       // insufficient because routing could continue with a stale req.user.
