@@ -1,5 +1,5 @@
 import { createHubEntitlementChecker } from "./server/hubEntitlementRevalidation.js";
-import { hubManagedSessionExpired } from "./server/hubManagedSessionPolicy.js";
+import { createHubSessionEnforcement } from "./server/hubSessionEnforcement.js";
 import './server/config.js';
 import { initPush, startPushScheduler } from './server/push.js';
 import express from 'express';
@@ -95,37 +95,7 @@ async function bootstrap() {
 
   // Hub-created FFPRO sessions are intentionally short-lived so a cancelled
   // subscription or changed entitlement cannot leave a week-long finance session.
-  app.use(async (req:any, res:any, next) => {
-    const current=req.session as any;
-    if (!current?.hubManaged) return next();
-    if (hubManagedSessionExpired(current)) {
-      return req.logout(() => req.session.destroy(() => {
-        if (req.path.startsWith("/api/")) {
-          return res.status(401).json({
-            error: "Your V79 Hub session has expired.",
-            code: "HUB_SESSION_EXPIRED",
-          });
-        }
-        next();
-      }));
-    }
-    // Only protected business API requests need signed Hub entitlement revalidation.
-    // Preserve logout, health, and the launch path when Hub is unavailable.
-    const protectedPath = req.path.startsWith("/api/") &&
-      !["/api/health", "/api/live", "/api/auth/logout"].includes(req.path) &&
-      !req.path.startsWith("/api/platform/");
-    if (checkHubSubscription && protectedPath) {
-      const allowed = await checkHubSubscription({
-        organizationId: String(current.hubOrganizationId || ""),
-        scopedUserId: String(current.hubUserId || ""),
-      });
-      if (!allowed) return res.status(403).json({
-        error: "V79 Hub subscription is inactive or unavailable.",
-        code: "HUB_ENTITLEMENT_REVOKED",
-      });
-    }
-    next();
-  });
+  app.use(createHubSessionEnforcement({ checkHubSubscription }));
 
   app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.get('/api/auth/csrf', (req, res) => {
