@@ -4,6 +4,7 @@ import { mergeStates } from '../src/utils/stateMerge.ts';
 import { quoteTotals, allocatedQuoteCosts, recalculateQuote } from '../shared/quoteMath.js';
 import { validateAppState } from '../shared/appState.js';
 import { calendarTimes, calendarPages } from '../server/calendarTime.js';
+import { parseCsvStatement, parseStatementText, normalizeStatementDate } from '../server/services/statementParser.js';
 const state=(extra:any={})=>({transactions:[],events:[],cashOpeningBalance:100,...extra}) as any;
 test('three-way sync preserves deletions, zero balances and independent additions',()=>{
   const base=state({transactions:[{id:'a',amount:5},{id:'b',amount:9}]});
@@ -23,6 +24,11 @@ test('manual bank accounts and zero balances validate; duplicate IDs and invalid
   assert.ok(validateAppState(state({events:[{id:'a'},{id:'a'}]})));
   assert.ok(validateAppState(state({transactions:[{id:'a',amount:Infinity,type:'expense',date:'2026-01-01'}]})));
 });
+test('core display currency accepts only XCD or USD',()=>{
+  assert.equal(validateAppState(state({displayCurrency:'XCD'})),null);
+  assert.equal(validateAppState(state({displayCurrency:'USD'})),null);
+  assert.match(String(validateAppState(state({displayCurrency:'GBP'}))),/display currency/i);
+});
 test('quote costs include fractional quantities, line freight and overall discounts without losing cents',()=>{
   const quote={items:[{quantity:1.5,unitCost:10,discount:2,shippingCost:1,lineTotal:14},{quantity:1,unitCost:3.33,lineTotal:3.33}],subtotal:17.33,shippingCosts:2,discounts:1,total:18.33};
   assert.deepEqual(quoteTotals(quote).issues,[]);
@@ -30,6 +36,33 @@ test('quote costs include fractional quantities, line freight and overall discou
   const wrong={...quote,total:999};assert.ok(quoteTotals(wrong).issues.length);assert.throws(()=>allocatedQuoteCosts(wrong));
   assert.equal(recalculateQuote(wrong).total,18.33);
   assert.ok(quoteTotals({...quote,discounts:100}).issues.length);
+});
+test('statement parser is deterministic and fails closed on ambiguous financial rows',()=>{
+  const csv=[
+    'Date,Description,Debit,Credit',
+    '2026-10-01,Coffee,12.50,',
+    '2026-10-02,Salary,,1000.00',
+    '03/04/2026,Ambiguous Date,9.00,',
+  ].join('\n');
+  const parsed=parseCsvStatement(csv,{sourceName:'test.csv'});
+  assert.equal(parsed.transactions.length,2);
+  assert.equal(parsed.transactions[0].transaction.type,'expense');
+  assert.equal(parsed.transactions[0].transaction.amount,12.5);
+  assert.equal(parsed.transactions[1].transaction.type,'income');
+  assert.equal(parsed.transactions[1].transaction.amount,1000);
+  assert.match(parsed.warnings.join(' '),/ambiguous/i);
+
+  const unsigned=parseCsvStatement('Date,Description,Amount\n2026-10-03,Unknown Direction,25.00',{sourceName:'unsigned.csv'});
+  assert.equal(unsigned.transactions.length,0);
+  assert.match(unsigned.warnings.join(' '),/amount\/type/i);
+
+  const pdf=parseStatementText('2026-10-04 Grocery Store 45.20 DR\n2026-10-05 Refund 10.00 CR',{sourceName:'test.pdf'});
+  assert.equal(pdf.transactions.length,2);
+  assert.equal(pdf.transactions[0].transaction.type,'expense');
+  assert.equal(pdf.transactions[1].transaction.type,'income');
+
+  assert.equal(normalizeStatementDate('2026-10-06'),'2026-10-06');
+  assert.equal(normalizeStatementDate('03/04/2026'),null);
 });
 test('calendar uses selected timezone and all-day exclusive end; rejects invalid and nonexistent times',()=>{
   const timed=calendarTimes({date:'2026-09-15',startTime:'09:00',endTime:'10:30',timeZone:'America/St_Lucia'});

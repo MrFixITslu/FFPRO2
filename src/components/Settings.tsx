@@ -5,7 +5,8 @@ import type { AppState } from '../services/vaultService';
 import { validateAppState } from '../../shared/appState.js';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS, DEFAULT_BRIEFING_TOPICS } from '../types';
+import { CATEGORIES, RecurringExpense, RecurringIncome, SavingGoal, BankConnection, InvestmentGoal, StoredUser, STORAGE_KEYS, DEFAULT_BRIEFING_TOPICS, CurrencyCode } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 import { triggerSecureDownload } from '../services/fileStorageService';
 import { APP_LOGO } from '../assets/logo';
 import { 
@@ -41,6 +42,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   currentState: AppState;
+  displayCurrency: CurrencyCode;
+  onUpdateDisplayCurrency: (currency: CurrencyCode) => void;
   onRestoreState: (data: AppState) => Promise<void>;
   salary: number;
   onUpdateSalary: (val: number) => void;
@@ -107,9 +110,10 @@ const Settings: React.FC<Props> = ({
   cloudLastSyncTime = null,
   cloudVersion = 1,
   realtimeStatus = 'connected',
-  onForceSync, currentState, onRestoreState,
+  onForceSync, currentState, displayCurrency, onUpdateDisplayCurrency, onRestoreState,
   initialTab = 'general'
 }) => {
+  const money = (value: number, decimals = 0) => formatCurrencyAmount(value, displayCurrency, { decimals });
   const dialog=useAccessibleDialog(onClose);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [isChangingPass, setIsChangingPass] = useState(false);
@@ -422,11 +426,32 @@ const Settings: React.FC<Props> = ({
           {activeTab === 'general' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
                 <PushSettings />
+              <section className="p-4 rounded-xl border border-stone-200 bg-stone-50/70">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-800 flex items-center gap-2"><Globe size={15} className="text-indigo-600" /> Core Finance Currency</h3>
+                    <p className="text-[11px] text-stone-500 mt-1">Controls ledger, dashboard and forecast labels. Existing values are not converted when you switch display currency.</p>
+                  </div>
+                  <div className="flex p-1 rounded-xl border border-stone-200 bg-white">
+                    {(['XCD','USD'] as CurrencyCode[]).map(currency => (
+                      <button
+                        key={currency}
+                        type="button"
+                        onClick={() => onUpdateDisplayCurrency(currency)}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${displayCurrency === currency ? 'bg-indigo-600 text-white' : 'text-stone-600 hover:bg-stone-100'}`}
+                      >
+                        {currency === 'XCD' ? 'EC$ · XCD' : 'US$ · USD'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
               <section>
                 <h3 className="text-sm font-bold text-stone-800 mb-4 flex items-center gap-2"><i className="fas fa-coins text-indigo-600 text-xs"></i> Financial Baseline</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-5 bg-stone-50 rounded-lg border border-stone-200">
-                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Opening Cash Ledger</label>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Opening Cash Ledger · {displayCurrency === 'XCD' ? 'EC$' : 'US$'}</label>
                     <input 
                       type="number" 
                       value={cashOpeningBalance} 
@@ -438,14 +463,14 @@ const Settings: React.FC<Props> = ({
                     <div>
                       <label className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 block">Monthly Surplus Target</label>
                       <p className={`text-xl font-bold ${monthlyCashflowSurplus >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                        ${monthlyCashflowSurplus.toLocaleString()}
+                        {money(monthlyCashflowSurplus)}
                       </p>
                       <p className="text-[8px] font-bold text-stone-400 mt-1 uppercase">Monthly Flow: Income - Commitments</p>
                     </div>
                     <div className="mt-3 pt-3 border-t border-indigo-100">
                       <label className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-1 block opacity-80">Liquid Asset Buffer</label>
                       <p className={`text-xs font-bold ${liquidAssetBuffer >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                        ${liquidAssetBuffer.toLocaleString()}
+                        {money(liquidAssetBuffer)}
                       </p>
                       <p className="text-[8px] font-bold text-stone-400 mt-1 uppercase">Vault Safety: (Banks + Cash) - Total Commitments</p>
                     </div>

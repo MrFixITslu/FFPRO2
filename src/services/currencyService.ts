@@ -82,20 +82,22 @@ export function formatCurrencyAmount(
     compact?: boolean;
   }
 ): string {
-  const val = amount ?? 0;
-  const decimals = options?.decimals !== undefined ? options?.decimals : 2;
+  const val = Number(amount ?? 0);
+  const safeAmount = Number.isFinite(val) ? val : 0;
+  const decimals = options?.decimals !== undefined ? options.decimals : 2;
   const symbol = getCurrencySymbol(currency);
-
+  // Sign always precedes the currency prefix: -EC$2,021, never EC$-2,021.
   const formattedNum = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
-  }).format(val);
+  }).format(Math.abs(safeAmount));
+  const display = `${safeAmount < 0 ? '-' : ''}${symbol}${formattedNum}`;
 
   if (options?.showCode) {
-    return `${symbol} ${formattedNum} ${currency}`;
+    return `${display} ${currency}`;
   }
 
-  return `${symbol} ${formattedNum}`;
+  return display;
 }
 
 /**

@@ -32,8 +32,9 @@ import notificationsRoutes from './server/routes/notifications.js';
 import filesRoutes from './server/routes/files.js';
 import aiNewsRoutes from './server/routes/aiNews.js';
 import platformRoutes from './server/routes/platform.js';
+import tiquetGatewayRoutes from './server/routes/tiquetGateway.js';
 import { startPlatformEventPump } from './server/platformEvents.js';
-import { consumeHubLaunchTicket, hubPublicUrl, provisionHubFinanceOwner } from './server/hubAccess.js';
+import { consumeHubLaunchTicket, hubPublicUrl, provisionHubFinanceUser } from './server/hubAccess.js';
 
 async function bootstrap() {
   await databaseReady;
@@ -118,7 +119,7 @@ async function bootstrap() {
     if(!/^[A-Za-z0-9_-]{32,180}$/.test(ticket)) return res.status(400).send('Invalid V79 Hub launch ticket.');
     try {
       const hubSession=await consumeHubLaunchTicket(ticket);
-      const user=await provisionHubFinanceOwner(hubSession);
+      const user=await provisionHubFinanceUser(hubSession);
 
       await new Promise<void>((resolve,reject)=>{
         req.session.regenerate((err:any)=>err?reject(err):resolve());
@@ -130,6 +131,7 @@ async function bootstrap() {
       current.hubManaged=true;
       current.hubOrganizationId=hubSession.organization.id;
       current.hubUserId=hubSession.user.id;
+      current.hubRole=hubSession.role;
       current.hubAccessExpiresAt=Date.now()+30*60*1000;
       current.csrfToken=crypto.randomBytes(32).toString('hex');
       current.cookie.maxAge=30*60*1000;
@@ -157,6 +159,9 @@ async function bootstrap() {
 
   // Apple form_post is not enabled until it can use an isolated SameSite=None state cookie.
   app.use('/api/platform', platformRoutes);
+  // Server-to-server Tiquet payment events authenticate with a dedicated
+  // shared secret and therefore must be mounted before browser CSRF checks.
+  app.use('/api/gateway/webhooks', tiquetGatewayRoutes);
   app.use('/api', sameOriginOnly, csrfProtection);
   app.use('/api/auth', authRoutes);
   app.use('/api/data', dataRoutes);

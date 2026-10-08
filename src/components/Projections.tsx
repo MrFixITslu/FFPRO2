@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Transaction, RecurringIncome, RecurringExpense, InvestmentAccount, MarketPrice, ForecastSettings } from '../types';
+import { Transaction, RecurringIncome, RecurringExpense, InvestmentAccount, MarketPrice, ForecastSettings, CurrencyCode } from '../types';
+import { formatCurrencyAmount } from '../services/currencyService';
 
 interface Props {
   transactions: Transaction[];
@@ -12,6 +13,7 @@ interface Props {
   currentNetWorth: number;
   forecastSettings?: ForecastSettings;
   onUpdateForecastSettings?: (settings: ForecastSettings) => void;
+  displayCurrency: CurrencyCode;
 }
 
 const Projections: React.FC<Props> = ({ 
@@ -22,8 +24,11 @@ const Projections: React.FC<Props> = ({
   categoryBudgets, 
   currentNetWorth,
   forecastSettings,
-  onUpdateForecastSettings
+  onUpdateForecastSettings,
+  displayCurrency
 }) => {
+  const money = (value: number, decimals = 0) => formatCurrencyAmount(value, displayCurrency, { decimals });
+  const currencySymbol = displayCurrency === 'XCD' ? 'EC$' : 'US$';
   // Sync sliders with database state and local fallback
   const [yearsToProject, setYearsToProject] = useState(forecastSettings?.yearsToProject || 5);
   const [monthlyContribution, setMonthlyContribution] = useState(forecastSettings?.monthlyContribution || 500);
@@ -129,11 +134,11 @@ const Projections: React.FC<Props> = ({
 
   const finalValue = projectionData[projectionData.length - 1].total;
   const milestones = [
-    { target: 10000, label: '$10k Entry' },
-    { target: 50000, label: '$50k Milestone' },
-    { target: 100000, label: '$100k Club' },
-    { target: 250000, label: '$250k Quarter' },
-    { target: 500000, label: '$500k Half-Mil' },
+    { target: 10000, label: `${currencySymbol}10k Entry` },
+    { target: 50000, label: `${currencySymbol}50k Milestone` },
+    { target: 100000, label: `${currencySymbol}100k Club` },
+    { target: 250000, label: `${currencySymbol}250k Quarter` },
+    { target: 500000, label: `${currencySymbol}500k Half-Mil` },
     { target: 1000000, label: 'Millionaire' }
   ];
 
@@ -183,11 +188,11 @@ const Projections: React.FC<Props> = ({
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h3 className="font-bold text-stone-800 uppercase text-xs tracking-wider">Wealth Projection Matrix</h3>
-                <p className="text-[9px] text-stone-400 font-bold uppercase mt-1.5 tracking-wider">Future Net Worth Simulation</p>
+                <p className="text-[13px] text-stone-500 font-bold uppercase mt-1.5 tracking-wider">Future Net Worth Simulation</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Target End Value</p>
-                <h4 className="text-2xl font-bold text-indigo-600 tracking-tight">${finalValue.toLocaleString()}</h4>
+                <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider mb-1">Target End Value</p>
+                <h4 className="text-2xl font-bold text-indigo-600 tracking-tight">{money(finalValue)}</h4>
               </div>
             </div>
 
@@ -209,7 +214,7 @@ const Projections: React.FC<Props> = ({
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.05)', fontSize: '11px', fontWeight: 'bold' }} 
-                    formatter={(value: any) => [`$${value.toLocaleString()}`, 'Value']}
+                    formatter={(value: any) => [money(Number(value)), 'Value']}
                   />
                   <Area type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorTotal)" name="Total Net Worth" />
                   <Area type="monotone" dataKey="invested" stroke="#10b981" strokeWidth={1.5} fillOpacity={0.1} fill="url(#colorInvested)" name="Invested Asset Growth" strokeDasharray="5 5" />
@@ -227,7 +232,7 @@ const Projections: React.FC<Props> = ({
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Time Horizon</label>
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-stone-500">Time Horizon</label>
                   <span className="text-xs font-bold text-indigo-400">{yearsToProject} Years</span>
                 </div>
                 <input 
@@ -240,8 +245,8 @@ const Projections: React.FC<Props> = ({
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Monthly Contribution</label>
-                  <span className="text-xs font-bold text-emerald-400">${monthlyContribution}</span>
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-stone-500">Monthly Contribution</label>
+                  <span className="text-xs font-bold text-emerald-400">{money(monthlyContribution)}</span>
                 </div>
                 <input 
                   type="range" min="0" max={Math.max(5000, monthlyIncome)} step="50"
@@ -249,12 +254,12 @@ const Projections: React.FC<Props> = ({
                   onChange={(e) => handleContributionChange(parseInt(e.target.value))}
                   className="w-full h-1 bg-white/10 rounded appearance-none cursor-pointer accent-emerald-500" 
                 />
-                <p className="text-[8px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: ${netMonthlyCashflow.toFixed(0)}</p>
+                <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider mt-1.5">Available Surplus: {money(netMonthlyCashflow)}</p>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-stone-400">Expected ROI (Annual)</label>
+                  <label className="text-[13px] font-bold uppercase tracking-wider text-stone-500">Expected ROI (Annual)</label>
                   <span className="text-xs font-bold text-amber-400">{expectedReturn}%</span>
                 </div>
                 <input 
@@ -271,22 +276,22 @@ const Projections: React.FC<Props> = ({
              <div className="flex items-center justify-between gap-2 mb-4">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded flex items-center justify-center shadow-sm">
-                    <i className="fas fa-brain text-[10px]"></i>
+                    <i className="fas fa-brain text-xs"></i>
                   </div>
                   <div>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-stone-500">AI Strategic Feedback</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">AI Strategic Feedback</h4>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
                   {aiProvider === 'ollama' && (
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[8px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[13px] font-bold uppercase tracking-wider flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                       Ollama {aiModel ? `(${aiModel.split(':')[0]})` : ''}
                     </span>
                   )}
                   {aiProvider === 'gemini' && (
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[8px] font-bold uppercase tracking-wider">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[13px] font-bold uppercase tracking-wider">
                       Gemini AI
                     </span>
                   )}
@@ -294,7 +299,7 @@ const Projections: React.FC<Props> = ({
                     onClick={runAI}
                     disabled={isAnalyzing}
                     title="Regenerate strategic feedback"
-                    className="w-6 h-6 rounded bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center text-[10px] transition-all disabled:opacity-50"
+                    className="w-6 h-6 rounded bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center text-xs transition-all disabled:opacity-50"
                   >
                     <i className={`fas fa-rotate-right ${isAnalyzing ? 'fa-spin text-indigo-600' : ''}`}></i>
                   </button>
@@ -320,11 +325,11 @@ const Projections: React.FC<Props> = ({
             const progress = Math.min(100, (finalValue / m.target) * 100);
             return (
               <div key={idx} className={`p-4 rounded-lg border transition-all ${isReached ? 'bg-emerald-50/30 border-emerald-200 shadow-sm' : 'bg-stone-50/50 border-stone-200 opacity-75'}`}>
-                <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 border ${isReached ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' : 'bg-stone-100 border-stone-200 text-stone-400'}`}>
+                <div className={`w-8 h-8 rounded flex items-center justify-center mb-3 border ${isReached ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' : 'bg-stone-100 border-stone-200 text-stone-500'}`}>
                   <i className={`fas ${isReached ? 'fa-check-circle' : 'fa-lock'} text-xs`}></i>
                 </div>
-                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">{m.label}</p>
-                <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-stone-800'}`}>${(m.target/1000)}k</p>
+                <p className="text-[13px] font-bold text-stone-500 uppercase tracking-wider mb-1">{m.label}</p>
+                <p className={`text-sm font-semibold ${isReached ? 'text-emerald-700' : 'text-stone-800'}`}>{currencySymbol}{(m.target/1000)}k</p>
                 
                 <div className="mt-3 h-1.5 w-full bg-stone-200 rounded-full overflow-hidden">
                   <div className={`h-full ${isReached ? 'bg-emerald-500' : 'bg-indigo-600'} transition-all duration-1000`} style={{ width: `${progress}%` }}></div>

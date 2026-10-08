@@ -3,6 +3,8 @@ import { AccessibleDialog } from './components/AccessibleDialog';
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy } from 'react';
 import Login from './components/Login';
 import TransactionForm from './components/TransactionForm';
+import MagicInput from './components/MagicInput';
+import VerificationQueue from './components/VerificationQueue';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const FundingFinder = lazy(() => import('./components/FundingFinder').then(module => ({ default: module.FundingFinder })));
 const Settings = lazy(() => import('./components/Settings'));
@@ -37,9 +39,12 @@ import {
   Idea,
   ForecastSettings,
   EventLog,
+  CurrencyCode,
+  AIAnalysisResult,
   STORAGE_KEYS 
 } from './types';
 import { vaultService, AppState } from './services/vaultService';
+import { formatCurrencyAmount } from './services/currencyService';
 import { authService, AuthUser } from './services/authService';
 import { checkpointService } from './services/checkpointService';
 import { mergeStates, sameState } from './utils/stateMerge';
@@ -145,7 +150,7 @@ const MarketTicker = ({ prices, quotaExhausted }: { prices: MarketPrice[], quota
                 <div key={idx} className="flex items-center gap-3">
                    <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] font-black text-white">{symbolText.substring(0, 1)}</div>
                    <span className="font-black text-[9px] text-stone-400 tracking-[0.2em] uppercase">{symbolText}</span>
-                   <span className="font-black text-[10px] text-white tracking-tight font-tabular privacy-sensitive">${priceVal.toLocaleString()}</span>
+                   <span className="font-black text-[10px] text-white tracking-tight font-tabular privacy-sensitive">{formatCurrencyAmount(priceVal, 'USD', { decimals: 2 })}</span>
                    <div className={`flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded font-tabular privacy-sensitive ${changeVal >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                      <i className={`fas fa-caret-${changeVal >= 0 ? 'up' : 'down'}`}></i>
                      {Math.abs(changeVal).toFixed(2)}%
@@ -505,6 +510,15 @@ const App: React.FC = () => {
     monthlyContribution: 500,
     expectedReturn: 8
   }));
+  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.DISPLAY_CURRENCY);
+    return saved === 'USD' ? 'USD' : 'XCD';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.DISPLAY_CURRENCY, displayCurrency);
+  }, [displayCurrency]);
+
   const [financialLogs, setFinancialLogs] = useState<EventLog[]>(() => {
     const saved = safeParse(STORAGE_KEYS.FINANCIAL_LOGS, null);
     if (saved && Array.isArray(saved) && saved.length > 0) return saved;
@@ -512,7 +526,7 @@ const App: React.FC = () => {
     if (Array.isArray(initialTx) && initialTx.length > 0) {
       return initialTx.map((t: Transaction) => ({
         id: generateId(),
-        action: `Logged ${t.type.toUpperCase()}: "${t.description}" (${t.type === 'expense' ? '-' : '+'}$${t.amount.toLocaleString()})`,
+        action: `Logged ${t.type.toUpperCase()}: "${t.description}" (${t.type === 'expense' ? '-' : '+'}${formatCurrencyAmount(t.amount, displayCurrency, { decimals: 0 })})`,
         timestamp: t.date ? new Date(t.date + 'T12:00:00').toISOString() : new Date().toISOString(),
         username: 'nsv',
         type: 'transaction' as const,
@@ -530,6 +544,9 @@ const App: React.FC = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [pendingImportItems, setPendingImportItems] = useState<AIAnalysisResult[]>([]);
+  const [pendingImportEdit, setPendingImportEdit] = useState<{ index: number; transaction: AIAnalysisResult['transaction'] } | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'recurring' | 'goals' | 'api' | 'security' | 'intelligence'>('general');
 
@@ -698,8 +715,9 @@ const App: React.FC = () => {
     forecastSettings,
     financialLogs,
     cashOpeningBalance,
+    displayCurrency,
     lastUpdated: new Date().toISOString()
-  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance]);
+  }), [transactions, recurringExpenses, recurringIncomes, savingGoals, investmentGoals, categoryBudgets, bankConnections, investments, events, calendarItems, contacts, ideas, forecastSettings, financialLogs, cashOpeningBalance, displayCurrency]);
 
   latestStateRef.current = getFullState();
   accountRef.current = authUser?.id || null;
@@ -725,6 +743,7 @@ const App: React.FC = () => {
       setForecastSettings(state.forecastSettings);
     }
     setCashOpeningBalance(state.cashOpeningBalance || 0);
+    setDisplayCurrency(state.displayCurrency === 'USD' ? 'USD' : 'XCD');
   }, []);
 
   // Real-time Event Stream connection & live broadcast listener
@@ -1131,7 +1150,7 @@ const App: React.FC = () => {
     if (editingTransaction) {
       setTransactions(prev => prev.map(item => item.id === editingTransaction.id ? { ...t, id: editingTransaction.id } : item));
       logFinancialActivity(
-        `Updated ${t.type.toUpperCase()}: "${t.description}" ($${t.amount.toLocaleString()})`,
+        `Updated ${t.type.toUpperCase()}: "${t.description}" (${formatCurrencyAmount(t.amount, displayCurrency, { decimals: 0 })})`,
         `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}`
       );
       setEditingTransaction(null);
@@ -1142,12 +1161,101 @@ const App: React.FC = () => {
 
       const sign = t.type === 'expense' ? '-' : '+';
       logFinancialActivity(
-        `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}$${t.amount.toLocaleString()})`,
+        `Recorded ${t.type.toUpperCase()}: "${t.description}" (${sign}${formatCurrencyAmount(t.amount, displayCurrency, { decimals: 0 })})`,
         `Category: ${t.category} | Method: ${t.institution || 'Cash in Hand'}${t.destinationInstitution ? ' → ' + t.destinationInstitution : ''}${t.notes ? ' | Notes: ' + t.notes : ''}`
       );
     }
     setShowForm(false);
   };
+
+  const transactionImportKey = useCallback((transaction: Partial<Transaction>) => {
+    const date = transaction.date || new Date().toISOString().split('T')[0];
+    const amount = Number(transaction.amount || 0).toFixed(2);
+    const description = String(transaction.description || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return [date, transaction.type || 'expense', amount, description].join('|');
+  }, []);
+
+  const enqueueImportItems = useCallback((items: AIAnalysisResult[]) => {
+    let skipped = 0;
+    setPendingImportItems(previous => {
+      const seen = new Set<string>([
+        ...transactions.map(transactionImportKey),
+        ...previous.filter(item => item.transaction).map(item => transactionImportKey(item.transaction || {})),
+      ]);
+      const next = [...previous];
+      for (const item of items) {
+        if (item.updateType === 'transaction' && item.transaction) {
+          const key = transactionImportKey(item.transaction);
+          if (seen.has(key)) {
+            skipped++;
+            continue;
+          }
+          seen.add(key);
+        }
+        next.push(item);
+      }
+      return next;
+    });
+    if (skipped > 0) {
+      showToast({
+        type: 'info',
+        title: 'Duplicate import rows skipped',
+        message: `${skipped} item(s) matched transactions already saved or already waiting for review.`,
+      });
+    }
+  }, [transactions, transactionImportKey, showToast]);
+
+  const approveImportItem = useCallback((index: number) => {
+    const item = pendingImportItems[index];
+    if (!item) return;
+    if (item.updateType === 'transaction' && item.transaction) {
+      onSaveTransaction({
+        amount: item.transaction.amount,
+        category: item.transaction.category || (item.transaction.type === 'income' ? 'Income' : 'Other'),
+        description: item.transaction.description || 'Imported transaction',
+        type: item.transaction.type,
+        date: item.transaction.date || new Date().toISOString().split('T')[0],
+        notes: item.transaction.notes,
+        vendor: item.transaction.vendor,
+        lineItems: item.transaction.lineItems,
+        institution: 'Cash in Hand',
+      });
+    } else if (item.updateType === 'portfolio' && item.portfolio) {
+      const portfolio = item.portfolio;
+      setInvestments(previous => {
+        const accountIndex = previous.findIndex(account => account.provider === portfolio.provider);
+        const livePrice = marketPrices.find(price => price.symbol === portfolio.symbol)?.price || 0;
+        if (accountIndex < 0) {
+          return [...previous, {
+            id: generateId(),
+            provider: portfolio.provider,
+            name: portfolio.provider,
+            holdings: [{ symbol: portfolio.symbol, quantity: portfolio.quantity, purchasePrice: livePrice }],
+          }];
+        }
+        return previous.map((account, index) => {
+          if (index !== accountIndex) return account;
+          const existing = account.holdings.find(holding => holding.symbol === portfolio.symbol);
+          return {
+            ...account,
+            holdings: existing
+              ? account.holdings.map(holding => holding.symbol === portfolio.symbol ? { ...holding, quantity: portfolio.quantity } : holding)
+              : [...account.holdings, { symbol: portfolio.symbol, quantity: portfolio.quantity, purchasePrice: livePrice }],
+          };
+        });
+      });
+    }
+    setPendingImportItems(previous => previous.filter((_, itemIndex) => itemIndex !== index));
+    showToast({ type: 'success', title: 'Import approved', message: 'The reviewed item was added to FFPRO.' });
+  }, [pendingImportItems, marketPrices, onSaveTransaction, showToast]);
+
+  const updatePendingImport = useCallback((transaction: Omit<Transaction, 'id'>) => {
+    if (!pendingImportEdit) return;
+    setPendingImportItems(previous => previous.map((item, index) =>
+      index === pendingImportEdit.index ? { ...item, updateType: 'transaction', transaction } : item
+    ));
+    setPendingImportEdit(null);
+  }, [pendingImportEdit]);
 
   const onDeleteTransaction = (id: string) => {
     const target = transactions.find(t => t.id === id);
@@ -1155,7 +1263,7 @@ const App: React.FC = () => {
     if (target) {
       const sign = target.type === 'expense' ? '-' : '+';
       logFinancialActivity(
-        `Removed Transaction: "${target.description}" (${sign}$${target.amount.toLocaleString()})`,
+        `Removed Transaction: "${target.description}" (${sign}${formatCurrencyAmount(target.amount, displayCurrency, { decimals: 0 })})`,
         `Category: ${target.category} | Method: ${target.institution || 'Cash in Hand'}`
       );
     }
@@ -1165,8 +1273,8 @@ const App: React.FC = () => {
     const oldBudget = categoryBudgets[cat] || 0;
     setCategoryBudgets(prev => ({ ...prev, [cat]: amt }));
     logFinancialActivity(
-      `Adjusted Budget Limit: "${cat}" set to $${amt.toLocaleString()}`,
-      `Previous allocation was $${oldBudget.toLocaleString()}`
+      `Adjusted Budget Limit: "${cat}" set to ${formatCurrencyAmount(amt, displayCurrency, { decimals: 0 })}`,
+      `Previous allocation was ${formatCurrencyAmount(oldBudget, displayCurrency, { decimals: 0 })}`
     );
   };
 
@@ -1187,7 +1295,7 @@ const App: React.FC = () => {
     const newRec = { ...item, id: generateId(), accumulatedOverdue: 0 };
     setRecurringExpenses(prev => [...prev, newRec]);
     logFinancialActivity(
-      `Added Recurring Bill Commitment: "${item.description}" ($${item.amount.toLocaleString()}/mo)`,
+      `Added Recurring Bill Commitment: "${item.description}" (${formatCurrencyAmount(item.amount, displayCurrency, { decimals: 0 })}/mo)`,
       `Category: ${item.category} | Due Day: ${item.dayOfMonth} | Next Due: ${item.nextDueDate}`
     );
   };
@@ -1214,7 +1322,7 @@ const App: React.FC = () => {
     });
 
     logFinancialActivity(
-      `Cleared Commitment / Paid Bill: "${bill.description}" (-$${amount.toLocaleString()})`,
+      `Cleared Commitment / Paid Bill: "${bill.description}" (-${formatCurrencyAmount(amount, displayCurrency, { decimals: 0 })})`,
       `Category: ${bill.category} | Method: Cash in Hand | Next Cycle Due: ${nextDue.toISOString().split('T')[0]}`
     );
   };
@@ -1241,7 +1349,7 @@ const App: React.FC = () => {
     } : i));
 
     logFinancialActivity(
-      `Recorded Inflow / Received Income: "${inc.description}" (+$${amount.toLocaleString()})`,
+      `Recorded Inflow / Received Income: "${inc.description}" (+${formatCurrencyAmount(amount, displayCurrency, { decimals: 0 })})`,
       `Category: ${inc.category} | Destination: ${destination} | Next Expected: ${nextConf.toISOString().split('T')[0]}`
     );
   };
@@ -1331,10 +1439,12 @@ const App: React.FC = () => {
         </main>
       ) : (
         <>
-          <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
+          <div className="hidden 2xl:block" aria-label="Secondary market quotes">
+            <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
+          </div>
           
-          <header className="fixed top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
-            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-7xl mx-auto justify-between">
+          <header className="fixed top-0 2xl:top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-[1760px] xl:w-[94%] 2xl:w-[90%] mx-auto justify-between">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 {/* Logo & Brand */}
                 <div 
@@ -1346,12 +1456,12 @@ const App: React.FC = () => {
                     src={APP_LOGO}
                     alt="Fire Finance Pro Logo"
                     referrerPolicy="no-referrer"
-                    className="h-8 sm:h-9 w-auto max-w-[180px] sm:max-w-[220px] object-contain shrink-0 group-hover:scale-102 transition-transform"
+                    className="h-8 sm:h-9 w-auto max-w-[140px] 2xl:max-w-[220px] object-contain shrink-0 group-hover:scale-102 transition-transform"
                   />
                 </div>
 
-                {/* Main Menu Tabs (Desktop / Tablet) */}
-                <nav className="hidden md:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60">
+                {/* Main workspace navigation */}
+                <nav className="hidden xl:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60" aria-label="FFPRO workspace">
                   {isAdmin && (
                     <button 
                       onClick={() => navigateToTab('dashboard')} 
@@ -1360,12 +1470,24 @@ const App: React.FC = () => {
                           ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
-                      title="Dashboard (⌘1)"
+                      title="Money Overview (⌘1)"
                     >
                       <LayoutDashboard size={13} />
-                      <span>Dashboard</span>
+                      <span>Money</span>
                     </button>
                   )}
+                  <button 
+                    onClick={() => navigateToTab('events')} 
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                      activeTab === 'events' 
+                        ? 'bg-teal-700 text-white shadow-xs' 
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
+                    }`}
+                    title="Projects (⌘3)"
+                  >
+                    <Zap size={13} />
+                    <span>Projects</span>
+                  </button>
                   <button 
                     onClick={() => navigateToTab('calendar')} 
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
@@ -1378,18 +1500,7 @@ const App: React.FC = () => {
                     <CalendarIcon size={13} />
                     <span>Calendar</span>
                   </button>
-                  <button 
-                    onClick={() => navigateToTab('events')} 
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                      activeTab === 'events' 
-                        ? 'bg-teal-700 text-white shadow-xs' 
-                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                    }`}
-                    title="Planner (⌘3)"
-                  >
-                    <Zap size={13} />
-                    <span>Planner</span>
-                  </button>
+                  {isAdmin && <span className="mx-0.5 h-5 w-px bg-stone-300" aria-hidden="true" />}
                   {isAdmin && (
                     <button 
                       onClick={() => navigateToTab('projections')} 
@@ -1398,7 +1509,7 @@ const App: React.FC = () => {
                           ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
-                      title="Forecast (⌘4)"
+                      title="Forecast & Intelligence (⌘4)"
                     >
                       <TrendingUp size={13} />
                       <span>Forecast</span>
@@ -1412,7 +1523,7 @@ const App: React.FC = () => {
                           ? 'bg-teal-700 text-white shadow-xs' 
                           : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
                       }`}
-                      title="Funding (⌘5)"
+                      title="Business Funding (⌘5)"
                     >
                       <Landmark size={13} />
                       <span>Funding</span>
@@ -1427,7 +1538,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCommandPalette(true)}
-                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
+                  className="hidden 2xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
                   title="Quick Command & Search (⌘K)"
                 >
                   <Search size={14} className="text-stone-400 group-hover:text-stone-700" />
@@ -1515,7 +1626,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowShortcutsModal(true)}
-                  className="hidden md:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
+                  className="hidden 2xl:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
                   title="Keyboard Shortcuts (?)"
                   aria-label="Keyboard Shortcuts"
                 >
@@ -1551,7 +1662,7 @@ const App: React.FC = () => {
                 {/* Mobile Hamburger Drawer Toggle */}
                 <button
                   onClick={() => setMobileMenuOpen(prev => !prev)}
-                  className="flex md:hidden w-8 h-8 items-center justify-center rounded-lg bg-stone-100 text-stone-700 hover:text-stone-900 hover:bg-stone-200 transition border border-stone-200/80 active:scale-95"
+                  className="flex xl:hidden w-8 h-8 items-center justify-center rounded-lg bg-stone-100 text-stone-700 hover:text-stone-900 hover:bg-stone-200 transition border border-stone-200/80 active:scale-95"
                   title="Toggle Navigation Menu"
                   aria-label="Toggle Navigation Menu"
                 >
@@ -1561,25 +1672,61 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full pt-28 sm:pt-32 px-3 sm:px-6 pb-24 md:pb-12">
+          <main className="flex-1 mx-auto w-full max-w-[1760px] lg:w-[90%] pt-20 2xl:pt-32 px-4 sm:px-6 lg:px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
-                <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                    <div>
-                     <h1 className="text-3xl font-display text-stone-900 tracking-tight">Command Center</h1>
-                     <p className="text-[11px] text-stone-500 font-semibold uppercase tracking-widest mt-2">Strategic Intelligence Hub</p>
+                     <h1 className="text-3xl font-display text-stone-900 tracking-tight">Money Overview</h1>
+                     <p className="text-sm text-stone-600 font-medium mt-2">Cash flow, commitments, goals and financial intelligence</p>
                    </div>
-                   <div className="w-full md:w-auto">
+                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
                       <button
                         type="button"
-                        onClick={() => setShowForm(true)}
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-stone-900 text-white rounded-full text-xs font-bold hover:bg-stone-800 transition shadow-sm w-full md:w-auto"
+                        onClick={() => { setEditingTransaction(null); setShowForm(true); }}
+                        className="flex items-center justify-center gap-2 px-5 py-3 bg-teal-700 text-white rounded-xl text-sm font-bold hover:bg-teal-800 transition shadow-sm w-full md:w-auto"
                       >
-                        <Plus size={14} />
+                        <Plus size={18} />
                         Add Transaction
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('ffpro-capture')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-white text-stone-800 border border-stone-300 rounded-xl text-sm font-semibold hover:bg-stone-50 transition w-full md:w-auto"
+                      >
+                        <Download size={17} />
+                        Import Statement
                       </button>
                    </div>
                 </header>
+
+                <section id="ffpro-capture" className="scroll-mt-24 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h2 className="text-xs font-black uppercase tracking-wider text-stone-800">Review-first capture</h2>
+                      <p className="text-sm text-stone-600 mt-1">Type a transaction or upload receipts and PDF/CSV statements. Imports stay out of your ledger until you approve them.</p>
+                    </div>
+                    {importLoading && <span className="text-[10px] font-bold text-indigo-600 animate-pulse">Processing…</span>}
+                  </div>
+                  <MagicInput
+                    onSuccess={(item) => enqueueImportItems([item])}
+                    onBulkSuccess={enqueueImportItems}
+                    onLoading={setImportLoading}
+                    onManualEntry={() => { setEditingTransaction(null); setShowForm(true); }}
+                  />
+                </section>
+
+                <VerificationQueue
+                  pendingItems={pendingImportItems}
+                  displayCurrency={displayCurrency}
+                  onApprove={approveImportItem}
+                  onDiscard={(index) => setPendingImportItems(previous => previous.filter((_, itemIndex) => itemIndex !== index))}
+                  onEdit={(index) => {
+                    const transaction = pendingImportItems[index]?.transaction;
+                    if (transaction) setPendingImportEdit({ index, transaction });
+                  }}
+                  onDiscardAll={() => setPendingImportItems([])}
+                />
 
                 <Dashboard 
                   transactions={transactions}
@@ -1593,6 +1740,7 @@ const App: React.FC = () => {
                   targetMargin={0} 
                   cashOpeningBalance={cashOpeningBalance}
                   categoryBudgets={categoryBudgets}
+                  displayCurrency={displayCurrency}
                   financialLogs={financialLogs}
                   currentUser={currentUsername || 'User'}
                   userEmail={authUser?.email}
@@ -1701,6 +1849,7 @@ const App: React.FC = () => {
                 categoryBudgets={categoryBudgets}
                 forecastSettings={forecastSettings}
                 onUpdateForecastSettings={setForecastSettings}
+                displayCurrency={displayCurrency}
                 currentNetWorth={liquidFunds + investments.reduce((acc, inv) => acc + inv.holdings.reduce((hAcc, h) => hAcc + (h.quantity * (marketPrices.find(m => m.symbol === h.symbol)?.price || 0)), 0), 0)}
               />
             )}
@@ -1711,7 +1860,7 @@ const App: React.FC = () => {
           </main>
 
           {/* Mobile Bottom Navigation Bar */}
-          <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-stone-200 z-[100] md:hidden shadow-lg flex items-center justify-around px-1 pb-safe print:hidden">
+          <nav aria-label="Mobile finance navigation" className="fixed bottom-0 left-0 right-0 min-h-16 bg-white/95 backdrop-blur-md border-t border-stone-200 z-[100] md:hidden shadow-lg flex items-center justify-around px-1 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] print:hidden">
             {isAdmin && (
               <button
                 type="button"
@@ -1727,7 +1876,7 @@ const App: React.FC = () => {
                 }`}>
                   <LayoutDashboard size={16} />
                 </div>
-                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Dashboard</span>
+                <span className="text-[11px] mt-0.5 tracking-tight leading-none">Money</span>
               </button>
             )}
 
@@ -1745,7 +1894,7 @@ const App: React.FC = () => {
               }`}>
                 <CalendarIcon size={16} />
               </div>
-              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Calendar</span>
+              <span className="text-[11px] mt-0.5 tracking-tight leading-none">Calendar</span>
             </button>
 
             {/* Mobile Center Quick-Action Button */}
@@ -1758,7 +1907,7 @@ const App: React.FC = () => {
               <div className="w-12 h-12 rounded-full bg-teal-700 text-white flex items-center justify-center shadow-lg border-[3px] border-white group-hover:scale-105 group-active:scale-95 transition-transform">
                 <Plus size={22} className="text-white" />
               </div>
-              <span className="text-[9px] font-bold text-stone-600 mt-0.5 tracking-tight">Actions</span>
+              <span className="text-[11px] font-bold text-stone-600 mt-0.5 tracking-tight">Actions</span>
             </button>
 
             <button
@@ -1775,7 +1924,7 @@ const App: React.FC = () => {
               }`}>
                 <Zap size={16} />
               </div>
-              <span className="text-[10px] mt-0.5 tracking-tight leading-none">Planner</span>
+              <span className="text-[11px] mt-0.5 tracking-tight leading-none">Projects</span>
             </button>
 
             {isAdmin && (
@@ -1793,7 +1942,7 @@ const App: React.FC = () => {
                 }`}>
                   <TrendingUp size={16} />
                 </div>
-                <span className="text-[10px] mt-0.5 tracking-tight leading-none">Forecast</span>
+                <span className="text-[11px] mt-0.5 tracking-tight leading-none">Forecast</span>
               </button>
             )}
           </nav>
@@ -1878,8 +2027,8 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <LayoutDashboard size={18} className={activeTab === 'dashboard' ? 'text-indigo-400' : 'text-stone-500'} />
                           <div>
-                            <div className="text-xs font-bold">Command Center</div>
-                            <div className={`text-[10px] ${activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-400'}`}>Strategic Intelligence Hub</div>
+                            <div className="text-xs font-bold">Money Overview</div>
+                            <div className={`text-[10px] ${activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-400'}`}>Cash flow, goals & financial position</div>
                           </div>
                         </div>
                         <ChevronRight size={16} className={activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-300'} />
@@ -1896,13 +2045,14 @@ const App: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <CalendarIcon size={18} className={activeTab === 'calendar' ? 'text-indigo-400' : 'text-stone-500'} />
                         <div>
-                          <div className="text-xs font-bold">Financial Calendar</div>
-                          <div className={`text-[10px] ${activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-400'}`}>Dates, Commitments & Schedules</div>
+                          <div className="text-xs font-bold">Calendar</div>
+                          <div className={`text-[10px] ${activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-400'}`}>Bills, paydays, meetings & commitments</div>
                         </div>
                       </div>
                       <ChevronRight size={16} className={activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-300'} />
                     </button>
 
+                    <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Projects</div>
                     <button
                       type="button"
                       onClick={() => { navigateToTab('events'); setMobileMenuOpen(false); }}
@@ -1913,13 +2063,14 @@ const App: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <Zap size={18} className={activeTab === 'events' ? 'text-indigo-400' : 'text-stone-500'} />
                         <div>
-                          <div className="text-xs font-bold">Event & Project Planner</div>
-                          <div className={`text-[10px] ${activeTab === 'events' ? 'text-stone-400' : 'text-stone-400'}`}>Projects, Tasks, IOUs & Budgets</div>
+                          <div className="text-xs font-bold">Projects & Planner</div>
+                          <div className={`text-[10px] ${activeTab === 'events' ? 'text-stone-400' : 'text-stone-400'}`}>Projects, tasks, shared work & budgets</div>
                         </div>
                       </div>
                       <ChevronRight size={16} className={activeTab === 'events' ? 'text-stone-400' : 'text-stone-300'} />
                     </button>
 
+                    {isAdmin && <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Planning & Intelligence</div>}
                     {isAdmin && (
                       <button
                         type="button"
@@ -1931,8 +2082,8 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <TrendingUp size={18} className={activeTab === 'projections' ? 'text-indigo-400' : 'text-stone-500'} />
                           <div>
-                            <div className="text-xs font-bold">Wealth Forecast</div>
-                            <div className={`text-[10px] ${activeTab === 'projections' ? 'text-stone-400' : 'text-stone-400'}`}>Projections & Strategic AI Advisory</div>
+                            <div className="text-xs font-bold">Forecast & Scenarios</div>
+                            <div className={`text-[10px] ${activeTab === 'projections' ? 'text-stone-400' : 'text-stone-400'}`}>Cash-flow projections and what-if planning</div>
                           </div>
                         </div>
                         <ChevronRight size={16} className={activeTab === 'projections' ? 'text-stone-400' : 'text-stone-300'} />
@@ -1950,8 +2101,8 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <Landmark size={18} className={activeTab === 'funding' ? 'text-indigo-400' : 'text-stone-500'} />
                           <div>
-                            <div className="text-xs font-bold">Funding & Grants Finder</div>
-                            <div className={`text-[10px] ${activeTab === 'funding' ? 'text-stone-400' : 'text-stone-400'}`}>Automated Discovery & Ollama Triage</div>
+                            <div className="text-xs font-bold">Business Funding</div>
+                            <div className={`text-[10px] ${activeTab === 'funding' ? 'text-stone-400' : 'text-stone-400'}`}>Funding and grant opportunities</div>
                           </div>
                         </div>
                         <ChevronRight size={16} className={activeTab === 'funding' ? 'text-stone-400' : 'text-stone-300'} />
@@ -2127,7 +2278,22 @@ const App: React.FC = () => {
                     setShowForm(false);
                     setEditingTransaction(null);
                   }} 
-                  bankConnections={bankConnections} 
+                  bankConnections={bankConnections}
+                  displayCurrency={displayCurrency}
+                />
+              </div>
+            </AccessibleDialog>
+          )}
+
+          {pendingImportEdit?.transaction && (
+            <AccessibleDialog label="Review imported transaction" onClose={() => setPendingImportEdit(null)}>
+              <div className="w-full max-w-xl">
+                <TransactionForm
+                  initialData={pendingImportEdit.transaction}
+                  onAdd={updatePendingImport}
+                  onCancel={() => setPendingImportEdit(null)}
+                  bankConnections={bankConnections}
+                  displayCurrency={displayCurrency}
                 />
               </div>
             </AccessibleDialog>
@@ -2136,6 +2302,8 @@ const App: React.FC = () => {
           {showSettings && (
             <Settings 
               currentState={getFullState()}
+              displayCurrency={displayCurrency}
+              onUpdateDisplayCurrency={setDisplayCurrency}
               onRestoreState={async data => {
                 if(!authUser || !cloudLoaded || conflictRef.current || syncTaskRef.current) throw new Error("Finish saving or resolve the sync error before restoring.");
                 const restored={...data,lastUpdated:new Date().toISOString()};
@@ -2258,6 +2426,7 @@ const App: React.FC = () => {
             onClose={() => setShowCommandPalette(false)}
             activeTab={activeTab}
             onSelectTab={(tab) => navigateToTab(tab as AppTab)}
+            displayCurrency={displayCurrency}
             onOpenNewTransaction={() => {
               setEditingTransaction(null);
               setShowForm(true);

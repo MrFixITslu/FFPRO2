@@ -31,11 +31,11 @@ export const KeyboardShortcutsModal: React.FC<Props> = ({ isOpen, onClose }) => 
     {
       group: 'View Switching',
       items: [
-        { keys: ['⌘', '1'], description: 'Switch to Executive Dashboard' },
-        { keys: ['⌘', '2'], description: 'Switch to Strategic Calendar' },
-        { keys: ['⌘', '3'], description: 'Switch to Project & Event Planner' },
-        { keys: ['⌘', '4'], description: 'Switch to Wealth Forecast & Projections' },
-        { keys: ['⌘', '5'], description: 'Switch to Funding Finder' },
+        { keys: ['⌘', '1'], description: 'Switch to Money Overview' },
+        { keys: ['⌘', '2'], description: 'Switch to Calendar' },
+        { keys: ['⌘', '3'], description: 'Switch to Projects & Planner' },
+        { keys: ['⌘', '4'], description: 'Switch to Forecast & Scenarios' },
+        { keys: ['⌘', '5'], description: 'Switch to Business Funding' },
       ],
     },
     {
@@ -68,7 +68,7 @@ export const KeyboardShortcutsModal: React.FC<Props> = ({ isOpen, onClose }) => 
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-stone-900 tracking-tight">Keyboard Shortcuts</h3>
-                  <p className="text-[11px] text-stone-500 font-medium">Power workflows for lightning-fast productivity</p>
+                  <p className="text-[11px] text-stone-500 font-medium">Keyboard shortcuts for faster FFPRO workflows</p>
                 </div>
               </div>
 

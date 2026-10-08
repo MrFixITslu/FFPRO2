@@ -69,9 +69,17 @@ if (hasPostgres) {
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS hub_user_id TEXT,
         ADD COLUMN IF NOT EXISTS hub_organization_id TEXT,
-        ADD COLUMN IF NOT EXISTS hub_finance_owner BOOLEAN NOT NULL DEFAULT FALSE;
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_user
-        ON users(hub_user_id) WHERE hub_user_id IS NOT NULL;
+        ADD COLUMN IF NOT EXISTS hub_finance_owner BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS hub_role TEXT;
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+      DROP INDEX IF EXISTS idx_users_hub_user;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_legacy_email
+        ON users(email) WHERE hub_organization_id IS NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_org_email
+        ON users(hub_organization_id, email) WHERE hub_organization_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_org_user
+        ON users(hub_organization_id, hub_user_id)
+        WHERE hub_organization_id IS NOT NULL AND hub_user_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hub_finance_owner
         ON users(hub_organization_id) WHERE hub_organization_id IS NOT NULL AND hub_finance_owner=TRUE;
     `);
@@ -109,6 +117,21 @@ if (hasPostgres) {
         version INTEGER NOT NULL DEFAULT 1,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+  }).then(() => {
+    return realPool.query(`
+      CREATE TABLE IF NOT EXISTS external_finance_events (
+        event_id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        external_reference TEXT,
+        amount NUMERIC NOT NULL,
+        currency TEXT NOT NULL,
+        occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_external_finance_events_user
+        ON external_finance_events(user_id, occurred_at DESC);
     `);
   }).then(() => {
     return realPool.query(`
@@ -169,7 +192,18 @@ if (hasPostgres) {
       );
     `);
   }).then(() => {
-    return realPool.query(`CREATE INDEX IF NOT EXISTS idx_project_invites_email ON project_invites(LOWER(email));`);
+    return realPool.query(`
+      ALTER TABLE project_invites ADD COLUMN IF NOT EXISTS token_hash VARCHAR(64);
+      UPDATE project_invites
+         SET token_hash = encode(digest(token, 'sha256'), 'hex')
+       WHERE token_hash IS NULL AND token IS NOT NULL;
+      UPDATE project_invites
+         SET token = token_hash
+       WHERE token_hash IS NOT NULL AND token IS DISTINCT FROM token_hash;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_project_invites_token_hash
+        ON project_invites(token_hash) WHERE token_hash IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_project_invites_email ON project_invites(LOWER(email));
+    `);
   }).then(() => {
     return realPool.query(`
       CREATE TABLE IF NOT EXISTS project_messages (

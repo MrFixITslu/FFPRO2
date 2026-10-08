@@ -70,6 +70,12 @@ jobs:
     needs: deliver
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     environment: production
+    # These are deployment coordinates, not credentials.
+    env:
+      DEPLOY_HOST: 100.73.248.30
+      DEPLOY_USER: firelion
+      DEPLOY_ROOT: /home/firelion/FFPRO2
+      DEPLOY_PROJECT: ffpro2
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -83,29 +89,32 @@ jobs:
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          ping: ${{ secrets.DEPLOY_HOST }}
+          ping: ${{ env.DEPLOY_HOST }}
       - name: Configure pinned SSH host
         shell: bash
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_HOST"
           install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          python3 .github/scripts/write-deploy-key.py "$HOME/.ssh/id_ed25519"
+          # Public host key verified through an existing strict SSH connection to production.
+          host_key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILct6nfEHcK9bJRthFDt7863FEa2YvtNn+PQBaxKUfXE'
+          port="${DEPLOY_SSH_PORT:-22}"
+          [[ "$port" =~ ^[0-9]+$ ]] || { echo "Invalid SSH port" >&2; exit 1; }
+          known_host="$DEPLOY_HOST"
+          if [ "$port" != 22 ]; then known_host="[$DEPLOY_HOST]:$port"; fi
+          printf '%s %s\n' "$known_host" "$host_key" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
-          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+          test "$(ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256 | awk '{print $2}')" = 'SHA256:aZbfFVQ2DRx3JZofPkgF5JyMhKtnyCVKeHNCtpYLS5E'
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null || { echo "DEPLOY_SSH_KEY is not a usable OpenSSH private key" >&2; exit 1; }
       - name: Transfer and deploy release
         shell: bash
         env:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT }}
-          DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
-          DEPLOY_PROJECT: ${{ vars.DEPLOY_PROJECT }}
         run: |
           set -euo pipefail
           for name in RELEASE_SHA DEPLOY_HOST DEPLOY_USER DEPLOY_ROOT DEPLOY_PROJECT; do

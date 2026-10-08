@@ -45,9 +45,10 @@ async function insertReset(userId,token){const row={id:crypto.randomUUID(),user_
 test('security and persistence integration',async t=>{
   try{
     await waitReady();
-    const owner=new Client(),other=new Client(),anonymous=new Client();
+    const owner=new Client(),other=new Client(),editorClient=new Client(),anonymous=new Client();
     const suffix=crypto.randomBytes(5).toString('hex');
     const user=await owner.register(`owner-${suffix}@example.test`), stranger=await other.register(`other-${suffix}@example.test`);
+    const editorUser=await editorClient.register(`editor-${suffix}@example.test`);
     await t.test('cookie-only authentication and CSRF protect writes',async()=>{
       assert.match(owner.cookie,/ffpro.sid/);
       assert.equal((await anonymous.request('/api/files/not-a-file')).status,401);
@@ -55,6 +56,7 @@ test('security and persistence integration',async t=>{
       assert.equal((await owner.request('/api/data',{method:'PUT',data:{data:{transactions:[],events:[]},expectedVersion:0},headers:{Origin:'https://attacker.example'}})).status,403);
       assert.equal((await owner.request('/api/ai/ollama/config',{method:'POST',data:{baseUrl:'http://127.0.0.1'}})).status,403);
       assert.equal((await owner.request('/api/ai/bank-sync',{method:'POST',data:{}})).status,501);
+      assert.equal((await owner.request('/api/ai/chat',{method:'POST',data:{message:'test',context:{}}})).status,404);
     });
     await t.test('concurrent first saves conflict and reset retains monotonically increasing versions',async()=>{
       const payload={transactions:[],events:[{id:'personal-plan'}],bankConnections:[{institution:'Manual',openingBalance:0}],cashOpeningBalance:0};
@@ -74,19 +76,54 @@ test('security and persistence integration',async t=>{
       assert.throws(()=>safeFileType('attack.html',Buffer.from('<script>alert(1)</script>')));
       assert.throws(()=>safeFileType('attack.png',Buffer.from('<svg onload=alert(1)>')));
     });
+    await t.test('statement imports are review-only and do not persist source files',async()=>{
+      const {filesDb}=await import('../server/filesDb.js');
+      const before=(await filesDb.listFilesByUser(user.id)).length;
+      const form=new FormData();
+      form.append('statement',new Blob([
+        'Date,Description,Debit,Credit\n2026-10-01,Coffee,12.50,\n2026-10-02,Salary,,1000.00'
+      ],{type:'text/csv'}),'statement.csv');
+      const parsed=await owner.request('/api/ai/parse-statement',{method:'POST',body:form});
+      assert.equal(parsed.status,200,await parsed.clone().text());
+      const body=await parsed.json();
+      assert.equal(body.parser,'deterministic-csv');
+      assert.equal(body.items.length,2);
+      assert.equal(body.items[0].transaction.type,'expense');
+      assert.equal(body.items[1].transaction.type,'income');
+      const after=(await filesDb.listFilesByUser(user.id)).length;
+      assert.equal(after,before,'statement processing must not persist the source document');
+    });
+
     await t.test('email verification is one-time and does not auto-link existing OAuth accounts',async()=>{
       const token=await security.createVerification(user.id);
       assert.equal(await security.consumeVerification(token),true);assert.equal(await security.consumeVerification(token),false);
       await assert.rejects(findOrCreateOAuthUser({provider:'google',providerId:'fake-'+suffix,email:user.email,emailVerified:true}),/existing password/);
     });
-    await t.test('invite preview works, verification is required and consumption is atomic',async()=>{
+    await t.test('project access administration stays owner-only and invitation secrets are hashed',async()=>{
       const {projectsDb,acceptInvitation}=await import('../server/projectsDb.js');
       const project=await projectsDb.createProject({ownerId:user.id,name:'Test',projectType:'event',data:{}});
+      await projectsDb.addMember(project.id,editorUser.id,'editor');
+      assert.equal((await editorClient.request(`/api/projects/${project.id}/invites`,{
+        method:'POST',
+        data:{email:`blocked-${suffix}@example.test`,role:'viewer'}
+      })).status,403);
+
       const invite=await projectsDb.createInvite({projectId:project.id,email:stranger.email,role:'viewer',invitedBy:user.id});
-      const preview=await anonymous.request(`/api/invites/${invite.token}`);assert.equal(preview.status,200,await preview.clone().text());
-      assert.equal((await other.request(`/api/invites/${invite.token}/accept`,{method:'POST'})).status,403);
+      assert.equal(invite.token,undefined);
+      assert.ok(invite.rawToken);
+      const expectedHash=crypto.createHash('sha256').update(invite.rawToken).digest('hex');
+      if(db.realPool){
+        const stored=(await db.realPool.query('SELECT token,token_hash FROM project_invites WHERE id=$1',[invite.id])).rows[0];
+        assert.equal(stored.token,expectedHash);assert.equal(stored.token_hash,expectedHash);
+      }else{
+        const stored=db.readDB().project_invites.find(row=>row.id===invite.id);
+        assert.equal(stored.token,expectedHash);assert.equal(stored.token_hash,expectedHash);
+      }
+
+      const preview=await anonymous.request(`/api/invites/${invite.rawToken}`);assert.equal(preview.status,200,await preview.clone().text());
+      assert.equal((await other.request(`/api/invites/${invite.rawToken}/accept`,{method:'POST'})).status,403);
       await security.verifyUser(stranger.id);const verified=await security.getUser(stranger.id);
-      const accepted=await Promise.all([acceptInvitation(invite.token,verified),acceptInvitation(invite.token,verified)]);
+      const accepted=await Promise.all([acceptInvitation(invite.rawToken,verified),acceptInvitation(invite.rawToken,verified)]);
       assert.equal(accepted.filter(Boolean).length,1);assert.equal((await projectsDb.getMembership(project.id,stranger.id)).role,'viewer');
     });
     await t.test('password reset revokes existing sessions and token cannot be replayed',async()=>{

@@ -2,13 +2,15 @@ import { Router } from "../http.js";
 import crypto from "node:crypto";
 import { pool } from "../db.js";
 import { decryptForUser } from "../crypto.js";
+import { provisionHubFinanceOwner } from "../hubAccess.js";
 
 const router = Router();
 const MAX_SKEW_MS = 5 * 60 * 1000;
 
 function canonicalMessage(req, timestamp) {
   const pathname = new URL(req.originalUrl, "http://v79.internal").pathname;
-  const bodyHash = crypto.createHash("sha256").update("").digest("hex");
+  const body = req.method === "GET" ? "" : JSON.stringify(req.body ?? {});
+  const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
   return [req.method.toUpperCase(), pathname, String(timestamp), bodyHash].join("\n");
 }
 
@@ -54,6 +56,59 @@ router.use((req, res, next) => {
 function sumTransactions(transactions, predicate) {
   return transactions.reduce((total, item) => predicate(item) ? total + Number(item.amount || 0) : total, 0);
 }
+
+router.post("/provision", async (req, res) => {
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+  const organization = body.organization && typeof body.organization === "object" && !Array.isArray(body.organization)
+    ? body.organization : {};
+  const user = body.user && typeof body.user === "object" && !Array.isArray(body.user) ? body.user : {};
+  const organizationId = String(organization.id || "").trim();
+  const organizationName = String(organization.name || "").trim();
+  const organizationSlug = String(organization.slug || "").trim();
+  const hubUserId = String(user.id || "").trim();
+  const email = String(user.email || "").trim().toLowerCase();
+  const name = String(user.name || email.split("@")[0] || "").trim();
+
+  if (
+    body.role !== "owner" ||
+    !/^[A-Za-z0-9._:-]{8,180}$/.test(organizationId) ||
+    organizationName.length < 1 || organizationName.length > 180 ||
+    !/^[a-z0-9][a-z0-9-]{0,99}$/.test(organizationSlug) ||
+    !/^[A-Za-z0-9._:-]{8,180}$/.test(hubUserId) ||
+    !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ||
+    name.length < 1 || name.length > 255
+  ) {
+    return res.status(400).json({ error: "Invalid FFPRO provisioning request." });
+  }
+
+  try {
+    const financeOwner = await provisionHubFinanceOwner({
+      user: { id: hubUserId, email, name },
+      organization: { id: organizationId, name: organizationName, slug: organizationSlug },
+      role: "owner",
+      entitlement: { product: "ffpro", enabled: true, access: "owner" },
+    });
+
+    if (
+      String(financeOwner?.hub_user_id || "") !== hubUserId ||
+      String(financeOwner?.hub_organization_id || "") !== organizationId ||
+      financeOwner?.hub_finance_owner !== true
+    ) {
+      throw new Error("FFPRO provisioned identity mismatch.");
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({
+      provisioned: true,
+      organizationId,
+      ownerHubUserId: hubUserId,
+      financeUserId: financeOwner.id,
+    });
+  } catch (error) {
+    console.warn("[platform] FFPRO provisioning denied:", error?.message || error);
+    return res.status(409).json({ error: "FFPRO workspace provisioning could not be completed." });
+  }
+});
 
 router.get("/summary/:userId", async (req, res) => {
   const subject = String(req.params.userId || "").trim();
