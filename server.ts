@@ -1,4 +1,5 @@
 import { createHubEntitlementChecker } from "./server/hubEntitlementRevalidation.js";
+import { hubManagedSessionExpired } from "./server/hubManagedSessionPolicy.js";
 import './server/config.js';
 import { initPush, startPushScheduler } from './server/push.js';
 import express from 'express';
@@ -97,8 +98,16 @@ async function bootstrap() {
   app.use(async (req:any, res:any, next) => {
     const current=req.session as any;
     if (!current?.hubManaged) return next();
-    if (current?.hubAccessExpiresAt && Number(current.hubAccessExpiresAt) <= Date.now()) {
-      return req.logout(() => req.session.destroy(() => next()));
+    if (hubManagedSessionExpired(current)) {
+      return req.logout(() => req.session.destroy(() => {
+        if (req.path.startsWith("/api/")) {
+          return res.status(401).json({
+            error: "Your V79 Hub session has expired.",
+            code: "HUB_SESSION_EXPIRED",
+          });
+        }
+        next();
+      }));
     }
     // Only protected business API requests need signed Hub entitlement revalidation.
     // Preserve logout, health, and the launch path when Hub is unavailable.
