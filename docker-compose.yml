@@ -12,7 +12,7 @@ services:
       # from every other app's data on this server.
       - ffpro2_pgdata:/var/lib/postgresql/data
     networks:
-      - proxy_network
+      - database_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ffpro2_user} -d ${POSTGRES_DB:-fire_finance}"]
       interval: 5s
@@ -33,6 +33,7 @@ services:
       - "3010"
     networks:
       - proxy_network
+      - database_internal
 
     environment:
       - NODE_ENV=production
@@ -103,6 +104,8 @@ services:
       - ./data:/app/data
 
 networks:
+  database_internal:
+    internal: true
   proxy_network:
     name: proxy_network
     external: true
