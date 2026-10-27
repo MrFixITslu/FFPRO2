@@ -1,0 +1,40 @@
+name: FFPRO workspace visual review
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package-lock.json'
+      - 'scripts/ffpro-workspace-visual.cjs'
+      - 'tests/workspacePresentation.test.ts'
+      - '.github/workflows/ffpro-workspace-visual.yml'
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx --test tests/workspacePresentation.test.ts
+      - run: npm run build
+      - name: Install isolated visual tooling
+        run: npm install --prefix /tmp/ffpro-visual-tools --no-save playwright@1.62.1 @sparticuz/chromium@153.0.0 --fetch-retries=1 --fetch-timeout=30000
+      - name: Review built React UI with synthetic data
+        env:
+          NODE_PATH: /tmp/ffpro-visual-tools/node_modules
+          FFPRO_PORTABLE_BROWSER: '1'
+          FFPRO_VISUAL_OUTPUT: /tmp/ffpro-visual
+        run: node scripts/ffpro-workspace-visual.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ffpro-synthetic-workspace-previews
+          path: /tmp/ffpro-visual
+          if-no-files-found: warn

@@ -57,6 +57,14 @@ class BadgeService {
     }
   }
 
+  /** Keep the active section title when unread-count badges refresh. */
+  public setWorkspaceTitle(title: string): void {
+    this.originalTitle = title;
+    if (typeof document !== 'undefined') {
+      document.title = this.currentCount > 0 ? `(${this.formatBadgeCount(this.currentCount)}) ${title}` : title;
+    }
+  }
+
   /**
    * Preload base favicon for dynamic badge generation on browser tabs
    */

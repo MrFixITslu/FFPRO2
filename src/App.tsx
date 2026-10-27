@@ -1,4 +1,7 @@
 import { AccessibleDialog } from './components/AccessibleDialog';
+import { FinanceWorkspaceChrome, FinanceWorkspaceMenu, FINANCE_SECTIONS } from './components/FinanceWorkspaceChrome';
+import { readFinanceAppearance } from './utils/workspacePresentation';
+import './workspace.css';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy } from 'react';
 import Login from './components/Login';
@@ -184,6 +187,14 @@ const App: React.FC = () => {
     return 'dashboard';
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [appearance, setAppearance] = useState<'light' | 'dark'>(readFinanceAppearance);
+  useEffect(() => {
+    document.documentElement.dataset.ffproTheme = appearance;
+    try { localStorage.setItem('ffpro-appearance', appearance); } catch {}
+  }, [appearance]);
+  useEffect(() => {
+    badgeService.setWorkspaceTitle(`${FINANCE_SECTIONS.find(x => x.id === activeTab)?.label || 'Workspace'} | FFPRO · Vision79`);
+  }, [activeTab]);
   const [navSelectedEventId, setNavSelectedEventId] = useState<string | null>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -1413,8 +1424,28 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-white flex flex-col ${privacyMode ? 'privacy-mode-enabled' : ''}`}>
+    <div className={`ff-shell ff-theme-${appearance} min-h-screen bg-white flex flex-col ${privacyMode ? 'privacy-mode-enabled' : ''}`}>
       {authUser && <EmailVerificationNotice user={authUser} />}
+      {!isAuthenticated ? (
+        <main className="fixed inset-0 z-[200] bg-white flex items-center justify-center">
+          <div className="text-center">
+            <i className="fas fa-circle-notch fa-spin text-indigo-500 text-3xl"></i>
+            <p className="mt-4 text-sm text-stone-500">Checking your V79 Hub finance access…</p>
+            <span className="sr-only">Redirecting to V79 Hub</span>
+          </div>
+        </main>
+      ) : (
+        <>
+          <FinanceWorkspaceChrome section={activeTab} onNavigate={navigateToTab}
+            theme={appearance} onTheme={() => setAppearance(v => v === 'light' ? 'dark' : 'light')}
+            privacy={privacyMode} onPrivacy={togglePrivacyMode}
+            syncing={cloudSyncing} error={cloudError} unsaved={hasUnsavedChanges}
+            onSync={handleManualSync} onSearch={() => setShowCommandPalette(true)}
+            onSettings={() => setShowSettings(true)} onNotifications={() => setShowNotificationsModal(true)}
+            unread={unreadCount} onMenu={() => setMobileMenuOpen(true)}
+            onInstall={deferredPrompt ? handleInstall : undefined} currency={displayCurrency} isAdmin={isAdmin}/>
+
+          <main id="ffpro-main" tabIndex={-1} className="ff-workspace-main flex-1 mx-auto w-full max-w-[1760px] lg:w-[90%] pt-20 2xl:pt-32 px-4 sm:px-6 lg:px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12">
       {authUser && cloudError && <div role="alert" className="bg-amber-50 text-amber-950 p-4 border-b border-amber-200">
         <p>{cloudError}</p>
         {conflictPaths.length>0 && <><p className="text-sm">Conflicts: {conflictPaths.slice(0,5).join(', ')}</p><button className="underline font-semibold p-2" onClick={async()=>{
@@ -1429,256 +1460,12 @@ const App: React.FC = () => {
           }catch{setCloudError('Could not load the latest copy. Your changes have been downloaded and remain in this tab.');}
         }}>Download my changes and load the latest saved copy</button></>}
       </div>}
-      {!isAuthenticated ? (
-        <main className="fixed inset-0 z-[200] bg-white flex items-center justify-center">
-          <div className="text-center">
-            <i className="fas fa-circle-notch fa-spin text-indigo-500 text-3xl"></i>
-            <p className="mt-4 text-sm text-stone-500">Checking your V79 Hub finance access…</p>
-            <span className="sr-only">Redirecting to V79 Hub</span>
-          </div>
-        </main>
-      ) : (
-        <>
-          <div className="hidden 2xl:block" aria-label="Secondary market quotes">
-            <MarketTicker prices={marketPrices} quotaExhausted={quotaExhausted} />
-          </div>
-          
-          <header className="fixed top-0 2xl:top-9 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-3 sm:px-6 flex items-center justify-between z-[110] print:hidden shadow-xs">
-            <div className="flex items-center gap-2 sm:gap-4 w-full max-w-[1760px] xl:w-[94%] 2xl:w-[90%] mx-auto justify-between">
-              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                {/* Logo & Brand */}
-                <div 
-                  className="flex items-center gap-2 sm:gap-2.5 shrink-0 cursor-pointer group" 
-                  onClick={() => isAdmin && navigateToTab('dashboard')}
-                  title="Fire Finance Pro"
-                >
-                  <img
-                    src={APP_LOGO}
-                    alt="Fire Finance Pro Logo"
-                    referrerPolicy="no-referrer"
-                    className="h-8 sm:h-9 w-auto max-w-[140px] 2xl:max-w-[220px] object-contain shrink-0 group-hover:scale-102 transition-transform"
-                  />
-                </div>
-
-                {/* Main workspace navigation */}
-                <nav className="hidden xl:flex items-center gap-1 shrink-0 bg-stone-100/80 p-1 rounded-full border border-stone-200/60" aria-label="FFPRO workspace">
-                  {isAdmin && (
-                    <button 
-                      onClick={() => navigateToTab('dashboard')} 
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                        activeTab === 'dashboard' 
-                          ? 'bg-teal-700 text-white shadow-xs' 
-                          : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                      }`}
-                      title="Money Overview (⌘1)"
-                    >
-                      <LayoutDashboard size={13} />
-                      <span>Money</span>
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => navigateToTab('events')} 
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                      activeTab === 'events' 
-                        ? 'bg-teal-700 text-white shadow-xs' 
-                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                    }`}
-                    title="Projects (⌘3)"
-                  >
-                    <Zap size={13} />
-                    <span>Projects</span>
-                  </button>
-                  <button 
-                    onClick={() => navigateToTab('calendar')} 
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                      activeTab === 'calendar' 
-                        ? 'bg-teal-700 text-white shadow-xs' 
-                        : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                    }`}
-                    title="Calendar (⌘2)"
-                  >
-                    <CalendarIcon size={13} />
-                    <span>Calendar</span>
-                  </button>
-                  {isAdmin && <span className="mx-0.5 h-5 w-px bg-stone-300" aria-hidden="true" />}
-                  {isAdmin && (
-                    <button 
-                      onClick={() => navigateToTab('projections')} 
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                        activeTab === 'projections' 
-                          ? 'bg-teal-700 text-white shadow-xs' 
-                          : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                      }`}
-                      title="Forecast & Intelligence (⌘4)"
-                    >
-                      <TrendingUp size={13} />
-                      <span>Forecast</span>
-                    </button>
-                  )}
-                  {isAdmin && (
-                    <button 
-                      onClick={() => navigateToTab('funding')} 
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
-                        activeTab === 'funding' 
-                          ? 'bg-teal-700 text-white shadow-xs' 
-                          : 'text-stone-600 hover:text-stone-900 hover:bg-white/70'
-                      }`}
-                      title="Business Funding (⌘5)"
-                    >
-                      <Landmark size={13} />
-                      <span>Funding</span>
-                    </button>
-                  )}
-                </nav>
-              </div>
-
-              {/* Right Side Header Controls */}
-              <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                {/* Desktop Quick Command Palette Bar Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setShowCommandPalette(true)}
-                  className="hidden 2xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-stone-100/90 hover:bg-stone-200/80 border border-stone-200/80 text-stone-500 hover:text-stone-900 transition-all text-xs group"
-                  title="Quick Command & Search (⌘K)"
-                >
-                  <Search size={14} className="text-stone-400 group-hover:text-stone-700" />
-                  <span className="text-stone-600 group-hover:text-stone-900 font-medium">Quick Find...</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold text-stone-500 bg-white border border-stone-200 rounded shadow-2xs font-mono">⌘K</kbd>
-                </button>
-
-                {/* Cloud Sync Status Pill */}
-                <button
-                  type="button"
-                  onClick={handleManualSync}
-                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    cloudSyncing
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : cloudError
-                      ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                      : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                  title={cloudSyncing ? 'Syncing with cloud...' : 'Cloud Synced • Click to sync immediately (S)'}
-                >
-                  <RefreshCw size={12} className={cloudSyncing ? 'animate-spin text-indigo-600' : 'text-stone-400'} />
-                  <span className="text-[10px] uppercase tracking-wider font-bold">
-                    {cloudSyncing ? 'Syncing' : cloudError ? 'Save failed' : hasUnsavedChanges ? 'Unsaved' : 'Synced'}
-                  </span>
-                </button>
-
-                {/* Privacy Mode Toggle */}
-                <button
-                  type="button"
-                  onClick={togglePrivacyMode}
-                  className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg transition-all border shadow-2xs ${
-                    privacyMode 
-                      ? 'bg-amber-50 text-amber-800 border-amber-300' 
-                      : 'bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 border-stone-200'
-                  }`}
-                  title={privacyMode ? 'Privacy Mode Active (Masked) - Click to unmask (P)' : 'Toggle Financial Privacy Mode (P)'}
-                  aria-label="Toggle Financial Privacy Mode"
-                >
-                  {privacyMode ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-
-                {/* Mobile Quick Add Button */}
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      setEditingTransaction(null);
-                      setShowForm(true);
-                    }}
-                    className="flex md:hidden items-center justify-center w-8 h-8 rounded-lg bg-stone-900 text-white shadow-2xs hover:bg-stone-800 transition active:scale-95"
-                    title="Add Transaction (N)"
-                    aria-label="Add Transaction"
-                  >
-                    <Plus size={16} />
-                  </button>
-                )}
-
-                {/* PWA Install Button */}
-                {deferredPrompt && (
-                  <button 
-                    onClick={handleInstall}
-                    className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 hover:bg-indigo-100 transition-all"
-                  >
-                    <Download size={12} />
-                    <span>Install</span>
-                  </button>
-                )}
-
-                {/* Notification Center Bell Button */}
-                <button 
-                  type="button"
-                  onClick={() => setShowNotificationsModal(true)} 
-                  className="relative w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
-                  title="Notification Center"
-                  aria-label="Notification Center"
-                >
-                  <Bell size={16} />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-2xs animate-pulse">
-                      {badgeLabel}
-                    </span>
-                  )}
-                </button>
-
-                {/* Keyboard Shortcuts Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowShortcutsModal(true)}
-                  className="hidden 2xl:flex w-8 h-8 sm:w-9 sm:h-9 items-center justify-center rounded-lg bg-stone-50 text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
-                  title="Keyboard Shortcuts (?)"
-                  aria-label="Keyboard Shortcuts"
-                >
-                  <Keyboard size={15} />
-                </button>
-
-                <a
-                  href="/api/platform/start"
-                  className="hidden sm:flex items-center justify-center h-8 sm:h-9 px-3 rounded-lg bg-stone-900 text-white hover:bg-stone-800 transition-all border border-stone-900 text-[10px] font-bold uppercase tracking-wider"
-                  title="Return to V79 Hub"
-                >
-                  V79 Hub
-                </a>
-
-                {/* Settings Button */}
-                <button 
-                  onClick={() => setShowSettings(true)} 
-                  className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-stone-50 text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-all border border-stone-200 shadow-2xs"
-                  title="System Settings"
-                >
-                  <SettingsIcon size={16} />
-                </button>
-
-                {/* User Account Button */}
-                <button
-                  onClick={() => setMobileMenuOpen(true)}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-indigo-200/60 hover:bg-indigo-200 transition-colors"
-                  title={`Account: ${currentUsername}`}
-                >
-                  {currentUsername.charAt(0)}
-                </button>
-
-                {/* Mobile Hamburger Drawer Toggle */}
-                <button
-                  onClick={() => setMobileMenuOpen(prev => !prev)}
-                  className="flex xl:hidden w-8 h-8 items-center justify-center rounded-lg bg-stone-100 text-stone-700 hover:text-stone-900 hover:bg-stone-200 transition border border-stone-200/80 active:scale-95"
-                  title="Toggle Navigation Menu"
-                  aria-label="Toggle Navigation Menu"
-                >
-                  {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
-                </button>
-              </div>
-            </div>
-          </header>
-
-          <main className="flex-1 mx-auto w-full max-w-[1760px] lg:w-[90%] pt-20 2xl:pt-32 px-4 sm:px-6 lg:px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12">
             {activeTab === 'dashboard' && isAdmin && (
               <div className="space-y-8">
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <header className="ff-page-hero flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                    <div>
-                     <h1 className="text-3xl font-display text-stone-900 tracking-tight">Money Overview</h1>
-                     <p className="text-sm text-stone-600 font-medium mt-2">Cash flow, commitments, goals and financial intelligence</p>
+                     <span className="ff-eyebrow">YOUR CONNECTED FINANCE WORKSPACE</span><h1 className="text-3xl font-display text-stone-900 tracking-tight">Your money, at a glance</h1>
+                     <p className="text-sm text-stone-600 font-medium mt-2">Cash flow, commitments and goals, clearly in view.</p>
                    </div>
                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
                       <button
@@ -1699,34 +1486,6 @@ const App: React.FC = () => {
                       </button>
                    </div>
                 </header>
-
-                <section id="ffpro-capture" className="scroll-mt-24 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                      <h2 className="text-xs font-black uppercase tracking-wider text-stone-800">Review-first capture</h2>
-                      <p className="text-sm text-stone-600 mt-1">Type a transaction or upload receipts and PDF/CSV statements. Imports stay out of your ledger until you approve them.</p>
-                    </div>
-                    {importLoading && <span className="text-[10px] font-bold text-indigo-600 animate-pulse">Processing…</span>}
-                  </div>
-                  <MagicInput
-                    onSuccess={(item) => enqueueImportItems([item])}
-                    onBulkSuccess={enqueueImportItems}
-                    onLoading={setImportLoading}
-                    onManualEntry={() => { setEditingTransaction(null); setShowForm(true); }}
-                  />
-                </section>
-
-                <VerificationQueue
-                  pendingItems={pendingImportItems}
-                  displayCurrency={displayCurrency}
-                  onApprove={approveImportItem}
-                  onDiscard={(index) => setPendingImportItems(previous => previous.filter((_, itemIndex) => itemIndex !== index))}
-                  onEdit={(index) => {
-                    const transaction = pendingImportItems[index]?.transaction;
-                    if (transaction) setPendingImportEdit({ index, transaction });
-                  }}
-                  onDiscardAll={() => setPendingImportItems([])}
-                />
 
                 <Dashboard 
                   transactions={transactions}
@@ -1776,6 +1535,35 @@ const App: React.FC = () => {
                   }}
                   onNavigateToPlanner={() => navigateToTab('events')}
                 />
+                <section id="ffpro-capture" className="ff-capture scroll-mt-24 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h2 className="text-xs font-black uppercase tracking-wider text-stone-800">Review-first capture</h2>
+                      <p className="text-sm text-stone-600 mt-1">Type a transaction or upload receipts and PDF/CSV statements. Imports stay out of your ledger until you approve them.</p>
+                    </div>
+                    {importLoading && <span className="text-[10px] font-bold text-indigo-600 animate-pulse">Processing…</span>}
+                  </div>
+                  <MagicInput
+                    onSuccess={(item) => enqueueImportItems([item])}
+                    onBulkSuccess={enqueueImportItems}
+                    onLoading={setImportLoading}
+                    onManualEntry={() => { setEditingTransaction(null); setShowForm(true); }}
+                  />
+                </section>
+
+                <VerificationQueue
+                  pendingItems={pendingImportItems}
+                  displayCurrency={displayCurrency}
+                  onApprove={approveImportItem}
+                  onDiscard={(index) => setPendingImportItems(previous => previous.filter((_, itemIndex) => itemIndex !== index))}
+                  onEdit={(index) => {
+                    const transaction = pendingImportItems[index]?.transaction;
+                    if (transaction) setPendingImportEdit({ index, transaction });
+                  }}
+                  onDiscardAll={() => setPendingImportItems([])}
+                />
+
+
               </div>
             )}
 
@@ -1864,7 +1652,7 @@ const App: React.FC = () => {
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => navigateToTab('dashboard')}
+                onClick={() => navigateToTab('dashboard')} aria-current={activeTab === 'dashboard' ? 'page' : undefined}
                 className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                   activeTab === 'dashboard'
                     ? 'text-stone-900 font-bold'
@@ -1882,7 +1670,7 @@ const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => navigateToTab('calendar')}
+              onClick={() => navigateToTab('calendar')} aria-current={activeTab === 'calendar' ? 'page' : undefined}
               className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                 activeTab === 'calendar'
                   ? 'text-stone-900 font-bold'
@@ -1912,7 +1700,7 @@ const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => navigateToTab('events')}
+              onClick={() => navigateToTab('events')} aria-current={activeTab === 'events' ? 'page' : undefined}
               className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                 activeTab === 'events'
                   ? 'text-stone-900 font-bold'
@@ -1930,7 +1718,7 @@ const App: React.FC = () => {
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => navigateToTab('projections')}
+                onClick={() => navigateToTab('projections')} aria-current={activeTab === 'projections' ? 'page' : undefined}
                 className={`flex flex-col items-center justify-center flex-1 py-1 rounded-xl transition-all ${
                   activeTab === 'projections'
                     ? 'text-stone-900 font-bold'
@@ -1947,326 +1735,15 @@ const App: React.FC = () => {
             )}
           </nav>
 
-          {/* Mobile Slide-Over Drawer Navigation */}
-          <AnimatePresence>
-            {mobileMenuOpen && (
-              <div className="fixed inset-0 z-[150] md:hidden">
-                {/* Backdrop */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="absolute inset-0 bg-stone-900/50 backdrop-blur-xs"
-                />
-
-                {/* Drawer Panel */}
-                <motion.div
-                  initial={{ x: '100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '100%' }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-                  className="absolute top-0 right-0 bottom-0 w-[85vw] max-w-sm bg-white shadow-2xl flex flex-col z-10 overflow-y-auto"
-                >
-                  {/* Drawer Header */}
-                  <div className="p-5 border-b border-stone-100 flex items-center justify-between bg-stone-50/70">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm uppercase shadow-xs">
-                        {currentUsername.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-stone-900 text-sm">{currentUsername}</h3>
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-stone-200/80 text-stone-700">
-                            {isAdmin ? 'Admin' : 'Member'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-stone-500 truncate max-w-[170px]">{authUser?.email || 'Authenticated User'}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white text-stone-500 hover:text-stone-900 border border-stone-200 shadow-2xs"
-                      aria-label="Close menu"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  {/* Sync Status Banner */}
-                  <div className="px-5 py-3 bg-stone-100/60 border-b border-stone-100 flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${cloudSyncing ? 'bg-indigo-500 animate-pulse' : cloudError ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                      <span className="text-stone-600 font-medium">
-                        {cloudSyncing ? 'Saving...' : cloudError ? 'Save needs attention' : hasUnsavedChanges ? 'Changes pending' : 'Cloud synchronized'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { pushToCloud().catch(()=>{}); }}
-                      disabled={cloudSyncing}
-                      className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-800 disabled:opacity-50"
-                    >
-                      Sync Now
-                    </button>
-                  </div>
-
-                  {/* Navigation List */}
-                  <div className="p-4 space-y-1.5 flex-1">
-                    <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-400">Navigation Menu</div>
-                    
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => { navigateToTab('dashboard'); setMobileMenuOpen(false); }}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                          activeTab === 'dashboard' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <LayoutDashboard size={18} className={activeTab === 'dashboard' ? 'text-indigo-400' : 'text-stone-500'} />
-                          <div>
-                            <div className="text-xs font-bold">Money Overview</div>
-                            <div className={`text-[10px] ${activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-400'}`}>Cash flow, goals & financial position</div>
-                          </div>
-                        </div>
-                        <ChevronRight size={16} className={activeTab === 'dashboard' ? 'text-stone-400' : 'text-stone-300'} />
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => { navigateToTab('calendar'); setMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                        activeTab === 'calendar' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <CalendarIcon size={18} className={activeTab === 'calendar' ? 'text-indigo-400' : 'text-stone-500'} />
-                        <div>
-                          <div className="text-xs font-bold">Calendar</div>
-                          <div className={`text-[10px] ${activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-400'}`}>Bills, paydays, meetings & commitments</div>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className={activeTab === 'calendar' ? 'text-stone-400' : 'text-stone-300'} />
-                    </button>
-
-                    <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Projects</div>
-                    <button
-                      type="button"
-                      onClick={() => { navigateToTab('events'); setMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                        activeTab === 'events' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Zap size={18} className={activeTab === 'events' ? 'text-indigo-400' : 'text-stone-500'} />
-                        <div>
-                          <div className="text-xs font-bold">Projects & Planner</div>
-                          <div className={`text-[10px] ${activeTab === 'events' ? 'text-stone-400' : 'text-stone-400'}`}>Projects, tasks, shared work & budgets</div>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className={activeTab === 'events' ? 'text-stone-400' : 'text-stone-300'} />
-                    </button>
-
-                    {isAdmin && <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Planning & Intelligence</div>}
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => { navigateToTab('projections'); setMobileMenuOpen(false); }}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                          activeTab === 'projections' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <TrendingUp size={18} className={activeTab === 'projections' ? 'text-indigo-400' : 'text-stone-500'} />
-                          <div>
-                            <div className="text-xs font-bold">Forecast & Scenarios</div>
-                            <div className={`text-[10px] ${activeTab === 'projections' ? 'text-stone-400' : 'text-stone-400'}`}>Cash-flow projections and what-if planning</div>
-                          </div>
-                        </div>
-                        <ChevronRight size={16} className={activeTab === 'projections' ? 'text-stone-400' : 'text-stone-300'} />
-                      </button>
-                    )}
-
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => { navigateToTab('funding'); setMobileMenuOpen(false); }}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all ${
-                          activeTab === 'funding' ? 'bg-teal-700 text-white shadow-xs' : 'hover:bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Landmark size={18} className={activeTab === 'funding' ? 'text-indigo-400' : 'text-stone-500'} />
-                          <div>
-                            <div className="text-xs font-bold">Business Funding</div>
-                            <div className={`text-[10px] ${activeTab === 'funding' ? 'text-stone-400' : 'text-stone-400'}`}>Funding and grant opportunities</div>
-                          </div>
-                        </div>
-                        <ChevronRight size={16} className={activeTab === 'funding' ? 'text-stone-400' : 'text-stone-300'} />
-                      </button>
-                    )}
-
-                    <div className="pt-3 pb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-stone-400">Quick Actions</div>
-
-                    {/* Quick Command & Search */}
-                    <button
-                      type="button"
-                      onClick={() => { setShowCommandPalette(true); setMobileMenuOpen(false); }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl text-left bg-stone-100/80 hover:bg-stone-200/80 text-stone-800 transition-all border border-stone-200/60"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Search size={18} className="text-stone-600" />
-                        <div>
-                          <div className="text-xs font-bold">Quick Command & Search</div>
-                          <div className="text-[10px] text-stone-400">Jump anywhere, search items or run actions</div>
-                        </div>
-                      </div>
-                      <kbd className="px-1.5 py-0.5 text-[9px] font-bold text-stone-500 bg-white border border-stone-200 rounded font-mono">⌘K</kbd>
-                    </button>
-
-                    {/* Financial Privacy Mode Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => { togglePrivacyMode(); setMobileMenuOpen(false); }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all border ${
-                        privacyMode 
-                          ? 'bg-amber-50 text-amber-900 border-amber-200' 
-                          : 'hover:bg-stone-100 text-stone-700 border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {privacyMode ? <EyeOff size={18} className="text-amber-600" /> : <Eye size={18} className="text-stone-500" />}
-                        <div>
-                          <div className="text-xs font-bold">Privacy Mode: {privacyMode ? 'Active' : 'Off'}</div>
-                          <div className="text-[10px] text-stone-400">{privacyMode ? 'Financial numbers are masked' : 'Mask balances and monetary values'}</div>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className="text-stone-300" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => { setShowNotificationsModal(true); setMobileMenuOpen(false); }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl text-left bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-950 border border-indigo-100 transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <Bell size={18} className="text-indigo-600" />
-                          {unreadCount > 0 && (
-                            <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                              {badgeLabel}
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold flex items-center gap-1.5">
-                            <span>Notification Center</span>
-                            {unreadCount > 0 && (
-                              <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9px] font-bold rounded-full">
-                                {unreadCount} unread
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-stone-500">Tasks, Calendar, Gmail & Financial Alerts</div>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className="text-stone-300" />
-                    </button>
-
-                    {/* Keyboard Shortcuts Sheet */}
-                    <button
-                      type="button"
-                      onClick={() => { setShowShortcutsModal(true); setMobileMenuOpen(false); }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl text-left hover:bg-stone-100 text-stone-700 transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Keyboard size={18} className="text-stone-500" />
-                        <div>
-                          <div className="text-xs font-bold">Keyboard Shortcuts</div>
-                          <div className="text-[10px] text-stone-400">View hotkey shortcuts list</div>
-                        </div>
-                      </div>
-                      <kbd className="px-1.5 py-0.5 text-[9px] font-bold text-stone-500 bg-white border border-stone-200 rounded font-mono">?</kbd>
-                    </button>
-
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => { setShowForm(true); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl text-left bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80 transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Plus size={18} className="text-emerald-700" />
-                          <div>
-                            <div className="text-xs font-bold">Add Transaction</div>
-                            <div className="text-[10px] text-emerald-600">Record expense, inflow or transfer</div>
-                          </div>
-                        </div>
-                        <ChevronRight size={16} className="text-emerald-500" />
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => { setShowSettings(true); setMobileMenuOpen(false); }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl text-left hover:bg-stone-100 text-stone-700 transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <SettingsIcon size={18} className="text-stone-500" />
-                        <div>
-                          <div className="text-xs font-bold">System Settings</div>
-                          <div className="text-[10px] text-stone-400">Gateways, Vault, Backups & Sync</div>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className="text-stone-300" />
-                    </button>
-
-                    {deferredPrompt && (
-                      <button
-                        type="button"
-                        onClick={() => { handleInstall(); setMobileMenuOpen(false); }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl text-left hover:bg-indigo-50 text-indigo-700 transition-all border border-indigo-100"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Download size={18} className="text-indigo-600" />
-                          <div>
-                            <div className="text-xs font-bold">Install Mobile App</div>
-                            <div className="text-[10px] text-indigo-500">Save to home screen (PWA)</div>
-                          </div>
-                        </div>
-                        <ChevronRight size={16} className="text-indigo-400" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Drawer Footer */}
-                  <div className="p-4 border-t border-stone-100 bg-stone-50/50 flex flex-col gap-2">
-                    <a
-                      href="/api/platform/start"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-indigo-700 hover:bg-indigo-50 border border-indigo-200/70 transition-all"
-                    >
-                      V79 Hub
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200/60 transition-all"
-                    >
-                      <LogOut size={15} />
-                      <span>Sign Out</span>
-                    </button>
-                    <div className="text-center text-[10px] text-stone-400 font-medium pt-1">
-                      Fire Finance Pro v1.0.0
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
+          {mobileMenuOpen && <FinanceWorkspaceMenu section={activeTab} onNavigate={navigateToTab}
+            theme={appearance} onTheme={() => setAppearance(v => v === 'light' ? 'dark' : 'light')}
+            privacy={privacyMode} onPrivacy={togglePrivacyMode} syncing={cloudSyncing} error={cloudError}
+            unsaved={hasUnsavedChanges} onSync={handleManualSync} onSearch={() => setShowCommandPalette(true)}
+            onSettings={() => setShowSettings(true)} onNotifications={() => setShowNotificationsModal(true)}
+            unread={unreadCount} onMenu={() => setMobileMenuOpen(true)} currency={displayCurrency} isAdmin={isAdmin}
+            onClose={() => setMobileMenuOpen(false)} onSignOut={handleLogout}
+            onAdd={() => {setEditingTransaction(null);setShowForm(true);}}
+            onShortcuts={() => setShowShortcutsModal(true)} username={currentUsername}/>}
 
           {showForm && (
             <AccessibleDialog label="Transaction" onClose={()=>{setShowForm(false);setEditingTransaction(null);}}>

@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "Fire Finance Pro",
-  "short_name": "FFPro",
+  "name": "FFPRO | Vision79",
+  "short_name": "FFPRO",
   "description": "A strategic personal finance hub with secure cloud data sync, wealth forecasts, budget assistance, calendar tracking, and project planning.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#4f46e5",
-  "background_color": "#0f172a",
+  "theme_color": "#10213a",
+  "background_color": "#f4f6fa",
   "icons": [
     {
       "src": "/favicon.png",
@@ -29,5 +29,9 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["finance", "productivity", "business"]
+  "categories": [
+    "finance",
+    "productivity",
+    "business"
+  ]
 }
