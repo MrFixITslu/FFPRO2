@@ -36,7 +36,16 @@ def canonical(value):
 
 def run(args, *, timeout=60, stream=False):
     p = subprocess.run(args, cwd=ROOT, text=True, capture_output=not stream, timeout=timeout)
-    require(p.returncode == 0, "Command failed: " + args[0] + " " + args[1])
+    if p.returncode:
+        operation = next((v for v in args[2:] if v in {"config", "create", "up", "inspect", "exec", "rm"}), args[1])
+        # Persist diagnostics privately; never print resolved environment values.
+        if not stream and p.stderr:
+            import tempfile
+            fd, path = tempfile.mkstemp(prefix="command-error-", suffix=".log", dir=STAGE)
+            with os.fdopen(fd, "w") as f:
+                f.write(p.stderr)
+            print("PRIVATE_COMMAND_ERROR_LOG=" + path, flush=True)
+        raise RuntimeError("Command failed: " + args[0] + " " + args[1] + " (" + operation + ")")
     return p.stdout if not stream else ""
 
 
@@ -69,6 +78,12 @@ def compose(project, files):
 
 def config(project, files):
     return json.loads(run(compose(project, files) + ["config", "--format", "json"]))
+
+
+def stopped_profile_command(project, profile_file):
+    # `create` has no --no-deps option. The profile contains only the app service
+    # and its depends_on entry has already been removed.
+    return compose(project, [profile_file]) + ["create", "--no-build", "--pull", "never", SERVICE]
 
 
 def literal(value):
@@ -250,7 +265,8 @@ def main():
     save(profile_file, profile, compose_file=True)
     expected = None
     try:
-        run(compose(profile_project, [profile_file]) + ["create", "--no-build", "--no-deps", "--pull", "never", SERVICE], timeout=180)
+        print("STOPPED_PROFILE=CREATING_APP_ONLY_CONFIGURATION", flush=True)
+        run(stopped_profile_command(profile_project, profile_file), timeout=180)
         stopped = inspect(profile_name)
         require(stopped["State"]["Status"] == "created" and stopped["Image"] == NEW, "Candidate profile is not stopped on the pinned image")
         expected = runtime_view(stopped)
