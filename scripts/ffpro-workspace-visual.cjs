@@ -32,6 +32,8 @@ const server=http.createServer((req,res)=>{
    const p=url.pathname,method=req.method();
    if(!['GET','HEAD'].includes(method)){
     if(p==='/api/notifications/sync-count'&&method==='POST')return route.fulfill({json:{ok:true}});
+    // This existing read-only analysis uses POST; fulfill locally without calling an AI provider.
+    if(p==='/api/ai/projection-analysis'&&method==='POST')return route.fulfill({json:{analysis:'Synthetic forecast analysis for layout review.',provider:'synthetic',model:'fixture'}});
     writes.push(method+' '+p);return route.fulfill({status:403,json:{error:'Synthetic UI review blocks mutations'}});
    }
    if(p==='/api/auth/me')return route.fulfill({json:{user:{id:'synthetic-ui-user',username:'Sample owner',displayName:'Sample owner',email:'sample@example.test',avatarUrl:null,emailVerified:true}}});
