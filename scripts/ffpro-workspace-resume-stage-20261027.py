@@ -105,7 +105,13 @@ console.log('IMAGE_CONTENT=PASS_NONROOT_BACKEND_FRONTEND_AND_PATCHED_DEPENDENCIE
 
 STAGE = Path("/home/firelion/v79-ffpro-workspace-stage.79xp4xdp")
 BUILT_REFERENCE = "sha256:567284dcf6f6aaac68d7d2fc9ecca222ecf24362c605d14a9d4581370397d759"
-BUILT_IMAGE = "sha256:51b81877a9c622d9d4312c347aa5e93f013100b9fef48935d600d5e075c3456b"
+# The build emitted an index, a platform manifest and an image configuration.
+# Docker's resolved Id is not necessarily the configuration digest.
+BUILD_DIGESTS = {
+    BUILT_REFERENCE,
+    "sha256:020f879c8a929692f54a213691688cea486403f749d00580d9bdfae207553065",
+    "sha256:51b81877a9c622d9d4312c347aa5e93f013100b9fef48935d600d5e075c3456b",
+}
 
 
 def main():
@@ -122,7 +128,8 @@ def main():
     app, db = runtime_locks()
     original_fingerprint = fingerprint(app)
     metadata = json.loads(run(["docker", "image", "inspect", BUILT_REFERENCE], timeout=180))[0]
-    require(metadata["Id"] == BUILT_IMAGE, "Image configuration digest mismatch")
+    image = metadata["Id"]
+    require(image in BUILD_DIGESTS, "Resolved image does not match any pinned build digest")
     require(metadata["Config"].get("Labels", {}).get("org.opencontainers.image.revision") == REVISION,
             "Image revision mismatch")
     require(metadata["Config"].get("User") == "node", "Image user changed")
@@ -135,7 +142,7 @@ def main():
         container = run(["docker", "create", "--name", name, "--network", "none", "--read-only",
                          "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                          "--label", "vision79.scope=ffpro-workspace-content-check",
-                         "--entrypoint", "node", BUILT_IMAGE, "-e", IMAGE_JS, ICON, LOCK], timeout=180).strip()
+                         "--entrypoint", "node", BUILT_REFERENCE, "-e", IMAGE_JS, ICON, LOCK], timeout=180).strip()
         require(len(container) == 64 and all(c in "0123456789abcdef" for c in container), "Invalid isolated container ID")
         print("ISOLATED_CHECK=STARTING", flush=True)
         run(["docker", "start", container], timeout=180)
@@ -165,7 +172,7 @@ def main():
             "Live app identity/configuration changed during content check")
     require(db_after["Id"] == db["Id"], "Database container changed during content check")
     manifest = {"schema": 1, "createdAt": datetime.now(timezone.utc).isoformat(),
-                "candidateRevision": REVISION, "candidateTree": TREE, "candidateImage": BUILT_IMAGE,
+                "candidateRevision": REVISION, "candidateTree": TREE, "candidateImage": image,
                 "candidateBuildReference": BUILT_REFERENCE,
                 "originalImage": OLD_IMAGE, "originalContainer": app["Id"],
                 "runtimeFingerprint": original_fingerprint, "databaseImage": DB_IMAGE,
@@ -178,7 +185,7 @@ def main():
         json.dump(manifest, f, indent=2)
         f.flush()
         os.fsync(f.fileno())
-    print("CANDIDATE_IMAGE=" + BUILT_IMAGE)
+    print("CANDIDATE_IMAGE=" + image)
     print("CANDIDATE_REVISION=" + REVISION)
     print("STAGE_MANIFEST=" + str(output))
     print("STAGE_MANIFEST_SHA256=" + digest(output.read_bytes()))
