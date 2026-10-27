@@ -116,7 +116,7 @@ export const FundingFinder: React.FC = () => {
             </h1>
           </div>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5 ml-10">
-            Verified grant &amp; funding opportunities, researched automatically
+            Explore funding opportunities. Check eligibility, deadlines and source details.
           </p>
         </div>
 

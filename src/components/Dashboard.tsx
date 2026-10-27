@@ -585,7 +585,7 @@ const Dashboard: React.FC<Props> = ({
         /* Executive High-Level Summary View */
         <div className="space-y-6 animate-in fade-in duration-300">
           {/* Four primary financial signals; planning and inbox sit below as secondary metrics. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="ff-primary-metrics grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <span className="text-sm font-semibold text-stone-500">Net Worth</span>
@@ -614,13 +614,13 @@ const Dashboard: React.FC<Props> = ({
             </div>
             <div className="executive-card executive-card-interactive bg-white border border-stone-200 shadow-sm p-5 lg:p-6 rounded-xl flex flex-col justify-between min-w-0">
               <div className="flex items-center justify-between gap-2 mb-4">
-                <span className="text-sm font-semibold text-stone-500">Safe Spend</span>
+                <span className="text-sm font-semibold text-stone-500">Daily spending guide</span>
                 <ShieldCheck size={19} className="text-emerald-700" aria-hidden="true" />
               </div>
               <p className="text-2xl xl:text-3xl font-bold tracking-tight font-tabular privacy-sensitive break-words">
                 {money(dailySafeSpend)}<span className="text-base text-stone-500 font-medium ml-1">/day</span>
               </p>
-              <p className="text-xs text-stone-500 mt-3">{daysUntilNextCycle} days until next cycle</p>
+              <p className="text-xs text-stone-500 mt-3">{daysUntilNextCycle} days until next cycle · estimate before unpaid commitments</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

@@ -1,3 +1,4 @@
+import { isUsableBriefing } from '../utils/workspacePresentation';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -504,6 +505,7 @@ export const AiNewsBriefing: React.FC = () => {
       }
 
       const json: AiBriefingResponse = await res.json();
+      if (!isUsableBriefing(json)) throw new Error('Briefing data is unavailable. Refresh the briefing to try again.');
       if (json?.articles && Array.isArray(json.articles)) {
         const seenIds = new Set<string>();
         json.articles = json.articles.map((item, idx) => {
@@ -797,12 +799,12 @@ export const AiNewsBriefing: React.FC = () => {
               ) : (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <ShieldCheck size={11} className="text-emerald-600" />
-                  Live Wire Active
+                  Source briefing
                 </span>
               )}
             </div>
             <p className="text-xs text-stone-500 mt-0.5">
-              Synthesized dispatches across verified wire dispatches, sector reports, and strategic intelligence.
+              Briefings from configured sources. Check timestamps and source links.
             </p>
           </div>
         </div>
