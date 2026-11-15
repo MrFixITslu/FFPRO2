@@ -759,7 +759,16 @@ export interface BudgetEvent {
   projectedBudget?: number;
   lastUpdated: string;
   activeCollaborators?: string[];
-  eventType?: 'event' | 'trip' | 'startup';
+  eventType?: 'event' | 'trip' | 'startup' | 'service';
+  // Present only on projects provisioned by an approved Tiquet ticket.
+  tiquet?: {
+    organizationId:string;
+    jobId:string;
+    ticketNumber:string;
+    approvedAt:string;
+    planningStatus:'in-planning'|'review-ready'|'closed';
+    approvedFileIds:string[];
+  };
   tripDetails?: TripPlanDetails;
   startupDetails?: StartupPlanDetails;
   // --- Collaboration (present only once a plan has been shared) ---

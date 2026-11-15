@@ -33,6 +33,7 @@ import ProjectCardCoverModal from './ProjectCardCoverModal';
 import { PlannerChecklist } from './Planner/PlannerChecklist';
 import LogsManager from './LogsManager';
 import { projectsService, ProjectSyncConflictError } from '../services/projectsService';
+import {ProjectPlanningReviewPanel} from './ProjectPlanningReviewPanel';
 import { realtimeService } from '../services/realtimeService';
 import { 
   Plane, Hotel, Car, Utensils, Compass, Calendar as CalendarIcon, DollarSign, Check, 
@@ -3274,6 +3275,11 @@ const EventPlanner: React.FC<Props> = ({
 
             {activeTab === 'vault' && (
               <div className="space-y-6">
+                {selectedEvent.tiquet && (
+                  <ProjectPlanningReviewPanel event={selectedEvent}
+                    onRefresh={refreshSharedProjects}/>
+                )}
+
                 <div className="bg-white p-6 rounded-xl border border-stone-200 shadow-sm min-h-[500px]">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-stone-150">
                     <div>

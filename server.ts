@@ -33,14 +33,31 @@ import filesRoutes from './server/routes/files.js';
 import aiNewsRoutes from './server/routes/aiNews.js';
 import platformRoutes from './server/routes/platform.js';
 import tiquetGatewayRoutes from './server/routes/tiquetGateway.js';
+import tiquetPlanningRoutes from './server/routes/tiquetPlanning.js';
+import {planningUserRouter,planningGatewayRouter} from './server/routes/tiquetPlanningLifecycle.js';
+import tiquetPlanningSharedFilesRoutes from './server/routes/tiquetPlanningSharedFiles.js';
+import {sweepPlanningCallbacks} from './server/tiquetPlanningCallbacks.js';
+import { initTiquetPlanningSchema } from './server/tiquetPlanningStore.js';
 import { startPlatformEventPump } from './server/platformEvents.js';
 import { consumeHubLaunchTicket, hubPublicUrl, provisionHubFinanceUser } from './server/hubAccess.js';
 
 async function bootstrap() {
   await databaseReady;
+  // This PostgreSQL-only integration schema is created before accepting gateway traffic.
+  if (realPool) await initTiquetPlanningSchema(realPool);
   await initSecuritySchema();
   await initPush();
   startPlatformEventPump();
+  // Off by default until the dedicated planning callback secret and HTTPS
+  // destination are configured. Existing payment gateway is untouched.
+  setInterval(() => {
+    sweepPlanningCallbacks({
+      pool:realPool,
+      baseUrl:process.env.TIQUET_PLANNING_CALLBACK_URL,
+      secret:process.env.TIQUET_PLANNING_CALLBACK_SECRET
+    }).catch(error => console.warn('[Planning Callback] Sweep failed:',error?.code||error?.name||'unknown'));
+  },60000).unref();
+
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
@@ -162,11 +179,15 @@ async function bootstrap() {
   // Server-to-server Tiquet payment events authenticate with a dedicated
   // shared secret and therefore must be mounted before browser CSRF checks.
   app.use('/api/gateway/webhooks', tiquetGatewayRoutes);
+  app.use('/api/gateway/webhooks', tiquetPlanningRoutes);
+  app.use('/api/gateway/webhooks', planningGatewayRouter);
+  app.use('/api/gateway/webhooks', tiquetPlanningSharedFilesRoutes);
   app.use('/api', sameOriginOnly, csrfProtection);
   app.use('/api/auth', authRoutes);
   app.use('/api/data', dataRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/projects', projectsRoutes);
+  app.use('/api/projects', planningUserRouter);
   app.use('/api/invites', invitesRoutes);
   app.use('/api/realtime', realtimeRoutes);
   app.use('/api/gmail', gmailRoutes);
