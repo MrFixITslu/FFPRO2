@@ -9,7 +9,7 @@ import { getFrontendUrl } from '../utils/urlHelper.js';
 const router = Router();
 const MAX_BYTES = 5 * 1024 * 1024;
 const VALID_ROLES = ['editor', 'viewer']; // 'owner' is assigned only at project creation
-const VALID_PROJECT_TYPES = ['event', 'trip', 'startup'];
+const VALID_PROJECT_TYPES = ['event', 'trip', 'startup', 'service'];
 
 const inviteLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 const messageLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });

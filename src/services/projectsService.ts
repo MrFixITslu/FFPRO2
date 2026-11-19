@@ -7,7 +7,7 @@ export interface ServerProject {
   id: string;
   ownerId: string;
   name: string;
-  projectType: 'event' | 'trip' | 'startup';
+  projectType: 'event' | 'trip' | 'startup' | 'service';
   data: any;
   version: number;
   role: ProjectRole;
@@ -43,7 +43,7 @@ export const projectsService = {
   },
 
   /** Promotes a local plan to a shared, multi-user project. Returns the new server id. */
-  async create(name: string, projectType: 'event' | 'trip' | 'startup', data: any): Promise<ServerProject> {
+  async create(name: string, projectType: 'event' | 'trip' | 'startup' | 'service', data: any): Promise<ServerProject> {
     const res = await fetch(BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,6 +67,18 @@ export const projectsService = {
   async remove(id: string): Promise<void> {
     const res = await fetch(`${BASE}/${id}`, { method: 'DELETE', credentials: 'include' });
     await handle(res);
+  },
+
+  /** Review is a server-side transaction with immutable, selected file grants. */
+  async readyForReview(id: string, approvedFileIds: string[]): Promise<{
+    ok:boolean;projectId:string;state:string;duplicate:boolean;
+  }> {
+    const res=await fetch(BASE+'/'+encodeURIComponent(id)+'/ready-for-review',{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({approvedFileIds})
+    });
+    return handle(res);
   },
 
   async getMembers(id: string): Promise<{ members: ProjectMember[]; invites: ProjectInvite[] }> {
